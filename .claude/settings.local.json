@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(rm -f package.json)",
+      "Bash(npx --yes create-vite@latest . --template react-ts --yes)",
+      "Read(//private/tmp/**)",
+      "Bash(npx --yes create-vite@latest aion-temp --template react-ts)",
+      "Bash(cp -r /tmp/aion-temp/* \"/Users/suhan/AION mark01/\")",
+      "Bash(cp /tmp/aion-temp/.gitignore \"/Users/suhan/AION mark01/\")",
+      "Bash(cp /tmp/aion-temp/.eslintrc* \"/Users/suhan/AION mark01/\")",
+      "Bash(rm -rf /tmp/aion-temp)",
+      "Bash(npm install:*)",
+      "Bash(npx shadcn@latest init -d --base-color zinc)",
+      "Bash(npx shadcn@latest init -d)"
+    ]
+  }
+}
