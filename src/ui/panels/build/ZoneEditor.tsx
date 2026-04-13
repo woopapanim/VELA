@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
+import { getZonePolygon } from '@/simulation/engine/transit';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -74,9 +75,15 @@ export function ZoneEditor() {
 
       // When shape changes, reposition gates onto the new polygon boundary
       if (field === 'shape') {
-        const b = zone.bounds;
-        const gates = repositionGatesForShape(zone.gates as any[], b, value as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
-        updateZone(selectedZoneId, { [field]: value, gates } as any);
+        if (value === 'custom') {
+          // Convert to polygon: remove gates, user edits shape first
+          const poly = getZonePolygon(zone as any);
+          updateZone(selectedZoneId, { shape: 'custom', polygon: [...poly], gates: [] } as any);
+        } else {
+          const b = zone.bounds;
+          const gates = repositionGatesForShape(zone.gates as any[], b, value as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
+          updateZone(selectedZoneId, { [field]: value, polygon: null, gates } as any);
+        }
       } else {
         updateZone(selectedZoneId, { [field]: value } as any);
       }
@@ -91,6 +98,50 @@ export function ZoneEditor() {
     const areaM2 = Math.round(zone.bounds.w * zone.bounds.h * scale * scale * 100) / 100;
     updateZone(selectedZoneId, { area: areaM2 } as any);
   }, [selectedZoneId, isLocked, zone, updateZone]);
+
+  const isPolygonEditing = zone?.shape === 'custom' && (!zone.gates || zone.gates.length === 0);
+
+  const handleCompletePolygon = useCallback(() => {
+    if (!selectedZoneId || !zone || !zone.polygon || zone.polygon.length < 3) return;
+    const vts = zone.polygon as { x: number; y: number }[];
+    const floorId = (zone as any).gates?.[0]?.floorId ?? 'floor_1f';
+
+    // Find leftmost and rightmost vertices for entrance/exit gate placement
+    let leftIdx = 0, rightIdx = 0;
+    for (let i = 1; i < vts.length; i++) {
+      if (vts[i].x < vts[leftIdx].x) leftIdx = i;
+      if (vts[i].x > vts[rightIdx].x) rightIdx = i;
+    }
+    // Place gates at midpoint of edges containing those vertices
+    const leftV = vts[leftIdx];
+    const leftNext = vts[(leftIdx + 1) % vts.length];
+    const rightV = vts[rightIdx];
+    const rightNext = vts[(rightIdx + 1) % vts.length];
+
+    const gateIn = {
+      id: `g_poly_${Date.now()}_in`,
+      zoneId: selectedZoneId,
+      floorId,
+      type: 'entrance' as const,
+      position: { x: (leftV.x + leftNext.x) / 2, y: (leftV.y + leftNext.y) / 2 },
+      width: 40,
+      connectedGateId: null,
+      targetFloorId: null,
+      targetGateId: null,
+    };
+    const gateOut = {
+      id: `g_poly_${Date.now()}_out`,
+      zoneId: selectedZoneId,
+      floorId,
+      type: 'exit' as const,
+      position: { x: (rightV.x + rightNext.x) / 2, y: (rightV.y + rightNext.y) / 2 },
+      width: 40,
+      connectedGateId: null,
+      targetFloorId: null,
+      targetGateId: null,
+    };
+    updateZone(selectedZoneId, { gates: [gateIn, gateOut] } as any);
+  }, [selectedZoneId, zone, updateZone]);
 
   const handleDelete = useCallback(() => {
     if (!selectedZoneId || isLocked) return;
@@ -159,7 +210,16 @@ export function ZoneEditor() {
             <option value="l_bottom_left">L (Bottom-Left)</option>
             <option value="l_bottom_right">L (Bottom-Right)</option>
             <option value="o_ring">O-Ring</option>
+            <option value="custom">Polygon (Custom)</option>
           </select>
+          {isPolygonEditing && (
+            <button
+              onClick={handleCompletePolygon}
+              className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+            >
+              ✓ 형태 완료 — Gate 자동 배치
+            </button>
+          )}
         </div>
         <div>
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>

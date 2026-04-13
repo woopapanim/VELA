@@ -18,6 +18,7 @@ export type ZoneShape = (typeof ZONE_SHAPE)[keyof typeof ZONE_SHAPE];
 export const ZONE_TYPE = {
   ENTRANCE: 'entrance',
   EXHIBITION: 'exhibition',
+  CORRIDOR: 'corridor',
   REST: 'rest',
   STAGE: 'stage',
   EXIT: 'exit',

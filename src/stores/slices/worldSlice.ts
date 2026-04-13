@@ -80,7 +80,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     set((s) => {
       // If bounds changed, check overlap with other zones
       if (updates.bounds) {
-        const gap = 5;
+        const gap = 0;
         const nb = updates.bounds;
         const overlaps = s.zones.some((z) => {
           if ((z.id as string) === zoneId) return false;

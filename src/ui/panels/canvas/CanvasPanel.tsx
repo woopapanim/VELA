@@ -27,6 +27,15 @@ function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: 
   return pts.map((p, i) => [p, pts[(i + 1) % pts.length]] as [{x:number;y:number},{x:number;y:number}]);
 }
 
+function ptInPoly(pts: {x:number;y:number}[], px: number, py: number): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+    if (((yi > py) !== (yj > py)) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function closestPointOnSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
   const dx = bx - ax, dy = by - ay;
   const lenSq = dx * dx + dy * dy;
@@ -155,7 +164,7 @@ export function CanvasPanel() {
   // Cache last render dimensions for consistent screenToWorld conversion
   const lastCanvasRect = useRef({ left: 0, top: 0, width: 0, height: 0 });
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
@@ -163,6 +172,12 @@ export function CanvasPanel() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se'>('se');
   const didDrag = useRef(false);
+
+  // Vertex drag state (for custom polygon editing via ZoneEditor)
+  const dragVertexIdx = useRef<number | null>(null);
+  const vertexOriginal = useRef<{x: number; y: number} | null>(null);
+
+  const setEditorMode = useStore((s) => s.setEditorMode);
 
   function getWorldPos(e: React.MouseEvent) {
     if (!managerRef.current || !containerRef.current) return null;
@@ -285,10 +300,12 @@ export function CanvasPanel() {
       // During active simulation: no zone editing (paused = editable)
       if (store.phase === 'running') return;
 
-      // Check resize handle on selected zone first
+      // Check resize handle on selected zone first (skip for custom polygon editing)
       if (store.selectedZoneId) {
         const selZone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
-        if (selZone) {
+        const isPolyEditing = selZone?.shape === 'custom' && (!selZone.gates || selZone.gates.length === 0);
+
+        if (selZone && !isPolyEditing) {
           const corner = hitTestCorner(world, selZone);
           if (corner) {
             store.pushUndo(store.zones, store.media); // save before drag
@@ -301,7 +318,7 @@ export function CanvasPanel() {
         }
 
         // Check L-handle
-        if (selZone && (selZone.shape as string).startsWith('l_')) {
+        if (selZone && !isPolyEditing && (selZone.shape as string).startsWith('l_')) {
           const rx = (selZone as any).lRatioX ?? 0.5;
           const ry = (selZone as any).lRatioY ?? 0.5;
           const lx = selZone.bounds.x + selZone.bounds.w * rx;
@@ -316,17 +333,65 @@ export function CanvasPanel() {
             return;
           }
         }
+
+        // Check custom polygon vertex/edge click (only when no gates = editing mode)
+        const polyEditing = selZone && selZone.shape === 'custom' && selZone.polygon && selZone.polygon.length > 2 && (!selZone.gates || selZone.gates.length === 0);
+        if (polyEditing) {
+          const vts = selZone.polygon as {x:number;y:number}[];
+          // ① Vertex drag
+          for (let vi = 0; vi < vts.length; vi++) {
+            const vx = vts[vi].x - world.x;
+            const vy = vts[vi].y - world.y;
+            if (vx * vx + vy * vy < 64) { // 8px
+              store.pushUndo(store.zones, store.media);
+              dragMode.current = 'vertex';
+              dragZoneId.current = store.selectedZoneId;
+              dragVertexIdx.current = vi;
+              vertexOriginal.current = { x: vts[vi].x, y: vts[vi].y };
+              e.preventDefault();
+              return;
+            }
+          }
+          // ② Edge click → insert vertex + start drag
+          let bestEdge = { dist: Infinity, idx: -1, pt: { x: 0, y: 0 } };
+          for (let vi = 0; vi < vts.length; vi++) {
+            const a = vts[vi], b = vts[(vi + 1) % vts.length];
+            const cp = closestPointOnSeg(world.x, world.y, a.x, a.y, b.x, b.y);
+            const dx = cp.x - world.x, dy = cp.y - world.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < bestEdge.dist) bestEdge = { dist: d, idx: vi, pt: cp };
+          }
+          if (bestEdge.dist <= 6) {
+            store.pushUndo(store.zones, store.media);
+            const newVerts = [...vts];
+            newVerts.splice(bestEdge.idx + 1, 0, { x: bestEdge.pt.x, y: bestEdge.pt.y });
+            const xs = newVerts.map(v => v.x), ys = newVerts.map(v => v.y);
+            const minX = Math.min(...xs), minY = Math.min(...ys);
+            updateZone(store.selectedZoneId!, {
+              polygon: newVerts,
+              bounds: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY },
+            } as any);
+            dragMode.current = 'vertex';
+            dragZoneId.current = store.selectedZoneId;
+            dragVertexIdx.current = bestEdge.idx + 1;
+            vertexOriginal.current = { x: bestEdge.pt.x, y: bestEdge.pt.y };
+            e.preventDefault();
+            return;
+          }
+        }
       }
 
-      // Check gate click for drag (only on selected zone's gates)
-      if (store.selectedZoneId) {
+      // Check gate click for drag (skip for custom polygon in select mode — gates edited in Flow mode)
+      const selZoneForGate = store.selectedZoneId ? store.zones.find((z) => (z.id as string) === store.selectedZoneId) : null;
+      const skipGateDrag = editorMode === 'select' && selZoneForGate?.shape === 'custom';
+      if (store.selectedZoneId && !skipGateDrag) {
         const selZone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
         if (selZone) {
           for (const gate of selZone.gates) {
             const dx = (gate.position as any).x - world.x;
             const dy = (gate.position as any).y - world.y;
-            if (dx * dx + dy * dy < 100) { // ~10px radius
-              store.pushUndo(store.zones, store.media); // save before drag
+            if (dx * dx + dy * dy < 100) {
+              store.pushUndo(store.zones, store.media);
               dragMode.current = 'gate';
               dragZoneId.current = selZone.id as string;
               dragGateId.current = gate.id as string;
@@ -393,24 +458,33 @@ export function CanvasPanel() {
         }
       }
 
-      // Check zone body click for move
+      // Check zone body click for move (use polygon hit-test for custom shapes)
       const clicked = store.zones.find((z) => {
+        if (z.shape === 'custom' && z.polygon && z.polygon.length > 2) {
+          return ptInPoly(z.polygon as {x:number;y:number}[], world.x, world.y);
+        }
         const b = z.bounds;
         return world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h;
       });
       if (clicked) {
-        store.pushUndo(store.zones, store.media); // save before move drag
-        dragMode.current = 'move';
-        dragZoneId.current = clicked.id as string;
-        dragOffset.current = { x: world.x - clicked.bounds.x, y: world.y - clicked.bounds.y };
-        selectZone(clicked.id as string);
-        e.preventDefault();
+        const isNewSelection = (clicked.id as string) !== store.selectedZoneId;
+        if (isNewSelection && clicked.shape === 'custom') {
+          // Custom polygon: first click = select only (no move drag)
+          selectZone(clicked.id as string);
+          e.preventDefault();
+        } else {
+          store.pushUndo(store.zones, store.media);
+          dragMode.current = 'move';
+          dragZoneId.current = clicked.id as string;
+          dragOffset.current = { x: world.x - clicked.bounds.x, y: world.y - clicked.bounds.y };
+          selectZone(clicked.id as string);
+          e.preventDefault();
+        }
       } else {
-        // Empty space click — deselect only, no undo push
         selectZone(null);
       }
     }
-  }, [editorMode, selectZone]);
+  }, [editorMode, selectZone, setEditorMode]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (didDrag.current) return;
@@ -438,6 +512,7 @@ export function CanvasPanel() {
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const mode = dragMode.current;
+
     if (mode === 'pan' && managerRef.current) {
       const dx = e.clientX - lastMouse.current.x;
       const dy = e.clientY - lastMouse.current.y;
@@ -473,7 +548,26 @@ export function CanvasPanel() {
               const lhdx = world.x - lhx, lhdy = world.y - lhy;
               if (lhdx * lhdx + lhdy * lhdy < 150) { el.style.cursor = 'crosshair'; hitLHandle = true; }
             }
-            if (!hitLHandle) {
+            // Custom polygon vertex/edge hover (only in editing mode — no gates)
+            let hitVertex = false;
+            let hitEdge = false;
+            const polyEditHover = !hitLHandle && sel.shape === 'custom' && sel.polygon && sel.polygon.length > 2 && (!sel.gates || sel.gates.length === 0);
+            if (polyEditHover) {
+              const vts = sel.polygon as {x:number;y:number}[];
+              for (const pv of vts) {
+                const pvdx = world.x - pv.x, pvdy = world.y - pv.y;
+                if (pvdx * pvdx + pvdy * pvdy < 64) { el.style.cursor = 'crosshair'; hitVertex = true; break; }
+              }
+              if (!hitVertex) {
+                for (let vi = 0; vi < vts.length; vi++) {
+                  const a = vts[vi], b = vts[(vi + 1) % vts.length];
+                  const cp = closestPointOnSeg(world.x, world.y, a.x, a.y, b.x, b.y);
+                  const dx = cp.x - world.x, dy = cp.y - world.y;
+                  if (Math.sqrt(dx * dx + dy * dy) <= 6) { el.style.cursor = 'cell'; hitEdge = true; break; }
+                }
+              }
+            }
+            if (!hitLHandle && !hitVertex && !hitEdge) {
               // Gate hover
               let onGate = false;
               for (const g of sel.gates) {
@@ -511,7 +605,7 @@ export function CanvasPanel() {
     // Check if a rect overlaps any other zone (excluding the dragged zone)
     const overlapsOtherZone = (rect: { x: number; y: number; w: number; h: number }, excludeId: string) => {
       const store = useStore.getState();
-      const gap = 5;
+      const gap = 0;
       return store.zones.some((z) => {
         if ((z.id as string) === excludeId) return false;
         const b = z.bounds;
@@ -533,9 +627,14 @@ export function CanvasPanel() {
         ...g,
         position: { x: g.position.x + dx, y: g.position.y + dy },
       }));
+      // Move polygon vertices with zone
+      const movedPolygon = zone.polygon
+        ? (zone.polygon as {x:number;y:number}[]).map(v => ({ x: v.x + dx, y: v.y + dy }))
+        : null;
       updateZone(dragZoneId.current, {
         bounds: newBounds,
         gates: movedGates,
+        ...(movedPolygon ? { polygon: movedPolygon } : {}),
       } as any);
       // Move media with zone
       const currentMedia = useStore.getState().media;
@@ -597,6 +696,17 @@ export function CanvasPanel() {
         const angle = Math.atan2(world.y - cy, world.x - cx);
         gx = cx + Math.cos(angle) * r;
         gy = cy + Math.sin(angle) * r;
+      } else if (sh === 'custom' && zone.polygon && zone.polygon.length > 2) {
+        // Custom polygon: snap gate to polygon edges
+        const vts = zone.polygon as {x:number;y:number}[];
+        let bestDist = Infinity;
+        gx = world.x; gy = world.y;
+        for (let vi = 0; vi < vts.length; vi++) {
+          const a = vts[vi], b2 = vts[(vi + 1) % vts.length];
+          const cp = closestPointOnSeg(world.x, world.y, a.x, a.y, b2.x, b2.y);
+          const d = (cp.x - world.x) ** 2 + (cp.y - world.y) ** 2;
+          if (d < bestDist) { bestDist = d; gx = cp.x; gy = cp.y; }
+        }
       } else {
         // Build edge segments for the shape
         const edges = getZoneEdges(b, sh, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
@@ -634,6 +744,29 @@ export function CanvasPanel() {
       else if (shape === 'l_bottom_left') { leftMid = { x: b.x, y: b.y + by / 2 }; rightMid = { x: b.x + b.w, y: b.y + b.h / 2 }; }
       const updatedGates = zone.gates.map((g: any, i: number) => ({ ...g, position: i === 0 ? leftMid : rightMid }));
       updateZone(dragZoneId.current, { lRatioX: rx, lRatioY: ry, gates: updatedGates } as any);
+      didDrag.current = true;
+    } else if (mode === 'vertex' && dragZoneId.current && dragVertexIdx.current !== null) {
+      const vIdx = dragVertexIdx.current;
+      const poly = zone.polygon;
+      if (poly && vIdx < poly.length) {
+        const snappedX = snap(world.x);
+        const snappedY = snap(world.y);
+        const newPoly = poly.map((v, i) =>
+          i === vIdx ? { x: snappedX, y: snappedY } : { x: v.x, y: v.y }
+        );
+        // Recompute bounds
+        let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+        for (const v of newPoly) {
+          if (v.x < mnX) mnX = v.x;
+          if (v.y < mnY) mnY = v.y;
+          if (v.x > mxX) mxX = v.x;
+          if (v.y > mxY) mxY = v.y;
+        }
+        updateZone(dragZoneId.current, {
+          polygon: newPoly,
+          bounds: { x: mnX, y: mnY, w: mxX - mnX, h: mxY - mnY },
+        } as any);
+      }
       didDrag.current = true;
     } else if (mode === 'media-resize' && dragMediaId.current) {
       const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
@@ -687,13 +820,15 @@ export function CanvasPanel() {
       }
       didDrag.current = true;
     }
-  }, [setCamera, updateZone]);
+  }, [setCamera, updateZone, editorMode]);
 
   const handleMouseUp = useCallback(() => {
     dragMode.current = 'none';
     dragZoneId.current = null;
     dragGateId.current = null;
     dragMediaId.current = null;
+    dragVertexIdx.current = null;
+    vertexOriginal.current = null;
   }, []);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -728,7 +863,7 @@ export function CanvasPanel() {
     } else {
       setFollowAgent(null);
     }
-  }, [setFollowAgent]);
+  }, [setFollowAgent, editorMode, setEditorMode]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

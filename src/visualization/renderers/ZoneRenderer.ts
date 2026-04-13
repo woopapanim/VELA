@@ -102,25 +102,41 @@ export function renderZones(
     ctx.lineWidth = isSelected ? 2 : 1;
     ctx.stroke();
 
-    // Resize handles (selected zone only)
+    // Resize/vertex handles (selected zone only)
     if (isSelected) {
-      const handleSize = 6;
       const handleColor = isDark ? '#60a5fa' : '#2563eb';
-      const corners = [
-        { x: bounds.x, y: bounds.y },
-        { x: bounds.x + bounds.w, y: bounds.y },
-        { x: bounds.x, y: bounds.y + bounds.h },
-        { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
-      ];
-      for (const c of corners) {
-        ctx.fillStyle = handleColor;
-        ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+
+      const polyEditMode = shape === 'custom' && polygon && polygon.length > 2 && (!zone.gates || zone.gates.length === 0);
+      if (polyEditMode) {
+        // Polygon editing: vertex handles only (no rect resize handles)
+        for (const v of polygon) {
+          ctx.beginPath();
+          ctx.arc(v.x, v.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff';
+          ctx.fill();
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      } else if (shape !== 'custom') {
+        // Rect/L/other: corner resize handles
+        const handleSize = 6;
+        const corners = [
+          { x: bounds.x, y: bounds.y },
+          { x: bounds.x + bounds.w, y: bounds.y },
+          { x: bounds.x, y: bounds.y + bounds.h },
+          { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
+        ];
+        for (const c of corners) {
+          ctx.fillStyle = handleColor;
+          ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+        }
+        ctx.font = '8px "JetBrains Mono", monospace';
+        ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`${bounds.w}×${bounds.h}`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4);
       }
-      ctx.font = '8px "JetBrains Mono", monospace';
-      ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(`${bounds.w}×${bounds.h}`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4);
 
       // L-shape inner corner handle
       if (shape.startsWith('l_')) {

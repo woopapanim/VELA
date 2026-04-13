@@ -552,9 +552,9 @@ export class SimulationEngine {
       }
     }
 
-    // ── 3. Reached exit gate of current zone → start transit ──
+    // ── 3. Reached exit gate of current zone → step through gate to next zone ──
     if (v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId) {
-      return this.startTransit(v);
+      return this.transitThroughGate(v);
     }
 
     // ── 4. In target zone already → pick next ──
@@ -648,6 +648,44 @@ export class SimulationEngine {
       transitWaypointIdx: 0,
       steering: { ...v.steering, isArrived: false },
     };
+  }
+
+  /**
+   * Gate chaining: step through gate to next zone in multi-hop path.
+   * Agent snaps to the connected entry gate position and enters the next zone.
+   * Falls back to startTransit() if no gate path exists.
+   */
+  private transitThroughGate(v: Visitor): Visitor {
+    const path = this.zoneGraph.findPath(v.currentZoneId!, v.targetZoneId!);
+    if (!path || path.length < 2) return this.startTransit(v);
+
+    const nextZoneId = path[1];
+
+    // Change zone ownership — preserve speed, redirect toward next target
+    const updated: Visitor = {
+      ...v,
+      currentZoneId: nextZoneId,
+      steering: { ...v.steering, isArrived: false },
+      visitedZoneIds: !v.visitedZoneIds.includes(nextZoneId)
+        ? [...v.visitedZoneIds, nextZoneId]
+        : v.visitedZoneIds,
+    };
+
+    // Redirect velocity: keep current speed, point toward next target
+    const nextTarget = this.getTargetPosition(updated);
+    if (nextTarget) {
+      const speed = Math.sqrt(v.velocity.x * v.velocity.x + v.velocity.y * v.velocity.y);
+      if (speed > 0.1) {
+        const dx = nextTarget.x - v.position.x;
+        const dy = nextTarget.y - v.position.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.1) {
+          return { ...updated, velocity: { x: (dx / len) * speed, y: (dy / len) * speed } };
+        }
+      }
+    }
+
+    return updated;
   }
 
   /**
@@ -964,10 +1002,11 @@ export class SimulationEngine {
         }
       }
 
-      // In last zone + media all done (or no media) → walk to exit gate, then deactivate outside
+      // In last zone + media all done (or no media) → walk to exit gate, then off-canvas
       if (isInLastZone) {
         const exitGatePos = this.gatePosition(curZone, 'exit');
-        const outside = this.pushOutward(exitGatePos, curZone, 15);
+        // Push far enough to walk off the visible canvas
+        const outside = this.pushOutward(exitGatePos, curZone, 150);
         return {
           ...v,
           currentZoneId: null, // leaving zone
@@ -1122,15 +1161,24 @@ export class SimulationEngine {
     const target = this.getTargetPosition(v);
 
     if (target && v.steering.activeBehavior !== STEERING_BEHAVIOR.WANDER) {
-      // Arrival force
-      outputs.push({ output: arrival(v.position, target, v.profile.maxSpeed, v.velocity, physics.arrivalSlowRadius, physics.arrivalRadius), weight: 1.0 });
-
-      // Arrival check
       const dx = target.x - v.position.x, dy = target.y - v.position.y;
-      // All arrivals use the same tight radius
-      const r = physics.arrivalRadius;
-      if (dx * dx + dy * dy < r * r) {
-        return { ...v, steering: { ...v.steering, isArrived: true }, velocity: { x: 0, y: 0 } };
+      const distSq = dx * dx + dy * dy;
+      const headingToGate = !!(v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId);
+
+      if (headingToGate) {
+        // Gate transit: seek at constant speed, no deceleration
+        const dist = Math.sqrt(distSq);
+        if (dist < 10) {
+          return { ...v, steering: { ...v.steering, isArrived: true } };
+        }
+        const desired = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
+        outputs.push({ output: { linear: { x: desired.x - v.velocity.x, y: desired.y - v.velocity.y }, angular: 0 }, weight: 1.0 });
+      } else {
+        // Normal arrival with deceleration
+        outputs.push({ output: arrival(v.position, target, v.profile.maxSpeed, v.velocity, physics.arrivalSlowRadius, physics.arrivalRadius), weight: 1.0 });
+        if (distSq < physics.arrivalRadius * physics.arrivalRadius) {
+          return { ...v, steering: { ...v.steering, isArrived: true }, velocity: { x: 0, y: 0 } };
+        }
       }
     } else {
       const { steering: ws, newWanderAngle } = wander(v.velocity, v.steering.wanderAngle, physics, (this.rng.next() - 0.5) * physics.wanderJitter * dtS);
@@ -1138,13 +1186,12 @@ export class SimulationEngine {
       return { ...v, steering: { ...v.steering, wanderAngle: newWanderAngle } };
     }
 
-    // Wall avoidance — only when inside a zone (not during transit)
+    // Wall avoidance
     if (v.currentZoneId && v.transitWaypoints.length === 0) {
+      // Inside a zone: avoid zone walls + media obstacles
       const zone = this.zoneMap.get(v.currentZoneId as string);
       if (zone) {
-        // Zone walls
         const walls = getZoneWalls(zone);
-        // Media obstacle walls in this zone (skip the media agent is targeting)
         const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
         if (zoneMedia) {
           for (const m of zoneMedia) {
@@ -1227,8 +1274,7 @@ export class SimulationEngine {
         }
       }
     }
-    // Transit (currentZoneId = null): agent follows waypoints freely
-    // Zone wall-passing during transit is handled by routeAroundZones waypoint planning
+    // Transit (currentZoneId = null): only during EXIT — agent follows waypoints to canvas edge
 
     // Media obstacle collision — push agent outside media (rect or circle, skip target)
     if (v.currentZoneId) {

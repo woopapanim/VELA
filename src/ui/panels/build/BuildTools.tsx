@@ -9,6 +9,7 @@ import { BackgroundUpload } from './BackgroundUpload';
 const ZONE_TYPES = [
   { type: 'entrance', label: 'Entrance', color: '#22c55e' },
   { type: 'exhibition', label: 'Exhibition', color: '#3b82f6' },
+  { type: 'corridor', label: 'Corridor', color: '#64748b' },
   { type: 'rest', label: 'Rest', color: '#f59e0b' },
   { type: 'stage', label: 'Stage', color: '#a855f7' },
   { type: 'exit', label: 'Exit', color: '#ef4444' },

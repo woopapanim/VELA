@@ -52,6 +52,19 @@ export function renderGates(
         const cx = b.x + b.w / 2;
         const cy = b.y + b.h / 2;
         angle = Math.atan2(gy - cy, gx - cx) + Math.PI / 2;
+      } else if (zone.shape === 'custom' && zone.polygon && zone.polygon.length > 2) {
+        // Custom polygon: find closest polygon edge
+        const vts = zone.polygon as Pt[];
+        let bestDist = Infinity;
+        for (let i = 0; i < vts.length; i++) {
+          const a = vts[i], e = vts[(i + 1) % vts.length];
+          const cp = closestPt(gx, gy, a.x, a.y, e.x, e.y);
+          const d = (cp.x - gx) ** 2 + (cp.y - gy) ** 2;
+          if (d < bestDist) {
+            bestDist = d;
+            angle = Math.atan2(e.y - a.y, e.x - a.x);
+          }
+        }
       } else {
         // Find closest edge and use its angle
         const edges = getShapeEdges(b, zone.shape as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
