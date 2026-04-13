@@ -1,13 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-    --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-heading: 'Inter', var(--font-sans);
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* shadcn color bindings */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +42,8 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+
+    /* Bento-Observatory radius system */
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -48,83 +53,337 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ============================================
+   LIGHT MODE — "Studio"
+   Clean, professional analysis studio
+   ============================================ */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    /* Base surfaces */
+    --background: #f4f4f5;
+    --foreground: #18181b;
+    --card: #ffffff;
+    --card-foreground: #18181b;
+    --popover: #ffffff;
+    --popover-foreground: #18181b;
+
+    /* Bento Box surface */
+    --surface: #ffffff;
+    --surface-secondary: #f4f4f5;
+    --surface-elevated: #ffffff;
+
+    /* Primary */
+    --primary: #2563eb;
+    --primary-foreground: #ffffff;
+
+    /* Secondary */
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+
+    /* Muted */
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+
+    /* Accent */
+    --accent: #f4f4f5;
+    --accent-foreground: #18181b;
+
+    /* Destructive */
+    --destructive: #ef4444;
+
+    /* Borders */
+    --border: #e4e4e7;
+    --border-subtle: #f4f4f5;
+    --input: #e4e4e7;
+    --ring: #2563eb;
+
+    /* Radius — rounded-xl (12px) for Bento boxes */
+    --radius: 0.75rem;
+
+    /* Charts */
+    --chart-1: #3b82f6;
+    --chart-2: #22c55e;
+    --chart-3: #f59e0b;
+    --chart-4: #a855f7;
+    --chart-5: #ef4444;
+
+    /* Sidebar */
+    --sidebar: #fafafa;
+    --sidebar-foreground: #18181b;
+    --sidebar-primary: #2563eb;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #f4f4f5;
+    --sidebar-accent-foreground: #18181b;
+    --sidebar-border: #e4e4e7;
+    --sidebar-ring: #2563eb;
+
+    /* ---- AION Custom Tokens ---- */
+
+    /* Density Color Scale (Cold → Hot) */
+    --density-0: #1e3a5f;
+    --density-1: #2563eb;
+    --density-2: #22d3ee;
+    --density-3: #4ade80;
+    --density-4: #facc15;
+    --density-5: #f97316;
+    --density-6: #ef4444;
+    --density-7: #dc2626;
+
+    /* Heatmap Spectral (Light: Soft Gaussian) */
+    --heatmap-cold: #00cccc;
+    --heatmap-mid: #00cc52;
+    --heatmap-hot: #cc0028;
+
+    /* Status */
+    --status-success: #22c55e;
+    --status-warning: #f59e0b;
+    --status-danger: #ef4444;
+    --status-info: #3b82f6;
+
+    /* Shadow for Bento boxes */
+    --bento-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+/* ============================================
+   DARK MODE — "Observatory"
+   Futuristic data command center
+   ============================================ */
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    /* Base surfaces */
+    --background: #09090b;
+    --foreground: #fafafa;
+    --card: #141417;
+    --card-foreground: #fafafa;
+    --popover: #141417;
+    --popover-foreground: #fafafa;
+
+    /* Bento Box surface */
+    --surface: #141417;
+    --surface-secondary: #1c1c20;
+    --surface-elevated: #1f1f23;
+
+    /* Primary */
+    --primary: #3b82f6;
+    --primary-foreground: #ffffff;
+
+    /* Secondary */
+    --secondary: #27272a;
+    --secondary-foreground: #fafafa;
+
+    /* Muted */
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+
+    /* Accent */
+    --accent: #27272a;
+    --accent-foreground: #fafafa;
+
+    /* Destructive */
+    --destructive: #ef4444;
+
+    /* Borders */
+    --border: #27272a;
+    --border-subtle: #1f1f23;
+    --input: #27272a;
+    --ring: #3b82f6;
+
+    /* Radius */
+    --radius: 0.75rem;
+
+    /* Charts */
+    --chart-1: #60a5fa;
+    --chart-2: #4ade80;
+    --chart-3: #fbbf24;
+    --chart-4: #c084fc;
+    --chart-5: #f87171;
+
+    /* Sidebar */
+    --sidebar: #141417;
+    --sidebar-foreground: #fafafa;
+    --sidebar-primary: #3b82f6;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #27272a;
+    --sidebar-accent-foreground: #fafafa;
+    --sidebar-border: #27272a;
+    --sidebar-ring: #3b82f6;
+
+    /* ---- AION Custom Tokens ---- */
+
+    /* Density Color Scale (same across themes) */
+    --density-0: #1e3a5f;
+    --density-1: #2563eb;
+    --density-2: #22d3ee;
+    --density-3: #4ade80;
+    --density-4: #facc15;
+    --density-5: #f97316;
+    --density-6: #ef4444;
+    --density-7: #dc2626;
+
+    /* Heatmap Spectral (Dark: Thermal Neon) */
+    --heatmap-cold: #00ffff;
+    --heatmap-mid: #00ff64;
+    --heatmap-hot: #ff0032;
+
+    /* Status */
+    --status-success: #4ade80;
+    --status-warning: #fbbf24;
+    --status-danger: #f87171;
+    --status-info: #60a5fa;
+
+    /* Shadow for Bento boxes */
+    --bento-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
+    * {
+        @apply border-border outline-ring/50;
     }
-  body {
-    @apply bg-background text-foreground;
+    body {
+        @apply bg-background text-foreground;
+        font-family: 'Inter', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }
-  html {
-    @apply font-sans;
+    html {
+        @apply font-sans;
     }
+
+    /* Scrollbar styling */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+    }
+    *::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    *::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 3px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+        background: var(--muted-foreground);
+    }
+}
+
+/* ---- Bento Box utility ---- */
+@layer utilities {
+    .bento-box {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--bento-shadow);
+    }
+
+    .bento-box-elevated {
+        background: var(--surface-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--bento-shadow);
+    }
+
+    /* Glassmorphism for floating panels/modals */
+    .glass {
+        background: rgba(255, 255, 255, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Micro-glow for buttons and active agents */
+    .micro-glow {
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
+    }
+    .micro-glow-success {
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
+    }
+    .micro-glow-danger {
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+    }
+
+    /* Data typography */
+    .font-data {
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+    }
+}
+
+/* ── Range Slider (Dark Observatory theme) ── */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+}
+
+/* Track */
+input[type="range"]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+}
+input[type="range"]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    border: none;
+}
+
+/* Thumb */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--background);
+    margin-top: -5px;
+    box-shadow: 0 0 0 1px var(--primary), 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--background);
+    box-shadow: 0 0 0 1px var(--primary), 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Hover / Active states */
+input[type="range"]:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--primary), 0 0 8px rgba(59, 130, 246, 0.4);
+}
+input[type="range"]:hover::-moz-range-thumb {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px var(--primary), 0 0 8px rgba(59, 130, 246, 0.4);
+}
+input[type="range"]:active::-webkit-slider-thumb {
+    transform: scale(1.05);
+}
+input[type="range"]:active::-moz-range-thumb {
+    transform: scale(1.05);
+}
+
+/* Disabled */
+input[type="range"]:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+input[type="range"]:disabled::-webkit-slider-thumb {
+    background: var(--muted-foreground);
+    box-shadow: none;
+}
+input[type="range"]:disabled::-moz-range-thumb {
+    background: var(--muted-foreground);
+    box-shadow: none;
+}
+
+/* Focus ring for accessibility */
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
 }

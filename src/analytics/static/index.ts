@@ -1,0 +1,1 @@
+export { analyzeStaticDensity } from './densityAnalysis';

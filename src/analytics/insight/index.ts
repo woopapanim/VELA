@@ -1,0 +1,1 @@
+export { generateInsights } from './InsightEngine';
