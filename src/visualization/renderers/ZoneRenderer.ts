@@ -13,13 +13,20 @@ export function renderZones(
 ) {
   _zoneAnimFrame++;
 
-  // Pre-compute occupancy per zone
+  // Pre-compute occupancy per zone (position-based: count visitors physically inside bounds)
   const occupancy = new Map<string, number>();
   if (visitors) {
-    for (const v of visitors) {
-      if (!v.isActive || !v.currentZoneId) continue;
-      const key = v.currentZoneId as string;
-      occupancy.set(key, (occupancy.get(key) ?? 0) + 1);
+    for (const zone of zones) {
+      const b = zone.bounds;
+      let count = 0;
+      for (const v of visitors) {
+        if (!v.isActive) continue;
+        if (v.position.x >= b.x && v.position.x <= b.x + b.w &&
+            v.position.y >= b.y && v.position.y <= b.y + b.h) {
+          count++;
+        }
+      }
+      if (count > 0) occupancy.set(zone.id as string, count);
     }
   }
 

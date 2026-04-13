@@ -108,6 +108,7 @@ export function CanvasPanel() {
       const container = containerRef.current;
       if (manager && container) {
         const rect = container.getBoundingClientRect();
+        lastCanvasRect.current = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
         if (rect.width > 0 && rect.height > 0) {
           const store = useStore.getState();
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
@@ -151,6 +152,9 @@ export function CanvasPanel() {
   const updateMedia = useStore((s) => s.updateMedia);
   const editorMode = useStore((s) => s.editorMode);
 
+  // Cache last render dimensions for consistent screenToWorld conversion
+  const lastCanvasRect = useRef({ left: 0, top: 0, width: 0, height: 0 });
+
   type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
@@ -162,9 +166,13 @@ export function CanvasPanel() {
 
   function getWorldPos(e: React.MouseEvent) {
     if (!managerRef.current || !containerRef.current) return null;
+    // Use fresh rect for position but cached dimensions for transform consistency
     const rect = containerRef.current.getBoundingClientRect();
+    const cached = lastCanvasRect.current;
+    const w = cached.width || rect.width;
+    const h = cached.height || rect.height;
     return managerRef.current.camera.screenToWorld(
-      e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height,
+      e.clientX - rect.left, e.clientY - rect.top, w, h,
     );
   }
 
