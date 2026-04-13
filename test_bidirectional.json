@@ -1,0 +1,471 @@
+{
+  "meta": {
+    "id": "test_bidir_001",
+    "name": "Bidirectional Test",
+    "description": "Testing bidirectional gates",
+    "version": 2,
+    "parentId": null,
+    "tags": [],
+    "createdAt": 1776000000000,
+    "updatedAt": 1776000000000
+  },
+  "floors": [
+    {
+      "id": "floor_1f",
+      "name": "1F",
+      "level": 0,
+      "canvas": {
+        "width": 1200,
+        "height": 800,
+        "gridSize": 40,
+        "backgroundImage": null,
+        "scale": 0.025
+      },
+      "zoneIds": [
+        "z_user_100",
+        "z_user_101",
+        "z_user_102",
+        "z_user_103",
+        "z_user_104",
+        "z_user_105"
+      ],
+      "metadata": {}
+    }
+  ],
+  "zones": [
+    {
+      "id": "z_user_100",
+      "name": "Entrance 101",
+      "type": "entrance",
+      "shape": "rect",
+      "bounds": {
+        "x": 100,
+        "y": 100,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_100",
+          "zoneId": "z_user_100",
+          "floorId": "floor_1f",
+          "type": "entrance",
+          "position": {
+            "x": 100,
+            "y": 160
+          },
+          "width": 40,
+          "connectedGateId": null,
+          "targetFloorId": null,
+          "targetGateId": null
+        },
+        {
+          "id": "g_101",
+          "zoneId": "z_user_100",
+          "floorId": "floor_1f",
+          "type": "exit",
+          "position": {
+            "x": 250,
+            "y": 160
+          },
+          "width": 40,
+          "connectedGateId": "g_102",
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [],
+      "color": "#22c55e",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_101",
+      "name": "Exhibition 102",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 280,
+        "y": 100,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_102",
+          "zoneId": "z_user_101",
+          "floorId": "floor_1f",
+          "type": "bidirectional",
+          "position": {
+            "x": 280,
+            "y": 160
+          },
+          "width": 40,
+          "connectedGateId": "g_101",
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [
+        "m_102_1",
+        "m_102_2"
+      ],
+      "color": "#3b82f6",
+      "attractiveness": 0.7,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_102",
+      "name": "Exhibition 103",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 540,
+        "y": 230,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_104",
+          "zoneId": "z_user_102",
+          "floorId": "floor_1f",
+          "type": "bidirectional",
+          "position": {
+            "x": 540,
+            "y": 290
+          },
+          "width": 40,
+          "connectedGateId": "g_103",
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [
+        "m_103_1",
+        "m_103_2"
+      ],
+      "color": "#3b82f6",
+      "attractiveness": 0.8,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_103",
+      "name": "Exhibition 104",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 350,
+        "y": 380,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_106",
+          "zoneId": "z_user_103",
+          "floorId": "floor_1f",
+          "type": "bidirectional",
+          "position": {
+            "x": 500,
+            "y": 430
+          },
+          "width": 40,
+          "connectedGateId": "g_105",
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [
+        "m_104_1",
+        "m_104_2"
+      ],
+      "color": "#3b82f6",
+      "attractiveness": 0.9,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_104",
+      "name": "Rest 105",
+      "type": "rest",
+      "shape": "rect",
+      "bounds": {
+        "x": 370,
+        "y": 590,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_108",
+          "zoneId": "z_user_104",
+          "floorId": "floor_1f",
+          "type": "bidirectional",
+          "position": {
+            "x": 450,
+            "y": 590
+          },
+          "width": 40,
+          "connectedGateId": "g_107",
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [],
+      "color": "#f59e0b",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_105",
+      "name": "Exit 106",
+      "type": "exit",
+      "shape": "rect",
+      "bounds": {
+        "x": 110,
+        "y": 560,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [
+        {
+          "id": "g_110",
+          "zoneId": "z_user_105",
+          "floorId": "floor_1f",
+          "type": "entrance",
+          "position": {
+            "x": 260,
+            "y": 620
+          },
+          "width": 40,
+          "connectedGateId": "g_109",
+          "targetFloorId": null,
+          "targetGateId": null
+        },
+        {
+          "id": "g_111",
+          "zoneId": "z_user_105",
+          "floorId": "floor_1f",
+          "type": "exit",
+          "position": {
+            "x": 180,
+            "y": 680
+          },
+          "width": 40,
+          "connectedGateId": null,
+          "targetFloorId": null,
+          "targetGateId": null
+        }
+      ],
+      "mediaIds": [],
+      "color": "#ef4444",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    }
+  ],
+  "media": [
+    {
+      "id": "m_102_1",
+      "type": "led_wall",
+      "zoneId": "z_user_101",
+      "position": {
+        "x": 315,
+        "y": 130
+      },
+      "size": {
+        "width": 40,
+        "height": 20
+      },
+      "orientation": 180,
+      "capacity": 10,
+      "avgEngagementTimeMs": 30000,
+      "attractiveness": 0.8
+    },
+    {
+      "id": "m_102_2",
+      "type": "touchscreen_kiosk",
+      "zoneId": "z_user_101",
+      "position": {
+        "x": 390,
+        "y": 150
+      },
+      "size": {
+        "width": 20,
+        "height": 20
+      },
+      "orientation": 180,
+      "capacity": 3,
+      "avgEngagementTimeMs": 60000,
+      "attractiveness": 0.7
+    },
+    {
+      "id": "m_103_1",
+      "type": "projection",
+      "zoneId": "z_user_102",
+      "position": {
+        "x": 575,
+        "y": 255
+      },
+      "size": {
+        "width": 40,
+        "height": 20
+      },
+      "orientation": 180,
+      "capacity": 15,
+      "avgEngagementTimeMs": 45000,
+      "attractiveness": 0.9
+    },
+    {
+      "id": "m_103_2",
+      "type": "interactive_table",
+      "zoneId": "z_user_102",
+      "position": {
+        "x": 650,
+        "y": 270
+      },
+      "size": {
+        "width": 30,
+        "height": 30
+      },
+      "orientation": 0,
+      "capacity": 6,
+      "avgEngagementTimeMs": 90000,
+      "attractiveness": 0.85
+    },
+    {
+      "id": "m_104_1",
+      "type": "vr_booth",
+      "zoneId": "z_user_103",
+      "position": {
+        "x": 385,
+        "y": 410
+      },
+      "size": {
+        "width": 30,
+        "height": 30
+      },
+      "orientation": 0,
+      "capacity": 2,
+      "avgEngagementTimeMs": 120000,
+      "attractiveness": 0.95
+    },
+    {
+      "id": "m_104_2",
+      "type": "ar_station",
+      "zoneId": "z_user_103",
+      "position": {
+        "x": 460,
+        "y": 410
+      },
+      "size": {
+        "width": 25,
+        "height": 25
+      },
+      "orientation": 0,
+      "capacity": 4,
+      "avgEngagementTimeMs": 60000,
+      "attractiveness": 0.8
+    }
+  ],
+  "visitorDistribution": {
+    "totalCount": 200,
+    "profileWeights": {
+      "general": 60,
+      "vip": 15,
+      "child": 10,
+      "elderly": 10,
+      "disabled": 5
+    },
+    "engagementWeights": {
+      "quick": 30,
+      "explorer": 40,
+      "immersive": 30
+    },
+    "groupRatio": 0.3,
+    "spawnRatePerSecond": 2
+  },
+  "simulationConfig": {
+    "fixedDeltaTime": 16.666666666666668,
+    "duration": 3600000,
+    "timeScale": 3,
+    "maxVisitors": 500,
+    "seed": 59681,
+    "physics": {
+      "maxSpeed": 120,
+      "maxAcceleration": 200,
+      "arrivalRadius": 30,
+      "arrivalSlowRadius": 80,
+      "avoidanceRadius": 20,
+      "separationStrength": 1.5,
+      "wanderRadius": 40,
+      "wanderJitter": 0.3,
+      "obstacleAvoidanceLookahead": 60,
+      "groupCohesionStrength": 1,
+      "groupCohesionRadius": 80,
+      "followerSeekWeight": 2,
+      "followerArrivalRadius": 40
+    },
+    "skipThreshold": {
+      "skipMultiplier": 1,
+      "maxWaitTimeMs": 120000,
+      "skipCooldownMs": 5000
+    },
+    "timeSlots": [
+      {
+        "startTimeMs": 0,
+        "endTimeMs": 3600000,
+        "spawnRatePerSecond": 2,
+        "profileDistribution": {
+          "general": 60,
+          "vip": 15,
+          "child": 10,
+          "elderly": 10,
+          "disabled": 5
+        },
+        "engagementDistribution": {
+          "quick": 30,
+          "explorer": 40,
+          "immersive": 30
+        },
+        "groupRatio": 0.3
+      }
+    ]
+  },
+  "globalFlowMode": "free"
+}

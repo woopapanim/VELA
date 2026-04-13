@@ -89,6 +89,20 @@ export function MediaEditor() {
         />
       </div>
 
+      {/* Shape */}
+      <div>
+        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Shape</label>
+        <select
+          value={(m as any).shape || 'rect'}
+          onChange={(e) => handleUpdate('shape', e.target.value)}
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+        >
+          <option value="rect">Rectangle</option>
+          <option value="circle">Circle</option>
+        </select>
+      </div>
+
       {/* Interaction Type */}
       <div>
         <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
@@ -100,8 +114,25 @@ export function MediaEditor() {
         >
           <option value="passive">Passive (관람형)</option>
           <option value="active">Active (체험형)</option>
+          <option value="staged">Staged (회차형)</option>
         </select>
       </div>
+
+      {/* Stage Interval (staged only) */}
+      {(m as any).interactionType === 'staged' && (
+        <div>
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+          <input type="number" step="10" min="10"
+            value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
+            onChange={(e) => handleUpdate('stageIntervalMs', (parseInt(e.target.value) || 60) * 1000)}
+            disabled={isLocked}
+            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          />
+          <p className="text-[8px] text-muted-foreground mt-0.5">
+            Viewers enter in groups every interval. Session = engagement time.
+          </p>
+        </div>
+      )}
 
       {/* Capacity */}
       <div className="grid grid-cols-2 gap-2">

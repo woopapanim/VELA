@@ -61,21 +61,37 @@ export function renderMedia(
     else if (ratio >= 0.7) bodyColor = isDark ? 'rgba(250,204,21,0.15)' : 'rgba(250,204,21,0.1)';
     else bodyColor = isDark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.1)';
 
+    const isCircle = (m as any).shape === 'circle';
+    const circleR = Math.max(pw, ph) / 2;
+
     ctx.fillStyle = bodyColor;
-    ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+    if (isCircle) {
+      ctx.beginPath();
+      ctx.arc(0, 0, circleR, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+    }
 
     // Border
     ctx.strokeStyle = isSelected
       ? (isDark ? '#3b82f6' : '#2563eb')
       : (isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)');
     ctx.lineWidth = isSelected ? 1.5 : 0.8;
-    ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
+    if (isCircle) {
+      ctx.beginPath();
+      ctx.arc(0, 0, circleR, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
+    }
 
     // ── Front indicator (orientation arrow) ──
+    const edgeDist = isCircle ? circleR : ph / 2;
     ctx.beginPath();
-    ctx.moveTo(-pw / 4, -ph / 2);
-    ctx.lineTo(0, -ph / 2 - 5);
-    ctx.lineTo(pw / 4, -ph / 2);
+    ctx.moveTo(-pw / 4, -edgeDist);
+    ctx.lineTo(0, -edgeDist - 5);
+    ctx.lineTo(pw / 4, -edgeDist);
     ctx.fillStyle = isDark ? 'rgba(59,130,246,0.5)' : 'rgba(37,99,235,0.4)';
     ctx.fill();
 
@@ -90,10 +106,15 @@ export function renderMedia(
     ctx.fillText(name, 0, 0);
 
     // ── Type badge (passive/active) ──
+    const isStaged = (m as any).interactionType === 'staged';
     if (isActive) {
       ctx.font = '6px "JetBrains Mono", monospace';
       ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
       ctx.fillText('ACTIVE', 0, fontSize * 0.8);
+    } else if (isStaged) {
+      ctx.font = '6px "JetBrains Mono", monospace';
+      ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
+      ctx.fillText('STAGED', 0, fontSize * 0.8);
     }
 
     ctx.restore();

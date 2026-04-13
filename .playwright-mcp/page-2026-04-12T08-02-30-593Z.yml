@@ -1,0 +1,241 @@
+- generic [ref=e34]:
+  - banner [ref=e35]:
+    - generic [ref=e36]:
+      - heading "AION mark01" [level=1] [ref=e37]
+      - generic [ref=e38]: ABOARD INTERACTIVE
+    - generic [ref=e39]:
+      - button "Help" [ref=e40]:
+        - img [ref=e41]
+      - button "Toggle theme" [ref=e44]:
+        - img [ref=e45]
+  - generic [ref=e51]:
+    - complementary [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - heading "Project" [level=2] [ref=e55]
+          - generic [ref=e56]:
+            - generic [ref=e57]:
+              - button "New" [ref=e58]:
+                - img [ref=e59]
+                - text: New
+              - button "Save" [ref=e60]:
+                - img [ref=e61]
+                - text: Save
+              - button "JSON 파일 열기" [ref=e65]:
+                - img [ref=e66]
+            - generic [ref=e68]:
+              - textbox "Project name" [ref=e69]: Bidirectional Test
+              - button "↗" [ref=e70]
+            - generic [ref=e71]:
+              - paragraph [ref=e72]:
+                - img [ref=e73]
+                - text: Recent
+              - generic [ref=e77] [cursor=pointer]:
+                - generic [ref=e78]:
+                  - paragraph [ref=e79]: New Project
+                  - paragraph [ref=e80]: 16h ago
+                - button [ref=e81]:
+                  - img [ref=e82]
+        - generic [ref=e85]:
+          - heading "Simulation" [level=2] [ref=e86]
+          - generic [ref=e87]:
+            - generic [ref=e88]:
+              - button "Start" [ref=e89]:
+                - img [ref=e90]
+                - text: Start
+              - button [ref=e92]:
+                - img [ref=e93]
+            - generic [ref=e95]:
+              - generic [ref=e96]:
+                - generic [ref=e97]: Phase
+                - generic [ref=e98]: IDLE
+              - generic [ref=e99]:
+                - generic [ref=e100]: Elapsed
+                - generic [ref=e101]: 00:00
+              - generic [ref=e102]:
+                - generic [ref=e103]: Active Agents
+                - generic [ref=e104]: "0"
+              - generic [ref=e105]:
+                - generic [ref=e106]: Tick
+                - generic [ref=e107]: "0"
+        - generic [ref=e108]:
+          - heading "Build" [level=2] [ref=e109]
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - button "Select" [ref=e112]:
+                - img [ref=e113]
+                - text: Select
+              - button "Zone" [ref=e115]:
+                - img [ref=e116]
+                - text: Zone
+              - button "Flow" [ref=e117]:
+                - img [ref=e118]
+                - text: Flow
+              - button "Media" [ref=e122]:
+                - img [ref=e123]
+                - text: Media
+            - generic [ref=e125]:
+              - paragraph [ref=e126]: Floor Plan Overlay
+              - button "Upload CAD/Image" [ref=e128]:
+                - img [ref=e129]
+                - text: Upload CAD/Image
+        - generic [ref=e133]:
+          - heading "Zones (0)" [level=2] [ref=e134]
+          - paragraph [ref=e136]: Load a scenario or add zones
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - paragraph [ref=e140]: Quick Presets
+            - generic [ref=e141]:
+              - button "Rush Hour 높은 유입률, 빠른 관람자 위주" [ref=e142]:
+                - img [ref=e143]
+                - generic [ref=e145]:
+                  - paragraph [ref=e146]: Rush Hour
+                  - paragraph [ref=e147]: 높은 유입률, 빠른 관람자 위주
+              - button "Steady Flow 균일한 유입, 균형 잡힌 프로필" [ref=e148]:
+                - img [ref=e149]
+                - generic [ref=e152]:
+                  - paragraph [ref=e153]: Steady Flow
+                  - paragraph [ref=e154]: 균일한 유입, 균형 잡힌 프로필
+              - button "VIP Event VIP 중심, 몰입형 관람자 다수" [ref=e155]:
+                - img [ref=e156]
+                - generic [ref=e158]:
+                  - paragraph [ref=e159]: VIP Event
+                  - paragraph [ref=e160]: VIP 중심, 몰입형 관람자 다수
+              - button "Family Day 가족 단위, 높은 그룹 비율" [ref=e161]:
+                - img [ref=e162]
+                - generic [ref=e167]:
+                  - paragraph [ref=e168]: Family Day
+                  - paragraph [ref=e169]: 가족 단위, 높은 그룹 비율
+          - generic [ref=e170]:
+            - paragraph [ref=e171]:
+              - img [ref=e172]
+              - text: Visitor Settings
+            - generic [ref=e177]:
+              - generic [ref=e178]:
+                - text: Max Visitors
+                - spinbutton [ref=e179]: "500"
+              - generic [ref=e180]:
+                - text: Spawn Rate /min
+                - spinbutton [ref=e181]: "120"
+              - generic [ref=e182]:
+                - text: Duration (min)
+                - spinbutton [ref=e183]: "60"
+              - generic [ref=e184]:
+                - generic [ref=e185]:
+                  - text: Seed
+                  - spinbutton [ref=e186]: "14115"
+                - button "🎲 Randomize" [ref=e187]
+          - generic [ref=e188]:
+            - paragraph [ref=e189]: Profile Mix
+            - generic [ref=e190]:
+              - generic [ref=e191]:
+                - generic [ref=e192]: general
+                - slider [ref=e193] [cursor=pointer]: "60"
+                - generic [ref=e194]: 60%
+              - generic [ref=e195]:
+                - generic [ref=e196]: vip
+                - slider [ref=e197] [cursor=pointer]: "15"
+                - generic [ref=e198]: 15%
+              - generic [ref=e199]:
+                - generic [ref=e200]: child
+                - slider [ref=e201] [cursor=pointer]: "10"
+                - generic [ref=e202]: 10%
+              - generic [ref=e203]:
+                - generic [ref=e204]: elderly
+                - slider [ref=e205] [cursor=pointer]: "10"
+                - generic [ref=e206]: 10%
+              - generic [ref=e207]:
+                - generic [ref=e208]: disabled
+                - slider [ref=e209] [cursor=pointer]: "5"
+                - generic [ref=e210]: 5%
+          - generic [ref=e211]:
+            - paragraph [ref=e212]: Engagement Mix
+            - generic [ref=e213]:
+              - generic [ref=e214]:
+                - generic [ref=e215]: quick
+                - slider [ref=e216] [cursor=pointer]: "30"
+                - generic [ref=e217]: 30%
+              - generic [ref=e218]:
+                - generic [ref=e219]: explorer
+                - slider [ref=e220] [cursor=pointer]: "40"
+                - generic [ref=e221]: 40%
+              - generic [ref=e222]:
+                - generic [ref=e223]: immersive
+                - slider [ref=e224] [cursor=pointer]: "30"
+                - generic [ref=e225]: 30%
+          - generic [ref=e226]:
+            - generic [ref=e227]:
+              - generic [ref=e228]: Group Ratio
+              - generic [ref=e229]: 30%
+            - slider [ref=e230] [cursor=pointer]: "0.3"
+          - generic [ref=e231]:
+            - generic [ref=e232]:
+              - paragraph [ref=e233]: Time Slots (1)
+              - button [ref=e234]:
+                - img [ref=e235]
+            - generic [ref=e238]: 2/s
+            - generic [ref=e239]:
+              - generic [ref=e241]: "Slot 1: 0m — 60m"
+              - generic [ref=e242]:
+                - generic [ref=e243]:
+                  - text: Start (m)
+                  - spinbutton [ref=e244]: "0"
+                - generic [ref=e245]:
+                  - text: End (m)
+                  - spinbutton [ref=e246]: "60"
+                - generic [ref=e247]:
+                  - text: Rate /s
+                  - spinbutton [ref=e248]: "2"
+    - main [ref=e249]:
+      - button "1F" [ref=e251]
+      - generic [ref=e255]:
+        - button "Grid" [ref=e256]:
+          - img [ref=e257]
+        - button "Gates" [ref=e259]:
+          - img [ref=e260]
+        - button "Labels" [ref=e262]:
+          - img [ref=e263]
+        - generic [ref=e266]: 100%
+    - complementary [ref=e267]:
+      - generic [ref=e268]:
+        - generic [ref=e269]:
+          - heading "Analytics" [level=2] [ref=e270]
+          - generic [ref=e271]:
+            - generic [ref=e272]:
+              - generic [ref=e273]: "0"
+              - generic [ref=e274]: Visitors
+            - generic [ref=e275]:
+              - generic [ref=e276]: "0"
+              - generic [ref=e277]: Zones
+            - generic [ref=e278]:
+              - generic [ref=e279]: 0m 0s
+              - generic [ref=e280]: Elapsed
+            - generic [ref=e281]:
+              - generic [ref=e282]: idle
+              - generic [ref=e283]: Phase
+        - generic [ref=e284]:
+          - heading "Agent Distribution" [level=2] [ref=e285]
+          - generic [ref=e286]:
+            - generic [ref=e287]:
+              - generic [ref=e288]: IDLE
+              - generic [ref=e290]: "0"
+            - generic [ref=e291]:
+              - generic [ref=e292]: MOVING
+              - generic [ref=e294]: "0"
+            - generic [ref=e295]:
+              - generic [ref=e296]: WATCHING
+              - generic [ref=e298]: "0"
+            - generic [ref=e299]:
+              - generic [ref=e300]: WAITING
+              - generic [ref=e302]: "0"
+            - generic [ref=e303]:
+              - generic [ref=e304]: EXITING
+              - generic [ref=e306]: "0"
+        - generic [ref=e307]:
+          - heading "Heatmap" [level=2] [ref=e308]
+          - generic [ref=e310]:
+            - generic [ref=e311]: Cold
+            - generic [ref=e312]: Hot
+        - generic [ref=e313]:
+          - heading "Insights" [level=2] [ref=e314]
+          - paragraph [ref=e315]: Start simulation to see real-time insights

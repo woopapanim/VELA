@@ -1,0 +1,562 @@
+- generic [ref=e18]:
+  - banner [ref=e19]:
+    - generic [ref=e20]:
+      - heading "AION mark01" [level=1] [ref=e21]
+      - generic [ref=e22]: ABOARD INTERACTIVE
+    - generic [ref=e23]:
+      - generic [ref=e432]:
+        - img [ref=e433]
+        - generic [ref=e436]: 00:03
+        - img [ref=e437]
+        - generic [ref=e439]: 6 agents
+      - button "Help" [ref=e24]:
+        - img [ref=e25]
+      - button "Toggle theme" [ref=e28]:
+        - img [ref=e29]
+  - generic [ref=e35]:
+    - complementary [ref=e36]:
+      - generic [ref=e37]:
+        - generic [ref=e38]:
+          - heading "Project" [level=2] [ref=e39]
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - button "New" [disabled] [ref=e42]:
+                - img [ref=e43]
+                - text: New
+              - button "Save" [ref=e44]:
+                - img [ref=e45]
+                - text: Save
+              - button [ref=e49]:
+                - img [ref=e50]
+            - generic [ref=e52]:
+              - textbox "Project name" [ref=e53]: AION Demo Exhibition
+              - generic [ref=e54]: v1
+              - button "↗" [ref=e55]
+        - generic [ref=e56]:
+          - heading "Simulation" [level=2] [ref=e57]
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - button "Pause" [ref=e440]:
+                - img [ref=e441]
+                - text: Pause
+              - button [ref=e444]:
+                - img [ref=e445]
+              - button [ref=e63]:
+                - img [ref=e64]
+            - generic [ref=e447]:
+              - generic [ref=e448]: Speed
+              - button "1x" [ref=e449]
+              - button "3x" [ref=e450]
+              - button "5x" [ref=e451]
+              - button "10x" [ref=e452]
+            - generic [ref=e453]:
+              - button "Step" [disabled] [ref=e454]:
+                - img [ref=e455]
+                - text: Step
+              - button "Screenshot" [ref=e457]:
+                - img [ref=e458]
+                - text: Screenshot
+              - button [ref=e461]:
+                - img [ref=e462]
+            - generic [ref=e66]:
+              - generic [ref=e67]:
+                - generic [ref=e68]: Phase
+                - generic [ref=e69]: RUNNING
+              - generic [ref=e70]:
+                - generic [ref=e71]: Elapsed
+                - generic [ref=e72]: 00:03
+              - generic [ref=e73]:
+                - generic [ref=e74]: Active Agents
+                - generic [ref=e75]: "6"
+              - generic [ref=e76]:
+                - generic [ref=e77]: Tick
+                - generic [ref=e78]: "185"
+        - generic [ref=e468]:
+          - heading "Replay (3 frames)" [level=2] [ref=e469]
+          - button "Enter Replay" [ref=e470]
+        - generic [ref=e79]:
+          - heading "Build" [level=2] [ref=e80]
+          - generic [ref=e82]:
+            - button "Select" [ref=e83]:
+              - img [ref=e84]
+              - text: Select
+            - button "Zone" [disabled] [ref=e86]:
+              - img [ref=e87]
+              - text: Zone
+            - button "Flow" [disabled] [ref=e88]:
+              - img [ref=e89]
+              - text: Flow
+            - button "Media" [disabled] [ref=e93]:
+              - img [ref=e94]
+              - text: Media
+        - generic [ref=e104]:
+          - heading "Zones (11)" [level=2] [ref=e105]
+          - generic [ref=e106]:
+            - generic [ref=e107] [cursor=pointer]:
+              - generic [ref=e108]:
+                - button "▲" [disabled] [ref=e109]
+                - button "▼" [disabled] [ref=e110]
+              - generic [ref=e112]: Entrance
+              - generic [ref=e113]: ⬆entrance
+            - generic [ref=e114] [cursor=pointer]:
+              - generic [ref=e115]:
+                - button "▲" [disabled] [ref=e116]
+                - button "▼" [ref=e117]
+              - generic [ref=e119]: Exhibition Hall A
+              - generic [ref=e120]: exhibition
+            - generic [ref=e121] [cursor=pointer]:
+              - generic [ref=e122]:
+                - button "▲" [ref=e123]
+                - button "▼" [ref=e124]
+              - generic [ref=e126]: Exhibition Hall B
+              - generic [ref=e127]: exhibition
+            - generic [ref=e128] [cursor=pointer]:
+              - generic [ref=e129]:
+                - button "▲" [ref=e130]
+                - button "▼" [ref=e131]
+              - generic [ref=e133]: Interactive Zone
+              - generic [ref=e134]: exhibition
+            - generic [ref=e135] [cursor=pointer]:
+              - generic [ref=e136]:
+                - button "▲" [ref=e137]
+                - button "▼" [ref=e138]
+              - generic [ref=e140]: Main Stage
+              - generic [ref=e141]: ⟶
+              - generic [ref=e142]: stage
+            - generic [ref=e143] [cursor=pointer]:
+              - generic [ref=e144]:
+                - button "▲" [ref=e145]
+                - button "▼" [disabled] [ref=e146]
+              - generic [ref=e148]: Rest Area
+              - generic [ref=e149]: rest
+            - generic [ref=e150] [cursor=pointer]:
+              - generic [ref=e151]:
+                - button "▲" [disabled] [ref=e152]
+                - button "▼" [disabled] [ref=e153]
+              - generic [ref=e155]: Exit
+              - generic [ref=e156]: ⬇exit
+            - generic [ref=e157] [cursor=pointer]:
+              - generic [ref=e158]:
+                - button "▲" [ref=e159]
+                - button "▼" [ref=e160]
+              - generic [ref=e162]: 2F Lobby
+              - generic [ref=e163]: exhibition
+            - generic [ref=e164] [cursor=pointer]:
+              - generic [ref=e165]:
+                - button "▲" [ref=e166]
+                - button "▼" [ref=e167]
+              - generic [ref=e169]: Premium Gallery
+              - generic [ref=e170]: →
+              - generic [ref=e171]: exhibition
+            - generic [ref=e172] [cursor=pointer]:
+              - generic [ref=e173]:
+                - button "▲" [ref=e174]
+                - button "▼" [disabled] [ref=e175]
+              - generic [ref=e177]: VIP Lounge
+              - generic [ref=e178]: rest
+            - generic [ref=e179] [cursor=pointer]:
+              - generic [ref=e180]:
+                - button "▲" [disabled] [ref=e181]
+                - button "▼" [disabled] [ref=e182]
+              - generic [ref=e184]: 2F Exit
+              - generic [ref=e185]: ⬇exit
+          - paragraph [ref=e186]: ↕ 관람 순서 변경 (Entrance/Exit 고정)
+        - generic [ref=e188]:
+          - generic [ref=e189]:
+            - paragraph [ref=e190]: Quick Presets
+            - generic [ref=e191]:
+              - button "Rush Hour 높은 유입률, 빠른 관람자 위주" [disabled] [ref=e192]:
+                - img [ref=e193]
+                - generic [ref=e195]:
+                  - paragraph [ref=e196]: Rush Hour
+                  - paragraph [ref=e197]: 높은 유입률, 빠른 관람자 위주
+              - button "Steady Flow 균일한 유입, 균형 잡힌 프로필" [disabled] [ref=e198]:
+                - img [ref=e199]
+                - generic [ref=e202]:
+                  - paragraph [ref=e203]: Steady Flow
+                  - paragraph [ref=e204]: 균일한 유입, 균형 잡힌 프로필
+              - button "VIP Event VIP 중심, 몰입형 관람자 다수" [disabled] [ref=e205]:
+                - img [ref=e206]
+                - generic [ref=e208]:
+                  - paragraph [ref=e209]: VIP Event
+                  - paragraph [ref=e210]: VIP 중심, 몰입형 관람자 다수
+              - button "Family Day 가족 단위, 높은 그룹 비율" [disabled] [ref=e211]:
+                - img [ref=e212]
+                - generic [ref=e217]:
+                  - paragraph [ref=e218]: Family Day
+                  - paragraph [ref=e219]: 가족 단위, 높은 그룹 비율
+          - generic [ref=e220]:
+            - paragraph [ref=e221]:
+              - img [ref=e222]
+              - text: Visitor Settings
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - text: Max Visitors
+                - spinbutton [disabled] [ref=e229]: "500"
+              - generic [ref=e230]:
+                - text: Spawn Rate /s
+                - spinbutton [disabled] [ref=e231]: "2"
+              - generic [ref=e232]:
+                - text: Duration (min)
+                - spinbutton [disabled] [ref=e233]: "60"
+              - generic [ref=e235]:
+                - text: Seed
+                - spinbutton [disabled] [ref=e236]: "42"
+          - generic [ref=e238]:
+            - paragraph [ref=e239]: Profile Mix
+            - generic [ref=e240]:
+              - generic [ref=e241]:
+                - generic [ref=e242]: general
+                - slider [disabled] [ref=e243]: "60"
+                - generic [ref=e244]: "60"
+              - generic [ref=e245]:
+                - generic [ref=e246]: vip
+                - slider [disabled] [ref=e247]: "15"
+                - generic [ref=e248]: "15"
+              - generic [ref=e249]:
+                - generic [ref=e250]: child
+                - slider [disabled] [ref=e251]: "10"
+                - generic [ref=e252]: "10"
+              - generic [ref=e253]:
+                - generic [ref=e254]: elderly
+                - slider [disabled] [ref=e255]: "10"
+                - generic [ref=e256]: "10"
+              - generic [ref=e257]:
+                - generic [ref=e258]: disabled
+                - slider [disabled] [ref=e259]: "5"
+                - generic [ref=e260]: "5"
+          - generic [ref=e261]:
+            - paragraph [ref=e262]: Engagement Mix
+            - generic [ref=e263]:
+              - generic [ref=e264]:
+                - generic [ref=e265]: quick
+                - slider [disabled] [ref=e266]: "30"
+                - generic [ref=e267]: "30"
+              - generic [ref=e268]:
+                - generic [ref=e269]: explorer
+                - slider [disabled] [ref=e270]: "40"
+                - generic [ref=e271]: "40"
+              - generic [ref=e272]:
+                - generic [ref=e273]: immersive
+                - slider [disabled] [ref=e274]: "30"
+                - generic [ref=e275]: "30"
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - generic [ref=e278]: Group Ratio
+              - generic [ref=e279]: 30%
+            - slider [disabled] [ref=e280]: "0.3"
+          - generic [ref=e281]:
+            - paragraph [ref=e283]: Time Slots (2)
+            - generic [ref=e286]:
+              - generic [ref=e288]: 2/s
+              - generic [ref=e290]: 1/s
+            - generic [ref=e291]:
+              - generic [ref=e293]: "Slot 1: 0m — 30m"
+              - generic [ref=e298]:
+                - generic [ref=e299]:
+                  - text: Start (m)
+                  - spinbutton [disabled] [ref=e300]: "0"
+                - generic [ref=e301]:
+                  - text: End (m)
+                  - spinbutton [disabled] [ref=e302]: "30"
+                - generic [ref=e303]:
+                  - text: Rate /s
+                  - spinbutton [disabled] [ref=e304]: "2"
+            - generic [ref=e305]:
+              - generic [ref=e307]: "Slot 2: 30m — 60m"
+              - generic [ref=e312]:
+                - generic [ref=e313]:
+                  - text: Start (m)
+                  - spinbutton [disabled] [ref=e314]: "30"
+                - generic [ref=e315]:
+                  - text: End (m)
+                  - spinbutton [disabled] [ref=e316]: "60"
+                - generic [ref=e317]:
+                  - text: Rate /s
+                  - spinbutton [disabled] [ref=e318]: "1"
+    - main [ref=e319]:
+      - generic [ref=e320]:
+        - button "1F" [ref=e321]
+        - button "2F" [ref=e322]
+      - generic [ref=e324]:
+        - generic [ref=e472]: 3x ⚡
+        - generic [ref=e326]:
+          - button "Grid" [ref=e327]:
+            - img [ref=e328]
+          - button "Gates" [ref=e330]:
+            - img [ref=e331]
+          - button "Labels" [ref=e333]:
+            - img [ref=e334]
+          - generic [ref=e337]: 176%
+        - generic [ref=e480]:
+          - generic [ref=e481]:
+            - generic [ref=e482]:
+              - text: 00:03
+              - generic [ref=e483]: / 60:00
+            - generic [ref=e484]: 6 active
+          - generic [ref=e485]:
+            - generic [ref=e486]: Tick 185
+            - generic [ref=e487]: 0%
+    - complementary [ref=e338]:
+      - generic [ref=e339]:
+        - generic [ref=e340]:
+          - heading "Analytics" [level=2] [ref=e341]
+          - generic [ref=e342]:
+            - generic [ref=e343]:
+              - generic [ref=e344]: "6"
+              - generic [ref=e345]: Visitors
+            - generic [ref=e346]:
+              - generic [ref=e347]: "11"
+              - generic [ref=e348]: Zones
+            - generic [ref=e349]:
+              - generic [ref=e350]: 0m 3s
+              - generic [ref=e351]: Elapsed
+            - generic [ref=e352]:
+              - generic [ref=e353]: running
+              - generic [ref=e354]: Phase
+        - generic [ref=e488]:
+          - heading "Live KPI" [level=2] [ref=e489]
+          - generic [ref=e490]:
+            - generic [ref=e491]:
+              - generic [ref=e492]: 6%
+              - generic [ref=e493]: Avg Fatigue
+            - generic [ref=e494]:
+              - generic [ref=e495]: 0.0/m
+              - generic [ref=e496]: Throughput
+            - generic [ref=e497]:
+              - generic [ref=e498]: Entrance
+              - generic [ref=e499]: Peak Zone
+            - generic [ref=e500]:
+              - generic [ref=e501]: 20%
+              - generic [ref=e502]: Peak Load
+        - generic [ref=e355]:
+          - heading "Agent Distribution" [level=2] [ref=e356]
+          - generic [ref=e357]:
+            - generic [ref=e358]:
+              - generic [ref=e359]: IDLE
+              - generic [ref=e361]: "0"
+            - generic [ref=e362]:
+              - generic [ref=e363]: MOVING
+              - generic [ref=e365]: "6"
+            - generic [ref=e366]:
+              - generic [ref=e367]: WATCHING
+              - generic [ref=e369]: "0"
+            - generic [ref=e370]:
+              - generic [ref=e371]: WAITING
+              - generic [ref=e373]: "0"
+            - generic [ref=e374]:
+              - generic [ref=e375]: EXITING
+              - generic [ref=e377]: "0"
+        - generic [ref=e504]:
+          - heading "Live Dashboard" [level=2] [ref=e505]
+          - generic [ref=e506]:
+            - generic [ref=e507]:
+              - generic [ref=e508]:
+                - generic [ref=e509]: Active
+                - generic [ref=e510]: "6"
+              - img [ref=e511]
+            - generic [ref=e513]:
+              - generic [ref=e514]:
+                - generic [ref=e515]: Watching
+                - generic [ref=e516]: "0"
+              - img [ref=e517]
+            - generic [ref=e518]:
+              - generic [ref=e519]:
+                - generic [ref=e520]: Peak Util
+                - generic [ref=e521]: 20%
+              - img [ref=e522]
+            - generic [ref=e524]:
+              - generic [ref=e525]:
+                - generic [ref=e526]: Fatigue
+                - generic [ref=e527]: 6%
+              - img [ref=e528]
+        - generic [ref=e530]:
+          - heading "Trend" [level=2] [ref=e531]
+          - img [ref=e533]
+          - generic [ref=e534]:
+            - generic [ref=e537]: Peak Util %
+            - generic [ref=e540]: Fatigue %
+            - generic [ref=e543]: Visitors
+        - generic [ref=e544]:
+          - heading "Zone Distribution" [level=2] [ref=e545]
+          - generic [ref=e546]:
+            - img [ref=e547]:
+              - generic [ref=e549]: "6"
+            - generic [ref=e551]:
+              - generic [ref=e553]: Entrance
+              - generic [ref=e554]: "6"
+              - generic [ref=e555]: 100%
+        - generic [ref=e556]:
+          - heading "Zone Ranking" [level=2] [ref=e557]
+          - table [ref=e558]:
+            - rowgroup [ref=e559]:
+              - row "Zone Occ Util% m²/p" [ref=e560]:
+                - columnheader "Zone" [ref=e561] [cursor=pointer]:
+                  - text: Zone
+                  - img [ref=e562]
+                - columnheader "Occ" [ref=e565] [cursor=pointer]:
+                  - text: Occ
+                  - img [ref=e566]
+                - columnheader "Util%" [ref=e569] [cursor=pointer]:
+                  - text: Util%
+                  - img [ref=e570]
+                - columnheader "m²/p" [ref=e573] [cursor=pointer]:
+                  - text: m²/p
+                  - img [ref=e574]
+            - rowgroup [ref=e577]:
+              - row "Entrance 6/30 20% 4.0" [ref=e578] [cursor=pointer]:
+                - cell "Entrance" [ref=e579]:
+                  - generic [ref=e582]: Entrance
+                - cell "6/30" [ref=e583]
+                - cell "20%" [ref=e584]
+                - cell "4.0" [ref=e585]
+              - row "Exhibition Hall A 0/75 0% —" [ref=e586] [cursor=pointer]:
+                - cell "Exhibition Hall A" [ref=e587]:
+                  - generic [ref=e590]: Exhibition Hall A
+                - cell "0/75" [ref=e591]
+                - cell "0%" [ref=e592]
+                - cell "—" [ref=e593]
+              - row "Exhibition Hall B 0/70 0% —" [ref=e594] [cursor=pointer]:
+                - cell "Exhibition Hall B" [ref=e595]:
+                  - generic [ref=e598]: Exhibition Hall B
+                - cell "0/70" [ref=e599]
+                - cell "0%" [ref=e600]
+                - cell "—" [ref=e601]
+              - row "Interactive Zone 0/40 0% —" [ref=e602] [cursor=pointer]:
+                - cell "Interactive Zone" [ref=e603]:
+                  - generic [ref=e606]: Interactive Zone
+                - cell "0/40" [ref=e607]
+                - cell "0%" [ref=e608]
+                - cell "—" [ref=e609]
+              - row "Main Stage 0/80 0% —" [ref=e610] [cursor=pointer]:
+                - cell "Main Stage" [ref=e611]:
+                  - generic [ref=e614]: Main Stage
+                - cell "0/80" [ref=e615]
+                - cell "0%" [ref=e616]
+                - cell "—" [ref=e617]
+              - row "Rest Area 0/25 0% 75.0" [ref=e618] [cursor=pointer]:
+                - cell "Rest Area" [ref=e619]:
+                  - generic [ref=e622]: Rest Area
+                - cell "0/25" [ref=e623]
+                - cell "0%" [ref=e624]
+                - cell "75.0" [ref=e625]
+              - row "Exit 0/40 0% 75.0" [ref=e626] [cursor=pointer]:
+                - cell "Exit" [ref=e627]:
+                  - generic [ref=e630]: Exit
+                - cell "0/40" [ref=e631]
+                - cell "0%" [ref=e632]
+                - cell "75.0" [ref=e633]
+              - row "2F Lobby 0/40 0% —" [ref=e634] [cursor=pointer]:
+                - cell "2F Lobby" [ref=e635]:
+                  - generic [ref=e638]: 2F Lobby
+                - cell "0/40" [ref=e639]
+                - cell "0%" [ref=e640]
+                - cell "—" [ref=e641]
+              - row "Premium Gallery 0/60 0% —" [ref=e642] [cursor=pointer]:
+                - cell "Premium Gallery" [ref=e643]:
+                  - generic [ref=e646]: Premium Gallery
+                - cell "0/60" [ref=e647]
+                - cell "0%" [ref=e648]
+                - cell "—" [ref=e649]
+              - row "VIP Lounge 0/20 0% —" [ref=e650] [cursor=pointer]:
+                - cell "VIP Lounge" [ref=e651]:
+                  - generic [ref=e654]: VIP Lounge
+                - cell "0/20" [ref=e655]
+                - cell "0%" [ref=e656]
+                - cell "—" [ref=e657]
+              - row "2F Exit 0/30 0% 56.0" [ref=e658] [cursor=pointer]:
+                - cell "2F Exit" [ref=e659]:
+                  - generic [ref=e662]: 2F Exit
+                - cell "0/30" [ref=e663]
+                - cell "0%" [ref=e664]
+                - cell "56.0" [ref=e665]
+        - generic [ref=e666]:
+          - heading "Zone Utilization" [level=2] [ref=e667]
+          - generic [ref=e669]:
+            - generic [ref=e671]: Entrance
+            - generic [ref=e674]: 6/30
+        - generic [ref=e675]:
+          - heading "Visitor Profiles" [level=2] [ref=e676]
+          - generic [ref=e677]:
+            - generic [ref=e678]:
+              - generic [ref=e680]: "4"
+              - generic [ref=e681]: General
+            - generic [ref=e682]:
+              - generic [ref=e684]: "1"
+              - generic [ref=e685]: VIP
+            - generic [ref=e686]:
+              - generic [ref=e688]: "1"
+              - generic [ref=e689]: Child
+          - paragraph [ref=e690]: Engagement
+          - generic [ref=e691]:
+            - generic [ref=e692]:
+              - generic [ref=e694]: 33%
+              - generic [ref=e695]: Quick
+            - generic [ref=e696]:
+              - generic [ref=e698]: 17%
+              - generic [ref=e699]: Explorer
+            - generic [ref=e700]:
+              - generic [ref=e702]: 50%
+              - generic [ref=e703]: Immersive
+          - generic [ref=e704]:
+            - generic [ref=e705]: In Groups
+            - generic [ref=e706]: 0 / 6 (0%)
+        - generic [ref=e378]:
+          - heading "Heatmap" [level=2] [ref=e379]
+          - generic [ref=e381]:
+            - generic [ref=e382]: Cold
+            - generic [ref=e383]: Hot
+        - generic [ref=e707]:
+          - heading "Time Spent Distribution" [level=2] [ref=e708]
+          - generic [ref=e712]:
+            - generic [ref=e713]:
+              - paragraph [ref=e714]: "6"
+              - paragraph [ref=e715]: 0m
+            - generic [ref=e716]:
+              - paragraph [ref=e717]: "0"
+              - paragraph [ref=e718]: 1m
+            - generic [ref=e719]:
+              - paragraph [ref=e720]: "0"
+              - paragraph [ref=e721]: 2m
+            - generic [ref=e722]:
+              - paragraph [ref=e723]: "0"
+              - paragraph [ref=e724]: 3m
+            - generic [ref=e725]:
+              - paragraph [ref=e726]: "0"
+              - paragraph [ref=e727]: 4m
+            - generic [ref=e728]:
+              - paragraph [ref=e729]: "0"
+              - paragraph [ref=e730]: 5m
+            - generic [ref=e731]:
+              - paragraph [ref=e732]: "0"
+              - paragraph [ref=e733]: 6m
+            - generic [ref=e734]:
+              - paragraph [ref=e735]: "0"
+              - paragraph [ref=e736]: 7m
+          - paragraph [ref=e737]: 6 visitors · avg 0.0m
+        - generic [ref=e384]:
+          - heading "Zone Graph" [level=2] [ref=e385]
+          - img [ref=e386]:
+            - generic [ref=e396]:
+              - generic [ref=e398]: Entrance
+              - generic [ref=e738]: "6"
+            - generic [ref=e401]: Exhibition
+            - generic [ref=e404]: Exhibition
+            - generic [ref=e407]: Interactiv
+            - generic [ref=e410]: Main Stage
+            - generic [ref=e413]: Rest Area
+            - generic [ref=e416]: Exit
+            - generic [ref=e419]: 2F Lobby
+            - generic [ref=e422]: Premium Ga
+            - generic [ref=e425]: VIP Lounge
+            - generic [ref=e428]: 2F Exit
+        - generic [ref=e429]:
+          - heading "Insights" [level=2] [ref=e430]
+          - paragraph [ref=e431]: Collecting data...
+  - generic [ref=e739]:
+    - generic [ref=e740]: AION Demo Exhibition
+    - generic [ref=e741]: 6 active
+    - generic [ref=e742]: 0 watching
+    - generic [ref=e743]: fatigue 6%
+    - generic [ref=e744]: peak 20%
+    - generic [ref=e745]: 11 zones · 13 media

@@ -1,0 +1,20 @@
+{
+  "meta": { "id": "test_free", "name": "Free Mode Test", "description": "", "version": 1, "parentId": null, "tags": [], "createdAt": 1000000, "updatedAt": 1000000 },
+  "floors": [{ "id": "floor_1f", "name": "1F", "level": 0, "canvas": { "width": 1200, "height": 800, "gridSize": 40, "backgroundImage": null, "scale": 0.025 }, "zoneIds": [], "metadata": {} }],
+  "zones": [
+    { "id": "z_entrance", "name": "Entrance", "type": "entrance", "shape": "rect", "bounds": { "x": 50, "y": 350, "w": 160, "h": 120 }, "polygon": null, "area": 24, "capacity": 50, "flowType": "free", "gates": [{ "id": "g_ent_out", "zoneId": "z_entrance", "floorId": "floor_1f", "type": "exit", "position": { "x": 210, "y": 410 }, "width": 40, "connectedGateId": null, "targetFloorId": null, "targetGateId": null }], "mediaIds": [], "color": "#22c55e", "attractiveness": 0.5, "metadata": {} },
+    { "id": "z_exh1", "name": "Exhibition A", "type": "exhibition", "shape": "rect", "bounds": { "x": 280, "y": 200, "w": 200, "h": 160 }, "polygon": null, "area": 50, "capacity": 30, "flowType": "free", "gates": [{ "id": "g_exh1_in", "zoneId": "z_exh1", "floorId": "floor_1f", "type": "entrance", "position": { "x": 280, "y": 280 }, "width": 40, "connectedGateId": null, "targetFloorId": null, "targetGateId": null }], "mediaIds": [], "color": "#3b82f6", "attractiveness": 0.8, "metadata": {} },
+    { "id": "z_exh2", "name": "Exhibition B", "type": "exhibition", "shape": "rect", "bounds": { "x": 280, "y": 420, "w": 200, "h": 160 }, "polygon": null, "area": 50, "capacity": 30, "flowType": "free", "gates": [{ "id": "g_exh2_in", "zoneId": "z_exh2", "floorId": "floor_1f", "type": "entrance", "position": { "x": 280, "y": 500 }, "width": 40, "connectedGateId": null, "targetFloorId": null, "targetGateId": null }], "mediaIds": [], "color": "#8b5cf6", "attractiveness": 0.7, "metadata": {} },
+    { "id": "z_exh3", "name": "Exhibition C", "type": "exhibition", "shape": "rect", "bounds": { "x": 550, "y": 300, "w": 200, "h": 160 }, "polygon": null, "area": 50, "capacity": 30, "flowType": "free", "gates": [{ "id": "g_exh3_in", "zoneId": "z_exh3", "floorId": "floor_1f", "type": "entrance", "position": { "x": 550, "y": 380 }, "width": 40, "connectedGateId": null, "targetFloorId": null, "targetGateId": null }], "mediaIds": [], "color": "#f59e0b", "attractiveness": 0.9, "metadata": {} },
+    { "id": "z_exit", "name": "Exit", "type": "exit", "shape": "rect", "bounds": { "x": 820, "y": 330, "w": 160, "h": 120 }, "polygon": null, "area": 24, "capacity": 50, "flowType": "free", "gates": [{ "id": "g_exit_in", "zoneId": "z_exit", "floorId": "floor_1f", "type": "entrance", "position": { "x": 820, "y": 390 }, "width": 40, "connectedGateId": null, "targetFloorId": null, "targetGateId": null }], "mediaIds": [], "color": "#ef4444", "attractiveness": 0.3, "metadata": {} }
+  ],
+  "media": [],
+  "visitorDistribution": { "totalCount": 30, "profileWeights": { "general": 70, "vip": 10, "child": 10, "elderly": 5, "disabled": 5 }, "engagementWeights": { "quick": 30, "explorer": 40, "immersive": 30 }, "groupRatio": 0.2, "spawnRatePerSecond": 1 },
+  "simulationConfig": {
+    "fixedDeltaTime": 16.67, "duration": 3600000, "timeScale": 3, "maxVisitors": 50, "seed": 42,
+    "physics": { "maxSpeed": 120, "maxAcceleration": 80, "arrivalRadius": 30, "arrivalSlowRadius": 80, "avoidanceRadius": 25, "separationStrength": 1.2, "wanderRadius": 40, "wanderJitter": 30, "obstacleAvoidanceLookahead": 60, "groupCohesionStrength": 0.8, "groupCohesionRadius": 80, "followerSeekWeight": 0.7, "followerArrivalRadius": 30 },
+    "skipThreshold": { "skipMultiplier": 1.0, "maxWaitTimeMs": 120000, "skipCooldownMs": 5000 },
+    "timeSlots": [{ "startTimeMs": 0, "endTimeMs": 3600000, "spawnRatePerSecond": 1, "profileDistribution": { "general": 70, "vip": 10, "child": 10, "elderly": 5, "disabled": 5 }, "engagementDistribution": { "quick": 30, "explorer": 40, "immersive": 30 }, "groupRatio": 0.2 }]
+  },
+  "globalFlowMode": "free"
+}

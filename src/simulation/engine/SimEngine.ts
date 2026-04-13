@@ -97,7 +97,14 @@ export class SimulationEngine {
 
   // track per-visitor watch start time for duration calc
   private _watchStartTimes = new Map<string, number>();
-  // track per-visitor wait start for duration calc (using visitor.waitStartedAt)
+
+  // staged media state: tracks session timing per media
+  private _stagedState = new Map<string, {
+    phase: 'waiting' | 'running';   // waiting=accepting queue, running=session in progress
+    sessionStartMs: number;         // when current session started
+    nextSessionMs: number;          // when next session begins
+    viewersInSession: number;       // how many entered this session
+  }>();
 
   constructor(world: SimulationWorld) {
     this.world = world;
@@ -111,6 +118,19 @@ export class SimulationEngine {
       const arr = this.mediaByZone.get(m.zoneId as string) ?? [];
       arr.push(m);
       this.mediaByZone.set(m.zoneId as string, arr);
+    }
+
+    // Initialize staged media state
+    for (const m of world.media) {
+      if ((m as any).interactionType === 'staged') {
+        const interval = (m as any).stageIntervalMs ?? 60000;
+        this._stagedState.set(m.id as string, {
+          phase: 'waiting',
+          sessionStartMs: 0,
+          nextSessionMs: interval, // first session starts after one interval
+          viewersInSession: 0,
+        });
+      }
     }
 
     resetSpawnerIds();
@@ -152,6 +172,40 @@ export class SimulationEngine {
       this._mediaStats.set(mediaId, { watchCount: 0, skipCount: 0, waitCount: 0, totalWatchMs: 0, totalWaitMs: 0, peakViewers: 0 });
     }
     return this._mediaStats.get(mediaId)!;
+  }
+
+  /** Update staged media session state */
+  private tickStaged() {
+    const elapsed = this.state.timeState.elapsed;
+    for (const [mediaId, state] of this._stagedState) {
+      const media = this.world.media.find(m => (m.id as string) === mediaId);
+      if (!media) continue;
+      const engagementMs = media.avgEngagementTimeMs;
+      const interval = (media as any).stageIntervalMs ?? 60000;
+
+      if (state.phase === 'waiting') {
+        // Check if it's time to start a session
+        if (elapsed >= state.nextSessionMs) {
+          state.phase = 'running';
+          state.sessionStartMs = elapsed;
+          state.viewersInSession = 0;
+        }
+      } else if (state.phase === 'running') {
+        // Check if session ended
+        if (elapsed >= state.sessionStartMs + engagementMs) {
+          state.phase = 'waiting';
+          state.nextSessionMs = elapsed + interval;
+          state.viewersInSession = 0;
+        }
+      }
+    }
+  }
+
+  /** Check if a staged media is currently accepting viewers */
+  private isStagedSessionOpen(mediaId: string): boolean {
+    const state = this._stagedState.get(mediaId);
+    if (!state) return false;
+    return state.phase === 'running';
   }
 
   /** Record that a visitor started watching a media */
@@ -210,6 +264,7 @@ export class SimulationEngine {
   private tick(dt: number) {
     const dtS = dt / 1000;
     this.spawnTick(dt);
+    this.tickStaged();
 
     // rebuild spatial hash + media viewer counts for this tick
     this.spatialHash.clear();
@@ -316,8 +371,10 @@ export class SimulationEngine {
         const media = this.world.media.find(m => m.id === v.targetMediaId);
         if (media) {
           const mid = v.targetMediaId as string;
+          const intType = (media as any).interactionType ?? 'passive';
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount < media.capacity) {
+          const stagedOpen = intType !== 'staged' || this.isStagedSessionOpen(mid);
+          if (viewerCount < media.capacity && stagedOpen) {
             this._tickMediaViewers.set(mid, viewerCount + 1);
             // Record: wait ended, watch started
             if (v.waitStartedAt) {
@@ -416,9 +473,40 @@ export class SimulationEngine {
       const media = this.world.media.find(m => m.id === v.targetMediaId);
       if (media) {
         const mid = v.targetMediaId as string;
-        const isPassive = (media as any).interactionType !== 'active';
+        const intType = (media as any).interactionType ?? 'passive';
 
-        if (isPassive) {
+        if (intType === 'staged') {
+          // ── STAGED: session-based entry ──
+          const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
+          if (this.isStagedSessionOpen(mid) && viewerCount < media.capacity) {
+            // Session running + capacity available → enter
+            this._tickMediaViewers.set(mid, viewerCount + 1);
+            this.recordWatchStart(mid, v.id as string);
+            const state = this._stagedState.get(mid)!;
+            state.viewersInSession++;
+            // Engagement = remaining session time
+            const remaining = Math.max(1000, (state.sessionStartMs + media.avgEngagementTimeMs) - this.state.timeState.elapsed);
+            this.engagementTimers.set(v.id as string, remaining);
+            const slotPos = this.getMediaSlotPosition(media, viewerCount);
+            return { ...v, currentAction: VISITOR_ACTION.WATCHING, position: slotPos, velocity: { x: 0, y: 0 } };
+          }
+          // Session not open or full → wait
+          if (!v.waitStartedAt) {
+            this.recordWaitStart(mid);
+            return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+          }
+          // Already waiting — check skip
+          const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
+          const { skipThreshold } = this.world.config;
+          if (shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+            this.recordSkip(mid, waitMs);
+            return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, waitStartedAt: null });
+          }
+          return v; // keep waiting
+        }
+
+        if (intType === 'passive') {
           // ── PASSIVE: arrive at viewing area → watch immediately ──
           // Soft capacity: if over capacity, skip instead of wait
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
@@ -442,7 +530,7 @@ export class SimulationEngine {
             velocity: { x: 0, y: 0 },
             // Stay at current position — no teleport
           };
-        } else {
+        } else if (intType === 'active') {
           // ── ACTIVE: slot-based, queue if full ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
@@ -668,22 +756,80 @@ export class SimulationEngine {
 
   /* ─── Media physics helpers ─── */
 
+  private isMediaCircle(m: MediaPlacement): boolean {
+    return (m as any).shape === 'circle';
+  }
+
+  /** Get media radius for circle shape (pixels) */
+  private getMediaRadius(m: MediaPlacement): number {
+    return Math.max(m.size.width, m.size.height) * MEDIA_SCALE / 2;
+  }
+
   /** Get media bounding rect in canvas pixels */
   private getMediaRect(m: MediaPlacement): { x: number; y: number; w: number; h: number } {
+    if (this.isMediaCircle(m)) {
+      const r = this.getMediaRadius(m);
+      return { x: m.position.x - r, y: m.position.y - r, w: r * 2, h: r * 2 };
+    }
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
     return { x: m.position.x - pw / 2, y: m.position.y - ph / 2, w: pw, h: ph };
   }
 
-  /** Get 4 wall segments of a media rect (for obstacle avoidance) */
+  /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
-    const r = this.getMediaRect(m);
+    if (this.isMediaCircle(m)) {
+      const r = this.getMediaRadius(m);
+      const cx = m.position.x, cy = m.position.y;
+      const segs = 8;
+      const walls: { a: Vector2D; b: Vector2D }[] = [];
+      for (let i = 0; i < segs; i++) {
+        const a1 = (i / segs) * Math.PI * 2;
+        const a2 = ((i + 1) / segs) * Math.PI * 2;
+        walls.push({
+          a: { x: cx + Math.cos(a1) * r, y: cy + Math.sin(a1) * r },
+          b: { x: cx + Math.cos(a2) * r, y: cy + Math.sin(a2) * r },
+        });
+      }
+      return walls;
+    }
+    const rect = this.getMediaRect(m);
     return [
-      { a: { x: r.x, y: r.y }, b: { x: r.x + r.w, y: r.y } },             // top
-      { a: { x: r.x + r.w, y: r.y }, b: { x: r.x + r.w, y: r.y + r.h } }, // right
-      { a: { x: r.x + r.w, y: r.y + r.h }, b: { x: r.x, y: r.y + r.h } }, // bottom
-      { a: { x: r.x, y: r.y + r.h }, b: { x: r.x, y: r.y } },             // left
+      { a: { x: rect.x, y: rect.y }, b: { x: rect.x + rect.w, y: rect.y } },
+      { a: { x: rect.x + rect.w, y: rect.y }, b: { x: rect.x + rect.w, y: rect.y + rect.h } },
+      { a: { x: rect.x + rect.w, y: rect.y + rect.h }, b: { x: rect.x, y: rect.y + rect.h } },
+      { a: { x: rect.x, y: rect.y + rect.h }, b: { x: rect.x, y: rect.y } },
     ];
+  }
+
+  /** Check if point is inside media (rect or circle) */
+  private isInsideMedia(pos: Vector2D, m: MediaPlacement): boolean {
+    if (this.isMediaCircle(m)) {
+      const r = this.getMediaRadius(m);
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      return dx * dx + dy * dy < r * r;
+    }
+    const rect = this.getMediaRect(m);
+    return pos.x > rect.x && pos.x < rect.x + rect.w && pos.y > rect.y && pos.y < rect.y + rect.h;
+  }
+
+  /** Push point outside media (rect or circle) */
+  private pushOutsideMedia(pos: Vector2D, m: MediaPlacement): Vector2D {
+    if (this.isMediaCircle(m)) {
+      const r = this.getMediaRadius(m);
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      return { x: m.position.x + (dx / dist) * (r + 1), y: m.position.y + (dy / dist) * (r + 1) };
+    }
+    // Rect push — find nearest edge
+    const rect = this.getMediaRect(m);
+    const distL = pos.x - rect.x, distR = rect.x + rect.w - pos.x;
+    const distT = pos.y - rect.y, distB = rect.y + rect.h - pos.y;
+    const minDist = Math.min(distL, distR, distT, distB);
+    if (minDist === distL) return { x: rect.x - 1, y: pos.y };
+    if (minDist === distR) return { x: rect.x + rect.w + 1, y: pos.y };
+    if (minDist === distT) return { x: pos.x, y: rect.y - 1 };
+    return { x: pos.x, y: rect.y + rect.h + 1 };
   }
 
   /** Get slot indices currently occupied by WATCHING visitors at a media */
@@ -1084,22 +1230,14 @@ export class SimulationEngine {
     // Transit (currentZoneId = null): agent follows waypoints freely
     // Zone wall-passing during transit is handled by routeAroundZones waypoint planning
 
-    // Media obstacle collision — push agent outside media rects (skip target media)
+    // Media obstacle collision — push agent outside media (rect or circle, skip target)
     if (v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
           if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
-          const r = this.getMediaRect(m);
-          if (pos.x > r.x && pos.x < r.x + r.w && pos.y > r.y && pos.y < r.y + r.h) {
-            // Inside media — push to nearest edge
-            const distL = pos.x - r.x, distR = r.x + r.w - pos.x;
-            const distT = pos.y - r.y, distB = r.y + r.h - pos.y;
-            const minDist = Math.min(distL, distR, distT, distB);
-            if (minDist === distL) pos = { x: r.x - 1, y: pos.y };
-            else if (minDist === distR) pos = { x: r.x + r.w + 1, y: pos.y };
-            else if (minDist === distT) pos = { x: pos.x, y: r.y - 1 };
-            else pos = { x: pos.x, y: r.y + r.h + 1 };
+          if (this.isInsideMedia(pos, m)) {
+            pos = this.pushOutsideMedia(pos, m);
           }
         }
       }

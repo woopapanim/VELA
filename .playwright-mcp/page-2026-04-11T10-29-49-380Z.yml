@@ -1,0 +1,12 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "AION mark01" [level=1] [ref=e4]
+    - paragraph [ref=e5]: ABOARD INTERACTIVE
+    - paragraph [ref=e6]: Exhibition Digital Twin & Analytics Engine
+  - button "New Project" [ref=e7]:
+    - img [ref=e8]
+    - text: New Project
+  - button "Open File..." [ref=e9]:
+    - img [ref=e10]
+    - text: Open File...
+  - paragraph [ref=e12]: Built by ABOARD INTERACTIVE · 2026

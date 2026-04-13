@@ -40,7 +40,8 @@ export interface MediaPreset {
   readonly isInteractive: boolean;
 }
 
-export type MediaInteractionType = 'passive' | 'active';
+export type MediaInteractionType = 'passive' | 'active' | 'staged';
+export type MediaShape = 'rect' | 'circle';
 
 export interface MediaPlacement {
   readonly id: MediaId;
@@ -53,5 +54,7 @@ export interface MediaPlacement {
   readonly capacity: number;
   readonly avgEngagementTimeMs: number;
   readonly attractiveness: number; // 0-1
-  readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형
+  readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형
+  readonly shape?: MediaShape; // rect (default) or circle
+  readonly stageIntervalMs?: number; // staged only: time between sessions (e.g. 60000 = 1min)
 }

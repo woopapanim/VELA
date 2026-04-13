@@ -1,0 +1,21 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - heading "AION mark01" [level=1] [ref=e4]
+    - paragraph [ref=e5]: ABOARD INTERACTIVE
+    - paragraph [ref=e6]: Exhibition Digital Twin & Analytics Engine
+  - button "New Project" [ref=e7]:
+    - img [ref=e8]
+    - text: New Project
+  - button "Open File..." [ref=e9] [cursor=pointer]:
+    - img [ref=e10]
+    - text: Open File...
+  - paragraph [ref=e12]: 또는 .json 파일을 화면에 드래그하여 열기
+  - generic [ref=e13]:
+    - paragraph [ref=e14]: Recent Projects
+    - generic [ref=e16] [cursor=pointer]:
+      - generic [ref=e17]:
+        - paragraph [ref=e18]: New Project
+        - paragraph [ref=e19]: 0 zones · 16h ago
+      - button [ref=e20]:
+        - img [ref=e21]
+  - paragraph [ref=e24]: Built by ABOARD INTERACTIVE · 2026
