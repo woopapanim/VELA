@@ -322,17 +322,7 @@ export class SimulationEngine {
       }
       if (!spawnZone || spawnZone.gates.length === 0) continue;
 
-      const isFree = this.world.globalFlowMode === 'free';
-
-      // Pick spawn gate: prefer unconnected gate (faces outside), fallback to first gate
-      const gate = isFree
-        ? (spawnZone.gates.find((g: any) => !g.connectedGateId) ?? spawnZone.gates[0])
-        : spawnZone.gates[0];
-
-      // Free mode: spawn OUTSIDE the gate, then walk in via transit waypoints
-      const spawnPos = isFree
-        ? this.pushOutward(gate.position, spawnZone, 60) // 60px outside gate
-        : gate.position;
+      const gate = spawnZone.gates[0];
 
       const dist = {
         totalCount: 1,
@@ -341,20 +331,12 @@ export class SimulationEngine {
         groupRatio: slot.groupRatio,
         spawnRatePerSecond: slot.spawnRatePerSecond,
       };
-      const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng);
+      const batch = generateSpawnBatch(1, dist, gate.position, gate.floorId, elapsed, this.rng);
       for (const v of batch.visitors) {
-        const center = { x: spawnZone.bounds.x + spawnZone.bounds.w / 2, y: spawnZone.bounds.y + spawnZone.bounds.h / 2 };
         const spawned: Visitor = {
           ...v,
-          currentZoneId: isFree ? null : spawnZone.id, // Free: transit into zone
+          currentZoneId: spawnZone.id,
           visitedZoneIds: [spawnZone.id],
-          ...(isFree ? {
-            targetZoneId: spawnZone.id,
-            transitWaypoints: [gate.position, center],
-            transitWaypointIdx: 0,
-            currentAction: 'MOVING' as any,
-            steering: { ...v.steering, isArrived: false, activeBehavior: 'arrival' as any },
-          } : {}),
         };
         this.state.visitors.set(spawned.id as string, spawned);
         this._totalSpawned++;
@@ -1288,7 +1270,8 @@ export class SimulationEngine {
     if (target && v.steering.activeBehavior !== STEERING_BEHAVIOR.WANDER) {
       const dx = target.x - v.position.x, dy = target.y - v.position.y;
       const distSq = dx * dx + dy * dy;
-      const headingToGate = !!(v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId);
+      const inTransit = !v.currentZoneId && v.transitWaypoints.length > 0;
+      const headingToGate = inTransit || !!(v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId);
 
       if (headingToGate) {
         // Gate transit: seek at constant speed, no deceleration
