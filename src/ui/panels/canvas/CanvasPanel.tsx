@@ -8,6 +8,7 @@ import { CanvasContextMenu, useContextMenu } from './ContextMenu';
 import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
+import { zonesOverlap } from '@/domain/zoneGeometry';
 
 // Get edge segments for a zone shape (rx, ry = L bend ratios, default 0.5)
 function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): Array<[{x:number;y:number},{x:number;y:number}]> {
@@ -34,6 +35,43 @@ function ptInPoly(pts: {x:number;y:number}[], px: number, py: number): boolean {
     if (((yi > py) !== (yj > py)) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/** Get zone polygon vertices (L-shapes get actual vertices, rects get 4 corners) */
+function getZonePolygon(zone: { bounds: { x: number; y: number; w: number; h: number }; shape: string; lRatioX?: number; lRatioY?: number; polygon?: readonly {x:number;y:number}[] | null }): {x:number;y:number}[] {
+  if (zone.shape === 'custom' && zone.polygon && zone.polygon.length > 2) {
+    return zone.polygon.map(v => ({ x: v.x, y: v.y }));
+  }
+  const edges = getZoneEdges(zone.bounds, zone.shape as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
+  return edges.map(([a]) => a);
+}
+
+/** Check if two line segments intersect */
+function segmentsIntersect(a1: {x:number;y:number}, a2: {x:number;y:number}, b1: {x:number;y:number}, b2: {x:number;y:number}): boolean {
+  const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
+  const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
+  const cross = d1x * d2y - d1y * d2x;
+  if (Math.abs(cross) < 1e-10) return false;
+  const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / cross;
+  const u = ((b1.x - a1.x) * d1y - (b1.y - a1.y) * d1x) / cross;
+  return t > 0 && t < 1 && u > 0 && u < 1;
+}
+
+/** Check if two zone polygons overlap (vertex-in-polygon + edge intersection) */
+function polygonsOverlap(polyA: {x:number;y:number}[], polyB: {x:number;y:number}[]): boolean {
+  // Check if any vertex of A is inside B
+  for (const p of polyA) if (ptInPoly(polyB, p.x, p.y)) return true;
+  // Check if any vertex of B is inside A
+  for (const p of polyB) if (ptInPoly(polyA, p.x, p.y)) return true;
+  // Check edge intersections
+  for (let i = 0; i < polyA.length; i++) {
+    const a1 = polyA[i], a2 = polyA[(i + 1) % polyA.length];
+    for (let j = 0; j < polyB.length; j++) {
+      const b1 = polyB[j], b2 = polyB[(j + 1) % polyB.length];
+      if (segmentsIntersect(a1, a2, b1, b2)) return true;
+    }
+  }
+  return false;
 }
 
 function closestPointOnSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
@@ -138,12 +176,18 @@ export function CanvasPanel() {
             showGrid: store.showGrid,
             showGates: store.showGates,
             showLabels: store.showLabels,
+            showBackground: store.showBackground,
             isDark: resolvedTheme === 'dark',
             canvasWidth: rect.width,
             canvasHeight: rect.height,
             gridSize: gridSz,
             pixelToMeterScale: fl?.canvas.scale ?? 0.025,
             backgroundImage: fl?.canvas.backgroundImage ?? null,
+            bgOffsetX: fl?.canvas.bgOffsetX ?? 0,
+            bgOffsetY: fl?.canvas.bgOffsetY ?? 0,
+            bgScale: fl?.canvas.bgScale ?? 1,
+            bgLocked: fl?.canvas.bgLocked ?? false,
+            simPhase: store.phase,
           });
         }
       }
@@ -164,7 +208,7 @@ export function CanvasPanel() {
   // Cache last render dimensions for consistent screenToWorld conversion
   const lastCanvasRect = useRef({ left: 0, top: 0, width: 0, height: 0 });
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex' | 'bg-move' | 'bg-resize';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
@@ -172,6 +216,9 @@ export function CanvasPanel() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se'>('se');
   const didDrag = useRef(false);
+  const bgDragAnchor = useRef({ x: 0, y: 0 }); // for bg-resize: opposite corner
+  const bgDragInitScale = useRef(1); // initial bgScale at drag start
+  const bgDragInitDiag = useRef(1); // initial diagonal distance at drag start
 
   // Vertex drag state (for custom polygon editing via ZoneEditor)
   const dragVertexIdx = useRef<number | null>(null);
@@ -390,7 +437,7 @@ export function CanvasPanel() {
           for (const gate of selZone.gates) {
             const dx = (gate.position as any).x - world.x;
             const dy = (gate.position as any).y - world.y;
-            if (dx * dx + dy * dy < 100) {
+            if (dx * dx + dy * dy < 225) { // 15px hit radius for easier gate selection
               store.pushUndo(store.zones, store.media);
               dragMode.current = 'gate';
               dragZoneId.current = selZone.id as string;
@@ -481,6 +528,58 @@ export function CanvasPanel() {
           e.preventDefault();
         }
       } else {
+        // Nothing clicked — check background image for drag/resize
+        const manager = managerRef.current;
+        if (manager && store.showBackground && store.phase !== 'running') {
+          const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+          if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
+            const bgBounds = manager.getBgImageBounds(
+              fl.canvas.bgOffsetX ?? 0,
+              fl.canvas.bgOffsetY ?? 0,
+              fl.canvas.bgScale ?? 1,
+            );
+            if (bgBounds) {
+              // Check corner handles first (12px hit radius)
+              const corners: Array<{ corner: 'nw' | 'ne' | 'sw' | 'se'; cx: number; cy: number }> = [
+                { corner: 'nw', cx: bgBounds.x, cy: bgBounds.y },
+                { corner: 'ne', cx: bgBounds.x + bgBounds.w, cy: bgBounds.y },
+                { corner: 'sw', cx: bgBounds.x, cy: bgBounds.y + bgBounds.h },
+                { corner: 'se', cx: bgBounds.x + bgBounds.w, cy: bgBounds.y + bgBounds.h },
+              ];
+              let hitCorner: 'nw' | 'ne' | 'sw' | 'se' | null = null;
+              for (const { corner, cx, cy } of corners) {
+                if (Math.abs(world.x - cx) < 12 && Math.abs(world.y - cy) < 12) {
+                  hitCorner = corner;
+                  break;
+                }
+              }
+              if (hitCorner) {
+                dragMode.current = 'bg-resize';
+                resizeCorner.current = hitCorner;
+                // Anchor = opposite corner
+                const opp = hitCorner === 'nw' ? 'se' : hitCorner === 'ne' ? 'sw' : hitCorner === 'sw' ? 'ne' : 'nw';
+                const oppC = corners.find((c) => c.corner === opp)!;
+                bgDragAnchor.current = { x: oppC.cx, y: oppC.cy };
+                bgDragInitScale.current = fl.canvas.bgScale ?? 1;
+                const dx = corners.find((c) => c.corner === hitCorner)!.cx - oppC.cx;
+                const dy = corners.find((c) => c.corner === hitCorner)!.cy - oppC.cy;
+                bgDragInitDiag.current = Math.sqrt(dx * dx + dy * dy);
+                e.preventDefault();
+                selectZone(null);
+                return;
+              }
+              // Check if inside bg image bounds → bg-move
+              if (world.x >= bgBounds.x && world.x <= bgBounds.x + bgBounds.w &&
+                  world.y >= bgBounds.y && world.y <= bgBounds.y + bgBounds.h) {
+                dragMode.current = 'bg-move';
+                dragOffset.current = { x: world.x - bgBounds.x, y: world.y - bgBounds.y };
+                e.preventDefault();
+                selectZone(null);
+                return;
+              }
+            }
+          }
+        }
         selectZone(null);
       }
     }
@@ -573,7 +672,7 @@ export function CanvasPanel() {
               for (const g of sel.gates) {
                 const gdx = (g.position as any).x - world.x;
                 const gdy = (g.position as any).y - world.y;
-                if (gdx * gdx + gdy * gdy < 100) { onGate = true; break; }
+                if (gdx * gdx + gdy * gdy < 225) { onGate = true; break; }
               }
               if (onGate) { el.style.cursor = 'move'; }
               else {
@@ -591,35 +690,136 @@ export function CanvasPanel() {
           const b = z.bounds;
           return world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h;
         });
-        el.style.cursor = hovered ? 'pointer' : 'default';
+        if (hovered) {
+          el.style.cursor = 'pointer';
+        } else {
+          // Check bg image hover
+          let bgCursor = 'default';
+          const manager = managerRef.current;
+          if (manager && store.showBackground && store.phase !== 'running') {
+            const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+            if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
+              const bgB = manager.getBgImageBounds(fl.canvas.bgOffsetX ?? 0, fl.canvas.bgOffsetY ?? 0, fl.canvas.bgScale ?? 1);
+              if (bgB) {
+                const bgCorners: Array<{ corner: string; cx: number; cy: number }> = [
+                  { corner: 'nw', cx: bgB.x, cy: bgB.y },
+                  { corner: 'ne', cx: bgB.x + bgB.w, cy: bgB.y },
+                  { corner: 'sw', cx: bgB.x, cy: bgB.y + bgB.h },
+                  { corner: 'se', cx: bgB.x + bgB.w, cy: bgB.y + bgB.h },
+                ];
+                for (const { corner, cx, cy } of bgCorners) {
+                  if (Math.abs(world.x - cx) < 12 && Math.abs(world.y - cy) < 12) {
+                    bgCursor = (corner === 'nw' || corner === 'se') ? 'nwse-resize' : 'nesw-resize';
+                    break;
+                  }
+                }
+                if (bgCursor === 'default' && world.x >= bgB.x && world.x <= bgB.x + bgB.w && world.y >= bgB.y && world.y <= bgB.y + bgB.h) {
+                  bgCursor = 'move';
+                }
+              }
+            }
+          }
+          el.style.cursor = bgCursor;
+        }
       }
     }
 
-    if (!world || !dragZoneId.current) return;
+    // Background image drag
+    if (world && (mode === 'bg-move' || mode === 'bg-resize')) {
+      const store = useStore.getState();
+      const scenario = store.scenario;
+      if (scenario && store.activeFloorId) {
+        const fl = scenario.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+        if (fl) {
+          if (mode === 'bg-move') {
+            const newX = world.x - dragOffset.current.x;
+            const newY = world.y - dragOffset.current.y;
+            store.setScenario({
+              ...scenario,
+              floors: scenario.floors.map((f: any) =>
+                (f.id as string) === store.activeFloorId
+                  ? { ...f, canvas: { ...f.canvas, bgOffsetX: newX, bgOffsetY: newY } }
+                  : f,
+              ),
+            });
+          } else {
+            // bg-resize: proportional scaling based on diagonal distance from anchor
+            const dx = world.x - bgDragAnchor.current.x;
+            const dy = world.y - bgDragAnchor.current.y;
+            const newDiag = Math.sqrt(dx * dx + dy * dy);
+            if (bgDragInitDiag.current > 0) {
+              const ratio = newDiag / bgDragInitDiag.current;
+              const newScale = Math.max(0.05, bgDragInitScale.current * ratio);
+              // Recompute offset so anchor corner stays fixed
+              const manager = managerRef.current;
+              if (manager) {
+                const img = manager.getBgImageBounds(0, 0, newScale);
+                if (img) {
+                  const anchor = bgDragAnchor.current;
+                  const c = resizeCorner.current; // the dragged corner
+                  // anchor is the opposite corner, so:
+                  // if dragging SE, anchor is NW (top-left) → offset = anchor
+                  // if dragging NE, anchor is SW → offsetX = anchor.x - w, offsetY = anchor.y - h...
+                  // Actually: anchor = opposite corner position. We want that corner to remain at the same world position.
+                  let newOffX = fl.canvas.bgOffsetX ?? 0;
+                  let newOffY = fl.canvas.bgOffsetY ?? 0;
+                  if (c === 'se') { newOffX = anchor.x; newOffY = anchor.y; }
+                  else if (c === 'sw') { newOffX = anchor.x - img.w; newOffY = anchor.y; }
+                  else if (c === 'ne') { newOffX = anchor.x; newOffY = anchor.y - img.h; }
+                  else { newOffX = anchor.x - img.w; newOffY = anchor.y - img.h; }
+                  store.setScenario({
+                    ...scenario,
+                    floors: scenario.floors.map((f: any) =>
+                      (f.id as string) === store.activeFloorId
+                        ? { ...f, canvas: { ...f.canvas, bgScale: newScale, bgOffsetX: newOffX, bgOffsetY: newOffY } }
+                        : f,
+                    ),
+                  });
+                }
+              }
+            }
+          }
+          didDrag.current = true;
+        }
+      }
+      return;
+    }
+
+    if (!world) return;
+
+    // Zone-specific drag modes
+    if (!dragZoneId.current && !dragMediaId.current) return;
     const store = useStore.getState();
-    const zone = store.zones.find((z) => (z.id as string) === dragZoneId.current);
-    if (!zone) return;
+    const zone = dragZoneId.current ? store.zones.find((z) => (z.id as string) === dragZoneId.current) : null;
 
     const snap = (v: number) => Math.round(v / 10) * 10;
 
-    // Check if a rect overlaps any other zone (excluding the dragged zone)
-    const overlapsOtherZone = (rect: { x: number; y: number; w: number; h: number }, excludeId: string) => {
+    // Check if a zone (with shape) overlaps any other zone (polygon-aware for L-shapes)
+    const overlapsOtherZone = (rect: { x: number; y: number; w: number; h: number }, excludeId: string, draggedZone?: any) => {
       const store = useStore.getState();
-      const gap = 0;
+      const zA = {
+        bounds: rect,
+        shape: (draggedZone?.shape ?? 'rect') as string,
+        lRatioX: (draggedZone as any)?.lRatioX ?? 0.5,
+        lRatioY: (draggedZone as any)?.lRatioY ?? 0.5,
+        polygon: draggedZone?.polygon,
+      };
       return store.zones.some((z) => {
         if ((z.id as string) === excludeId) return false;
-        const b = z.bounds;
-        return rect.x < b.x + b.w + gap && rect.x + rect.w + gap > b.x &&
-               rect.y < b.y + b.h + gap && rect.y + rect.h + gap > b.y;
+        return zonesOverlap(zA, {
+          bounds: z.bounds, shape: (z.shape ?? 'rect') as string,
+          lRatioX: (z as any).lRatioX ?? 0.5, lRatioY: (z as any).lRatioY ?? 0.5,
+          polygon: z.polygon,
+        });
       });
     };
 
-    if (mode === 'move') {
+    if (mode === 'move' && zone) {
       const newX = snap(world.x - dragOffset.current.x);
       const newY = snap(world.y - dragOffset.current.y);
       const newBounds = { ...zone.bounds, x: newX, y: newY };
       // Block if overlapping another zone
-      if (overlapsOtherZone(newBounds, dragZoneId.current!)) return;
+      if (overlapsOtherZone(newBounds, dragZoneId.current!, zone)) return;
       const dx = newX - zone.bounds.x;
       const dy = newY - zone.bounds.y;
       // Move gates with zone
@@ -644,10 +844,11 @@ export function CanvasPanel() {
         }
       }
       didDrag.current = true;
-    } else if (mode === 'resize') {
+    } else if (mode === 'resize' && zone) {
       const ob = zone.bounds; // old bounds
       let { x, y, w, h } = ob;
-      const MIN = 60;
+      const smallTypes = new Set(['corridor', 'rest']);
+      const MIN = smallTypes.has(zone.type as string) ? 30 : 60;
       const c = resizeCorner.current;
       const wx = snap(world.x);
       const wy = snap(world.y);
@@ -658,7 +859,7 @@ export function CanvasPanel() {
       else if (c === 'nw') { const newX = Math.min(x + w - MIN, wx); w = w + (x - newX); x = newX; const newY = Math.min(y + h - MIN, wy); h = h + (y - newY); y = newY; }
 
       // Block if overlapping another zone
-      if (overlapsOtherZone({ x, y, w, h }, dragZoneId.current!)) return;
+      if (overlapsOtherZone({ x, y, w, h }, dragZoneId.current!, zone)) return;
 
       // Proportionally reposition gates
       const scaleX = ob.w > 0 ? w / ob.w : 1;
@@ -684,7 +885,7 @@ export function CanvasPanel() {
         }
       }
       didDrag.current = true;
-    } else if (mode === 'gate' && dragGateId.current && dragZoneId.current) {
+    } else if (mode === 'gate' && dragGateId.current && dragZoneId.current && zone) {
       const b = zone.bounds;
       let gx: number, gy: number;
       const sh = zone.shape as string;
@@ -728,7 +929,7 @@ export function CanvasPanel() {
       );
       updateZone(dragZoneId.current, { gates: updatedGates } as any);
       didDrag.current = true;
-    } else if (mode === 'l-handle' && dragZoneId.current) {
+    } else if (mode === 'l-handle' && dragZoneId.current && zone) {
       // Drag L-shape inner corner ratio
       const b = zone.bounds;
       const rx = Math.max(0.15, Math.min(0.85, (world.x - b.x) / b.w));
@@ -745,7 +946,7 @@ export function CanvasPanel() {
       const updatedGates = zone.gates.map((g: any, i: number) => ({ ...g, position: i === 0 ? leftMid : rightMid }));
       updateZone(dragZoneId.current, { lRatioX: rx, lRatioY: ry, gates: updatedGates } as any);
       didDrag.current = true;
-    } else if (mode === 'vertex' && dragZoneId.current && dragVertexIdx.current !== null) {
+    } else if (mode === 'vertex' && dragZoneId.current && zone && dragVertexIdx.current !== null) {
       const vIdx = dragVertexIdx.current;
       const poly = zone.polygon;
       if (poly && vIdx < poly.length) {

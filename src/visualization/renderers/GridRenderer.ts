@@ -1,44 +1,75 @@
+/**
+ * Infinite grid renderer — draws grid lines across the entire visible area,
+ * not just the canvas dimensions. Works with camera pan/zoom.
+ *
+ * Since camera.apply() is called before renderGrid(), the ctx is already
+ * in world-space. We need to figure out the world-space bounds of the
+ * current viewport and draw grid lines covering that area.
+ */
 export function renderGrid(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
   gridSize: number,
   isDark: boolean,
+  cameraX = 0,
+  cameraY = 0,
+  cameraZoom = 1,
 ) {
+  // Compute visible world-space bounds from camera state
+  const invZoom = 1 / cameraZoom;
+  const viewW = width * invZoom;
+  const viewH = height * invZoom;
+  const worldLeft = cameraX + (width / 2) - (viewW / 2);
+  const worldTop = cameraY + (height / 2) - (viewH / 2);
+  const worldRight = worldLeft + viewW;
+  const worldBottom = worldTop + viewH;
+
+  // Snap to grid boundaries (with padding)
+  const startX = Math.floor(worldLeft / gridSize) * gridSize;
+  const endX = Math.ceil(worldRight / gridSize) * gridSize;
+  const startY = Math.floor(worldTop / gridSize) * gridSize;
+  const endY = Math.ceil(worldBottom / gridSize) * gridSize;
+
   ctx.save();
 
   // Minor grid lines
-  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)';
-  ctx.lineWidth = 0.5;
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
+  ctx.lineWidth = 0.75;
 
-  for (let x = 0; x <= width; x += gridSize) {
+  for (let x = startX; x <= endX; x += gridSize) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+    ctx.moveTo(x, startY);
+    ctx.lineTo(x, endY);
     ctx.stroke();
   }
-  for (let y = 0; y <= height; y += gridSize) {
+  for (let y = startY; y <= endY; y += gridSize) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
+    ctx.moveTo(startX, y);
+    ctx.lineTo(endX, y);
     ctx.stroke();
   }
 
   // Major grid lines (every 5th)
-  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.08)';
-  ctx.lineWidth = 0.8;
+  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 1.0;
 
   const majorStep = gridSize * 5;
-  for (let x = 0; x <= width; x += majorStep) {
+  const majorStartX = Math.floor(worldLeft / majorStep) * majorStep;
+  const majorEndX = Math.ceil(worldRight / majorStep) * majorStep;
+  const majorStartY = Math.floor(worldTop / majorStep) * majorStep;
+  const majorEndY = Math.ceil(worldBottom / majorStep) * majorStep;
+
+  for (let x = majorStartX; x <= majorEndX; x += majorStep) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, height);
+    ctx.moveTo(x, startY);
+    ctx.lineTo(x, endY);
     ctx.stroke();
   }
-  for (let y = 0; y <= height; y += majorStep) {
+  for (let y = majorStartY; y <= majorEndY; y += majorStep) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
+    ctx.moveTo(startX, y);
+    ctx.lineTo(endX, y);
     ctx.stroke();
   }
 
@@ -48,12 +79,12 @@ export function renderGrid(
     ctx.lineWidth = 1;
     ctx.setLineDash([8, 8]);
     ctx.beginPath();
-    ctx.moveTo(width / 2, 0);
-    ctx.lineTo(width / 2, height);
+    ctx.moveTo(width / 2, startY);
+    ctx.lineTo(width / 2, endY);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(0, height / 2);
-    ctx.lineTo(width, height / 2);
+    ctx.moveTo(startX, height / 2);
+    ctx.lineTo(endX, height / 2);
     ctx.stroke();
     ctx.setLineDash([]);
   }

@@ -32,6 +32,12 @@ export interface RenderState {
   gridSize: number;
   pixelToMeterScale: number;
   backgroundImage: string | null;
+  showBackground: boolean;
+  bgOffsetX: number;
+  bgOffsetY: number;
+  bgScale: number;
+  bgLocked: boolean;
+  simPhase?: string;
 }
 
 export class CanvasManager {
@@ -73,7 +79,7 @@ export class CanvasManager {
     // Apply camera transform
     this.camera.apply(ctx, canvasWidth, canvasHeight);
 
-    // 0. Background image (CAD/floor plan overlay)
+    // 0. Background image (floor plan overlay)
     if (state.backgroundImage && !this.bgImage) {
       this.bgImage = new window.Image();
       this.bgImage.src = state.backgroundImage;
@@ -88,17 +94,47 @@ export class CanvasManager {
         this.bgImageSrc = state.backgroundImage;
       }
     }
-    if (this.bgImage?.complete) {
+    if (state.showBackground && this.bgImage?.complete) {
       ctx.save();
-      ctx.globalAlpha = isDark ? 0.15 : 0.2;
+      ctx.globalAlpha = isDark ? 0.45 : 0.35;
       if (isDark) ctx.filter = 'invert(1) brightness(0.6)';
-      ctx.drawImage(this.bgImage, 0, 0, canvasWidth, canvasHeight);
+      const w = this.bgImage.naturalWidth * state.bgScale;
+      const h = this.bgImage.naturalHeight * state.bgScale;
+      ctx.drawImage(this.bgImage, state.bgOffsetX, state.bgOffsetY, w, h);
       ctx.restore();
+
+      // Draw resize handles (only when not locked and not running sim)
+      if (!state.bgLocked && state.simPhase !== 'running') {
+        const bx = state.bgOffsetX, by = state.bgOffsetY;
+        const corners = [
+          { x: bx, y: by },
+          { x: bx + w, y: by },
+          { x: bx, y: by + h },
+          { x: bx + w, y: by + h },
+        ];
+        ctx.save();
+        for (const c of corners) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.95)';
+          ctx.fill();
+          ctx.strokeStyle = isDark ? 'rgba(59,130,246,0.8)' : 'rgba(37,99,235,0.8)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+        // Dashed border around image
+        ctx.setLineDash([6, 4]);
+        ctx.strokeStyle = isDark ? 'rgba(59,130,246,0.3)' : 'rgba(37,99,235,0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, w, h);
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
     }
 
     // 1. Grid
     if (state.showGrid) {
-      renderGrid(ctx, canvasWidth, canvasHeight, state.gridSize, isDark);
+      renderGrid(ctx, canvasWidth, canvasHeight, state.gridSize, isDark, this.camera.x, this.camera.y, this.camera.zoom);
     }
 
     // 2. Heatmap (below zones)
@@ -152,6 +188,16 @@ export class CanvasManager {
 
   getCamera(): Camera {
     return this.camera;
+  }
+
+  getBgImageBounds(bgOffsetX: number, bgOffsetY: number, bgScale: number): { x: number; y: number; w: number; h: number } | null {
+    if (!this.bgImage?.complete) return null;
+    return {
+      x: bgOffsetX,
+      y: bgOffsetY,
+      w: this.bgImage.naturalWidth * bgScale,
+      h: this.bgImage.naturalHeight * bgScale,
+    };
   }
 
   destroy() {

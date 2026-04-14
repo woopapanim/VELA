@@ -1289,9 +1289,11 @@ export class SimulationEngine {
       }
     }
 
-    // Floor bounds (always)
-    const floor = this.world.floors.find(f => f.id === v.currentFloorId);
-    if (floor) pos = clampToRect(pos, { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height });
+    // Floor bounds — skip for EXITING agents so they walk off-canvas and deactivate
+    if (v.currentAction !== VISITOR_ACTION.EXITING) {
+      const floor = this.world.floors.find(f => f.id === v.currentFloorId);
+      if (floor) pos = clampToRect(pos, { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height });
+    }
 
     return pos === v.position ? v : { ...v, position: pos };
   }

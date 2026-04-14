@@ -1,20 +1,30 @@
-import { Grid3x3, Locate, Tag } from 'lucide-react';
+import { Grid3x3, Locate, Tag, Eye, EyeOff } from 'lucide-react';
 import { useStore } from '@/stores';
 
 export function CanvasToolbar() {
   const showGrid = useStore((s) => s.showGrid);
   const showGates = useStore((s) => s.showGates);
   const showLabels = useStore((s) => s.showLabels);
+  const showBackground = useStore((s) => s.showBackground);
   const toggleGrid = useStore((s) => s.toggleGrid);
   const toggleGates = useStore((s) => s.toggleGates);
   const toggleLabels = useStore((s) => s.toggleLabels);
+  const toggleBackground = useStore((s) => s.toggleBackground);
   const camera = useStore((s) => s.camera);
+  const scenario = useStore((s) => s.scenario);
+  const activeFloorId = useStore((s) => s.activeFloorId);
+  const hasBackground = !!scenario?.floors.find(
+    (f) => (f.id as string) === activeFloorId,
+  )?.canvas.backgroundImage;
 
   return (
     <div className="absolute top-3 right-3 flex gap-1 z-10">
       <ToolbarBtn active={showGrid} onClick={toggleGrid} icon={Grid3x3} label="Grid" />
       <ToolbarBtn active={showGates} onClick={toggleGates} icon={Locate} label="Gates" />
       <ToolbarBtn active={showLabels} onClick={toggleLabels} icon={Tag} label="Labels" />
+      {hasBackground && (
+        <ToolbarBtn active={showBackground} onClick={toggleBackground} icon={showBackground ? Eye : EyeOff} label="Background" />
+      )}
       <div className="flex items-center px-2 text-[9px] font-data text-muted-foreground glass rounded-lg">
         {Math.round(camera.zoom * 100)}%
       </div>

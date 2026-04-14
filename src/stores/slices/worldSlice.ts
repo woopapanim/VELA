@@ -1,8 +1,33 @@
 import type { StateCreator } from 'zustand';
 import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario } from '@/domain';
+import { zonesOverlap } from '@/domain/zoneGeometry';
 
 const MEDIA_SCALE = 20;
 const MEDIA_GAP = 8;
+const CANVAS_PADDING = 100; // extra padding beyond zone edges
+
+/** Auto-expand floor canvas to fit all zones with padding */
+function expandCanvasForZones(floors: FloorConfig[], zones: readonly ZoneConfig[], activeFloorId: string | null): FloorConfig[] {
+  if (!activeFloorId) return floors;
+  const floor = floors.find(f => (f.id as string) === activeFloorId);
+  if (!floor) return floors;
+
+  let maxX = floor.canvas.width;
+  let maxY = floor.canvas.height;
+  for (const z of zones) {
+    const right = z.bounds.x + z.bounds.w + CANVAS_PADDING;
+    const bottom = z.bounds.y + z.bounds.h + CANVAS_PADDING;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
+  }
+
+  if (maxX === floor.canvas.width && maxY === floor.canvas.height) return floors;
+  return floors.map(f =>
+    (f.id as string) === activeFloorId
+      ? { ...f, canvas: { ...f.canvas, width: maxX, height: maxY } }
+      : f,
+  );
+}
 
 /** Check if a media rect overlaps any other media in the same zone */
 function mediaOverlapsOthers(m: MediaPlacement, allMedia: readonly MediaPlacement[], excludeId?: string): boolean {
@@ -46,14 +71,17 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   activeFloorId: null,
   scenario: null,
 
-  setScenario: (scenario) =>
+  setScenario: (scenario) => {
+    const activeFloorId = scenario.floors[0]?.id as string ?? null;
+    const expandedFloors = expandCanvasForZones([...scenario.floors], scenario.zones, activeFloorId);
     set({
-      scenario,
-      floors: [...scenario.floors],
+      scenario: { ...scenario, floors: expandedFloors },
+      floors: expandedFloors,
       zones: [...scenario.zones],
       media: [...scenario.media],
-      activeFloorId: scenario.floors[0]?.id as string ?? null,
-    }),
+      activeFloorId,
+    });
+  },
 
   setActiveFloor: (floorId) => set({ activeFloorId: floorId }),
 
@@ -63,11 +91,12 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     (s as any).pushUndo?.(s.zones, s.media);
     set((s) => {
       const newZones = [...s.zones, zone];
-      const newFloors = s.floors.map((f) =>
+      let newFloors = s.floors.map((f) =>
         (f.id as string) === s.activeFloorId
           ? { ...f, zoneIds: [...f.zoneIds, zone.id] }
           : f,
       );
+      newFloors = expandCanvasForZones(newFloors, newZones, s.activeFloorId);
       return {
         zones: newZones,
         floors: newFloors,
@@ -82,11 +111,12 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       if (updates.bounds) {
         const gap = 0;
         const nb = updates.bounds;
+        const draggedZone = s.zones.find((z) => (z.id as string) === zoneId);
         const overlaps = s.zones.some((z) => {
           if ((z.id as string) === zoneId) return false;
-          const b = z.bounds;
-          return nb.x < b.x + b.w + gap && nb.x + nb.w + gap > b.x &&
-                 nb.y < b.y + b.h + gap && nb.y + nb.h + gap > b.y;
+          const updatedA = { bounds: nb, shape: (draggedZone?.shape ?? 'rect') as string, lRatioX: (draggedZone as any)?.lRatioX ?? 0.5, lRatioY: (draggedZone as any)?.lRatioY ?? 0.5, polygon: draggedZone?.polygon };
+          const zB = { bounds: z.bounds, shape: (z.shape ?? 'rect') as string, lRatioX: (z as any).lRatioX ?? 0.5, lRatioY: (z as any).lRatioY ?? 0.5, polygon: z.polygon };
+          return zonesOverlap(updatedA, zB);
         });
         if (overlaps) return {}; // block update
 
@@ -120,10 +150,12 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
           },
         };
       }) : s.media;
+      const expandedFloors = expandCanvasForZones(s.floors, newZones, s.activeFloorId);
       return {
         zones: newZones,
         media: newMedia,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, media: newMedia } : s.scenario,
+        floors: expandedFloors,
+        scenario: s.scenario ? { ...s.scenario, zones: newZones, media: newMedia, floors: expandedFloors } : s.scenario,
       };
     }),
 

@@ -18,6 +18,7 @@ export interface UiSlice {
   showGrid: boolean;
   showGates: boolean;
   showLabels: boolean;
+  showBackground: boolean;
   camera: CameraState;
   isPanelCollapsed: { left: boolean; right: boolean };
 
@@ -29,6 +30,7 @@ export interface UiSlice {
   toggleGrid: () => void;
   toggleGates: () => void;
   toggleLabels: () => void;
+  toggleBackground: () => void;
   setCamera: (camera: Partial<CameraState>) => void;
   togglePanel: (side: 'left' | 'right') => void;
 }
@@ -41,6 +43,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   showGrid: true,
   showGates: true,
   showLabels: true,
+  showBackground: true,
   camera: { x: 0, y: 0, zoom: 1 },
   isPanelCollapsed: { left: false, right: false },
 
@@ -51,6 +54,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleGates: () => set((s) => ({ showGates: !s.showGates })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
+  toggleBackground: () => set((s) => ({ showBackground: !s.showBackground })),
   setCamera: (camera) => set((s) => ({ camera: { ...s.camera, ...camera } })),
   togglePanel: (side) =>
     set((s) => ({
