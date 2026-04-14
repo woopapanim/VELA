@@ -50,6 +50,7 @@ export const KPI_SAMPLE_INTERVAL_MS = 1000;
 export const ZONE_COLORS: Record<string, HexColor> = {
   entrance: '#22c55e',
   exhibition: '#3b82f6',
+  corridor: '#6b7280',
   rest: '#f59e0b',
   stage: '#a855f7',
   exit: '#ef4444',
