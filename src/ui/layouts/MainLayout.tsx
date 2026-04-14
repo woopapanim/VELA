@@ -87,9 +87,6 @@ export function MainLayout() {
             <ReplayScrubber />
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                Build
-              </h2>
               <BuildTools />
             </div>
 
@@ -261,7 +258,7 @@ function ZoneListDragDrop() {
           <p className="text-xs text-muted-foreground">Load a scenario or add zones</p>
         )}
       </div>
-      {zones.length > 1 && (
+      {zones.length > 1 && scenario?.globalFlowMode !== 'free' && (
         <p className="text-[9px] text-muted-foreground mt-1.5">
           ⠿ 드래그하여 관람 순서 변경 (Entrance/Exit 고정)
         </p>

@@ -22,6 +22,7 @@ export const ZONE_TYPE = {
   REST: 'rest',
   STAGE: 'stage',
   EXIT: 'exit',
+  GATEWAY: 'gateway',  // Free mode: combined entrance + exit
 } as const;
 
 export type ZoneType = (typeof ZONE_TYPE)[keyof typeof ZONE_TYPE];

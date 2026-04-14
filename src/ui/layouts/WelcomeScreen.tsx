@@ -87,7 +87,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           groupRatio: 0.3,
         }],
       },
-      globalFlowMode: 'free',
+      // globalFlowMode intentionally omitted — user must choose before adding zones
     };
     setScenario(scenario);
     onEnter();

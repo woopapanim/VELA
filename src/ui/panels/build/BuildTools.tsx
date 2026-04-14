@@ -6,13 +6,23 @@ import { ZONE_COLORS, MEDIA_PRESETS } from '@/domain';
 import { ZoneTemplates } from './ZoneTemplates';
 import { BackgroundUpload } from './BackgroundUpload';
 
-const ZONE_TYPES = [
+const SEQ_ZONE_TYPES = [
   { type: 'entrance', label: 'Entrance', color: '#22c55e' },
   { type: 'exhibition', label: 'Exhibition', color: '#3b82f6' },
-  { type: 'corridor', label: 'Corridor', color: '#64748b' },
+  { type: 'corridor', label: 'Corridor', color: '#6b7280' },
   { type: 'rest', label: 'Rest', color: '#f59e0b' },
   { type: 'stage', label: 'Stage', color: '#a855f7' },
   { type: 'exit', label: 'Exit', color: '#ef4444' },
+] as const;
+
+const FREE_ZONE_TYPES = [
+  { type: 'gateway', label: 'Gateway', color: '#14b8a6', desc: 'Entrance + Exit' },
+  { type: 'entrance', label: 'Entrance', color: '#22c55e', desc: 'Entry only' },
+  { type: 'exit', label: 'Exit', color: '#ef4444', desc: 'Exit only' },
+  { type: 'exhibition', label: 'Exhibition', color: '#3b82f6', desc: 'Bidirectional' },
+  { type: 'corridor', label: 'Corridor', color: '#6b7280', desc: 'Transit' },
+  { type: 'rest', label: 'Rest', color: '#f59e0b', desc: 'Rest area' },
+  { type: 'stage', label: 'Stage', color: '#a855f7', desc: 'Performance' },
 ] as const;
 
 const MEDIA_QUICK = [
@@ -41,14 +51,18 @@ export function BuildTools() {
   const nonUtilZones = zones.filter((z) => z.type !== 'entrance' && z.type !== 'exit');
 
   const handleCreateZone = useCallback((zoneType: string) => {
-    // ── Entrance / Exit는 각 1개만 허용 ──
-    if (zoneType === 'entrance' && zones.some((z) => z.type === 'entrance')) {
-      alert('Entrance는 1개만 만들 수 있습니다.\n기존 Entrance를 삭제한 뒤 추가하세요.');
-      return;
-    }
-    if (zoneType === 'exit' && zones.some((z) => z.type === 'exit')) {
-      alert('Exit는 1개만 만들 수 있습니다.\n기존 Exit를 삭제한 뒤 추가하세요.');
-      return;
+    const isFreeMode = scenario?.globalFlowMode === 'free';
+
+    // ── Sequential: Entrance / Exit는 각 1개만 허용 ──
+    if (!isFreeMode) {
+      if (zoneType === 'entrance' && zones.some((z) => z.type === 'entrance')) {
+        alert('Entrance는 1개만 만들 수 있습니다.\n기존 Entrance를 삭제한 뒤 추가하세요.');
+        return;
+      }
+      if (zoneType === 'exit' && zones.some((z) => z.type === 'exit')) {
+        alert('Exit는 1개만 만들 수 있습니다.\n기존 Exit를 삭제한 뒤 추가하세요.');
+        return;
+      }
     }
 
     const id = `z_user_${_zoneCounter++}` as ZoneId;
@@ -105,10 +119,13 @@ export function BuildTools() {
     const gateInId = `g_${_gateCounter++}` as GateId;
     const gateOutId = `g_${_gateCounter++}` as GateId;
 
-    // All zones get entrance + exit gates (입구 왼쪽, 출구 오른쪽)
+    // Free mode: all gates bidirectional. Sequential: entrance/exit.
+    const gateInType = isFreeMode ? 'bidirectional' : 'entrance';
+    const gateOutType = isFreeMode ? 'bidirectional' : 'exit';
+
     const gateIn: Gate = {
       id: gateInId, zoneId: id, floorId,
-      type: 'entrance',
+      type: gateInType as any,
       position: { x: visualX, y: visualY + visualH / 2 },
       width: 40,
       connectedGateId: prevExitGate ? (prevExitGate.id as GateId) : null,
@@ -116,7 +133,7 @@ export function BuildTools() {
     };
     const gateOut: Gate = {
       id: gateOutId, zoneId: id, floorId,
-      type: 'exit',
+      type: gateOutType as any,
       position: { x: visualX + visualW, y: visualY + visualH / 2 },
       width: 40,
       connectedGateId: nextEntrGate ? (nextEntrGate.id as GateId) : null,
@@ -249,8 +266,21 @@ export function BuildTools() {
     addMedia(media);
   }, [selectedZoneId, zones, addMedia]);
 
+  const flowModeSelected = !!scenario?.globalFlowMode;
+  const flowModeLabel = globalFlowMode === 'sequential' || globalFlowMode === 'hybrid' ? 'Sequential' : globalFlowMode === 'free' ? 'Free' : null;
+
   return (
     <div className="space-y-3">
+      {/* BUILD header + current mode badge */}
+      <div className="flex items-center gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Build</h2>
+        {flowModeLabel && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+            {flowModeLabel}
+          </span>
+        )}
+      </div>
+
       {/* Editor Mode */}
       <div className="flex gap-1">
         <ModeBtn
@@ -261,7 +291,13 @@ export function BuildTools() {
         />
         <ModeBtn
           active={editorMode === 'create-zone'}
-          onClick={() => setEditorMode('create-zone')}
+          onClick={() => {
+            if (!flowModeSelected) {
+              setEditorMode('place-gate'); // redirect to Flow tab to select mode
+              return;
+            }
+            setEditorMode('create-zone');
+          }}
           icon={Plus}
           label="Zone"
           disabled={isSimRunning}
@@ -282,15 +318,24 @@ export function BuildTools() {
         />
       </div>
 
-      {/* Zone Creation */}
-      {editorMode === 'create-zone' && !isSimRunning && (
+      {/* Mode selection required notice */}
+      {!flowModeSelected && editorMode !== 'place-gate' && (
+        <div className="px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[10px]">
+          Flow 탭에서 Build Mode를 먼저 선택하세요
+        </div>
+      )}
+
+      {/* Zone Creation — requires mode selection */}
+      {editorMode === 'create-zone' && !isSimRunning && flowModeSelected && (
         <div>
           <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Add Zone</p>
           <div className="grid grid-cols-2 gap-1">
-            {ZONE_TYPES.map(({ type, label, color }) => {
-              const alreadyExists =
+            {(globalFlowMode === 'free' ? FREE_ZONE_TYPES : SEQ_ZONE_TYPES).map(({ type, label, color }) => {
+              // Sequential: only 1 entrance, 1 exit
+              const alreadyExists = globalFlowMode !== 'free' && (
                 (type === 'entrance' && zones.some((z) => z.type === 'entrance')) ||
-                (type === 'exit' && zones.some((z) => z.type === 'exit'));
+                (type === 'exit' && zones.some((z) => z.type === 'exit'))
+              );
               return (
                 <button
                   key={type}
@@ -340,7 +385,7 @@ export function BuildTools() {
       )}
 
       {/* Zone Templates */}
-      {editorMode === 'create-zone' && !isSimRunning && (
+      {editorMode === 'create-zone' && !isSimRunning && flowModeSelected && (
         <ZoneTemplates />
       )}
 
@@ -349,13 +394,12 @@ export function BuildTools() {
         <div className="space-y-3">
           {/* Global Flow Mode */}
           <div>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Exhibition Flow</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Build Mode</p>
             <div className="space-y-2">
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-2 gap-1.5">
                 {[
-                  { value: 'free', label: 'Free', desc: 'Any order' },
-                  { value: 'sequential', label: 'Sequential', desc: 'List order' },
-                  { value: 'hybrid', label: 'Hybrid', desc: 'Guided→Free' },
+                  { value: 'sequential', label: 'Sequential', desc: 'Entrance → Exhibition → Exit', icon: '→' },
+                  { value: 'free', label: 'Free', desc: 'Free flow between zones', icon: '✦' },
                 ].map((opt) => (
                   <button
                     type="button"
@@ -366,51 +410,79 @@ export function BuildTools() {
                       const s = useStore.getState().scenario;
                       if (s) setScenario({ ...s, zones: useStore.getState().zones, media: useStore.getState().media, globalFlowMode: opt.value as any });
                     }}
-                    className={`px-2 py-1.5 rounded-lg text-center transition-all ${
+                    className={`px-2.5 py-2 rounded-lg text-center transition-all border ${
                       globalFlowMode === opt.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-secondary text-secondary-foreground hover:bg-accent'
+                        ? 'bg-primary/15 border-primary text-primary'
+                        : 'bg-secondary border-transparent text-secondary-foreground hover:bg-accent'
                     }`}
                   >
+                    <p className="text-sm mb-0.5">{opt.icon}</p>
                     <p className="text-[10px] font-medium">{opt.label}</p>
-                    <p className="text-[7px] opacity-70">{opt.desc}</p>
+                    <p className="text-[7px] opacity-60">{opt.desc}</p>
                   </button>
                 ))}
               </div>
 
-              {/* Hybrid: guided until slider */}
-              {globalFlowMode === 'hybrid' && nonUtilZones.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between text-[9px] mb-1">
-                    <span className="text-muted-foreground">Guided until</span>
-                    <span className="font-data font-medium">
-                      {nonUtilZones[Math.min(guidedUntilIndex, nonUtilZones.length - 1)]?.name ?? '—'}
-                    </span>
-                  </div>
-                  <input
-                    type="range" min="0" max={nonUtilZones.length - 1}
-                    value={Math.min(guidedUntilIndex, nonUtilZones.length - 1)}
-                    onChange={(e) => {
-                      const s2 = useStore.getState().scenario;
-                      if (s2) setScenario({ ...s2, guidedUntilIndex: parseInt(e.target.value) });
-                    }}
-                    className="w-full h-1"
-                  />
-                  <div className="flex gap-0.5 mt-1">
-                    {nonUtilZones.map((z, i) => (
-                      <div key={z.id as string}
-                        className={`flex-1 h-1 rounded-full ${i <= guidedUntilIndex ? 'bg-primary' : 'bg-secondary'}`}
+              {/* Sequential mode options */}
+              {(globalFlowMode === 'sequential' || globalFlowMode === 'hybrid') && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <label className="flex items-center gap-1 text-[9px] text-muted-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={globalFlowMode === 'hybrid'}
+                        onChange={(e) => {
+                          const s = useStore.getState().scenario;
+                          if (s) setScenario({ ...s, globalFlowMode: e.target.checked ? 'hybrid' : 'sequential' });
+                        }}
+                        className="w-3 h-3 rounded"
                       />
-                    ))}
+                      Hybrid (guided → free)
+                    </label>
                   </div>
+
+                  {/* Hybrid: guided until slider */}
+                  {globalFlowMode === 'hybrid' && nonUtilZones.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between text-[9px] mb-1">
+                        <span className="text-muted-foreground">Guided until</span>
+                        <span className="font-data font-medium">
+                          {nonUtilZones[Math.min(guidedUntilIndex, nonUtilZones.length - 1)]?.name ?? '—'}
+                        </span>
+                      </div>
+                      <input
+                        type="range" min="0" max={nonUtilZones.length - 1}
+                        value={Math.min(guidedUntilIndex, nonUtilZones.length - 1)}
+                        onChange={(e) => {
+                          const s2 = useStore.getState().scenario;
+                          if (s2) setScenario({ ...s2, guidedUntilIndex: parseInt(e.target.value) });
+                        }}
+                        className="w-full h-1"
+                      />
+                      <div className="flex gap-0.5 mt-1">
+                        {nonUtilZones.map((z, i) => (
+                          <div key={z.id as string}
+                            className={`flex-1 h-1 rounded-full ${i <= guidedUntilIndex ? 'bg-primary' : 'bg-secondary'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {globalFlowMode === 'sequential' && (
+                    <p className="text-[8px] text-muted-foreground">
+                      아래 Zones 리스트의 ▲▼ 버튼으로 관람순서 변경
+                    </p>
+                  )}
                 </div>
               )}
 
-              {/* Sequential: order is determined by ZONES list (▲▼) below */}
-              {globalFlowMode === 'sequential' && (
-                <p className="text-[8px] text-muted-foreground">
-                  아래 Zones 리스트의 ▲▼ 버튼으로 관람순서 변경
-                </p>
+              {/* Free mode guide */}
+              {globalFlowMode === 'free' && (
+                <div className="text-[8px] text-muted-foreground space-y-0.5">
+                  <p>Entrance zone에서 spawn, Exit zone에서 퇴장</p>
+                  <p>Gate는 bidirectional 기본. Zone 간 자유 이동</p>
+                </div>
               )}
             </div>
           </div>

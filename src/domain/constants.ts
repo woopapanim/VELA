@@ -54,6 +54,7 @@ export const ZONE_COLORS: Record<string, HexColor> = {
   rest: '#f59e0b',
   stage: '#a855f7',
   exit: '#ef4444',
+  gateway: '#14b8a6',  // teal — combined entrance+exit
 };
 
 // ---- Density Color Scale (Cold → Hot, 8 levels) ----

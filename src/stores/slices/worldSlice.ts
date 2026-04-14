@@ -89,8 +89,13 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     // Save undo snapshot BEFORE mutation
     const s = get();
     (s as any).pushUndo?.(s.zones, s.media);
+    // Free mode: default gates to bidirectional (except entrance/exit zone types)
+    const flowMode = s.scenario?.globalFlowMode;
+    const zoneToAdd = flowMode === 'free' && zone.type !== 'entrance' && zone.type !== 'exit'
+      ? { ...zone, gates: zone.gates.map((g: any) => ({ ...g, type: 'bidirectional' })) }
+      : zone;
     set((s) => {
-      const newZones = [...s.zones, zone];
+      const newZones = [...s.zones, zoneToAdd];
       let newFloors = s.floors.map((f) =>
         (f.id as string) === s.activeFloorId
           ? { ...f, zoneIds: [...f.zoneIds, zone.id] }
