@@ -37,9 +37,19 @@ export function BuildTools() {
     const id = `z_user_${_zoneCounter++}` as ZoneId;
     const floorId = (activeFloorId ?? 'floor_1f') as FloorId;
 
-    // Find non-overlapping position
+    // 뷰포트 중앙 world 좌표 계산 (Camera.screenToWorld 공식)
+    const { camera } = useStore.getState();
+    const canvasEl = document.querySelector('canvas');
+    const cw = canvasEl?.clientWidth ?? 800;
+    const ch = canvasEl?.clientHeight ?? 600;
+    const worldCenterX = camera.x + cw / 2;
+    const worldCenterY = camera.y + ch / 2;
+
+    // Find non-overlapping position (뷰포트 중앙 기준 나선형 탐색)
     const zoneW = 150, zoneH = 120;
-    let x = 100, y = 100;
+    const startX = Math.round(worldCenterX - zoneW / 2);
+    const startY = Math.round(worldCenterY - zoneH / 2);
+    let x = startX, y = startY;
     const isOverlapping = (tx: number, ty: number) =>
       zones.some((z) => {
         const b = z.bounds;
@@ -47,8 +57,8 @@ export function BuildTools() {
       });
     outer: for (let row = 0; row < 10; row++) {
       for (let col = 0; col < 8; col++) {
-        const tx = 100 + col * (zoneW + 30);
-        const ty = 100 + row * (zoneH + 30);
+        const tx = startX + col * (zoneW + 30) - 2 * (zoneW + 30);
+        const ty = startY + row * (zoneH + 30) - 2 * (zoneH + 30);
         if (!isOverlapping(tx, ty)) { x = tx; y = ty; break outer; }
       }
     }

@@ -75,10 +75,14 @@ export function ZoneEditor() {
 
       // When shape changes, reposition gates onto the new polygon boundary
       if (field === 'shape') {
+        const hasGraph = !!useStore.getState().waypointGraph;
         if (value === 'custom') {
-          // Convert to polygon: remove gates, user edits shape first
           const poly = getZonePolygon(zone as any);
           updateZone(selectedZoneId, { shape: 'custom', polygon: [...poly], gates: [] } as any);
+          useStore.getState().setPolygonEditMode(true);
+        } else if (hasGraph) {
+          // Graph mode: 게이트 불필요, shape만 변경
+          updateZone(selectedZoneId, { [field]: value, polygon: null, gates: [] } as any);
         } else {
           const b = zone.bounds;
           const gates = repositionGatesForShape(zone.gates as any[], b, value as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
@@ -99,10 +103,18 @@ export function ZoneEditor() {
     updateZone(selectedZoneId, { area: areaM2 } as any);
   }, [selectedZoneId, isLocked, zone, updateZone]);
 
-  const isPolygonEditing = zone?.shape === 'custom' && (!zone.gates || zone.gates.length === 0);
+  const polygonEditMode = useStore((s) => s.polygonEditMode);
+  const isPolygonEditing = zone?.shape === 'custom' && polygonEditMode;
 
   const handleCompletePolygon = useCallback(() => {
     if (!selectedZoneId || !zone || !zone.polygon || zone.polygon.length < 3) return;
+
+    // Graph mode: 게이트 없이 폴리곤만 확정
+    if (useStore.getState().waypointGraph) {
+      useStore.getState().setPolygonEditMode(false);
+      return;
+    }
+
     const vts = zone.polygon as { x: number; y: number }[];
     const floorId = (zone as any).gates?.[0]?.floorId ?? 'floor_1f';
 
@@ -112,7 +124,6 @@ export function ZoneEditor() {
       if (vts[i].x < vts[leftIdx].x) leftIdx = i;
       if (vts[i].x > vts[rightIdx].x) rightIdx = i;
     }
-    // Place gates at midpoint of edges containing those vertices
     const leftV = vts[leftIdx];
     const leftNext = vts[(leftIdx + 1) % vts.length];
     const rightV = vts[rightIdx];
@@ -141,6 +152,7 @@ export function ZoneEditor() {
       targetGateId: null,
     };
     updateZone(selectedZoneId, { gates: [gateIn, gateOut] } as any);
+    useStore.getState().setPolygonEditMode(false);
   }, [selectedZoneId, zone, updateZone]);
 
   const handleDelete = useCallback(() => {
@@ -217,7 +229,16 @@ export function ZoneEditor() {
               onClick={handleCompletePolygon}
               className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
             >
-              ✓ 형태 완료 — Gate 자동 배치
+              ✓ 형태 완료
+            </button>
+          )}
+          {zone.shape === 'custom' && !polygonEditMode && (
+            <button
+              onClick={() => useStore.getState().setPolygonEditMode(true)}
+              disabled={isLocked}
+              className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-secondary hover:bg-accent text-foreground transition-colors disabled:opacity-40"
+            >
+              Edit Shape
             </button>
           )}
         </div>

@@ -121,6 +121,7 @@ export interface WorldSlice {
 
   // Actions
   setScenario: (scenario: Scenario) => void;
+  updateScenarioMeta: (updates: Partial<Scenario['meta']>) => void;
   setActiveFloor: (floorId: string) => void;
   addZone: (zone: ZoneConfig) => void;
   updateZone: (zoneId: string, updates: Partial<ZoneConfig>) => void;
@@ -159,6 +160,11 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       waypointGraph: scenario.waypointGraph ?? null,
     });
   },
+
+  updateScenarioMeta: (updates) => set((s) => {
+    if (!s.scenario) return {};
+    return { scenario: { ...s.scenario, meta: { ...s.scenario.meta, ...updates } } };
+  }),
 
   setActiveFloor: (floorId) => set({ activeFloorId: floorId }),
 

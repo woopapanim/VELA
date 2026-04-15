@@ -16,6 +16,7 @@ import { ActionAreaChart } from './ActionAreaChart';
 import { MediaRanking } from './MediaRanking';
 import { ZoneGraphViz } from './ZoneGraphViz';
 import { AgentJourney } from './AgentJourney';
+import { NodeTraffic } from './NodeTraffic';
 import { EngagementHistogram } from './EngagementHistogram';
 
 export function AnalyticsPanel() {
@@ -205,6 +206,9 @@ export function AnalyticsPanel() {
 
       {/* Agent Journey (when following) */}
       <AgentJourney />
+
+      {/* Node Traffic (pathLog aggregate) */}
+      <NodeTraffic />
 
       {/* Engagement Histogram */}
       <EngagementHistogram />

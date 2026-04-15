@@ -118,6 +118,33 @@ export function renderZones(
           ctx.lineWidth = 2;
           ctx.stroke();
         }
+      } else if (shape === 'circle' || shape === 'o_ring') {
+        // Circle: cardinal-direction handles on circle edge
+        const handleSize = 6;
+        const cx = bounds.x + bounds.w / 2;
+        const cy = bounds.y + bounds.h / 2;
+        const r = Math.min(bounds.w, bounds.h) / 2;
+        const cardinals = [
+          { x: cx, y: cy - r },     // N
+          { x: cx + r, y: cy },     // E
+          { x: cx, y: cy + r },     // S
+          { x: cx - r, y: cy },     // W
+        ];
+        for (const c of cardinals) {
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, handleSize / 2 + 1, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff';
+          ctx.fill();
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        const diameter = Math.round(r * 2);
+        ctx.font = '8px "JetBrains Mono", monospace';
+        ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(`⌀${diameter}`, cx, cy + r + 4);
       } else if (shape !== 'custom') {
         // Rect/L/other: corner resize handles
         const handleSize = 6;

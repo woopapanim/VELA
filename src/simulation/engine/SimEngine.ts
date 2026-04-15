@@ -1177,8 +1177,8 @@ export class SimulationEngine {
       }
     }
 
-    // 3. dwellTime 체류 (미디어 없는 REST 등)
-    if (curNode.dwellTimeMs > 0 && curNode.type === 'rest') {
+    // 3. dwellTime 체류 (미디어 없는 노드: rest, zone, attractor)
+    if (curNode.dwellTimeMs > 0 && (curNode.type === 'rest' || curNode.type === 'zone' || curNode.type === 'attractor')) {
       // pathLog의 마지막 항목이 이 노드이고 exitTime=0이면 아직 체류 중
       const lastLog = v.pathLog[v.pathLog.length - 1];
       if (lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {

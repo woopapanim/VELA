@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { WaypointType, ZoneType } from '@/domain';
+import { getZoneVertices } from '@/domain/zoneGeometry';
+import { getZonePolygon } from '@/simulation/engine/transit';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -27,6 +29,17 @@ const ZONE_TYPE_OPTIONS: { value: string; label: string }[] = [
 const ZONE_COLORS: Record<string, string> = {
   lobby: '#14b8a6', exhibition: '#3b82f6', corridor: '#6b7280', rest: '#f59e0b', stage: '#a855f7',
 };
+
+const SHAPE_OPTIONS = [
+  { value: 'rect', label: 'Rectangle' },
+  { value: 'circle', label: 'Circle' },
+  { value: 'l_top_left', label: 'L (Top-Left)' },
+  { value: 'l_top_right', label: 'L (Top-Right)' },
+  { value: 'l_bottom_left', label: 'L (Bottom-Left)' },
+  { value: 'l_bottom_right', label: 'L (Bottom-Right)' },
+  { value: 'o_ring', label: 'O-Ring' },
+  { value: 'custom', label: 'Polygon' },
+];
 
 interface PopoverState {
   visible: boolean;
@@ -249,6 +262,21 @@ export function PropertyPopover({ popover, onClose }: {
           <select value={zone.type} onChange={e => updateZone(popover.targetId!, { type: e.target.value as any })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             {ZONE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </Row>
+
+        <Row label="Shape">
+          <select value={zone.shape} onChange={e => {
+            const v = e.target.value;
+            if (v === 'custom') {
+              updateZone(popover.targetId!, { shape: 'custom', polygon: [...getZonePolygon(zone as any)], gates: [] } as any);
+              useStore.getState().setPolygonEditMode(true);
+            } else {
+              updateZone(popover.targetId!, { shape: v, polygon: null, gates: [] } as any);
+            }
+          }}
+            className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
+            {SHAPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Row>
 

@@ -46,9 +46,16 @@ export function MainLayout() {
           <h1 className="text-sm font-semibold tracking-tight">
             AION <span className="text-muted-foreground font-normal">mark01</span>
           </h1>
-          <span className="text-xs text-muted-foreground font-data">
-            ABOARD INTERACTIVE
-          </span>
+          {scenario && (
+            <span className="text-xs text-muted-foreground font-data truncate max-w-48">
+              {scenario.meta.name}
+            </span>
+          )}
+          {!scenario && (
+            <span className="text-xs text-muted-foreground font-data">
+              ABOARD INTERACTIVE
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {phase !== 'idle' && (
@@ -217,7 +224,7 @@ function ZoneListDragDrop() {
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
         Zones ({zones.length})
       </h2>
-      <div className="space-y-0.5 max-h-[50vh] overflow-y-auto">
+      <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
         {zones.map((zone, idx) => {
           const isSelected = (zone.id as string) === useStore.getState().selectedZoneId;
           const isEntrance = zone.type === 'entrance';
@@ -260,11 +267,6 @@ function ZoneListDragDrop() {
           <p className="text-xs text-muted-foreground">Load a scenario or add zones</p>
         )}
       </div>
-      {zones.length > 1 && scenario?.globalFlowMode !== 'free' && (
-        <p className="text-[9px] text-muted-foreground mt-1.5">
-          ⠿ 드래그하여 관람 순서 변경 (Entrance/Exit 고정)
-        </p>
-      )}
     </div>
   );
 }

@@ -21,6 +21,7 @@ export interface UiSlice {
   showBackground: boolean;
   camera: CameraState;
   isPanelCollapsed: { left: boolean; right: boolean };
+  polygonEditMode: boolean;
 
   // Actions
   selectZone: (zoneId: string | null) => void;
@@ -33,6 +34,7 @@ export interface UiSlice {
   toggleBackground: () => void;
   setCamera: (camera: Partial<CameraState>) => void;
   togglePanel: (side: 'left' | 'right') => void;
+  setPolygonEditMode: (on: boolean) => void;
 }
 
 export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
@@ -46,6 +48,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   showBackground: true,
   camera: { x: 0, y: 0, zoom: 1 },
   isPanelCollapsed: { left: false, right: false },
+  polygonEditMode: false,
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId, selectedMediaId: null }),
   selectMedia: (mediaId) => set({ selectedMediaId: mediaId, selectedZoneId: null }),
@@ -56,6 +59,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
   toggleBackground: () => set((s) => ({ showBackground: !s.showBackground })),
   setCamera: (camera) => set((s) => ({ camera: { ...s.camera, ...camera } })),
+  setPolygonEditMode: (on) => set({ polygonEditMode: on }),
   togglePanel: (side) =>
     set((s) => ({
       isPanelCollapsed: {

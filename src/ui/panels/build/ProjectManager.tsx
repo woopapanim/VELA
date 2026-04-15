@@ -30,6 +30,7 @@ function saveHistory(entries: ProjectEntry[]) {
 export function ProjectManager() {
   const scenario = useStore((s) => s.scenario);
   const setScenario = useStore((s) => s.setScenario);
+  const updateScenarioMeta = useStore((s) => s.updateScenarioMeta);
   const resetSim = useStore((s) => s.resetSim);
   const clearHistory = useStore((s) => s.clearHistory);
   const clearReplay = useStore((s) => s.clearReplay);
@@ -93,7 +94,7 @@ export function ProjectManager() {
     toast('info', 'New project created');
   }, [resetSim, clearHistory, clearReplay, setScenario, toast]);
 
-  // Save = localStorage 저장 + JSON 파일 다운로드 (두 곳 모두 저장)
+  // Save = JSON 파일 다운로드 성공 후 localStorage 저장
   const handleSave = useCallback(async () => {
     const store = useStore.getState();
     const s = store.scenario;
@@ -109,22 +110,24 @@ export function ProjectManager() {
     };
     setScenario(updated);
 
-    // ── localStorage에 저장 (Recent 목록용) ──
-    const entry: ProjectEntry = {
-      id: updated.meta.id as string,
-      name: updated.meta.name,
-      scenario: updated,
-      savedAt: Date.now(),
-    };
-    const existing = loadHistory();
-    const idx = existing.findIndex((e) => e.id === entry.id);
-    if (idx >= 0) existing[idx] = entry;
-    else existing.push(entry);
-    saveHistory(existing);
-    setHistory(existing);
-
     const json = JSON.stringify(updated, null, 2);
     const fileName = `${updated.meta.name.replace(/\s+/g, '-')}.json`;
+
+    // localStorage 저장 헬퍼 (파일 저장 성공 후 호출)
+    const commitToHistory = () => {
+      const entry: ProjectEntry = {
+        id: updated.meta.id as string,
+        name: updated.meta.name,
+        scenario: updated,
+        savedAt: Date.now(),
+      };
+      const existing = loadHistory();
+      const idx = existing.findIndex((e) => e.id === entry.id);
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      saveHistory(existing);
+      setHistory(existing);
+    };
 
     // ── File System Access API: 저장 위치 직접 선택 (Chrome/Edge 지원) ──
     if ('showSaveFilePicker' in window) {
@@ -136,10 +139,11 @@ export function ProjectManager() {
         const writable = await fileHandle.createWritable();
         await writable.write(json);
         await writable.close();
+        commitToHistory();
         toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
         return;
       } catch (err: any) {
-        if (err?.name === 'AbortError') return; // 취소
+        if (err?.name === 'AbortError') return; // 취소 → localStorage도 저장 안 함
         // 실패 시 fallback
       }
     }
@@ -152,6 +156,7 @@ export function ProjectManager() {
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
+    commitToHistory();
     toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
   }, [scenario, setScenario, toast]);
 
@@ -164,9 +169,25 @@ export function ProjectManager() {
         toast('error', '유효하지 않은 프로젝트 파일');
         return;
       }
+      // 파일명에서 프로젝트 이름 설정
+      const nameFromFile = file.name.replace(/\.json$/i, '');
+      data.meta = { ...data.meta, name: nameFromFile };
       resetSim(); clearHistory(); clearReplay();
       setScenario(data);
-      toast('success', `"${data.meta.name}" 열림`);
+      // Recent에 추가
+      const entry: ProjectEntry = {
+        id: data.meta.id as string,
+        name: nameFromFile,
+        scenario: data,
+        savedAt: Date.now(),
+      };
+      const existing = loadHistory();
+      const idx = existing.findIndex((e) => e.id === entry.id);
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      saveHistory(existing);
+      setHistory(existing);
+      toast('success', `"${nameFromFile}" 열림`);
     };
 
     // ── File System Access API (Chrome/Edge) ──
@@ -263,9 +284,7 @@ export function ProjectManager() {
         <div className="flex items-center justify-between text-[10px]">
           <input
             value={scenario.meta.name}
-            onChange={(e) => {
-              if (scenario) setScenario({ ...scenario, meta: { ...scenario.meta, name: e.target.value } });
-            }}
+            onChange={(e) => updateScenarioMeta({ name: e.target.value })}
             className="flex-1 px-2 py-1 font-medium rounded-lg bg-transparent border border-border hover:bg-secondary/50 focus:bg-secondary transition-colors"
             placeholder="Project name"
           />

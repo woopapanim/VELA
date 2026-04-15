@@ -38,13 +38,26 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── JSON 파싱 공통 ──
-  const loadScenarioFromText = useCallback((text: string) => {
+  const loadScenarioFromText = useCallback((text: string, fileName?: string) => {
     const data = JSON.parse(text) as Scenario;
     if (!data.meta || !data.zones || !data.simulationConfig) {
       setOpenError('유효하지 않은 파일입니다 (meta / zones / simulationConfig 누락)');
       return;
     }
+    // 파일명으로 프로젝트 이름 설정
+    if (fileName) {
+      data.meta = { ...data.meta, name: fileName.replace(/\.json$/i, '') };
+    }
     setScenario(data);
+    // Recent에 추가
+    try {
+      const entry = { id: data.meta.id as string, name: data.meta.name, scenario: data, savedAt: Date.now(), zoneCount: data.zones.length };
+      const existing = loadHistory();
+      const idx = existing.findIndex((e) => e.id === entry.id);
+      if (idx >= 0) existing[idx] = entry;
+      else existing.push(entry);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(-20)));
+    } catch {}
     onEnter();
   }, [setScenario, onEnter]);
 
@@ -105,7 +118,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         });
         const file = await handle.getFile();
         const text = await file.text();
-        loadScenarioFromText(text);
+        loadScenarioFromText(text, file.name);
       } else {
         // fallback: hidden input
         fileInputRef.current?.click();
@@ -126,7 +139,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
     if (!file) return;
     try {
       const text = await file.text();
-      loadScenarioFromText(text);
+      loadScenarioFromText(text, file.name);
     } catch (err) {
       setOpenError(`파싱 오류: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -154,7 +167,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
     }
     try {
       const text = await file.text();
-      loadScenarioFromText(text);
+      loadScenarioFromText(text, file.name);
     } catch (err) {
       setOpenError(`파싱 오류: ${err instanceof Error ? err.message : String(err)}`);
     }

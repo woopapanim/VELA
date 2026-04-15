@@ -9,7 +9,7 @@ import { PropertyPopover, usePropertyPopover } from './PropertyPopover';
 import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
-import { zonesOverlap } from '@/domain/zoneGeometry';
+import { zonesOverlap, getZoneVertices } from '@/domain/zoneGeometry';
 
 // Get edge segments for a zone shape (rx, ry = L bend ratios, default 0.5)
 function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): Array<[{x:number;y:number},{x:number;y:number}]> {
@@ -249,9 +249,27 @@ export function CanvasPanel() {
     );
   }
 
-  function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number } }): 'nw' | 'ne' | 'sw' | 'se' | null {
+  function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number }; shape?: string }): 'nw' | 'ne' | 'sw' | 'se' | null {
     const b = zone.bounds;
     const r = 12; // hit radius
+
+    // Circle: cardinal handles on circle edge
+    if (zone.shape === 'circle' || zone.shape === 'o_ring') {
+      const cx = b.x + b.w / 2;
+      const cy = b.y + b.h / 2;
+      const cr = Math.min(b.w, b.h) / 2;
+      const cardinals: Array<{ corner: 'nw' | 'ne' | 'sw' | 'se'; cx: number; cy: number }> = [
+        { corner: 'nw', cx: cx, cy: cy - cr },     // N → nw handle
+        { corner: 'ne', cx: cx + cr, cy: cy },     // E → ne handle
+        { corner: 'sw', cx: cx - cr, cy: cy },     // W → sw handle
+        { corner: 'se', cx: cx, cy: cy + cr },     // S → se handle
+      ];
+      for (const { corner, cx: hx, cy: hy } of cardinals) {
+        if (Math.abs(world.x - hx) < r && Math.abs(world.y - hy) < r) return corner;
+      }
+      return null;
+    }
+
     const corners: Array<{ corner: 'nw' | 'ne' | 'sw' | 'se'; cx: number; cy: number }> = [
       { corner: 'nw', cx: b.x, cy: b.y },
       { corner: 'ne', cx: b.x + b.w, cy: b.y },
@@ -383,12 +401,16 @@ export function CanvasPanel() {
 
       const id = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const floorId = store.activeFloorId ?? '';
+      // Auto-label: count existing nodes of same type → "Hub 1", "Entry 2", etc.
+      const sameTypeCount = graph ? graph.nodes.filter(n => n.type === wpType).length : 0;
+      const typeLabel = wpType.charAt(0).toUpperCase() + wpType.slice(1);
+      const autoLabel = `${typeLabel} ${sameTypeCount + 1}`;
       store.addWaypoint({
         id: id as any,
         type: wpType,
         position: { x: world.x, y: world.y },
         floorId: floorId as any,
-        label: '',
+        label: autoLabel,
         attraction: wpType === 'attractor' ? 0.9 : 0.5,
         dwellTimeMs: wpType === 'rest' ? 30000 : 0,
         capacity: 20,
@@ -486,7 +508,7 @@ export function CanvasPanel() {
       // Check resize handle on selected zone first (skip for custom polygon editing)
       if (store.selectedZoneId) {
         const selZone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
-        const isPolyEditing = selZone?.shape === 'custom' && (!selZone.gates || selZone.gates.length === 0);
+        const isPolyEditing = selZone?.shape === 'custom' && store.polygonEditMode;
 
         if (selZone && !isPolyEditing) {
           const corner = hitTestCorner(world, selZone);
@@ -517,8 +539,8 @@ export function CanvasPanel() {
           }
         }
 
-        // Check custom polygon vertex/edge click (only when no gates = editing mode)
-        const polyEditing = selZone && selZone.shape === 'custom' && selZone.polygon && selZone.polygon.length > 2 && (!selZone.gates || selZone.gates.length === 0);
+        // Check custom polygon vertex/edge click (only in polygon edit mode)
+        const polyEditing = selZone && selZone.shape === 'custom' && selZone.polygon && selZone.polygon.length > 2 && store.polygonEditMode;
         if (polyEditing) {
           const vts = selZone.polygon as {x:number;y:number}[];
           // ① Vertex drag
@@ -641,6 +663,23 @@ export function CanvasPanel() {
           selectZone(null);
           store.selectWaypoint(null);
           e.preventDefault();
+          return;
+        }
+      }
+
+      // 폴리곤 편집 중이면 zone body 클릭으로 다른 존 선택되는 것 방지
+      if (store.polygonEditMode && store.selectedZoneId) {
+        const editingZone = store.zones.find(z => (z.id as string) === store.selectedZoneId);
+        if (editingZone?.shape === 'custom') {
+          // 현재 존 내부 클릭이면 move 드래그 (편집 모드 유지)
+          if (editingZone.polygon && ptInPoly(editingZone.polygon as {x:number;y:number}[], world.x, world.y)) {
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            dragMode.current = 'move';
+            dragZoneId.current = editingZone.id as string;
+            dragOffset.current = { x: world.x - editingZone.bounds.x, y: world.y - editingZone.bounds.y };
+            e.preventDefault();
+          }
+          // 밖 클릭이면 아무것도 안 함 (편집 모드 유지, 다른 존 선택 안 함)
           return;
         }
       }
@@ -903,7 +942,7 @@ export function CanvasPanel() {
             // Custom polygon vertex/edge hover (only in editing mode — no gates)
             let hitVertex = false;
             let hitEdge = false;
-            const polyEditHover = !hitLHandle && sel.shape === 'custom' && sel.polygon && sel.polygon.length > 2 && (!sel.gates || sel.gates.length === 0);
+            const polyEditHover = !hitLHandle && sel.shape === 'custom' && sel.polygon && sel.polygon.length > 2 && useStore.getState().polygonEditMode;
             if (polyEditHover) {
               const vts = sel.polygon as {x:number;y:number}[];
               for (const pv of vts) {
@@ -1106,7 +1145,15 @@ export function CanvasPanel() {
       const wx = snap(world.x);
       const wy = snap(world.y);
 
-      if (c === 'se') { w = Math.max(MIN, wx - x); h = Math.max(MIN, wy - y); }
+      // Circle: 반지름 기반 균일 리사이즈
+      if (zone.shape === 'circle' || zone.shape === 'o_ring') {
+        const cx = ob.x + ob.w / 2;
+        const cy = ob.y + ob.h / 2;
+        const dx = world.x - cx, dy = world.y - cy;
+        const newR = Math.max(MIN / 2, Math.round(Math.sqrt(dx * dx + dy * dy) / 10) * 10);
+        const d = newR * 2;
+        x = cx - newR; y = cy - newR; w = d; h = d;
+      } else if (c === 'se') { w = Math.max(MIN, wx - x); h = Math.max(MIN, wy - y); }
       else if (c === 'sw') { const newX = Math.min(x + w - MIN, wx); w = w + (x - newX); x = newX; h = Math.max(MIN, wy - y); }
       else if (c === 'ne') { w = Math.max(MIN, wx - x); const newY = Math.min(y + h - MIN, wy); h = h + (y - newY); y = newY; }
       else if (c === 'nw') { const newX = Math.min(x + w - MIN, wx); w = w + (x - newX); x = newX; const newY = Math.min(y + h - MIN, wy); h = h + (y - newY); y = newY; }
@@ -1203,8 +1250,57 @@ export function CanvasPanel() {
       const vIdx = dragVertexIdx.current;
       const poly = zone.polygon;
       if (poly && vIdx < poly.length) {
-        const snappedX = snap(world.x);
-        const snappedY = snap(world.y);
+        let snappedX = snap(world.x);
+        let snappedY = snap(world.y);
+
+        // 자석 스냅: 다른 존 경계에 가까우면 붙기
+        const SNAP_DIST = 15;
+        let bestDist = SNAP_DIST * SNAP_DIST;
+        const otherZones = useStore.getState().zones.filter(z => (z.id as string) !== dragZoneId.current);
+        for (const oz of otherZones) {
+          // 원형 존: 원 둘레에 가장 가까운 점으로 스냅
+          if (oz.shape === 'circle' || oz.shape === 'o_ring') {
+            const cx = oz.bounds.x + oz.bounds.w / 2;
+            const cy = oz.bounds.y + oz.bounds.h / 2;
+            const r = Math.min(oz.bounds.w, oz.bounds.h) / 2;
+            const ddx = snappedX - cx, ddy = snappedY - cy;
+            const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+            if (dist > 0) {
+              const nearX = cx + (ddx / dist) * r;
+              const nearY = cy + (ddy / dist) * r;
+              const sdx = nearX - snappedX, sdy = nearY - snappedY;
+              const sd2 = sdx * sdx + sdy * sdy;
+              if (sd2 < bestDist) {
+                bestDist = sd2;
+                snappedX = Math.round(nearX);
+                snappedY = Math.round(nearY);
+              }
+            }
+            continue;
+          }
+
+          const verts = getZoneVertices(oz.bounds, oz.shape, (oz as any).lRatioX ?? 0.5, (oz as any).lRatioY ?? 0.5, oz.polygon);
+          for (let ei = 0; ei < verts.length; ei++) {
+            const a = verts[ei], b = verts[(ei + 1) % verts.length];
+            const cp = closestPointOnSeg(snappedX, snappedY, a.x, a.y, b.x, b.y);
+            const dx = cp.x - snappedX, dy = cp.y - snappedY;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestDist) {
+              bestDist = d2;
+              snappedX = Math.round(cp.x);
+              snappedY = Math.round(cp.y);
+            }
+            // 꼭짓점 스냅 (더 강하게)
+            const vdx = a.x - snap(world.x), vdy = a.y - snap(world.y);
+            const vd2 = vdx * vdx + vdy * vdy;
+            if (vd2 < bestDist) {
+              bestDist = vd2;
+              snappedX = Math.round(a.x);
+              snappedY = Math.round(a.y);
+            }
+          }
+        }
+
         const newPoly = poly.map((v, i) =>
           i === vIdx ? { x: snappedX, y: snappedY } : { x: v.x, y: v.y }
         );
@@ -1323,7 +1419,64 @@ export function CanvasPanel() {
     const world = getWorldPos(e);
     if (!world) return;
     const store = useStore.getState();
-    // Find closest active visitor within 15px
+    const graph = store.waypointGraph;
+
+    // ── 엣지 더블클릭: 중간에 hub 노드 삽입하여 엣지 분할 ──
+    if (graph && store.phase === 'idle') {
+      for (const edge of graph.edges) {
+        const from = graph.nodes.find(n => n.id === edge.fromId);
+        const to = graph.nodes.find(n => n.id === edge.toId);
+        if (!from || !to) continue;
+        const cp = closestPointOnSeg(world.x, world.y, from.position.x, from.position.y, to.position.x, to.position.y);
+        const dx = cp.x - world.x, dy = cp.y - world.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 10) {
+          store.pushUndo(store.zones, store.media, store.waypointGraph);
+          // 중간 hub 노드 생성
+          const midId = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+          const sameTypeCount = graph.nodes.filter(n => n.type === 'hub').length;
+          const midNode = {
+            id: midId as any,
+            type: 'hub' as const,
+            position: { x: Math.round(cp.x), y: Math.round(cp.y) },
+            floorId: from.floorId,
+            label: `Hub ${sameTypeCount + 1}`,
+            attraction: 0.5,
+            dwellTimeMs: 0,
+            capacity: 20,
+            spawnWeight: 0,
+            lookAt: 0,
+            zoneId: from.zoneId,
+            mediaId: null,
+          };
+          // 새 엣지 2개: from→mid, mid→to
+          const edge1 = {
+            id: `e_${Date.now()}_a` as any,
+            fromId: edge.fromId,
+            toId: midId as any,
+            direction: edge.direction,
+            cost: Math.sqrt((from.position.x - cp.x) ** 2 + (from.position.y - cp.y) ** 2),
+            passWeight: edge.passWeight,
+          };
+          const edge2 = {
+            id: `e_${Date.now()}_b` as any,
+            fromId: midId as any,
+            toId: edge.toId,
+            direction: edge.direction,
+            cost: Math.sqrt((to.position.x - cp.x) ** 2 + (to.position.y - cp.y) ** 2),
+            passWeight: edge.passWeight,
+          };
+          // 기존 엣지 제거, 노드+엣지 추가
+          store.removeEdge(edge.id as string);
+          store.addWaypoint(midNode);
+          store.addEdge(edge1);
+          store.addEdge(edge2);
+          store.selectWaypoint(midId);
+          return;
+        }
+      }
+    }
+
+    // ── 에이전트 팔로우 토글 ──
     let closest: { id: string; dist: number } | null = null;
     for (const v of store.visitors) {
       if (!v.isActive) continue;
