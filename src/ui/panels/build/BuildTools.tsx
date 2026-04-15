@@ -37,29 +37,36 @@ export function BuildTools() {
     const id = `z_user_${_zoneCounter++}` as ZoneId;
     const floorId = (activeFloorId ?? 'floor_1f') as FloorId;
 
-    // 뷰포트 중앙 world 좌표 계산 (Camera.screenToWorld 공식)
-    const { camera } = useStore.getState();
+    // 뷰포트 중앙 world 좌표 — canvas에서 직접 계산
     const canvasEl = document.querySelector('canvas');
     const cw = canvasEl?.clientWidth ?? 800;
     const ch = canvasEl?.clientHeight ?? 600;
-    const worldCenterX = camera.x + cw / 2;
-    const worldCenterY = camera.y + ch / 2;
+    const { camera } = useStore.getState();
+    // screenToWorld(cw/2, ch/2) = camera.x + cw/2, camera.y + ch/2
+    const center = {
+      x: (0) / camera.zoom + camera.x + cw / 2,
+      y: (0) / camera.zoom + camera.y + ch / 2,
+    };
 
-    // Find non-overlapping position (뷰포트 중앙 기준 나선형 탐색)
     const zoneW = 150, zoneH = 120;
-    const startX = Math.round(worldCenterX - zoneW / 2);
-    const startY = Math.round(worldCenterY - zoneH / 2);
-    let x = startX, y = startY;
+    let x = Math.round(center.x - zoneW / 2);
+    let y = Math.round(center.y - zoneH / 2);
+    // 겹침 회피: 중앙에 놓을 수 없으면 주변 탐색
     const isOverlapping = (tx: number, ty: number) =>
       zones.some((z) => {
         const b = z.bounds;
         return tx < b.x + b.w + 20 && tx + zoneW + 20 > b.x && ty < b.y + b.h + 20 && ty + zoneH + 20 > b.y;
       });
-    outer: for (let row = 0; row < 10; row++) {
-      for (let col = 0; col < 8; col++) {
-        const tx = startX + col * (zoneW + 30) - 2 * (zoneW + 30);
-        const ty = startY + row * (zoneH + 30) - 2 * (zoneH + 30);
-        if (!isOverlapping(tx, ty)) { x = tx; y = ty; break outer; }
+    if (isOverlapping(x, y)) {
+      outer: for (let ring = 1; ring <= 5; ring++) {
+        for (let dy = -ring; dy <= ring; dy++) {
+          for (let dx = -ring; dx <= ring; dx++) {
+            if (Math.abs(dx) !== ring && Math.abs(dy) !== ring) continue;
+            const tx = Math.round(center.x - zoneW / 2) + dx * (zoneW + 20);
+            const ty = Math.round(center.y - zoneH / 2) + dy * (zoneH + 20);
+            if (!isOverlapping(tx, ty)) { x = tx; y = ty; break outer; }
+          }
+        }
       }
     }
 

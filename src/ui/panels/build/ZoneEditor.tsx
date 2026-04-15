@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
+import { ZONE_COLORS } from '@/domain';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -88,6 +89,8 @@ export function ZoneEditor() {
           const gates = repositionGatesForShape(zone.gates as any[], b, value as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
           updateZone(selectedZoneId, { [field]: value, polygon: null, gates } as any);
         }
+      } else if (field === 'type') {
+        updateZone(selectedZoneId, { type: value, color: ZONE_COLORS[value as string] ?? zone.color } as any);
       } else {
         updateZone(selectedZoneId, { [field]: value } as any);
       }
@@ -108,52 +111,9 @@ export function ZoneEditor() {
 
   const handleCompletePolygon = useCallback(() => {
     if (!selectedZoneId || !zone || !zone.polygon || zone.polygon.length < 3) return;
-
-    // Graph mode: 게이트 없이 폴리곤만 확정
-    if (useStore.getState().waypointGraph) {
-      useStore.getState().setPolygonEditMode(false);
-      return;
-    }
-
-    const vts = zone.polygon as { x: number; y: number }[];
-    const floorId = (zone as any).gates?.[0]?.floorId ?? 'floor_1f';
-
-    // Find leftmost and rightmost vertices for entrance/exit gate placement
-    let leftIdx = 0, rightIdx = 0;
-    for (let i = 1; i < vts.length; i++) {
-      if (vts[i].x < vts[leftIdx].x) leftIdx = i;
-      if (vts[i].x > vts[rightIdx].x) rightIdx = i;
-    }
-    const leftV = vts[leftIdx];
-    const leftNext = vts[(leftIdx + 1) % vts.length];
-    const rightV = vts[rightIdx];
-    const rightNext = vts[(rightIdx + 1) % vts.length];
-
-    const gateIn = {
-      id: `g_poly_${Date.now()}_in`,
-      zoneId: selectedZoneId,
-      floorId,
-      type: 'entrance' as const,
-      position: { x: (leftV.x + leftNext.x) / 2, y: (leftV.y + leftNext.y) / 2 },
-      width: 40,
-      connectedGateId: null,
-      targetFloorId: null,
-      targetGateId: null,
-    };
-    const gateOut = {
-      id: `g_poly_${Date.now()}_out`,
-      zoneId: selectedZoneId,
-      floorId,
-      type: 'exit' as const,
-      position: { x: (rightV.x + rightNext.x) / 2, y: (rightV.y + rightNext.y) / 2 },
-      width: 40,
-      connectedGateId: null,
-      targetFloorId: null,
-      targetGateId: null,
-    };
-    updateZone(selectedZoneId, { gates: [gateIn, gateOut] } as any);
+    // 폴리곤 확정 — 게이트 생성 없음 (동선은 Node/Edge로 관리)
     useStore.getState().setPolygonEditMode(false);
-  }, [selectedZoneId, zone, updateZone]);
+  }, [selectedZoneId, zone]);
 
   const handleDelete = useCallback(() => {
     if (!selectedZoneId || isLocked) return;

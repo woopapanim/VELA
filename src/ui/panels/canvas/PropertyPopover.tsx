@@ -260,7 +260,10 @@ export function PropertyPopover({ popover, onClose }: {
         </Row>
 
         <Row label="Type">
-          <select value={zone.type} onChange={e => updateZone(popover.targetId!, { type: e.target.value as any })}
+          <select value={zone.type} onChange={e => {
+            const newType = e.target.value;
+            updateZone(popover.targetId!, { type: newType as any, color: ZONE_COLORS[newType] ?? zone.color });
+          }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             {ZONE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>

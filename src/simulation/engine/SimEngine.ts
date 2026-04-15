@@ -1298,33 +1298,10 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private getTargetPosition(v: Visitor): Vector2D | null {
-    // Graph-Point: target node position + lane offset (양방향 교착 방지)
+    // Graph-Point: target node position
     if (v.targetNodeId) {
       const node = this.nodeMap.get(v.targetNodeId as string);
-      if (node) {
-        // 에이전트별 횡방향 분산: 엣지 수직으로 각자 다른 오프셋 (경로 폭 확보)
-        if (v.currentNodeId) {
-          const from = this.nodeMap.get(v.currentNodeId as string);
-          if (from) {
-            const edx = node.position.x - from.position.x;
-            const edy = node.position.y - from.position.y;
-            const elen = Math.sqrt(edx * edx + edy * edy);
-            if (elen > 1) {
-              // 에이전트 ID 기반 결정적 오프셋 (-20 ~ +20px)
-              const hash = (v.id as string).split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
-              const agentOffset = ((hash % 41) - 20); // -20 to +20
-              // 수직 방향
-              const nx = -edy / elen;
-              const ny = edx / elen;
-              return {
-                x: node.position.x + nx * agentOffset,
-                y: node.position.y + ny * agentOffset,
-              };
-            }
-          }
-        }
-        return node.position;
-      }
+      if (node) return node.position;
     }
 
     // 0. EXITING with no target → find exit gate of current zone
@@ -1416,8 +1393,8 @@ export class SimulationEngine {
       return { ...v, steering: { ...v.steering, wanderAngle: newWanderAngle } };
     }
 
-    // Wall avoidance — agent is always inside a zone
-    if (v.currentZoneId) {
+    // Wall avoidance — 그래프 이동 중에는 스킵 (크로스존 이동 시 잘못된 벽 회피 방지)
+    if (v.currentZoneId && !v.targetNodeId) {
       const zone = this.zoneMap.get(v.currentZoneId as string);
       if (zone) {
         const walls = getZoneWalls(zone);
