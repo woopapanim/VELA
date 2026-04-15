@@ -1,0 +1,389 @@
+{
+  "meta": {
+    "id": "project_1776233385367",
+    "name": "Untitled Project",
+    "description": "",
+    "version": 6,
+    "parentId": null,
+    "tags": [],
+    "createdAt": 1776233385367,
+    "updatedAt": 1776234344485
+  },
+  "floors": [
+    {
+      "id": "floor_1f",
+      "name": "1F",
+      "level": 0,
+      "canvas": {
+        "width": 1200,
+        "height": 800,
+        "gridSize": 40,
+        "backgroundImage": null,
+        "scale": 0.025
+      },
+      "zoneIds": [
+        "z_user_100",
+        "z_user_101",
+        "z_user_102",
+        "z_user_103",
+        "z_user_104"
+      ],
+      "metadata": {}
+    }
+  ],
+  "zones": [
+    {
+      "id": "z_user_100",
+      "name": "Lobby 101",
+      "type": "lobby",
+      "shape": "rect",
+      "bounds": {
+        "x": 100,
+        "y": 100,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [],
+      "mediaIds": [],
+      "color": "#14b8a6",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_101",
+      "name": "Exhibition 102",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 250,
+        "y": -20,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [],
+      "mediaIds": [],
+      "color": "#3b82f6",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_102",
+      "name": "Corridor 103",
+      "type": "corridor",
+      "shape": "rect",
+      "bounds": {
+        "x": 250,
+        "y": 100,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [],
+      "mediaIds": [],
+      "color": "#6b7280",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_103",
+      "name": "Exhibition 104",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 250,
+        "y": 220,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [],
+      "mediaIds": [],
+      "color": "#3b82f6",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    },
+    {
+      "id": "z_user_104",
+      "name": "Exhibition 105",
+      "type": "exhibition",
+      "shape": "rect",
+      "bounds": {
+        "x": 400,
+        "y": 100,
+        "w": 150,
+        "h": 120
+      },
+      "polygon": null,
+      "area": 37.5,
+      "capacity": 30,
+      "flowType": "free",
+      "gates": [],
+      "mediaIds": [],
+      "color": "#3b82f6",
+      "attractiveness": 0.5,
+      "lRatioX": 0.5,
+      "lRatioY": 0.5,
+      "metadata": {}
+    }
+  ],
+  "media": [],
+  "visitorDistribution": {
+    "totalCount": 200,
+    "profileWeights": {
+      "general": 60,
+      "vip": 15,
+      "child": 10,
+      "elderly": 10,
+      "disabled": 5
+    },
+    "engagementWeights": {
+      "quick": 30,
+      "explorer": 40,
+      "immersive": 30
+    },
+    "groupRatio": 0.3,
+    "spawnRatePerSecond": 0.2
+  },
+  "simulationConfig": {
+    "fixedDeltaTime": 16.666666666666668,
+    "duration": 3600000,
+    "timeScale": 10,
+    "maxVisitors": 500,
+    "seed": 64736,
+    "physics": {
+      "maxSpeed": 120,
+      "maxAcceleration": 200,
+      "arrivalRadius": 30,
+      "arrivalSlowRadius": 80,
+      "avoidanceRadius": 20,
+      "separationStrength": 1.5,
+      "wanderRadius": 40,
+      "wanderJitter": 0.3,
+      "obstacleAvoidanceLookahead": 60,
+      "groupCohesionStrength": 1,
+      "groupCohesionRadius": 80,
+      "followerSeekWeight": 2,
+      "followerArrivalRadius": 40
+    },
+    "skipThreshold": {
+      "skipMultiplier": 1,
+      "maxWaitTimeMs": 30000,
+      "skipCooldownMs": 5000
+    },
+    "timeSlots": [
+      {
+        "startTimeMs": 0,
+        "endTimeMs": 3600000,
+        "spawnRatePerSecond": 0.2,
+        "profileDistribution": {
+          "general": 60,
+          "vip": 15,
+          "child": 10,
+          "elderly": 10,
+          "disabled": 5
+        },
+        "engagementDistribution": {
+          "quick": 30,
+          "explorer": 40,
+          "immersive": 30
+        },
+        "groupRatio": 0.3
+      }
+    ]
+  },
+  "waypointGraph": {
+    "nodes": [
+      {
+        "id": "wp_1776233407361_1bno",
+        "type": "entry",
+        "position": {
+          "x": 57.4423779224594,
+          "y": 130.16471825817246
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 1,
+        "lookAt": 0,
+        "zoneId": null,
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233409569_huga",
+        "type": "exit",
+        "position": {
+          "x": 57.4423779224594,
+          "y": 170.95365323833164
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": null,
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233411248_ili5",
+        "type": "zone",
+        "position": {
+          "x": 180.44650997200188,
+          "y": 159.48176527516188
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_100",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233413423_iuba",
+        "type": "zone",
+        "position": {
+          "x": 319.383819748169,
+          "y": 46.03753986159421
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_101",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233414178_olr6",
+        "type": "zone",
+        "position": {
+          "x": 332.13036192946873,
+          "y": 273.5633177977945
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_103",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233416302_y5yo",
+        "type": "hub",
+        "position": {
+          "x": 324.4824366206889,
+          "y": 162.0310737114218
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_102",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776233499176_q6yu",
+        "type": "zone",
+        "position": {
+          "x": 459.7170128587767,
+          "y": 156.91519043231204
+        },
+        "floorId": "floor_1f",
+        "label": "",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_104",
+        "mediaId": null
+      }
+    ],
+    "edges": [
+      {
+        "id": "e_1776233419655_n2ia",
+        "fromId": "wp_1776233407361_1bno",
+        "toId": "wp_1776233411248_ili5",
+        "direction": "directed",
+        "passWeight": 1,
+        "cost": 126.44961742550925
+      },
+      {
+        "id": "e_1776233420561_u42i",
+        "fromId": "wp_1776233411248_ili5",
+        "toId": "wp_1776233416302_y5yo",
+        "direction": "bidirectional",
+        "passWeight": 1,
+        "cost": 144.05848513381335
+      },
+      {
+        "id": "e_1776233421275_8c3q",
+        "fromId": "wp_1776233416302_y5yo",
+        "toId": "wp_1776233413423_iuba",
+        "direction": "bidirectional",
+        "passWeight": 1,
+        "cost": 116.10553728820966
+      },
+      {
+        "id": "e_1776233423028_03ah",
+        "fromId": "wp_1776233411248_ili5",
+        "toId": "wp_1776233409569_huga",
+        "direction": "directed",
+        "passWeight": 1,
+        "cost": 123.53793229085876
+      },
+      {
+        "id": "e_1776233425026_3byc",
+        "fromId": "wp_1776233414178_olr6",
+        "toId": "wp_1776233416302_y5yo",
+        "direction": "bidirectional",
+        "passWeight": 1,
+        "cost": 111.79415115501749
+      },
+      {
+        "id": "e_1776233502469_3w1g",
+        "fromId": "wp_1776233416302_y5yo",
+        "toId": "wp_1776233499176_q6yu",
+        "direction": "bidirectional",
+        "passWeight": 1,
+        "cost": 135.33130780429434
+      }
+    ]
+  }
+}

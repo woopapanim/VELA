@@ -14,6 +14,7 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
   attractor: { fill: '#f59e0b', stroke: '#d97706', label: 'A' },    // 노랑
   hub:       { fill: '#8b5cf6', stroke: '#7c3aed', label: 'H' },    // 보라
   rest:      { fill: '#9ca3af', stroke: '#6b7280', label: 'R' },    // 회색
+  bend:      { fill: '#64748b', stroke: '#475569', label: '·' },    // slate (작은 점)
 };
 
 const EDGE_COLOR = 'rgba(148, 163, 184, 0.6)';      // slate-400

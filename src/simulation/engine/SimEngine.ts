@@ -513,8 +513,8 @@ export class SimulationEngine {
         const dx = v.position.x - node.position.x;
         const dy = v.position.y - node.position.y;
         const distSq = dx * dx + dy * dy;
-        // HUB/ENTRY: 넓은 도착 판정 (통과점이라 정확히 위에 서지 않아도 됨)
-        const snapDist = (node.type === 'hub' || node.type === 'entry') ? 2500 : 625; // 50px vs 25px
+        // HUB/ENTRY/BEND: 넓은 도착 판정 (통과점)
+        const snapDist = (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500 : 625;
         if (distSq < snapDist) {
           return this.onNodeArrival({
             ...v,
@@ -1135,8 +1135,8 @@ export class SimulationEngine {
       return this.beginExitGraph(v, curNode);
     }
 
-    // 2. HUB 노드 → 체류/미디어 없이 바로 다음 노드 선택
-    if (curNode.type === 'hub') {
+    // 2. HUB/BEND 노드 → 체류/미디어 없이 바로 다음 노드 선택
+    if (curNode.type === 'hub' || curNode.type === 'bend') {
       // 바로 step 4 (다음 노드 선택)으로
     }
 
@@ -1298,10 +1298,33 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private getTargetPosition(v: Visitor): Vector2D | null {
-    // Graph-Point: target node position
+    // Graph-Point: target node position + lane offset (양방향 교착 방지)
     if (v.targetNodeId) {
       const node = this.nodeMap.get(v.targetNodeId as string);
-      if (node) return node.position;
+      if (node) {
+        // 에이전트별 횡방향 분산: 엣지 수직으로 각자 다른 오프셋 (경로 폭 확보)
+        if (v.currentNodeId) {
+          const from = this.nodeMap.get(v.currentNodeId as string);
+          if (from) {
+            const edx = node.position.x - from.position.x;
+            const edy = node.position.y - from.position.y;
+            const elen = Math.sqrt(edx * edx + edy * edy);
+            if (elen > 1) {
+              // 에이전트 ID 기반 결정적 오프셋 (-20 ~ +20px)
+              const hash = (v.id as string).split('').reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0);
+              const agentOffset = ((hash % 41) - 20); // -20 to +20
+              // 수직 방향
+              const nx = -edy / elen;
+              const ny = edx / elen;
+              return {
+                x: node.position.x + nx * agentOffset,
+                y: node.position.y + ny * agentOffset,
+              };
+            }
+          }
+        }
+        return node.position;
+      }
     }
 
     // 0. EXITING with no target → find exit gate of current zone
@@ -1412,11 +1435,11 @@ export class SimulationEngine {
       }
     }
 
-    // Separation — 퇴장 중(EXIT 방향)이면 약하게, 일반 이동이면 정상
+    // Separation
     const neighbors = this.spatialHash.queryRadius(v.id, physics.avoidanceRadius);
     if (neighbors.length > 0) {
       const targetType = v.targetNodeId ? this.nodeMap.get(v.targetNodeId as string)?.type : null;
-      const isPassThrough = targetType === 'exit' || targetType === 'hub' || targetType === 'entry';
+      const isPassThrough = targetType === 'exit' || targetType === 'hub' || targetType === 'entry' || targetType === 'bend';
       outputs.push({
         output: separation(v.position, neighbors.map(n => n.position), physics.avoidanceRadius, physics.separationStrength),
         weight: isPassThrough ? 0.1 : 0.5,

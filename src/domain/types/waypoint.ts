@@ -10,6 +10,7 @@ export const WAYPOINT_TYPE = {
   ATTRACTOR: 'attractor', // 고인력 타겟 (대형 LED, 신차 전시 등)
   HUB: 'hub',             // 의사결정점 (교차로/분기점, 체류 없음)
   REST: 'rest',           // 휴게/버퍼
+  BEND: 'bend',           // 단순 경유점 (엣지 꺾기용, 경로 탐색 무시)
 } as const;
 
 export type WaypointType = (typeof WAYPOINT_TYPE)[keyof typeof WAYPOINT_TYPE];

@@ -96,4 +96,5 @@ const TYPE_COLORS: Record<string, string> = {
   hub: '#8b5cf6',
   rest: '#06b6d4',
   zone: '#6b7280',
+  bend: '#64748b',
 };

@@ -27,6 +27,8 @@ export function AnalyticsPanel() {
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const staticInsights = useStore((s) => s.staticInsights);
 
+  const totalSpawned = useStore((s) => s.totalSpawned);
+  const totalExited = useStore((s) => s.totalExited);
   const activeCount = visitors.filter((v) => v.isActive).length;
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
@@ -52,10 +54,10 @@ export function AnalyticsPanel() {
           Analytics
         </h2>
         <div className="grid grid-cols-2 gap-2">
-          <KpiCard label="Visitors" value={activeCount} color="text-primary" />
-          <KpiCard label="Zones" value={zones.length} />
+          <KpiCard label="Active" value={activeCount} color="text-primary" />
+          <KpiCard label="Exited" value={totalExited} color="text-[var(--status-danger)]" />
+          <KpiCard label="Spawned" value={totalSpawned} />
           <KpiCard label="Elapsed" value={`${minutes}m ${seconds}s`} />
-          <KpiCard label="Phase" value={phase} />
         </div>
       </div>
 

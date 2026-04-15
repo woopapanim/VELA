@@ -7,9 +7,10 @@ export function StatsFooter() {
   const media = useStore((s) => s.media);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const scenario = useStore((s) => s.scenario);
+  const totalSpawned = useStore((s) => s.totalSpawned);
+  const totalExited = useStore((s) => s.totalExited);
 
   if (phase === 'idle') return null;
-
   const active = visitors.filter((v) => v.isActive).length;
   const watching = visitors.filter((v) => v.isActive && v.currentAction === 'WATCHING').length;
   const waiting = visitors.filter((v) => v.isActive && v.currentAction === 'WAITING').length;
@@ -23,6 +24,8 @@ export function StatsFooter() {
       <span className="text-primary">{active} active</span>
       <span className="text-[var(--status-success)]">{watching} watching</span>
       {waiting > 0 && <span className="text-[var(--status-warning)]">{waiting} waiting</span>}
+      <span className="text-[var(--status-danger)]">{totalExited} exited</span>
+      <span>{totalSpawned} spawned</span>
       <span>fatigue {fatigue}%</span>
       <span className={peakUtil > 90 ? 'text-[var(--status-danger)]' : ''}>peak {peakUtil}%</span>
       {bottlenecks > 0 && <span className="text-[var(--status-danger)]">{bottlenecks} bottleneck{bottlenecks > 1 ? 's' : ''}</span>}

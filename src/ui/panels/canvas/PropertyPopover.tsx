@@ -12,6 +12,7 @@ const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'attractor', label: 'Attractor' },
   { value: 'hub', label: 'Hub' },
   { value: 'rest', label: 'Rest' },
+  { value: 'bend', label: 'Bend' },
 ];
 
 const NODE_COLORS: Record<string, string> = {

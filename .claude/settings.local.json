@@ -56,7 +56,15 @@
       "mcp__sequential-thinking__sequentialthinking",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_console_messages",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(mdfind -name \"0415.json\")",
+      "Bash(ls \"/Users/suhan/AION mark01/\"*.json)",
+      "Read(//Users/suhan/**)",
+      "Bash(ls \"/Users/suhan/AION mark01/public/\"*.json)",
+      "Read(//Users/suhan/Desktop/**)",
+      "Bash(ls -la \"/Users/suhan/AION mark01/\"*.json)",
+      "Bash(grep -l \"waypointGraph\" \"/Users/suhan/AION mark01/\"*.json)",
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('public/44.json','utf8'\\)\\); console.log\\('zones:', d.zones?.length, 'media:', d.media?.length, 'wpNodes:', d.waypointGraph?.nodes?.length, 'wpEdges:', d.waypointGraph?.edges?.length\\)\")"
     ]
   }
 }

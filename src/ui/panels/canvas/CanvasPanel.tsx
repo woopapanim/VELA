@@ -291,6 +291,14 @@ export function CanvasPanel() {
         spacePressed.current = true;
         setIsPanMode(true);
       }
+      // Escape: 폴리곤 편집 모드 종료
+      if (e.code === 'Escape') {
+        const store = useStore.getState();
+        if (store.polygonEditMode) {
+          store.setPolygonEditMode(false);
+          return;
+        }
+      }
       // Delete selected zone or media
       if ((e.code === 'Delete' || e.code === 'Backspace') && !(e.target as HTMLElement)?.matches('input,textarea,select')) {
         const store = useStore.getState();
@@ -1421,7 +1429,7 @@ export function CanvasPanel() {
     const store = useStore.getState();
     const graph = store.waypointGraph;
 
-    // ── 엣지 더블클릭: 중간에 hub 노드 삽입하여 엣지 분할 ──
+    // ── 엣지 더블클릭: 중간에 bend 노드 삽입하여 엣지 분할 (단순 꺾기) ──
     if (graph && store.phase === 'idle') {
       for (const edge of graph.edges) {
         const from = graph.nodes.find(n => n.id === edge.fromId);
@@ -1431,16 +1439,16 @@ export function CanvasPanel() {
         const dx = cp.x - world.x, dy = cp.y - world.y;
         if (Math.sqrt(dx * dx + dy * dy) < 10) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
-          // 중간 hub 노드 생성
+          // 중간 bend 노드 생성 (경유점 — 경로 탐색에서 투명)
           const midId = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-          const sameTypeCount = graph.nodes.filter(n => n.type === 'hub').length;
+          const sameTypeCount = graph.nodes.filter(n => n.type === 'bend').length;
           const midNode = {
             id: midId as any,
-            type: 'hub' as const,
+            type: 'bend' as const,
             position: { x: Math.round(cp.x), y: Math.round(cp.y) },
             floorId: from.floorId,
-            label: `Hub ${sameTypeCount + 1}`,
-            attraction: 0.5,
+            label: `Bend ${sameTypeCount + 1}`,
+            attraction: 0,
             dwellTimeMs: 0,
             capacity: 20,
             spawnWeight: 0,

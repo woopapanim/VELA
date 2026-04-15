@@ -184,7 +184,7 @@ export class WaypointNavigator {
     // HUB/ENTRY는 교차로이므로 면제
     // ZONE/ATTRACTOR/REST는 감점하되 차단(-9999)은 아님 → 퇴장 경로로 재방문 가능
     if (visitedNodeIds.has(candidate.id as string)) {
-      if (candidate.type === 'hub' || candidate.type === 'entry') {
+      if (candidate.type === 'hub' || candidate.type === 'entry' || candidate.type === 'bend') {
         // 면제: 패널티 없이 정상 Score 계산
       } else {
         return -2.0; // 강한 감점이지만 다른 경로가 없으면 선택 가능
