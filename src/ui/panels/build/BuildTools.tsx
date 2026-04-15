@@ -13,9 +13,11 @@ const ZONE_TYPES = [
   { type: 'stage', label: 'Stage', color: '#a855f7' },
 ] as const;
 
-const MEDIA_QUICK = [
-  'led_wall', 'touchscreen_kiosk', 'vr_booth', 'ar_station',
-  'interactive_table', 'product_display', 'info_panel', 'seating_area',
+const MEDIA_QUICK_CATEGORIES = [
+  { label: '아날로그', color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
+  { label: '패시브', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { label: '액티브', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { label: '이머시브', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _zoneCounter = 100;
@@ -105,10 +107,16 @@ export function BuildTools() {
     if (!preset) return;
 
     const id = `m_user_${_mediaCounter++}` as MediaId;
+    // Determine interactionType from category
+    const interactionType = preset.category === 'immersive' ? 'staged' as const
+      : preset.isInteractive ? 'active' as const
+      : 'passive' as const;
+
     const media: MediaPlacement = {
       id,
       name: preset.type.replace(/_/g, ' '),
       type: mediaType as any,
+      category: preset.category,
       zoneId: zone.id,
       position: (() => {
         const pw = preset.defaultSize.width * 20; // MEDIA_SCALE
@@ -128,7 +136,10 @@ export function BuildTools() {
       capacity: preset.defaultCapacity,
       avgEngagementTimeMs: preset.avgEngagementTimeMs,
       attractiveness: 0.7,
-      interactionType: preset.isInteractive ? 'active' : 'passive',
+      attractionRadius: preset.attractionRadius,
+      interactionType,
+      queueBehavior: preset.queueBehavior,
+      groupFriendly: preset.groupFriendly,
     };
 
     addMedia(media);
@@ -242,23 +253,32 @@ export function BuildTools() {
         </div>
       )}
 
-      {/* Media Placement */}
+      {/* Media Placement — categorized */}
       {editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">
+        <div className="space-y-2">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
             Add Media to Selected Zone
           </p>
-          <div className="grid grid-cols-2 gap-1">
-            {MEDIA_QUICK.map((type) => (
-              <button
-                key={type}
-                onClick={() => handlePlaceMedia(type)}
-                className="px-2 py-1.5 text-[10px] rounded-lg bg-secondary hover:bg-accent transition-colors text-left truncate"
-              >
-                {type.replace(/_/g, ' ')}
-              </button>
-            ))}
-          </div>
+          {MEDIA_QUICK_CATEGORIES.map(({ label, color, items }) => (
+            <div key={label}>
+              <div className="flex items-center gap-1 mb-1">
+                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                {items.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => handlePlaceMedia(type)}
+                    className="px-2 py-1.5 text-[10px] rounded-lg bg-secondary hover:bg-accent transition-colors text-left truncate"
+                    style={{ borderLeft: `2px solid ${color}` }}
+                  >
+                    {type.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

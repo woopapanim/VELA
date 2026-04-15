@@ -1,6 +1,13 @@
 import type { MediaPlacement, Visitor } from '@/domain';
 import { VISITOR_ACTION, MEDIA_SCALE } from '@/domain';
 
+const CATEGORY_BORDER_COLORS: Record<string, string> = {
+  analog: '#a78bfa',
+  passive_media: '#3b82f6',
+  active: '#f59e0b',
+  immersive: '#ec4899',
+};
+
 export function renderMedia(
   ctx: CanvasRenderingContext2D,
   media: readonly MediaPlacement[],
@@ -73,11 +80,14 @@ export function renderMedia(
       ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
     }
 
-    // Border
+    // Border — category-colored
+    const catColor = CATEGORY_BORDER_COLORS[(m as any).category] ?? null;
     ctx.strokeStyle = isSelected
       ? (isDark ? '#3b82f6' : '#2563eb')
-      : (isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)');
-    ctx.lineWidth = isSelected ? 1.5 : 0.8;
+      : catColor
+        ? (isDark ? catColor + '80' : catColor + '60') // 50%/37% alpha via hex
+        : (isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)');
+    ctx.lineWidth = isSelected ? 1.5 : catColor ? 1.2 : 0.8;
     if (isCircle) {
       ctx.beginPath();
       ctx.arc(0, 0, circleR, 0, Math.PI * 2);
@@ -105,16 +115,25 @@ export function renderMedia(
     ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
     ctx.fillText(name, 0, 0);
 
-    // ── Type badge (passive/active) ──
-    const isStaged = (m as any).interactionType === 'staged';
-    if (isActive) {
-      ctx.font = '6px "JetBrains Mono", monospace';
-      ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
-      ctx.fillText('ACTIVE', 0, fontSize * 0.8);
-    } else if (isStaged) {
-      ctx.font = '6px "JetBrains Mono", monospace';
-      ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
-      ctx.fillText('STAGED', 0, fontSize * 0.8);
+    // ── Category badge ──
+    const cat = (m as any).category as string;
+    const catBadgeColor = CATEGORY_BORDER_COLORS[cat];
+    if (catBadgeColor) {
+      const catLabels: Record<string, string> = { analog: 'ANALOG', passive_media: 'PASSIVE', active: 'ACTIVE', immersive: 'IMMERSIVE' };
+      ctx.font = '5px "JetBrains Mono", monospace';
+      ctx.fillStyle = isDark ? catBadgeColor + 'aa' : catBadgeColor + '99';
+      ctx.fillText(catLabels[cat] ?? '', 0, fontSize * 0.8);
+    } else {
+      const isStaged = (m as any).interactionType === 'staged';
+      if (isActive) {
+        ctx.font = '6px "JetBrains Mono", monospace';
+        ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
+        ctx.fillText('ACTIVE', 0, fontSize * 0.8);
+      } else if (isStaged) {
+        ctx.font = '6px "JetBrains Mono", monospace';
+        ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
+        ctx.fillText('STAGED', 0, fontSize * 0.8);
+      }
     }
 
     ctx.restore();

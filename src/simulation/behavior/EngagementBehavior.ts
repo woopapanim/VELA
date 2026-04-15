@@ -5,7 +5,7 @@ import type {
   MediaId,
   ZoneId,
 } from '@/domain';
-import { ENGAGEMENT_LEVEL } from '@/domain';
+import { ENGAGEMENT_LEVEL, MEDIA_PRESETS } from '@/domain';
 import type { SeededRandom } from '../utils/random';
 
 // ---- Decide next target zone based on engagement profile ----
@@ -67,10 +67,34 @@ export function selectNextMedia(
 
   if (candidates.length === 0) return null;
 
-  // Engagement level affects preference
+  // Engagement level affects preference + attractionPower + fatigueCategory
   const { engagementLevel } = visitor.profile;
+
+  // Get the last visited media's fatigue category for fatigue penalty
+  const lastVisitedMediaId = visitor.visitedMediaIds.length > 0
+    ? visitor.visitedMediaIds[visitor.visitedMediaIds.length - 1]
+    : null;
+  const lastMediaType = lastVisitedMediaId
+    ? zoneMedia.find(m => m.id === lastVisitedMediaId)?.type
+      ?? (MEDIA_PRESETS as any)[lastVisitedMediaId]?.type
+    : null;
+  const lastFatigueCategory = lastMediaType
+    ? (MEDIA_PRESETS as Record<string, any>)[lastMediaType as string]?.fatigueCategory
+    : null;
+
   const weights = candidates.map((m) => {
     let weight = m.attractiveness;
+
+    // Apply attraction power from preset
+    const preset = (MEDIA_PRESETS as Record<string, any>)[m.type as string];
+    if (preset?.attractionPower) {
+      weight *= 0.5 + preset.attractionPower * 0.5; // scale 0.5-1.0
+    }
+
+    // Fatigue category penalty: same category in sequence → 50% weight
+    if (lastFatigueCategory && preset?.fatigueCategory === lastFatigueCategory) {
+      weight *= 0.5;
+    }
 
     if (engagementLevel === ENGAGEMENT_LEVEL.QUICK) {
       weight *= m.avgEngagementTimeMs < 30_000 ? 1.5 : 0.5;

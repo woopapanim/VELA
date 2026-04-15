@@ -131,28 +131,30 @@ export const ENGAGEMENT_PATIENCE_MODIFIER: Record<string, number> = {
   immersive: 1.3,
 };
 
-// ---- 20 Media Presets ----
+// ---- 15 Media Presets (4 Categories) ----
 export const MEDIA_PRESETS: Record<MediaType, MediaPreset> = {
-  led_wall: { type: 'led_wall', defaultSize: { width: 6, height: 3 }, defaultCapacity: 20, avgEngagementTimeMs: 30_000, isInteractive: false },
-  projection: { type: 'projection', defaultSize: { width: 8, height: 4 }, defaultCapacity: 30, avgEngagementTimeMs: 45_000, isInteractive: false },
-  transparent_led: { type: 'transparent_led', defaultSize: { width: 4, height: 2.5 }, defaultCapacity: 15, avgEngagementTimeMs: 20_000, isInteractive: false },
-  touchscreen_kiosk: { type: 'touchscreen_kiosk', defaultSize: { width: 0.8, height: 0.5 }, defaultCapacity: 2, avgEngagementTimeMs: 60_000, isInteractive: true },
-  interactive_table: { type: 'interactive_table', defaultSize: { width: 2, height: 1.2 }, defaultCapacity: 6, avgEngagementTimeMs: 90_000, isInteractive: true },
-  gesture_wall: { type: 'gesture_wall', defaultSize: { width: 4, height: 2.5 }, defaultCapacity: 4, avgEngagementTimeMs: 45_000, isInteractive: true },
-  ar_station: { type: 'ar_station', defaultSize: { width: 2, height: 2 }, defaultCapacity: 2, avgEngagementTimeMs: 120_000, isInteractive: true },
-  vr_booth: { type: 'vr_booth', defaultSize: { width: 3, height: 3 }, defaultCapacity: 1, avgEngagementTimeMs: 180_000, isInteractive: true },
-  photo_booth: { type: 'photo_booth', defaultSize: { width: 2.5, height: 2.5 }, defaultCapacity: 4, avgEngagementTimeMs: 60_000, isInteractive: true },
-  info_panel: { type: 'info_panel', defaultSize: { width: 1.2, height: 2 }, defaultCapacity: 3, avgEngagementTimeMs: 15_000, isInteractive: false },
-  digital_signage: { type: 'digital_signage', defaultSize: { width: 2, height: 1.5 }, defaultCapacity: 10, avgEngagementTimeMs: 10_000, isInteractive: false },
-  catalog_stand: { type: 'catalog_stand', defaultSize: { width: 0.6, height: 0.4 }, defaultCapacity: 2, avgEngagementTimeMs: 20_000, isInteractive: false },
-  product_display: { type: 'product_display', defaultSize: { width: 2, height: 2 }, defaultCapacity: 8, avgEngagementTimeMs: 30_000, isInteractive: false },
-  showcase_case: { type: 'showcase_case', defaultSize: { width: 1.5, height: 1 }, defaultCapacity: 6, avgEngagementTimeMs: 25_000, isInteractive: false },
-  rotating_platform: { type: 'rotating_platform', defaultSize: { width: 3, height: 3 }, defaultCapacity: 12, avgEngagementTimeMs: 20_000, isInteractive: false },
-  simulator: { type: 'simulator', defaultSize: { width: 4, height: 3 }, defaultCapacity: 2, avgEngagementTimeMs: 300_000, isInteractive: true },
-  hands_on_demo: { type: 'hands_on_demo', defaultSize: { width: 3, height: 2 }, defaultCapacity: 4, avgEngagementTimeMs: 120_000, isInteractive: true },
-  speaker_podium: { type: 'speaker_podium', defaultSize: { width: 2, height: 1.5 }, defaultCapacity: 50, avgEngagementTimeMs: 600_000, isInteractive: false },
-  seating_area: { type: 'seating_area', defaultSize: { width: 5, height: 4 }, defaultCapacity: 20, avgEngagementTimeMs: 300_000, isInteractive: false },
-  custom: { type: 'custom', defaultSize: { width: 2, height: 2 }, defaultCapacity: 5, avgEngagementTimeMs: 60_000, isInteractive: false },
+  // ── 아날로그 (analog) — 눈으로 보고 지나가는 전시물 ──
+  artifact:      { type: 'artifact',      category: 'analog', defaultSize: { width: 1.5, height: 1.0 }, defaultCapacity: 6,  avgEngagementTimeMs: 20_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.4, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog' },
+  documents:     { type: 'documents',     category: 'analog', defaultSize: { width: 1.2, height: 0.8 }, defaultCapacity: 3,  avgEngagementTimeMs: 22_000,  isInteractive: false, attractionRadius: 1.5, attractionPower: 0.3, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog' },
+  diorama:       { type: 'diorama',       category: 'analog', defaultSize: { width: 3.0, height: 2.0 }, defaultCapacity: 10, avgEngagementTimeMs: 30_000,  isInteractive: false, attractionRadius: 3,  attractionPower: 0.6, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog' },
+  graphic_sign:  { type: 'graphic_sign',  category: 'analog', defaultSize: { width: 2.0, height: 1.5 }, defaultCapacity: 8,  avgEngagementTimeMs: 10_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.2, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog' },
+
+  // ── 패시브 미디어 (passive_media) — 일방향 영상 매체 ──
+  media_wall:         { type: 'media_wall',         category: 'passive_media', defaultSize: { width: 6.0, height: 3.0 }, defaultCapacity: 20, avgEngagementTimeMs: 90_000,  isInteractive: false, attractionRadius: 8,  attractionPower: 0.9, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'screen' },
+  video_wall:         { type: 'video_wall',         category: 'passive_media', defaultSize: { width: 4.0, height: 2.5 }, defaultCapacity: 15, avgEngagementTimeMs: 45_000,  isInteractive: false, attractionRadius: 5,  attractionPower: 0.7, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'screen' },
+  projection_mapping: { type: 'projection_mapping', category: 'passive_media', defaultSize: { width: 8.0, height: 4.0 }, defaultCapacity: 30, avgEngagementTimeMs: 60_000,  isInteractive: false, attractionRadius: 10, attractionPower: 0.8, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'screen' },
+  single_display:     { type: 'single_display',     category: 'passive_media', defaultSize: { width: 1.5, height: 1.0 }, defaultCapacity: 3,  avgEngagementTimeMs: 22_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.4, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'screen' },
+
+  // ── 액티브 인터랙션 (active) — 직접 조작하는 체험 ──
+  kiosk:             { type: 'kiosk',             category: 'active', defaultSize: { width: 0.8, height: 0.5 }, defaultCapacity: 1,  avgEngagementTimeMs: 45_000,  isInteractive: true, attractionRadius: 2,  attractionPower: 0.5, queueBehavior: 'linear', groupFriendly: false, fatigueCategory: 'interactive' },
+  touch_table:       { type: 'touch_table',       category: 'active', defaultSize: { width: 2.0, height: 1.2 }, defaultCapacity: 6,  avgEngagementTimeMs: 120_000, isInteractive: true, attractionRadius: 3,  attractionPower: 0.7, queueBehavior: 'area',   groupFriendly: true,  fatigueCategory: 'interactive' },
+  interaction_media: { type: 'interaction_media', category: 'active', defaultSize: { width: 4.0, height: 2.5 }, defaultCapacity: 3,  avgEngagementTimeMs: 60_000,  isInteractive: true, attractionRadius: 4,  attractionPower: 0.6, queueBehavior: 'area',   groupFriendly: true,  fatigueCategory: 'interactive' },
+  hands_on_model:    { type: 'hands_on_model',    category: 'active', defaultSize: { width: 2.5, height: 1.5 }, defaultCapacity: 4,  avgEngagementTimeMs: 45_000,  isInteractive: true, attractionRadius: 2,  attractionPower: 0.5, queueBehavior: 'linear', groupFriendly: true,  fatigueCategory: 'interactive' },
+
+  // ── 이머시브 (immersive) — 공간 전체 또는 특수장비 체험 ──
+  vr_ar_station:  { type: 'vr_ar_station',  category: 'immersive', defaultSize: { width: 3.0, height: 3.0 }, defaultCapacity: 1,  avgEngagementTimeMs: 240_000, isInteractive: true, attractionRadius: 3,  attractionPower: 0.8, queueBehavior: 'linear', groupFriendly: false, fatigueCategory: 'immersive' },
+  immersive_room: { type: 'immersive_room', category: 'immersive', defaultSize: { width: 6.0, height: 6.0 }, defaultCapacity: 15, avgEngagementTimeMs: 210_000, isInteractive: true, attractionRadius: 6,  attractionPower: 0.9, queueBehavior: 'area',   groupFriendly: true,  fatigueCategory: 'immersive' },
+  simulator_4d:   { type: 'simulator_4d',   category: 'immersive', defaultSize: { width: 4.0, height: 3.0 }, defaultCapacity: 2,  avgEngagementTimeMs: 300_000, isInteractive: true, attractionRadius: 4,  attractionPower: 0.7, queueBehavior: 'linear', groupFriendly: false, fatigueCategory: 'immersive' },
 };
 
 // ---- Visitor Category Configs ----

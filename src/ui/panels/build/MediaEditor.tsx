@@ -3,6 +3,13 @@ import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 
+const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
+  analog: { label: '아날로그', color: '#a78bfa' },
+  passive_media: { label: '패시브', color: '#3b82f6' },
+  active: { label: '액티브', color: '#f59e0b' },
+  immersive: { label: '이머시브', color: '#ec4899' },
+};
+
 export function MediaEditor() {
   const selectedMediaId = useStore((s) => s.selectedMediaId);
   const media = useStore((s) => s.media);
@@ -32,7 +39,17 @@ export function MediaEditor() {
     <div className="bento-box p-3 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold flex items-center gap-1.5">
-          <div className={`w-2 h-2 rounded-sm ${isActive ? 'bg-amber-400' : 'bg-blue-400'}`} />
+          {(() => {
+            const cat = (m as any).category;
+            const badge = CATEGORY_BADGE[cat];
+            return badge ? (
+              <span className="px-1.5 py-0.5 rounded text-[8px] font-medium text-white" style={{ backgroundColor: badge.color }}>
+                {badge.label}
+              </span>
+            ) : (
+              <div className={`w-2 h-2 rounded-sm ${isActive ? 'bg-amber-400' : 'bg-blue-400'}`} />
+            );
+          })()}
           Edit Media
         </h3>
         {!isLocked && (
@@ -180,6 +197,49 @@ export function MediaEditor() {
           disabled={isLocked}
           className="w-full h-1"
         />
+      </div>
+
+      {/* Attraction Radius */}
+      <div>
+        <div className="flex items-center justify-between">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
+          <span className="text-[9px] font-data">{((m as any).attractionRadius ?? 3).toFixed(1)}</span>
+        </div>
+        <input type="range" min="1" max="15" step="0.5"
+          value={(m as any).attractionRadius ?? 3}
+          onChange={(e) => handleUpdate('attractionRadius', parseFloat(e.target.value))}
+          disabled={isLocked}
+          className="w-full h-1"
+        />
+      </div>
+
+      {/* Queue Behavior */}
+      <div>
+        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+        <select
+          value={(m as any).queueBehavior || 'none'}
+          onChange={(e) => handleUpdate('queueBehavior', e.target.value)}
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+        >
+          <option value="none">None (넘치면 skip)</option>
+          <option value="linear">Linear (순차 대기)</option>
+          <option value="area">Area (구역 내 대기)</option>
+        </select>
+      </div>
+
+      {/* Group Friendly */}
+      <div className="flex items-center justify-between">
+        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+        <button
+          onClick={() => handleUpdate('groupFriendly', !(m as any).groupFriendly)}
+          disabled={isLocked}
+          className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+            (m as any).groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
+          }`}
+        >
+          {(m as any).groupFriendly ? 'Yes' : 'No'}
+        </button>
       </div>
     </div>
   );
