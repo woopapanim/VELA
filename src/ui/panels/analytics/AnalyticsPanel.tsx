@@ -37,8 +37,14 @@ export function AnalyticsPanel() {
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
 
-  // Generate live insights from latest snapshot
-  const liveInsights = latestSnapshot ? generateInsights(latestSnapshot, zones) : [];
+  const media = useStore((s) => s.media);
+  const mediaStats = useStore((s) => s.mediaStats);
+  const groups = useStore((s) => s.groups);
+
+  // Generate live insights from latest snapshot + media/group data
+  const liveInsights = latestSnapshot
+    ? generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups)
+    : [];
 
   // KPI cards data
   const avgFatigue = latestSnapshot?.fatigueDistribution.mean ?? 0;

@@ -19,7 +19,9 @@ export function ExportSummary() {
     const exited = visitors.filter((v) => !v.isActive);
     const minutes = Math.floor(timeState.elapsed / 60000);
     const seconds = Math.floor((timeState.elapsed % 60000) / 1000);
-    const insights = generateInsights(latestSnapshot, zones);
+    const mediaStats = useStore.getState().mediaStats;
+    const groups = useStore.getState().groups;
+    const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups);
 
     let report = '';
     report += '═══════════════════════════════════════════════════\n';

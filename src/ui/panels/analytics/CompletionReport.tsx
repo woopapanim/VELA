@@ -63,14 +63,31 @@ export function CompletionReport() {
       };
     });
 
-    const insights = generateInsights(latestSnapshot, zones);
+    const mediaStats = useStore.getState().mediaStats;
+    const groups = useStore.getState().groups;
+    const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups);
+
+    // Build experience analysis from mediaStats
+    const experienceAnalysis = media.map((m) => {
+      const stats = mediaStats.get(m.id as string);
+      const total = (stats?.watchCount ?? 0) + (stats?.skipCount ?? 0);
+      return {
+        mediaId: m.id,
+        mediaType: m.type,
+        totalInteractions: stats?.watchCount ?? 0,
+        avgEngagementTimeMs: stats && stats.watchCount > 0 ? stats.totalWatchMs / stats.watchCount : 0,
+        skipRate: total > 0 ? (stats?.skipCount ?? 0) / total : 0,
+        avgQueueTimeMs: stats && stats.waitCount > 0 ? stats.totalWaitMs / stats.waitCount : 0,
+        queueEfficiencyIndex: stats && stats.totalWaitMs > 0 ? stats.totalWatchMs / stats.totalWaitMs : 0,
+      };
+    }).filter(e => e.totalInteractions > 0);
 
     return {
       scenarioMeta: scenario.meta,
       generatedAt: Date.now(),
       summary,
       spaceAnalysis,
-      experienceAnalysis: [],
+      experienceAnalysis,
       insights,
     };
   }, [phase, visitors, zones, media, scenario, timeState, latestSnapshot, kpiHistory]);

@@ -47,7 +47,7 @@ export interface ExperienceAnalysisEntry {
 // ---- Insight Entry (problem → cause → recommendation) ----
 export interface InsightEntry {
   readonly severity: 'info' | 'warning' | 'critical';
-  readonly category: 'congestion' | 'skip' | 'fatigue' | 'flow' | 'capacity';
+  readonly category: 'congestion' | 'skip' | 'fatigue' | 'flow' | 'capacity' | 'space_roi' | 'content_mix' | 'group_impact' | 'content_fatigue';
   readonly problem: string;
   readonly cause: string;
   readonly recommendation: string;
