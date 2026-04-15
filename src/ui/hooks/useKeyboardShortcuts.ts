@@ -52,32 +52,74 @@ export function useKeyboardShortcuts() {
         }
         case 'Delete':
         case 'Backspace': {
-          if (store.selectedZoneId && store.phase === 'idle') {
+          if (store.phase !== 'idle') break;
+          // Delete selected waypoint node
+          if (store.selectedWaypointId) {
+            store.removeWaypoint(store.selectedWaypointId);
+            store.selectWaypoint(null);
+            break;
+          }
+          // Delete selected edge
+          if (store.selectedEdgeId) {
+            store.removeEdge(store.selectedEdgeId);
+            store.selectEdge(null);
+            break;
+          }
+          // Delete selected media
+          if (store.selectedMediaId) {
+            store.removeMedia(store.selectedMediaId);
+            store.selectMedia(null);
+            break;
+          }
+          // Delete selected zone
+          if (store.selectedZoneId) {
             store.removeZone(store.selectedZoneId);
             store.selectZone(null);
+            break;
           }
           break;
         }
         case '1': store.setEditorMode('select'); break;
         case '2': store.setEditorMode('create-zone'); break;
-        case '3': store.setEditorMode('place-gate'); break;
-        case '4': store.setEditorMode('place-media'); break;
+        case '3': store.setEditorMode('place-media'); break;
+        case '4': store.setEditorMode('place-waypoint'); break;
+        case '5': store.setEditorMode('connect-waypoint'); break;
         case 'z':
         case 'Z': {
           if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
             e.preventDefault();
+            const applySnapshot = (snapshot: any) => {
+              if (!snapshot || !store.scenario) return;
+              // Rebuild floor zoneIds from snapshot zones
+              const snapshotZoneIds = snapshot.zones.map((z: any) => z.id);
+              const fixedFloors = store.scenario.floors.map((f: any) => ({
+                ...f,
+                zoneIds: snapshotZoneIds.filter((zid: any) =>
+                  snapshot.zones.some((z: any) => (z.id as string) === (zid as string))
+                ),
+              }));
+              // If zones were added that aren't in any floor, add them to active floor
+              const allFloorZoneIds = new Set(fixedFloors.flatMap((f: any) => f.zoneIds.map((id: any) => id as string)));
+              const activeFloor = fixedFloors.find((f: any) => (f.id as string) === store.activeFloorId);
+              if (activeFloor) {
+                for (const z of snapshot.zones) {
+                  if (!allFloorZoneIds.has(z.id as string)) {
+                    activeFloor.zoneIds = [...activeFloor.zoneIds, z.id];
+                  }
+                }
+              }
+              store.setScenario({
+                ...store.scenario,
+                zones: snapshot.zones,
+                media: snapshot.media,
+                floors: fixedFloors,
+                waypointGraph: snapshot.waypointGraph ?? undefined,
+              });
+            };
             if (e.shiftKey) {
-              // Redo: save current → restore from redo stack
-              const snapshot = store.redo(store.zones, store.media);
-              if (snapshot && store.scenario) {
-                store.setScenario({ ...store.scenario, zones: snapshot.zones, media: snapshot.media });
-              }
+              applySnapshot(store.redo(store.zones, store.media, store.waypointGraph));
             } else {
-              // Undo: save current to redo → restore from undo stack
-              const snapshot = store.undo(store.zones, store.media);
-              if (snapshot && store.scenario) {
-                store.setScenario({ ...store.scenario, zones: snapshot.zones, media: snapshot.media });
-              }
+              applySnapshot(store.undo(store.zones, store.media, store.waypointGraph));
             }
           }
           break;

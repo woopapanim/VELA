@@ -1,4 +1,4 @@
-import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement } from '@/domain';
+import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph } from '@/domain';
 import type { OverlayMode } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
@@ -11,6 +11,7 @@ import { renderGateConnections } from '../renderers/GateConnectionRenderer';
 import { renderRuler } from '../renderers/RulerRenderer';
 import { renderFlowArrows } from '../renderers/FlowArrowRenderer';
 import { renderPathTrails, updateTrails } from '../renderers/PathTrailRenderer';
+import { renderWaypoints } from '../renderers/WaypointRenderer';
 // minimap removed
 import { HeatmapRenderer } from '../renderers/HeatmapRenderer';
 
@@ -38,6 +39,11 @@ export interface RenderState {
   bgScale: number;
   bgLocked: boolean;
   simPhase?: string;
+  waypointGraph?: WaypointGraph | null;
+  selectedWaypointId?: string | null;
+  selectedEdgeId?: string | null;
+  // Ghost node preview (place-waypoint mode)
+  ghostNode?: { position: { x: number; y: number }; type: string } | null;
 }
 
 export class CanvasManager {
@@ -157,6 +163,14 @@ export class CanvasManager {
     // 4b. Gate connections (subtle dashed lines between linked gates)
     if (state.showGates) {
       renderGateConnections(ctx, state.zones, isDark);
+    }
+
+    // 4c. Waypoint graph (nodes + edges + ghost preview)
+    if (state.waypointGraph && state.waypointGraph.nodes.length > 0) {
+      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null);
+    } else if (state.ghostNode) {
+      // No graph yet but ghost node visible
+      renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode);
     }
 
     // 5. Flow lines (between zones)

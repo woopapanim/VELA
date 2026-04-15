@@ -16,6 +16,7 @@ export type ZoneShape = (typeof ZONE_SHAPE)[keyof typeof ZONE_SHAPE];
 
 // ---- Zone Type ----
 export const ZONE_TYPE = {
+  LOBBY: 'lobby',
   ENTRANCE: 'entrance',
   EXHIBITION: 'exhibition',
   CORRIDOR: 'corridor',
@@ -59,6 +60,9 @@ export interface Gate {
   readonly targetGateId: GateId | null;
 }
 
+// ---- Gateway Mode (spawn/exit direction for gateway zones) ----
+export type GatewayMode = 'spawn' | 'exit' | 'both';
+
 // ---- Zone Config ----
 export interface ZoneConfig {
   readonly id: ZoneId;
@@ -76,6 +80,7 @@ export interface ZoneConfig {
   readonly mediaIds: readonly MediaId[];
   readonly color: HexColor;
   readonly attractiveness: number; // 0-1
+  readonly gatewayMode?: GatewayMode; // gateway zones only: spawn/exit/both
   readonly metadata: Readonly<Record<string, unknown>>;
 }
 

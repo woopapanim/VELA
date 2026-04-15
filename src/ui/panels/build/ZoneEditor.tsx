@@ -232,6 +232,31 @@ export function ZoneEditor() {
             <span>High</span>
           </div>
         </div>
+        {/* Gateway Mode Toggle */}
+        {zone.type === 'gateway' && (
+          <div className="pt-2 border-t border-border">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-1">Gateway Direction</span>
+            <div className="flex gap-1">
+              {(['spawn', 'both', 'exit'] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    if (!selectedZoneId || isLocked) return;
+                    updateZone(selectedZoneId, { gatewayMode: mode } as any);
+                  }}
+                  disabled={isLocked}
+                  className={`flex-1 px-1.5 py-1 text-[8px] rounded border ${
+                    (zone.gatewayMode ?? 'both') === mode
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-secondary border-border hover:bg-muted'
+                  } disabled:opacity-50`}
+                >
+                  {mode === 'spawn' ? '↓ Spawn' : mode === 'exit' ? '↑ Exit' : '↕ Both'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {/* Gates */}
         <div className="pt-2 border-t border-border">
           <div className="flex items-center justify-between mb-1.5">

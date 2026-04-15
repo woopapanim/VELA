@@ -4,6 +4,7 @@ import type { ZoneConfig } from './zone';
 import type { MediaPlacement } from './media';
 import type { VisitorDistribution } from './visitor';
 import type { SimulationConfig } from './simulation';
+import type { WaypointGraph } from './waypoint';
 
 // ---- Scenario Meta ----
 export interface ScenarioMeta {
@@ -36,6 +37,7 @@ export interface Scenario {
   readonly simulationConfig: SimulationConfig;
   readonly globalFlowMode?: GlobalFlowMode;   // default 'free'
   readonly guidedUntilIndex?: number;          // for hybrid: sequential up to this zone index
+  readonly waypointGraph?: WaypointGraph;       // Graph-Point 동선 그래프
 }
 
 // ---- Scenario Summary (lightweight for lists) ----

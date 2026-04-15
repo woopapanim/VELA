@@ -48,13 +48,14 @@ export const KPI_SAMPLE_INTERVAL_MS = 1000;
 
 // ---- Zone Colors ----
 export const ZONE_COLORS: Record<string, HexColor> = {
+  lobby: '#14b8a6',
   entrance: '#22c55e',
   exhibition: '#3b82f6',
   corridor: '#6b7280',
   rest: '#f59e0b',
   stage: '#a855f7',
   exit: '#ef4444',
-  gateway: '#14b8a6',  // teal — combined entrance+exit
+  gateway: '#14b8a6',
 };
 
 // ---- Density Color Scale (Cold → Hot, 8 levels) ----

@@ -87,7 +87,7 @@ export function spawnVisitor(
     fatigue: 0,
     currentAction: VISITOR_ACTION.IDLE,
     currentFloorId: spawnFloorId,
-    currentZoneId: null,
+    currentZoneId: 'placeholder' as any, // set by SimEngine.spawnTick
     targetZoneId: null,
     targetFloorId: null,
     targetMediaId: null,
@@ -104,11 +104,11 @@ export function spawnVisitor(
     waitStartedAt: null,
     enteredAt: simTime,
     isActive: true,
-    transitWaypoints: [],
-    transitWaypointIdx: 0,
-    targetExitGateId: null,
-    targetEntryGateId: null,
     lastGateTransitTime: 0,
+    // Graph-Point navigation
+    currentNodeId: null,
+    targetNodeId: null,
+    pathLog: [],
   };
 }
 

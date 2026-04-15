@@ -1,10 +1,76 @@
 import type { StateCreator } from 'zustand';
-import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario } from '@/domain';
+import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
 import { zonesOverlap } from '@/domain/zoneGeometry';
 
 const MEDIA_SCALE = 20;
 const MEDIA_GAP = 8;
 const CANVAS_PADDING = 100; // extra padding beyond zone edges
+const GATE_LINK_DIST = 80; // max distance for auto-linking gates (px)
+
+/**
+ * Auto-link gates between zones based on physical proximity.
+ * For each unconnected gate, find the nearest unconnected gate in another zone within GATE_LINK_DIST.
+ * Creates mutual connections (A→B, B→A).
+ */
+function autoLinkGates(zones: readonly ZoneConfig[]): ZoneConfig[] {
+  // Collect all gates with zone reference
+  type GateRef = { zoneIdx: number; gateIdx: number; pos: { x: number; y: number }; id: string; connected: string | null };
+  const allGates: GateRef[] = [];
+  for (let zi = 0; zi < zones.length; zi++) {
+    for (let gi = 0; gi < zones[zi].gates.length; gi++) {
+      const g = zones[zi].gates[gi];
+      allGates.push({
+        zoneIdx: zi, gateIdx: gi,
+        pos: g.position as { x: number; y: number },
+        id: g.id as string,
+        connected: g.connectedGateId as string | null,
+      });
+    }
+  }
+
+  // Find pairs of unconnected gates that are close enough
+  const newConnections = new Map<string, string>(); // gateId → connectedGateId
+  const used = new Set<string>();
+
+  for (const a of allGates) {
+    if (a.connected || used.has(a.id)) continue;
+    let bestDist = GATE_LINK_DIST * GATE_LINK_DIST;
+    let bestGate: GateRef | null = null;
+
+    for (const b of allGates) {
+      if (b.zoneIdx === a.zoneIdx) continue; // same zone
+      if (b.connected || used.has(b.id)) continue;
+      const dx = a.pos.x - b.pos.x;
+      const dy = a.pos.y - b.pos.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq < bestDist) {
+        bestDist = distSq;
+        bestGate = b;
+      }
+    }
+
+    if (bestGate) {
+      newConnections.set(a.id, bestGate.id);
+      newConnections.set(bestGate.id, a.id);
+      used.add(a.id);
+      used.add(bestGate.id);
+    }
+  }
+
+  if (newConnections.size === 0) return zones as ZoneConfig[];
+
+  // Apply connections
+  return zones.map(z => ({
+    ...z,
+    gates: z.gates.map((g: any) => {
+      const newConn = newConnections.get(g.id as string);
+      if (newConn && !g.connectedGateId) {
+        return { ...g, connectedGateId: newConn };
+      }
+      return g;
+    }),
+  }));
+}
 
 /** Auto-expand floor canvas to fit all zones with padding */
 function expandCanvasForZones(floors: FloorConfig[], zones: readonly ZoneConfig[], activeFloorId: string | null): FloorConfig[] {
@@ -51,6 +117,7 @@ export interface WorldSlice {
   media: MediaPlacement[];
   activeFloorId: string | null;
   scenario: Scenario | null;
+  waypointGraph: WaypointGraph | null;
 
   // Actions
   setScenario: (scenario: Scenario) => void;
@@ -61,6 +128,14 @@ export interface WorldSlice {
   addMedia: (media: MediaPlacement) => void;
   updateMedia: (mediaId: string, updates: Partial<MediaPlacement>) => void;
   removeMedia: (mediaId: string) => void;
+  // Waypoint graph CRUD
+  addWaypoint: (node: WaypointNode) => void;
+  updateWaypoint: (id: string, updates: Partial<WaypointNode>) => void;
+  removeWaypoint: (id: string) => void;
+  addEdge: (edge: WaypointEdge) => void;
+  updateEdge: (id: string, updates: Partial<WaypointEdge>) => void;
+  removeEdge: (id: string) => void;
+  setWaypointGraph: (graph: WaypointGraph | null) => void;
   reset: () => void;
 }
 
@@ -70,6 +145,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   media: [],
   activeFloorId: null,
   scenario: null,
+  waypointGraph: null,
 
   setScenario: (scenario) => {
     const activeFloorId = scenario.floors[0]?.id as string ?? null;
@@ -80,6 +156,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       zones: [...scenario.zones],
       media: [...scenario.media],
       activeFloorId,
+      waypointGraph: scenario.waypointGraph ?? null,
     });
   },
 
@@ -88,14 +165,17 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   addZone: (zone) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media);
+    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     // Free mode: default gates to bidirectional (except entrance/exit zone types)
     const flowMode = s.scenario?.globalFlowMode;
     const zoneToAdd = flowMode === 'free' && zone.type !== 'entrance' && zone.type !== 'exit'
       ? { ...zone, gates: zone.gates.map((g: any) => ({ ...g, type: 'bidirectional' })) }
       : zone;
     set((s) => {
-      const newZones = [...s.zones, zoneToAdd];
+      // Prevent duplicate zone (React StrictMode can double-invoke)
+      if (s.zones.some(z => (z.id as string) === (zone.id as string))) return {};
+      const rawZones = [...s.zones, zoneToAdd];
+      const newZones = autoLinkGates(rawZones);
       let newFloors = s.floors.map((f) =>
         (f.id as string) === s.activeFloorId
           ? { ...f, zoneIds: [...f.zoneIds, zone.id] }
@@ -136,9 +216,10 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
           if (nb.w < minW || nb.h < minH) return {}; // block resize
         }
       }
-      const newZones = s.zones.map((z) =>
+      const rawZones = s.zones.map((z) =>
         (z.id as string) === zoneId ? { ...z, ...updates } : z,
       );
+      const newZones = updates.bounds || updates.gates ? autoLinkGates(rawZones) : rawZones;
       // Clamp media inside updated zone bounds
       const SCALE = 20;
       const newBounds = updates.bounds;
@@ -167,7 +248,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   removeZone: (zoneId) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media);
+    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => {
       const newZones = s.zones.filter((z) => (z.id as string) !== zoneId);
       const newFloors = s.floors.map((f) => ({
@@ -185,7 +266,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   addMedia: (media) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media);
+    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     // Clamp position inside parent zone
     const SCALE = 20;
     const zone = s.zones.find((z) => (z.id as string) === (media.zoneId as string));
@@ -240,11 +321,104 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   removeMedia: (mediaId) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media);
+    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => ({
       media: s.media.filter((m) => (m.id as string) !== mediaId),
     }));
   },
+
+  // ── Waypoint Graph CRUD ──
+
+  addWaypoint: (node) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      const graph = s.waypointGraph ?? { nodes: [], edges: [] };
+      if (graph.nodes.some(n => (n.id as string) === (node.id as string))) return {};
+      const newGraph: WaypointGraph = { ...graph, nodes: [...graph.nodes, node] };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    });
+  },
+
+  updateWaypoint: (id, updates) =>
+    set((s) => {
+      if (!s.waypointGraph) return {};
+      const newNodes = s.waypointGraph.nodes.map(n =>
+        (n.id as string) === id ? { ...n, ...updates } : n,
+      );
+      const newGraph: WaypointGraph = { ...s.waypointGraph, nodes: newNodes };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    }),
+
+  removeWaypoint: (id) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      if (!s.waypointGraph) return {};
+      const newNodes = s.waypointGraph.nodes.filter(n => (n.id as string) !== id);
+      const newEdges = s.waypointGraph.edges.filter(e =>
+        (e.fromId as string) !== id && (e.toId as string) !== id,
+      );
+      const newGraph: WaypointGraph = { nodes: newNodes, edges: newEdges };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    });
+  },
+
+  addEdge: (edge) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      const graph = s.waypointGraph ?? { nodes: [], edges: [] };
+      if (graph.edges.some(e => (e.id as string) === (edge.id as string))) return {};
+      const newGraph: WaypointGraph = { ...graph, edges: [...graph.edges, edge] };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    });
+  },
+
+  updateEdge: (id, updates) =>
+    set((s) => {
+      if (!s.waypointGraph) return {};
+      const newEdges = s.waypointGraph.edges.map(e =>
+        (e.id as string) === id ? { ...e, ...updates } : e,
+      );
+      const newGraph: WaypointGraph = { ...s.waypointGraph, edges: newEdges };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    }),
+
+  removeEdge: (id) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      if (!s.waypointGraph) return {};
+      const newEdges = s.waypointGraph.edges.filter(e => (e.id as string) !== id);
+      const newGraph: WaypointGraph = { ...s.waypointGraph, edges: newEdges };
+      return {
+        waypointGraph: newGraph,
+        scenario: s.scenario ? { ...s.scenario, waypointGraph: newGraph } : s.scenario,
+      };
+    });
+  },
+
+  setWaypointGraph: (graph) =>
+    set((s) => ({
+      waypointGraph: graph,
+      scenario: s.scenario ? { ...s.scenario, waypointGraph: graph ?? undefined } : s.scenario,
+    })),
 
   reset: () =>
     set({
@@ -253,5 +427,6 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       media: [],
       activeFloorId: null,
       scenario: null,
+      waypointGraph: null,
     }),
 });

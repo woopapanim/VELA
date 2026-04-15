@@ -11,6 +11,8 @@ export type FloorId = Brand<string, 'FloorId'>;
 export type ScenarioId = Brand<string, 'ScenarioId'>;
 export type ComparisonId = Brand<string, 'ComparisonId'>;
 export type PinId = Brand<string, 'PinId'>;
+export type WaypointId = Brand<string, 'WaypointId'>;
+export type WaypointEdgeId = Brand<string, 'WaypointEdgeId'>;
 
 // ID factory helpers (zero-cost runtime, compile-time brand)
 export const ZoneId = (id: string) => id as ZoneId;
@@ -22,6 +24,8 @@ export const FloorId = (id: string) => id as FloorId;
 export const ScenarioId = (id: string) => id as ScenarioId;
 export const ComparisonId = (id: string) => id as ComparisonId;
 export const PinId = (id: string) => id as PinId;
+export const WaypointId = (id: string) => id as WaypointId;
+export const WaypointEdgeId = (id: string) => id as WaypointEdgeId;
 
 // ---- Geometric primitives ----
 export interface Vector2D {

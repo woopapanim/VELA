@@ -4,6 +4,7 @@ import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
 import { BuildTools } from '../panels/build/BuildTools';
 import { ZoneEditor } from '../panels/build/ZoneEditor';
+import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
 import { FloorTabs } from '../panels/build/FloorTabs';
@@ -91,6 +92,7 @@ export function MainLayout() {
             </div>
 
             <ZoneEditor />
+            <WaypointInspector />
             <MediaEditor />
 
             <ZoneListDragDrop />

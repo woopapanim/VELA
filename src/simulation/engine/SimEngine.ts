@@ -28,6 +28,12 @@ import type {
   TimeState,
   SimulationPhase,
   Vector2D,
+  Gate,
+  GateId,
+  WaypointGraph,
+  WaypointNode,
+  WaypointId,
+  PathLogEntry,
 } from '@/domain';
 import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_INTERACTION_OFFSET } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
@@ -38,6 +44,7 @@ import { arrival, separation, wander, obstacleAvoidance } from '../steering/beha
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
 import { ZoneGraph } from '../pathfinding/navigation';
+import { WaypointNavigator } from '../pathfinding/waypointGraph';
 import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration } from '../behavior/EngagementBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 
@@ -57,6 +64,7 @@ export interface SimulationWorld {
   config: SimulationConfig;
   globalFlowMode?: string;
   guidedUntilIndex?: number;
+  waypointGraph?: WaypointGraph;
 }
 
 /* ─── engine ─── */
@@ -67,10 +75,13 @@ export class SimulationEngine {
   private rng: SeededRandom;
   private spatialHash: SpatialHash;
   private zoneGraph: ZoneGraph;
+  private waypointNav: WaypointNavigator | null = null;
 
   // lookups
   private zoneMap = new Map<string, ZoneConfig>();
   private mediaByZone = new Map<string, MediaPlacement[]>();
+  private nodeMap = new Map<string, WaypointNode>();
+  private nodeCrowd = new Map<string, number>(); // node id → current visitor count
 
   // spawner
   private spawnAccumulator = 0;
@@ -118,6 +129,15 @@ export class SimulationEngine {
       const arr = this.mediaByZone.get(m.zoneId as string) ?? [];
       arr.push(m);
       this.mediaByZone.set(m.zoneId as string, arr);
+    }
+
+    // Initialize waypoint graph navigator
+    if (world.waypointGraph && world.waypointGraph.nodes.length > 0) {
+      this.waypointNav = new WaypointNavigator();
+      this.waypointNav.buildFromGraph(world.waypointGraph);
+      for (const node of world.waypointGraph.nodes) {
+        this.nodeMap.set(node.id as string, node);
+      }
     }
 
     // Initialize staged media state
@@ -266,15 +286,21 @@ export class SimulationEngine {
     this.spawnTick(dt);
     this.tickStaged();
 
-    // rebuild spatial hash + media viewer counts for this tick
+    // rebuild spatial hash + media viewer counts + node crowd for this tick
     this.spatialHash.clear();
     this._tickMediaViewers.clear();
+    this.nodeCrowd.clear();
     for (const [, v] of this.state.visitors) {
       if (!v.isActive) continue;
       this.spatialHash.insert(v.id, v.position);
       if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId) {
         const mid = v.targetMediaId as string;
         this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
+      }
+      // Track crowd at waypoint nodes
+      if (v.currentNodeId) {
+        const nid = v.currentNodeId as string;
+        this.nodeCrowd.set(nid, (this.nodeCrowd.get(nid) ?? 0) + 1);
       }
     }
 
@@ -291,6 +317,7 @@ export class SimulationEngine {
       next.set(k, a);
     }
     this.state.visitors = next;
+
   }
 
   /* ═══════════════════════════════════════════════
@@ -310,10 +337,41 @@ export class SimulationEngine {
     while (this.spawnAccumulator >= 1) {
       this.spawnAccumulator -= 1;
 
-      // Free mode: spawn at random entrance zone. Sequential: zone[0].
+      // ═══ Graph-Point mode: spawn at ENTRY nodes ═══
+      if (this.waypointNav) {
+        const entryNode = this.waypointNav.selectEntryNode(this.rng);
+        if (!entryNode) continue;
+
+        const dist = {
+          totalCount: 1,
+          profileWeights: slot.profileDistribution,
+          engagementWeights: slot.engagementDistribution,
+          groupRatio: slot.groupRatio,
+          spawnRatePerSecond: slot.spawnRatePerSecond,
+        };
+        const batch = generateSpawnBatch(1, dist, entryNode.position, entryNode.floorId, elapsed, this.rng);
+        for (const v of batch.visitors) {
+          const spawned: Visitor = {
+            ...v,
+            currentZoneId: entryNode.zoneId ?? ('' as any),
+            visitedZoneIds: entryNode.zoneId ? [entryNode.zoneId] : [],
+            currentNodeId: entryNode.id,
+            targetNodeId: null,
+            pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
+          };
+          this.state.visitors.set(spawned.id as string, this.assignNextTarget(spawned));
+          this._totalSpawned++;
+        }
+        for (const g of batch.groups) this.state.groups.set(g.id as string, g);
+        continue;
+      }
+
+      // ═══ Legacy mode: zone-based spawning ═══
       let spawnZone: ZoneConfig | undefined;
       if (this.world.globalFlowMode === 'free') {
-        const entranceZones = this.world.zones.filter(z => z.type === 'entrance' || z.type === 'gateway');
+        const entranceZones = this.world.zones.filter(z =>
+          z.type === 'entrance' || (z.type === 'gateway' && (z.gatewayMode ?? 'both') !== 'exit')
+        );
         spawnZone = entranceZones.length > 0
           ? entranceZones[Math.floor(this.rng.next() * entranceZones.length)]
           : this.world.zones[0];
@@ -322,7 +380,10 @@ export class SimulationEngine {
       }
       if (!spawnZone || spawnZone.gates.length === 0) continue;
 
-      const gate = spawnZone.gates[0];
+      const spawnPos = {
+        x: spawnZone.bounds.x + spawnZone.bounds.w / 2,
+        y: spawnZone.bounds.y + spawnZone.bounds.h / 2,
+      };
 
       const dist = {
         totalCount: 1,
@@ -331,7 +392,8 @@ export class SimulationEngine {
         groupRatio: slot.groupRatio,
         spawnRatePerSecond: slot.spawnRatePerSecond,
       };
-      const batch = generateSpawnBatch(1, dist, gate.position, gate.floorId, elapsed, this.rng);
+      const gate = spawnZone.gates[0];
+      const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng);
       for (const v of batch.visitors) {
         const spawned: Visitor = {
           ...v,
@@ -437,7 +499,42 @@ export class SimulationEngine {
 
     // --- MOVING / EXITING: check arrival ---
     if ((action === VISITOR_ACTION.MOVING || action === VISITOR_ACTION.EXITING) && v.steering.isArrived) {
+      // Graph-Point mode: node arrival
+      if (v.targetNodeId && this.waypointNav) {
+        return this.onNodeArrival(v);
+      }
       return this.onArrival(v);
+    }
+
+    // --- Graph-Point: node proximity check (snap to node when close) ---
+    if (action === VISITOR_ACTION.MOVING && v.targetNodeId) {
+      const node = this.nodeMap.get(v.targetNodeId as string);
+      if (node) {
+        const dx = v.position.x - node.position.x;
+        const dy = v.position.y - node.position.y;
+        const distSq = dx * dx + dy * dy;
+        // HUB/ENTRY: 넓은 도착 판정 (통과점이라 정확히 위에 서지 않아도 됨)
+        const snapDist = (node.type === 'hub' || node.type === 'entry') ? 2500 : 625; // 50px vs 25px
+        if (distSq < snapDist) {
+          return this.onNodeArrival({
+            ...v,
+            velocity: { x: 0, y: 0 },
+            steering: { ...v.steering, isArrived: true },
+          });
+        }
+      }
+    }
+
+    // --- Gate proximity check: cross gate if close enough (backup for arrival detection) ---
+    if (action === VISITOR_ACTION.MOVING && v.targetZoneId && v.targetZoneId !== v.currentZoneId) {
+      const target = this.getTargetPosition(v);
+      if (target) {
+        const dx = v.position.x - target.x;
+        const dy = v.position.y - target.y;
+        if (dx * dx + dy * dy < 900) { // 30px — force crossing
+          return this.onArrival({ ...v, steering: { ...v.steering, isArrived: true } });
+        }
+      }
     }
 
     return v;
@@ -448,37 +545,17 @@ export class SimulationEngine {
    * Decides what happens next based on transit state.
    */
   private onArrival(v: Visitor): Visitor {
-    // ── 1. Transit waypoint in progress → advance ──
-    if (v.transitWaypoints.length > 0) {
-      const nextIdx = v.transitWaypointIdx + 1;
-
-      if (nextIdx >= v.transitWaypoints.length) {
-        const destZoneId = v.targetZoneId;
-
-        // No destination (exited last zone) → deactivate
-        if (!destZoneId) {
-          return { ...v, isActive: false, transitWaypoints: [], transitWaypointIdx: 0 };
-        }
-
-        // Transit complete — enter the destination zone normally
-        return this.assignNextTarget({
-          ...v,
-          currentZoneId: destZoneId,
-          transitWaypoints: [],
-          transitWaypointIdx: 0,
-          visitedZoneIds: !v.visitedZoneIds.includes(destZoneId)
-            ? [...v.visitedZoneIds, destZoneId]
-            : v.visitedZoneIds,
-          currentAction: VISITOR_ACTION.IDLE,
-          steering: { ...v.steering, isArrived: false },
-        });
-      }
-
-      // Next waypoint
-      return { ...v, transitWaypointIdx: nextIdx, steering: { ...v.steering, isArrived: false } };
+    // ── 1. Gate crossing: at gate → cross to connected zone ──
+    if (v.targetZoneId && v.targetZoneId !== v.currentZoneId) {
+      return this.crossGate(v);
     }
 
-    // ── 2. Media arrival ──
+    // ── 2. Exiting: reached exit gate → deactivate ──
+    if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
+      return { ...v, isActive: false };
+    }
+
+    // ── 3. Media arrival ──
     if (v.targetMediaId) {
       const media = this.world.media.find(m => m.id === v.targetMediaId);
       if (media) {
@@ -562,233 +639,71 @@ export class SimulationEngine {
       }
     }
 
-    // ── 3. Reached exit gate of current zone → step through gate to next zone ──
-    if (v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId) {
-      return this.transitThroughGate(v);
-    }
-
     // ── 4. In target zone already → pick next ──
     return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE });
   }
 
   /**
-   * Begin walking from current zone to target zone.
-   * Computes waypoints: [exit gate outward] → [entrance gate of target] → [target center]
+   * Cross a gate: teleport agent to connected gate position and enter new zone.
+   * The agent walked to the gate in their current zone; now they appear on the other side.
    */
-  private startTransit(v: Visitor): Visitor {
-    const fromZone = this.zoneMap.get(v.currentZoneId as string)!;
-    const toZone = this.zoneMap.get(v.targetZoneId as string)!;
-    if (!fromZone || !toZone) return v;
-
-    // Find the exact gate pair from ZoneGraph edges (handles bidirectional correctly)
-    const path = this.zoneGraph.findPath(v.currentZoneId!, v.targetZoneId!);
+  private crossGate(v: Visitor): Visitor {
+    // Find next hop via ZoneGraph path
+    const path = this.zoneGraph.findPath(v.currentZoneId, v.targetZoneId!);
     const nextHop = path && path.length > 1 ? path[1] : v.targetZoneId!;
-    const edges = this.zoneGraph.getEdges(v.currentZoneId!);
-    const edge = edges.find(e => (e.toZoneId as string) === (nextHop as string));
 
-    let exitGatePos: Vector2D;
-    let entryGatePos: Vector2D;
-
-    if (edge) {
-      // Use exact gate positions from edge
-      const fromNode = this.zoneGraph.getNode(v.currentZoneId!);
-      const toNode = this.zoneGraph.getNode(nextHop);
-      const exitGate = fromNode?.gates.find(g => (g.id as string) === (edge.fromGateId as string));
-      const entryGate = toNode?.gates.find(g => (g.id as string) === (edge.toGateId as string));
-      exitGatePos = exitGate?.position ?? this.gatePosition(fromZone, 'exit');
-      entryGatePos = entryGate?.position ?? this.gatePosition(toZone, 'entrance');
-    } else {
-      // Fallback
-      exitGatePos = this.gatePosition(fromZone, 'exit');
-      entryGatePos = this.gatePosition(toZone, 'entrance');
-    }
-
-    const toCenter = {
-      x: toZone.bounds.x + toZone.bounds.w / 2,
-      y: toZone.bounds.y + toZone.bounds.h / 2,
-    };
-
-    // Build transit path through the gap between zones
-    const MARGIN = 20;
-    const exitOutward = this.pushOutward(exitGatePos, fromZone, MARGIN);
-    const entryApproach = this.pushOutward(entryGatePos, toZone, MARGIN);
-
-    // Find the midpoint Y between fromZone and toZone edges (the gap)
-    const fromB = fromZone.bounds;
-    const toB = toZone.bounds;
-    let gapY: number;
-    if (fromB.y + fromB.h < toB.y) {
-      // toZone is below fromZone — gap between bottom of from and top of to
-      gapY = (fromB.y + fromB.h + toB.y) / 2;
-    } else if (toB.y + toB.h < fromB.y) {
-      // toZone is above fromZone — gap between bottom of to and top of from
-      gapY = (toB.y + toB.h + fromB.y) / 2;
-    } else {
-      // Zones overlap vertically — use midpoint of both centers
-      gapY = ((fromB.y + fromB.h / 2) + (toB.y + toB.h / 2)) / 2;
-    }
-
-    const waypoints: Vector2D[] = [exitGatePos, exitOutward];
-
-    // Check if direct path crosses any non-source/target zone
-    const pathCrossesZone = (a: Vector2D, b: Vector2D) => {
-      for (const zone of this.world.zones) {
-        if ((zone.id as string) === (fromZone.id as string)) continue;
-        if ((zone.id as string) === (toZone.id as string)) continue;
-        if (this.lineIntersectsRect(a, b, zone.bounds)) return true;
-      }
-      return false;
-    };
-
-    if (Math.abs(exitOutward.y - entryApproach.y) < 30 && !pathCrossesZone(exitOutward, entryApproach)) {
-      // Nearly horizontal and clear — direct path
-    } else {
-      // Check if vertical path (same x) would cross zones
-      const sameX = Math.abs(exitOutward.x - entryApproach.x) < 30;
-
-      if (sameX && pathCrossesZone(exitOutward, entryApproach)) {
-        // Vertical stack: offset X to route AROUND zones
-        // Find safe X: go left or right of all zones in between
-        let minX = Infinity, maxX = -Infinity;
-        for (const zone of this.world.zones) {
-          minX = Math.min(minX, zone.bounds.x);
-          maxX = Math.max(maxX, zone.bounds.x + zone.bounds.w);
-        }
-        const goLeft = (exitOutward.x - minX) < (maxX - exitOutward.x);
-        const safeX = goLeft ? minX - MARGIN : maxX + MARGIN;
-        waypoints.push({ x: safeX, y: exitOutward.y });
-        waypoints.push({ x: safeX, y: entryApproach.y });
-      } else {
-        // Normal gap routing
-        waypoints.push({ x: exitOutward.x, y: gapY });
-        waypoints.push({ x: entryApproach.x, y: gapY });
-      }
-    }
-
-    waypoints.push(entryApproach, entryGatePos, toCenter);
-
-    return {
-      ...v,
-      currentZoneId: null,  // in transit — no zone owns this agent
-      transitWaypoints: waypoints,
-      transitWaypointIdx: 0,
-      steering: { ...v.steering, isArrived: false },
-    };
-  }
-
-  /**
-   * Gate chaining: step through gate to next zone in multi-hop path.
-   * Agent snaps to the connected entry gate position and enters the next zone.
-   * Falls back to startTransit() if no gate path exists.
-   */
-  private transitThroughGate(v: Visitor): Visitor {
-    // Always use startTransit — agents must physically walk through gates.
-    // startTransit computes proper waypoints: exit gate → gap → entry gate → center.
-    return this.startTransit(v);
-  }
-
-  /**
-   * Route a path from A to B, adding waypoints to avoid zones in between.
-   * Returns array of waypoints including A and B.
-   */
-  private routeAroundZones(from: Vector2D, to: Vector2D, excludeFrom: ZoneConfig, excludeTo: ZoneConfig): Vector2D[] {
-    const MARGIN = 25; // px clearance around zones
-
-    // Find zones that the direct path intersects (excluding source/target)
-    const blockingZones: ZoneConfig[] = [];
-    for (const zone of this.world.zones) {
-      if ((zone.id as string) === (excludeFrom.id as string)) continue;
-      if ((zone.id as string) === (excludeTo.id as string)) continue;
-      if (this.lineIntersectsRect(from, to, zone.bounds)) {
-        blockingZones.push(zone);
-      }
-    }
-
-    if (blockingZones.length === 0) {
-      return [from, to]; // direct path is clear
-    }
-
-    // For each blocking zone, compute corner waypoints to go around it
-    // Pick the corner closest to the midpoint of from→to
-    const midX = (from.x + to.x) / 2;
-    const midY = (from.y + to.y) / 2;
-
-    const detourPoints: Vector2D[] = [from];
-
-    for (const zone of blockingZones) {
-      const b = zone.bounds;
-      // 4 corners with margin
-      const corners: Vector2D[] = [
-        { x: b.x - MARGIN, y: b.y - MARGIN },           // top-left
-        { x: b.x + b.w + MARGIN, y: b.y - MARGIN },     // top-right
-        { x: b.x + b.w + MARGIN, y: b.y + b.h + MARGIN }, // bottom-right
-        { x: b.x - MARGIN, y: b.y + b.h + MARGIN },     // bottom-left
-      ];
-
-      // Pick the 2 corners closest to the line from→to, then pick the one
-      // that creates the shortest detour
-      let bestCorner = corners[0];
-      let bestDist = Infinity;
-      for (const c of corners) {
-        const d = Math.sqrt((c.x - midX) ** 2 + (c.y - midY) ** 2);
-        if (d < bestDist) {
-          bestDist = d;
-          bestCorner = c;
-        }
-      }
-      detourPoints.push(bestCorner);
-    }
-
-    detourPoints.push(to);
-    return detourPoints;
-  }
-
-  /** Check if a line segment from A to B intersects a rectangle */
-  private lineIntersectsRect(a: Vector2D, b: Vector2D, rect: { x: number; y: number; w: number; h: number }): boolean {
-    const { x, y, w, h } = rect;
-    // Check all 4 edges of the rect
-    return (
-      this.linesIntersect(a, b, { x, y }, { x: x + w, y }) ||           // top
-      this.linesIntersect(a, b, { x: x + w, y }, { x: x + w, y: y + h }) || // right
-      this.linesIntersect(a, b, { x: x + w, y: y + h }, { x, y: y + h }) || // bottom
-      this.linesIntersect(a, b, { x, y: y + h }, { x, y }) ||           // left
-      // Also check if line is entirely inside rect
-      (a.x >= x && a.x <= x + w && a.y >= y && a.y <= y + h) ||
-      (b.x >= x && b.x <= x + w && b.y >= y && b.y <= y + h)
+    // Find the connected gate in the next zone
+    const edge = this.zoneGraph.getEdges(v.currentZoneId).find(
+      e => (e.toZoneId as string) === (nextHop as string)
     );
+
+
+    // Position agent slightly inside the new zone (30% from gate toward center)
+    // to avoid collision pushing them back out at the boundary
+    const center = this.zoneCenter(nextHop);
+    let entryPos: Vector2D;
+    if (edge) {
+      const toNode = this.zoneGraph.getNode(nextHop);
+      const entryGate = toNode?.gates.find(g => (g.id as string) === (edge.toGateId as string));
+      const gatePos = entryGate?.position ?? center;
+      entryPos = {
+        x: gatePos.x + (center.x - gatePos.x) * 0.3,
+        y: gatePos.y + (center.y - gatePos.y) * 0.3,
+      };
+    } else {
+      entryPos = center;
+    }
+
+    const newVisitedZoneIds = v.visitedZoneIds.includes(nextHop)
+      ? v.visitedZoneIds
+      : [...v.visitedZoneIds, nextHop];
+
+    // Enter new zone at connected gate position
+    return this.assignNextTarget({
+      ...v,
+      currentZoneId: nextHop,
+      position: entryPos,
+      visitedZoneIds: newVisitedZoneIds,
+      currentAction: VISITOR_ACTION.IDLE,
+      lastGateTransitTime: this.state.timeState.elapsed,
+      steering: { ...v.steering, isArrived: false },
+    });
   }
 
-  /** Check if two line segments intersect */
-  private linesIntersect(a1: Vector2D, a2: Vector2D, b1: Vector2D, b2: Vector2D): boolean {
-    const d1 = this.cross(b1, b2, a1);
-    const d2 = this.cross(b1, b2, a2);
-    const d3 = this.cross(a1, a2, b1);
-    const d4 = this.cross(a1, a2, b2);
-    if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-        ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
-    return false;
+  /** Find a gate by ID across all zones */
+  private findGateById(gateId: GateId): Gate | null {
+    for (const zone of this.world.zones) {
+      const g = zone.gates.find(g => (g.id as string) === (gateId as string));
+      if (g) return g;
+    }
+    return null;
   }
 
-  private cross(a: Vector2D, b: Vector2D, c: Vector2D): number {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
-  }
-
-  /** Push a point outward from zone center by `dist` pixels */
-  private pushOutward(gatePos: Vector2D, zone: ZoneConfig, dist: number): Vector2D {
-    const cx = zone.bounds.x + zone.bounds.w / 2;
-    const cy = zone.bounds.y + zone.bounds.h / 2;
-    const dx = gatePos.x - cx;
-    const dy = gatePos.y - cy;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    return { x: gatePos.x + (dx / len) * dist, y: gatePos.y + (dy / len) * dist };
-  }
-
-  /** Find a gate position on a zone by type preference */
-  private gatePosition(zone: ZoneConfig, prefer: 'entrance' | 'exit'): Vector2D {
-    const g = zone.gates.find(g => g.type === prefer)
-      ?? zone.gates.find(g => g.type === 'bidirectional')
-      ?? zone.gates[0];
-    return g?.position ?? { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+  /** Get zone center position */
+  private zoneCenter(zoneId: ZoneId): Vector2D {
+    const z = this.zoneMap.get(zoneId as string);
+    if (!z) return { x: 0, y: 0 };
+    return { x: z.bounds.x + z.bounds.w / 2, y: z.bounds.y + z.bounds.h / 2 };
   }
 
   /* ─── Media physics helpers ─── */
@@ -959,11 +874,16 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private assignNextTarget(v: Visitor): Visitor {
-    const curZone = v.currentZoneId ? this.zoneMap.get(v.currentZoneId as string) : null;
+    const curZone = this.zoneMap.get(v.currentZoneId as string) ?? null;
     const allZones = this.world.zones;
     const globalMode = this.world.globalFlowMode ?? 'free';
 
-    // ═══ FREE MODE ═══
+    // ═══ GRAPH-POINT MODE (primary) ═══
+    if (this.waypointNav && v.currentNodeId) {
+      return this.assignNextTargetGraph(v);
+    }
+
+    // ═══ LEGACY FREE MODE (fallback when no graph) ═══
     if (globalMode === 'free') {
       return this.assignNextTargetFree(v, curZone);
     }
@@ -1090,23 +1010,41 @@ export class SimulationEngine {
   private assignNextTargetFree(v: Visitor, curZone: ZoneConfig | null): Visitor {
     const isInEntranceZone = curZone?.type === 'entrance' || curZone?.type === 'gateway';
 
-    // Check if all reachable non-entrance zones have been visited
+    // 0. Corridor: pass through without stopping — find next gate toward destination
+    if (curZone?.type === 'corridor') {
+      // If we have a target zone, keep heading there. Otherwise pick an adjacent non-corridor zone.
+      if (v.targetZoneId && v.targetZoneId !== v.currentZoneId) {
+        return { ...v, currentAction: VISITOR_ACTION.MOVING,
+          steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL } };
+      }
+      // No target: pick an adjacent non-corridor zone to visit
+      const reachable = this.zoneGraph.getReachableZones(curZone.id)
+        .map(zid => this.zoneMap.get(zid as string))
+        .filter((z): z is ZoneConfig => !!z && z.type !== 'corridor');
+      if (reachable.length > 0) {
+        const pick = reachable[Math.floor(this.rng.next() * reachable.length)];
+        return this.setZoneTarget(v, pick);
+      }
+    }
+
+    // Check if all reachable non-entrance/corridor zones have been visited (BFS)
     const visitedSet = new Set(v.visitedZoneIds.map(id => id as string));
     const allReachableVisited = curZone
-      ? this.zoneGraph.getReachableZones(curZone.id)
+      ? this.zoneGraph.getAllReachableZones(curZone.id)
           .filter(zid => {
             const z = this.zoneMap.get(zid as string);
-            return z && z.type !== 'entrance' && z.type !== 'gateway';
+            return z && z.type !== 'entrance' && z.type !== 'gateway' && z.type !== 'corridor';
           })
           .every(zid => visitedSet.has(zid as string))
       : false;
 
-    // Gateway/exit: exit only after exploring all reachable zones
+    // Gateway(exit/both): exit only after exploring all reachable zones
+    const gwMode = curZone?.gatewayMode ?? 'both';
     const isInExitZone = curZone?.type === 'exit'
-      || (curZone?.type === 'gateway' && v.visitedZoneIds.length > 1 && allReachableVisited);
+      || (curZone?.type === 'gateway' && gwMode !== 'spawn' && v.visitedZoneIds.length > 1 && allReachableVisited);
 
-    // 1. Media in current zone FIRST (skip entrance zones on first visit)
-    const skipMedia = isInEntranceZone && v.visitedZoneIds.length <= 1;
+    // 1. Media in current zone FIRST (skip entrance/corridor zones on first visit)
+    const skipMedia = (isInEntranceZone && v.visitedZoneIds.length <= 1) || curZone?.type === 'corridor';
     if (curZone && !skipMedia) {
       const zMedia = this.mediaByZone.get(curZone.id as string) ?? [];
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
@@ -1131,7 +1069,9 @@ export class SimulationEngine {
     }
 
     // 2. Exhausted → head to nearest exit zone
-    const exitZones = this.world.zones.filter(z => z.type === 'exit' || z.type === 'gateway');
+    const exitZones = this.world.zones.filter(z =>
+      z.type === 'exit' || (z.type === 'gateway' && (z.gatewayMode ?? 'both') !== 'spawn')
+    );
     if (v.fatigue > 0.9 && !isInExitZone && exitZones.length > 0) {
       const nearest = this.findNearestZone(v.position, exitZones);
       if (nearest) return this.setExitTarget(v, nearest);
@@ -1143,14 +1083,13 @@ export class SimulationEngine {
       if (rest) return this.setZoneTarget(v, rest);
     }
 
-    // 4. Pick next zone: adjacent unvisited zones via ZoneGraph
+    // 4. Pick next zone: BFS reachable unvisited zones (skips corridors as destinations)
     if (curZone) {
-      const reachable = this.zoneGraph.getReachableZones(curZone.id);
-      const visitedSet = new Set(v.visitedZoneIds.map(id => id as string));
-      const unvisitedReachable = reachable
+      const allReachable = this.zoneGraph.getAllReachableZones(curZone.id);
+      const unvisitedReachable = allReachable
         .filter(zid => !visitedSet.has(zid as string))
         .map(zid => this.zoneMap.get(zid as string))
-        .filter((z): z is ZoneConfig => !!z && z.type !== 'entrance'); // don't revisit entrance
+        .filter((z): z is ZoneConfig => !!z && z.type !== 'entrance' && z.type !== 'gateway' && z.type !== 'corridor');
 
       if (unvisitedReachable.length > 0) {
         // Weighted random by attractiveness
@@ -1164,8 +1103,12 @@ export class SimulationEngine {
       }
     }
 
-    // 5. All reachable zones visited → head to nearest exit
+    // 5. All reachable zones visited → head to exit
     if (exitZones.length > 0) {
+      // Already in an exit-capable zone → begin exit immediately
+      if (curZone && (curZone.type === 'exit' || (curZone.type === 'gateway' && gwMode !== 'spawn'))) {
+        return this.beginExit(v, curZone);
+      }
       const nearest = this.findNearestZone(v.position, exitZones);
       if (nearest) return this.setExitTarget(v, nearest);
     }
@@ -1177,16 +1120,161 @@ export class SimulationEngine {
     };
   }
 
-  /** Begin exit sequence: walk to exit gate then off-canvas */
-  private beginExit(v: Visitor, curZone: ZoneConfig): Visitor {
-    const exitGatePos = this.gatePosition(curZone, 'exit');
-    const outside = this.pushOutward(exitGatePos, curZone, 150);
+  /* ═══════════════════════════════════════════════
+   *  GRAPH-POINT MODE — score-based node navigation
+   * ═══════════════════════════════════════════════ */
+
+  private assignNextTargetGraph(v: Visitor): Visitor {
+    if (!this.waypointNav || !v.currentNodeId) return v;
+
+    const curNode = this.waypointNav.getNode(v.currentNodeId);
+    if (!curNode) return v;
+
+    // 1. EXIT 노드 도착 → 퇴장 시퀀스
+    if (curNode.type === 'exit') {
+      return this.beginExitGraph(v, curNode);
+    }
+
+    // 2. HUB 노드 → 체류/미디어 없이 바로 다음 노드 선택
+    if (curNode.type === 'hub') {
+      // 바로 step 4 (다음 노드 선택)으로
+    }
+
+    // 3. 현재 노드에 zone이 있으면 미디어 체크 (HUB 제외)
+    else if (curNode.zoneId && curNode.type !== 'entry' && curNode.type !== 'hub') {
+      // ATTRACTOR: 직접 바인딩된 미디어 우선
+      if (curNode.type === 'attractor' && curNode.mediaId) {
+        const visited = new Set(v.visitedMediaIds.map(m => m as string));
+        if (!visited.has(curNode.mediaId as string)) {
+          const media = this.world.media.find(m => m.id === curNode.mediaId);
+          if (media) {
+            return {
+              ...v,
+              targetMediaId: media.id,
+              targetNodeId: null,
+              currentAction: VISITOR_ACTION.MOVING,
+              steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+            };
+          }
+        }
+      }
+
+      // ZONE/REST: zone 내 미방문 미디어 탐색
+      const zMedia = this.mediaByZone.get(curNode.zoneId as string) ?? [];
+      const visited = new Set(v.visitedMediaIds.map(m => m as string));
+      const unvisited = zMedia.filter(m => !visited.has(m.id as string));
+      if (unvisited.length > 0) {
+        const pick = this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
+        if (pick) {
+          return {
+            ...v,
+            targetMediaId: pick.id,
+            targetNodeId: null,
+            currentAction: VISITOR_ACTION.MOVING,
+            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+          };
+        }
+      }
+    }
+
+    // 3. dwellTime 체류 (미디어 없는 REST 등)
+    if (curNode.dwellTimeMs > 0 && curNode.type === 'rest') {
+      // pathLog의 마지막 항목이 이 노드이고 exitTime=0이면 아직 체류 중
+      const lastLog = v.pathLog[v.pathLog.length - 1];
+      if (lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
+        const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
+        if (elapsed < curNode.dwellTimeMs) {
+          // 체류 중 — WATCHING 상태로 대기
+          return {
+            ...v,
+            currentAction: VISITOR_ACTION.WATCHING,
+            velocity: { x: 0, y: 0 },
+          };
+        }
+      }
+    }
+
+    // 4. 다음 노드 선택 (Score 기반)
+    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng);
+    if (!nextNode) {
+      // 막다른 길: wander
+      return {
+        ...v, currentAction: VISITOR_ACTION.MOVING,
+        steering: { ...v.steering, activeBehavior: STEERING_BEHAVIOR.WANDER },
+      };
+    }
+
+    // pathLog 현재 노드 종료 기록
+    const updatedPathLog = this.closePathLogEntry(v.pathLog, v.currentNodeId, this.state.timeState.elapsed);
+
     return {
       ...v,
-      currentZoneId: null,
-      transitWaypoints: [exitGatePos, outside],
-      transitWaypointIdx: 0,
+      targetNodeId: nextNode.id,
+      targetMediaId: null,
       targetZoneId: null,
+      pathLog: updatedPathLog,
+      currentAction: VISITOR_ACTION.MOVING,
+      steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+    };
+  }
+
+  /** Graph mode: EXIT 노드 도착 → 즉시 비활성화 */
+  private beginExitGraph(v: Visitor, _exitNode: WaypointNode): Visitor {
+    return { ...v, isActive: false };
+  }
+
+  /** Graph mode: visitor arrived at target node */
+  private onNodeArrival(v: Visitor): Visitor {
+    if (!v.targetNodeId || !this.waypointNav) return this.assignNextTarget(v);
+
+    const targetNode = this.waypointNav.getNode(v.targetNodeId);
+    if (!targetNode) return this.assignNextTarget(v);
+
+    // Update zone if node is in a different zone
+    const newZoneId = targetNode.zoneId ?? v.currentZoneId;
+    const newVisitedZones = targetNode.zoneId && !v.visitedZoneIds.includes(targetNode.zoneId)
+      ? [...v.visitedZoneIds, targetNode.zoneId]
+      : v.visitedZoneIds;
+
+    // Add pathLog entry for new node
+    const newPathLog: PathLogEntry[] = [...v.pathLog, {
+      nodeId: targetNode.id,
+      entryTime: this.state.timeState.elapsed,
+      exitTime: 0,
+      duration: 0,
+    }];
+
+    return this.assignNextTarget({
+      ...v,
+      currentNodeId: targetNode.id,
+      targetNodeId: null,
+      currentZoneId: newZoneId,
+      visitedZoneIds: newVisitedZones,
+      currentAction: VISITOR_ACTION.IDLE,
+      pathLog: newPathLog,
+      steering: { ...v.steering, isArrived: false },
+    });
+  }
+
+  /** Close the most recent pathLog entry for a node */
+  private closePathLogEntry(pathLog: readonly PathLogEntry[], nodeId: WaypointId, now: number): PathLogEntry[] {
+    const result = [...pathLog];
+    for (let i = result.length - 1; i >= 0; i--) {
+      if ((result[i].nodeId as string) === (nodeId as string) && result[i].exitTime === 0) {
+        result[i] = { ...result[i], exitTime: now, duration: now - result[i].entryTime };
+        break;
+      }
+    }
+    return result;
+  }
+
+  /** Begin exit sequence: walk to exit gate then off-canvas */
+  private beginExit(v: Visitor, curZone: ZoneConfig): Visitor {
+    // Walk to exit gate, then deactivate on arrival
+    return {
+      ...v,
+      targetZoneId: null,
+      targetMediaId: null,
       currentAction: VISITOR_ACTION.EXITING,
       steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
     };
@@ -1210,12 +1298,22 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private getTargetPosition(v: Visitor): Vector2D | null {
-    // 1. Transit waypoint (highest priority)
-    if (v.transitWaypoints.length > 0 && v.transitWaypointIdx < v.transitWaypoints.length) {
-      return v.transitWaypoints[v.transitWaypointIdx];
+    // Graph-Point: target node position
+    if (v.targetNodeId) {
+      const node = this.nodeMap.get(v.targetNodeId as string);
+      if (node) return node.position;
     }
 
-    // 2. Media
+    // 0. EXITING with no target → find exit gate of current zone
+    if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
+      const zone = this.zoneMap.get(v.currentZoneId as string);
+      if (zone) {
+        const exitGate = zone.gates.find(g => g.type === 'exit' || g.type === 'bidirectional') ?? zone.gates[0];
+        if (exitGate) return exitGate.position;
+      }
+    }
+
+    // 1. Media
     if (v.targetMediaId) {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
@@ -1270,13 +1368,14 @@ export class SimulationEngine {
     if (target && v.steering.activeBehavior !== STEERING_BEHAVIOR.WANDER) {
       const dx = target.x - v.position.x, dy = target.y - v.position.y;
       const distSq = dx * dx + dy * dy;
-      const inTransit = !v.currentZoneId && v.transitWaypoints.length > 0;
-      const headingToGate = inTransit || !!(v.targetZoneId && v.currentZoneId && v.targetZoneId !== v.currentZoneId);
+      const headingToGate = !!(v.targetZoneId && v.targetZoneId !== v.currentZoneId);
+      const isExiting = v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId && !v.currentNodeId;
+      const isGraphMoving = !!v.targetNodeId;
 
-      if (headingToGate) {
+      if (!isGraphMoving && (headingToGate || isExiting)) {
         // Gate transit: seek at constant speed, no deceleration
         const dist = Math.sqrt(distSq);
-        if (dist < 10) {
+        if (dist < 25) {
           return { ...v, steering: { ...v.steering, isArrived: true } };
         }
         const desired = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
@@ -1294,9 +1393,8 @@ export class SimulationEngine {
       return { ...v, steering: { ...v.steering, wanderAngle: newWanderAngle } };
     }
 
-    // Wall avoidance
-    if (v.currentZoneId && v.transitWaypoints.length === 0) {
-      // Inside a zone: avoid zone walls + media obstacles
+    // Wall avoidance — agent is always inside a zone
+    if (v.currentZoneId) {
       const zone = this.zoneMap.get(v.currentZoneId as string);
       if (zone) {
         const walls = getZoneWalls(zone);
@@ -1314,12 +1412,14 @@ export class SimulationEngine {
       }
     }
 
-    // Separation
+    // Separation — 퇴장 중(EXIT 방향)이면 약하게, 일반 이동이면 정상
     const neighbors = this.spatialHash.queryRadius(v.id, physics.avoidanceRadius);
     if (neighbors.length > 0) {
+      const targetType = v.targetNodeId ? this.nodeMap.get(v.targetNodeId as string)?.type : null;
+      const isPassThrough = targetType === 'exit' || targetType === 'hub' || targetType === 'entry';
       outputs.push({
         output: separation(v.position, neighbors.map(n => n.position), physics.avoidanceRadius, physics.separationStrength),
-        weight: 0.5,
+        weight: isPassThrough ? 0.1 : 0.5,
       });
     }
 
@@ -1362,28 +1462,73 @@ export class SimulationEngine {
       pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
     }
 
-    // Zone boundary collision — keep agent inside current zone
-    // Gate proximity exemption allows walking through gates
-    if (v.currentZoneId) {
+    // Zone boundary collision
+    // Graph agents in transit (moving between nodes): skip ALL zone wall collision
+    // Graph agents at node: clamp to that node's zone
+    // Legacy agents: full zone boundary + gate crossing logic
+    const isGraphAgent = !!v.currentNodeId;
+    const isGraphTransit = isGraphAgent && !!v.targetNodeId;
+    if (isGraphTransit) {
+      // Skip zone wall collision entirely — agent follows edge freely between nodes
+    } else if (isGraphAgent && v.currentZoneId) {
+      // Graph agent at rest — clamp to current zone
       const zone = this.zoneMap.get(v.currentZoneId as string);
       if (zone) {
         const poly = getZonePolygon(zone);
         if (!isPointInPolygon(pos, poly)) {
-          let nearGate = false;
+          const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+          pos = clampToPolygon(pos, poly, center);
+        }
+      }
+    } else if (v.currentZoneId) {
+      const zone = this.zoneMap.get(v.currentZoneId as string);
+      if (zone) {
+        const poly = getZonePolygon(zone);
+        if (!isPointInPolygon(pos, poly)) {
+          // Legacy agents: check if near a connected gate
+          let crossedGate: typeof zone.gates[number] | null = null;
           for (const gate of zone.gates) {
             const gdx = pos.x - gate.position.x;
             const gdy = pos.y - gate.position.y;
-            if (gdx * gdx + gdy * gdy < 900) { nearGate = true; break; }
+            if (gdx * gdx + gdy * gdy < 2500 && gate.connectedGateId) { // 50px near a connected gate
+              crossedGate = gate;
+              break;
+            }
           }
-          if (!nearGate) {
-            const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
-            pos = clampToPolygon(pos, poly, center);
+
+          if (crossedGate && crossedGate.connectedGateId
+              && (this.state.timeState.elapsed - v.lastGateTransitTime > 500)) {
+            // Agent crossed through a connected gate → enter the connected zone (500ms cooldown)
+            const newZoneId = this.zoneGraph.getZoneForGate(crossedGate.connectedGateId);
+            if (newZoneId) {
+              const connGate = this.findGateById(crossedGate.connectedGateId);
+              const center = this.zoneCenter(newZoneId);
+              const gatePos = connGate?.position ?? center;
+              // Position 30% inside the new zone
+              const entryPos = {
+                x: gatePos.x + (center.x - gatePos.x) * 0.3,
+                y: gatePos.y + (center.y - gatePos.y) * 0.3,
+              };
+              const newVisited = v.visitedZoneIds.includes(newZoneId)
+                ? v.visitedZoneIds : [...v.visitedZoneIds, newZoneId];
+              return this.assignNextTarget({
+                ...v,
+                currentZoneId: newZoneId,
+                position: entryPos,
+                visitedZoneIds: newVisited,
+                currentAction: VISITOR_ACTION.IDLE,
+                lastGateTransitTime: this.state.timeState.elapsed,
+                steering: { ...v.steering, isArrived: false },
+              });
+            }
           }
+
+          // Not near a connected gate — clamp back inside
+          const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+          pos = clampToPolygon(pos, poly, center);
         }
       }
     }
-    // Transit (currentZoneId = null): only during EXIT — agent follows waypoints to canvas edge
-
     // Media obstacle collision — push agent outside media (rect or circle, skip target)
     if (v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);

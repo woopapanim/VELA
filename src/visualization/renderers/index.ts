@@ -13,3 +13,4 @@ export { renderRuler } from './RulerRenderer';
 export { renderSnapGuides, findSnapGuides, type SnapGuide } from './SnapGuideRenderer';
 export { renderSpawnPoints } from './SpawnPointRenderer';
 export { renderMeasureLine } from './MeasureRenderer';
+export { renderWaypoints } from './WaypointRenderer';

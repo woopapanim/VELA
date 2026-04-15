@@ -153,9 +153,29 @@ export class ZoneGraph {
     return null;
   }
 
-  // Get all reachable zones from a given zone
+  // Get directly adjacent zones (1-hop) — used for next-zone selection
   getReachableZones(zoneId: ZoneId): ZoneId[] {
     return this.getEdges(zoneId).map((e) => e.toZoneId);
+  }
+
+  // Get ALL transitively reachable zones via BFS — used for exit condition check
+  getAllReachableZones(zoneId: ZoneId): ZoneId[] {
+    const visited = new Set<string>();
+    const queue: ZoneId[] = [zoneId];
+    visited.add(zoneId as string);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const edge of this.getEdges(current)) {
+        if (!visited.has(edge.toZoneId as string)) {
+          visited.add(edge.toZoneId as string);
+          queue.push(edge.toZoneId);
+        }
+      }
+    }
+
+    visited.delete(zoneId as string); // exclude start zone
+    return Array.from(visited) as ZoneId[];
   }
 
   // Get all zone IDs

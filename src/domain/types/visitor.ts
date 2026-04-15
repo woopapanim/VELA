@@ -1,5 +1,6 @@
-import type { VisitorId, GroupId, ZoneId, MediaId, FloorId, GateId, Vector2D } from './common';
+import type { VisitorId, GroupId, ZoneId, MediaId, FloorId, GateId, Vector2D, WaypointId } from './common';
 import type { SteeringState } from './physics';
+import type { PathLogEntry } from './waypoint';
 
 // ---- Visitor Profile Type ----
 export const VISITOR_PROFILE_TYPE = {
@@ -76,7 +77,7 @@ export interface Visitor {
   readonly fatigue: number; // 0-1
   readonly currentAction: VisitorAction;
   readonly currentFloorId: FloorId;
-  readonly currentZoneId: ZoneId | null;
+  readonly currentZoneId: ZoneId;
   readonly targetZoneId: ZoneId | null;
   readonly targetFloorId: FloorId | null;
   readonly targetMediaId: MediaId | null;
@@ -88,12 +89,12 @@ export interface Visitor {
   readonly waitStartedAt: number | null;
   readonly enteredAt: number;
   readonly isActive: boolean;
-  // ── Zone transit (gate-to-gate walking) ──
-  readonly transitWaypoints: readonly Vector2D[];   // ordered positions: [exitGate, entrGate, inward]
-  readonly transitWaypointIdx: number;              // current waypoint index
-  readonly targetExitGateId: GateId | null;         // gate agent exits through
-  readonly targetEntryGateId: GateId | null;        // gate agent enters through
+  // ── Gate crossing ──
   readonly lastGateTransitTime: number;             // elapsed ms at last gate crossing (cooldown)
+  // ── Graph-Point navigation ──
+  readonly currentNodeId: WaypointId | null;        // 현재 위치한 노드
+  readonly targetNodeId: WaypointId | null;         // 다음 목표 노드
+  readonly pathLog: readonly PathLogEntry[];         // 방문 기록
 }
 
 // ---- Visitor Distribution (spawning config) ----

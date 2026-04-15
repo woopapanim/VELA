@@ -11,3 +11,4 @@ export * from './heatmap';
 export * from './comparison';
 export * from './pinpoint';
 export * from './report';
+export * from './waypoint';

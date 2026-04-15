@@ -35,10 +35,19 @@ export function SimulationControls() {
     // Reset previous sim state if completed
     if (store.phase === 'completed') resetSim();
 
-    // ── Validation: just need 2+ zones with gates ──
-    const zones = store.zones;
-    if (zones.length < 2) { toast('warning', '존이 최소 2개 필요합니다'); return; }
-    if (zones[0].gates.length === 0) { toast('warning', '첫 존에 게이트가 필요합니다'); return; }
+    // ── Validation ──
+    const hasGraph = store.waypointGraph && store.waypointGraph.nodes.length > 0;
+    if (hasGraph) {
+      // Graph mode: need at least 1 ENTRY and 1 EXIT node
+      const entries = store.waypointGraph!.nodes.filter(n => n.type === 'entry');
+      const exits = store.waypointGraph!.nodes.filter(n => n.type === 'exit');
+      if (entries.length === 0) { toast('warning', 'ENTRY 노드가 필요합니다'); return; }
+      if (exits.length === 0) { toast('warning', 'EXIT 노드가 필요합니다'); return; }
+      // Check edges exist
+      if (store.waypointGraph!.edges.length === 0) { toast('warning', 'Edge가 최소 1개 필요합니다'); return; }
+    } else {
+      toast('warning', 'Node와 Edge를 배치하세요'); return;
+    }
 
     const flowMode = store.scenario.globalFlowMode ?? 'free';
     const guidedIdx = store.scenario.guidedUntilIndex ?? 0;
@@ -51,6 +60,7 @@ export function SimulationControls() {
       config: store.scenario.simulationConfig,
       globalFlowMode: flowMode,
       guidedUntilIndex: guidedIdx,
+      waypointGraph: store.waypointGraph ?? undefined,
     };
     const engine = new SimulationEngine(world);
     engineRef.current = engine;

@@ -5,6 +5,7 @@ import { useTheme } from '@/ui/components/ThemeProvider';
 import { CanvasToolbar } from './CanvasToolbar';
 import { TimelineBar } from './TimelineBar';
 import { CanvasContextMenu, useContextMenu } from './ContextMenu';
+import { PropertyPopover, usePropertyPopover } from './PropertyPopover';
 import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
@@ -89,6 +90,7 @@ export function CanvasPanel() {
   const managerRef = useRef<CanvasManager | null>(null);
   const { resolvedTheme } = useTheme();
   const { menu, show: showMenu, hide: hideMenu } = useContextMenu();
+  const { popover, showPopover, hidePopover } = usePropertyPopover();
   useKeyboardShortcuts();
 
   // Store selectors (used by event handlers, not render loop)
@@ -188,6 +190,12 @@ export function CanvasPanel() {
             bgScale: fl?.canvas.bgScale ?? 1,
             bgLocked: fl?.canvas.bgLocked ?? false,
             simPhase: store.phase,
+            waypointGraph: store.waypointGraph,
+            selectedWaypointId: store.selectedWaypointId ?? null,
+            selectedEdgeId: store.selectedEdgeId ?? null,
+            ghostNode: store.editorMode === 'place-waypoint' && store.pendingWaypointType && mouseWorldPos.current
+              ? { position: mouseWorldPos.current, type: store.pendingWaypointType }
+              : null,
           });
         }
       }
@@ -207,12 +215,15 @@ export function CanvasPanel() {
 
   // Cache last render dimensions for consistent screenToWorld conversion
   const lastCanvasRect = useRef({ left: 0, top: 0, width: 0, height: 0 });
+  // Mouse world position for ghost node preview
+  const mouseWorldPos = useRef<{ x: number; y: number } | null>(null);
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex' | 'bg-move' | 'bg-resize';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
   const dragMediaId = useRef<string | null>(null);
+  const dragWaypointId = useRef<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se'>('se');
   const didDrag = useRef(false);
@@ -340,6 +351,131 @@ export function CanvasPanel() {
       // 게이트가 없는 곳 클릭 → 아래 존 선택 로직으로 fall-through
     }
 
+    // ── Waypoint placement mode ──
+    if (e.button === 0 && editorMode === 'place-waypoint') {
+      const world = getWorldPos(e);
+      if (!world) return;
+      const store = useStore.getState();
+      const wpType = store.pendingWaypointType;
+      if (!wpType) return;
+
+      // 기존 노드 근처면 배치하지 않고 선택으로 처리
+      const graph = store.waypointGraph;
+      if (graph) {
+        for (const node of graph.nodes) {
+          const dx = node.position.x - world.x, dy = node.position.y - world.y;
+          if (dx * dx + dy * dy < 400) { // 20px
+            store.selectWaypoint(node.id as string);
+            return;
+          }
+        }
+      }
+
+      // Auto-detect which zone this point is inside (simple bounds check)
+      let hitZoneId: string | null = null;
+      for (const zone of store.zones) {
+        const b = zone.bounds;
+        if (world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h) {
+          hitZoneId = zone.id as string;
+          break;
+        }
+      }
+
+      const id = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const floorId = store.activeFloorId ?? '';
+      store.addWaypoint({
+        id: id as any,
+        type: wpType,
+        position: { x: world.x, y: world.y },
+        floorId: floorId as any,
+        label: '',
+        attraction: wpType === 'attractor' ? 0.9 : 0.5,
+        dwellTimeMs: wpType === 'rest' ? 30000 : 0,
+        capacity: 20,
+        spawnWeight: wpType === 'entry' ? 1.0 : 0,
+        lookAt: 0,
+        zoneId: hitZoneId as any ?? null,
+        mediaId: null,
+      });
+      store.selectWaypoint(id);
+      return;
+    }
+
+    // ── Waypoint edge connection mode ──
+    if (e.button === 0 && editorMode === 'connect-waypoint') {
+      const world = getWorldPos(e);
+      if (!world) return;
+      const store = useStore.getState();
+      const graph = store.waypointGraph;
+      if (!graph) return;
+
+      // Find nearest node
+      let nearestNode: { id: string; dist: number } | null = null;
+      for (const node of graph.nodes) {
+        const dx = node.position.x - world.x;
+        const dy = node.position.y - world.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 25 && (!nearestNode || dist < nearestNode.dist)) {
+          nearestNode = { id: node.id as string, dist };
+        }
+      }
+      if (nearestNode) {
+        const pending = store.pendingEdgeSourceId;
+        if (!pending) {
+          store.setPendingEdgeSource(nearestNode.id);
+          store.selectWaypoint(nearestNode.id);
+        } else if (pending !== nearestNode.id) {
+          // Create edge (skip if duplicate)
+          const fromNode = graph.nodes.find(n => (n.id as string) === pending);
+          const toNode = graph.nodes.find(n => (n.id as string) === nearestNode!.id);
+          const isDuplicate = graph.edges.some(e =>
+            ((e.fromId as string) === pending && (e.toId as string) === nearestNode!.id) ||
+            ((e.fromId as string) === nearestNode!.id && (e.toId as string) === pending)
+          );
+          if (fromNode && toNode && !isDuplicate) {
+            const dx = toNode.position.x - fromNode.position.x;
+            const dy = toNode.position.y - fromNode.position.y;
+            const cost = Math.sqrt(dx * dx + dy * dy);
+            const edgeId = `e_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+            store.addEdge({
+              id: edgeId as any,
+              fromId: fromNode.id,
+              toId: toNode.id,
+              direction: 'bidirectional',
+              passWeight: 1.0,
+              cost,
+            });
+          }
+          // 연속 생성: 두 번째 노드를 다음 에지의 시작점으로
+          store.setPendingEdgeSource(nearestNode.id);
+          store.selectWaypoint(nearestNode.id);
+        }
+        return;
+      }
+    }
+
+    // ── Node drag: in Node or Select mode, start dragging an existing node ──
+    if (e.button === 0 && (editorMode === 'place-waypoint' || editorMode === 'select')) {
+      const store = useStore.getState();
+      const graph = store.waypointGraph;
+      if (graph && world) {
+        for (const node of graph.nodes) {
+          const dx = node.position.x - world.x;
+          const dy = node.position.y - world.y;
+          if (dx * dx + dy * dy < 400) { // 20px radius
+            // In place-waypoint mode, only drag if no pending type (already placed)
+            if (editorMode === 'place-waypoint' && store.pendingWaypointType) break;
+            dragMode.current = 'waypoint-move';
+            dragWaypointId.current = node.id as string;
+            store.selectWaypoint(node.id as string);
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    }
+
     // Handle zone editing in ANY editor mode (not just 'select')
     if (e.button === 0) {
       if (!world) return;
@@ -355,7 +491,7 @@ export function CanvasPanel() {
         if (selZone && !isPolyEditing) {
           const corner = hitTestCorner(world, selZone);
           if (corner) {
-            store.pushUndo(store.zones, store.media); // save before drag
+            store.pushUndo(store.zones, store.media, store.waypointGraph); // save before drag
             dragMode.current = 'resize';
             dragZoneId.current = store.selectedZoneId;
             resizeCorner.current = corner;
@@ -373,7 +509,7 @@ export function CanvasPanel() {
           const ldx = world.x - lx;
           const ldy = world.y - ly;
           if (ldx * ldx + ldy * ldy < 150) {
-            store.pushUndo(store.zones, store.media); // save before drag
+            store.pushUndo(store.zones, store.media, store.waypointGraph); // save before drag
             dragMode.current = 'l-handle';
             dragZoneId.current = store.selectedZoneId;
             e.preventDefault();
@@ -390,7 +526,7 @@ export function CanvasPanel() {
             const vx = vts[vi].x - world.x;
             const vy = vts[vi].y - world.y;
             if (vx * vx + vy * vy < 64) { // 8px
-              store.pushUndo(store.zones, store.media);
+              store.pushUndo(store.zones, store.media, store.waypointGraph);
               dragMode.current = 'vertex';
               dragZoneId.current = store.selectedZoneId;
               dragVertexIdx.current = vi;
@@ -409,7 +545,7 @@ export function CanvasPanel() {
             if (d < bestEdge.dist) bestEdge = { dist: d, idx: vi, pt: cp };
           }
           if (bestEdge.dist <= 6) {
-            store.pushUndo(store.zones, store.media);
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
             const newVerts = [...vts];
             newVerts.splice(bestEdge.idx + 1, 0, { x: bestEdge.pt.x, y: bestEdge.pt.y });
             const xs = newVerts.map(v => v.x), ys = newVerts.map(v => v.y);
@@ -438,7 +574,7 @@ export function CanvasPanel() {
             const dx = (gate.position as any).x - world.x;
             const dy = (gate.position as any).y - world.y;
             if (dx * dx + dy * dy < 225) { // 15px hit radius for easier gate selection
-              store.pushUndo(store.zones, store.media);
+              store.pushUndo(store.zones, store.media, store.waypointGraph);
               dragMode.current = 'gate';
               dragZoneId.current = selZone.id as string;
               dragGateId.current = gate.id as string;
@@ -463,7 +599,7 @@ export function CanvasPanel() {
           ];
           for (const { corner, cx, cy } of corners) {
             if (Math.abs(world.x - cx) < 8 && Math.abs(world.y - cy) < 8) {
-              store.pushUndo(store.zones, store.media);
+              store.pushUndo(store.zones, store.media, store.waypointGraph);
               dragMode.current = 'media-resize';
               dragMediaId.current = store.selectedMediaId;
               resizeCorner.current = corner;
@@ -481,7 +617,7 @@ export function CanvasPanel() {
         const mx = m.position.x - pw / 2;
         const my = m.position.y - ph / 2;
         if (world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph) {
-          store.pushUndo(store.zones, store.media);
+          store.pushUndo(store.zones, store.media, store.waypointGraph);
 
           // Check if near front arrow (rotation handle) — top edge center of media
           const rad = (m.orientation * Math.PI) / 180;
@@ -492,6 +628,8 @@ export function CanvasPanel() {
             dragMode.current = 'media-rotate';
             dragMediaId.current = m.id as string;
             (store as any).selectMedia(m.id as string);
+            selectZone(null);
+            store.selectWaypoint(null);
             e.preventDefault();
             return;
           }
@@ -500,6 +638,8 @@ export function CanvasPanel() {
           dragMediaId.current = m.id as string;
           dragOffset.current = { x: world.x - m.position.x, y: world.y - m.position.y };
           (store as any).selectMedia(m.id as string);
+          selectZone(null);
+          store.selectWaypoint(null);
           e.preventDefault();
           return;
         }
@@ -520,7 +660,7 @@ export function CanvasPanel() {
           selectZone(clicked.id as string);
           e.preventDefault();
         } else {
-          store.pushUndo(store.zones, store.media);
+          store.pushUndo(store.zones, store.media, store.waypointGraph);
           dragMode.current = 'move';
           dragZoneId.current = clicked.id as string;
           dragOffset.current = { x: world.x - clicked.bounds.x, y: world.y - clicked.bounds.y };
@@ -590,23 +730,99 @@ export function CanvasPanel() {
     const world = getWorldPos(e);
     if (!world) return;
     const store = useStore.getState();
+    const graph = store.waypointGraph;
+    const mode = store.editorMode;
 
-    // Check media click first
-    const MS = 20;
-    for (const m of store.media) {
-      const pw = m.size.width * MS, ph = m.size.height * MS;
-      if (world.x >= m.position.x - pw/2 && world.x <= m.position.x + pw/2 &&
-          world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2) {
-        (store as any).selectMedia(m.id as string);
-        return;
+    // Helper: hit-test nearest waypoint node
+    const hitNode = () => {
+      if (!graph) return null;
+      let best: { id: string; dist: number } | null = null;
+      for (const node of graph.nodes) {
+        const dx = node.position.x - world.x, dy = node.position.y - world.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 20 && (!best || dist < best.dist)) best = { id: node.id as string, dist };
       }
+      return best;
+    };
+
+    // Helper: hit-test nearest edge
+    const hitEdge = () => {
+      if (!graph) return null;
+      for (const edge of graph.edges) {
+        const from = graph.nodes.find(n => n.id === edge.fromId);
+        const to = graph.nodes.find(n => n.id === edge.toId);
+        if (!from || !to) continue;
+        const cp = closestPointOnSeg(world.x, world.y, from.position.x, from.position.y, to.position.x, to.position.y);
+        const dx = cp.x - world.x, dy = cp.y - world.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 8) return edge.id as string;
+      }
+      return null;
+    };
+
+    // Helper: hit-test media
+    const hitMedia = () => {
+      const MS = 20;
+      for (const m of store.media) {
+        const pw = m.size.width * MS, ph = m.size.height * MS;
+        if (world.x >= m.position.x - pw/2 && world.x <= m.position.x + pw/2 &&
+            world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2) return m.id as string;
+      }
+      return null;
+    };
+
+    // Helper: hit-test zone
+    const hitZone = () => {
+      const z = store.zones.find((z) => {
+        const b = z.bounds;
+        return world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h;
+      });
+      return z ? (z.id as string) : null;
+    };
+
+    // ── 공통: 빈 공간 감지 ──
+    const anyNode = hitNode();
+    const anyEdge = hitEdge();
+    const anyMedia = hitMedia();
+    const anyZone = hitZone();
+    const hitNothing = !anyNode && !anyEdge && !anyMedia && !anyZone;
+
+    // 빈 공간 클릭 → 전체 선택 해제 + Select 모드
+    if (hitNothing) {
+      selectZone(null);
+      store.selectWaypoint(null);
+      (store as any).selectMedia?.(null);
+      store.setPendingEdgeSource(null);
+      if (mode !== 'select') store.setEditorMode('select');
+      return;
     }
 
-    const clicked = store.zones.find((z) => {
-      const b = z.bounds;
-      return world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h;
-    });
-    selectZone(clicked ? (clicked.id as string) : null);
+    // ── Layer-based selection by editor mode ──
+    if (mode === 'place-waypoint') {
+      if (anyNode) { store.selectWaypoint(anyNode.id); return; }
+      return; // 노드 배치는 mouseDown에서 처리
+    }
+
+    if (mode === 'connect-waypoint') {
+      if (anyEdge) { store.selectEdge(anyEdge); return; }
+      return; // 연결은 mouseDown에서 처리
+    }
+
+    if (mode === 'place-media') {
+      if (anyMedia) { (store as any).selectMedia(anyMedia); store.selectWaypoint(null); return; }
+      return;
+    }
+
+    if (mode === 'create-zone') {
+      selectZone(anyZone);
+      store.selectWaypoint(null);
+      return;
+    }
+
+    // ── Select 모드: 전체 레이어 우선순위 ──
+    if (anyNode) { store.selectWaypoint(anyNode.id); selectZone(null); return; }
+    if (anyEdge) { store.selectEdge(anyEdge); selectZone(null); return; }
+    if (anyMedia) { (store as any).selectMedia(anyMedia); store.selectWaypoint(null); selectZone(null); return; }
+    if (anyZone) { selectZone(anyZone); store.selectWaypoint(null); return; }
   }, [selectZone]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -622,7 +838,44 @@ export function CanvasPanel() {
       return;
     }
 
+    // Waypoint node dragging
+    if (mode === 'waypoint-move' && dragWaypointId.current) {
+      const world = getWorldPos(e);
+      if (world) {
+        const store = useStore.getState();
+        store.updateWaypoint(dragWaypointId.current, { position: { x: world.x, y: world.y } });
+        didDrag.current = true;
+        // Update zoneId based on new position
+        let hitZoneId: string | null = null;
+        for (const zone of store.zones) {
+          const b = zone.bounds;
+          if (world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h) {
+            hitZoneId = zone.id as string;
+            break;
+          }
+        }
+        store.updateWaypoint(dragWaypointId.current, { zoneId: hitZoneId as any ?? null });
+      }
+      return;
+    }
+
     const world = getWorldPos(e);
+
+    // Track mouse world position for ghost node preview
+    mouseWorldPos.current = world;
+
+    // Node/Edge placement: crosshair cursor
+    if (mode === 'none' && world && containerRef.current) {
+      const store = useStore.getState();
+      if (store.editorMode === 'place-waypoint' && store.pendingWaypointType) {
+        containerRef.current.style.cursor = 'crosshair';
+        return;
+      }
+      if (store.editorMode === 'connect-waypoint') {
+        containerRef.current.style.cursor = 'crosshair';
+        return;
+      }
+    }
 
     // Hover cursor: change cursor based on what's under mouse
     if (mode === 'none' && world && containerRef.current) {
@@ -1024,10 +1277,33 @@ export function CanvasPanel() {
   }, [setCamera, updateZone, editorMode]);
 
   const handleMouseUp = useCallback(() => {
+    // Update edge costs if a waypoint was moved
+    if (dragMode.current === 'waypoint-move' && dragWaypointId.current) {
+      const store = useStore.getState();
+      const graph = store.waypointGraph;
+      if (graph) {
+        const movedId = dragWaypointId.current;
+        const movedNode = graph.nodes.find(n => (n.id as string) === movedId);
+        if (movedNode) {
+          for (const edge of graph.edges) {
+            if ((edge.fromId as string) === movedId || (edge.toId as string) === movedId) {
+              const from = graph.nodes.find(n => n.id === edge.fromId);
+              const to = graph.nodes.find(n => n.id === edge.toId);
+              if (from && to) {
+                const dx = to.position.x - from.position.x;
+                const dy = to.position.y - from.position.y;
+                store.updateEdge(edge.id as string, { cost: Math.sqrt(dx * dx + dy * dy) });
+              }
+            }
+          }
+        }
+      }
+    }
     dragMode.current = 'none';
     dragZoneId.current = null;
     dragGateId.current = null;
     dragMediaId.current = null;
+    dragWaypointId.current = null;
     dragVertexIdx.current = null;
     vertexOriginal.current = null;
   }, []);
@@ -1071,12 +1347,60 @@ export function CanvasPanel() {
     const world = getWorldPos(e);
     if (!world) return;
     const store = useStore.getState();
+    const graph = store.waypointGraph;
+
+    // Priority: node > edge > zone (show property popover for nodes/edges)
+    if (graph) {
+      // Hit-test node
+      for (const node of graph.nodes) {
+        const dx = node.position.x - world.x, dy = node.position.y - world.y;
+        if (dx * dx + dy * dy < 400) {
+          store.selectWaypoint(node.id as string);
+          showPopover(e.clientX, e.clientY, 'node', node.id as string);
+          return;
+        }
+      }
+      // Hit-test edge
+      for (const edge of graph.edges) {
+        const from = graph.nodes.find(n => n.id === edge.fromId);
+        const to = graph.nodes.find(n => n.id === edge.toId);
+        if (!from || !to) continue;
+        const cp = closestPointOnSeg(world.x, world.y, from.position.x, from.position.y, to.position.x, to.position.y);
+        const dx = cp.x - world.x, dy = cp.y - world.y;
+        if (Math.sqrt(dx * dx + dy * dy) < 10) {
+          store.selectEdge(edge.id as string);
+          showPopover(e.clientX, e.clientY, 'edge', edge.id as string);
+          return;
+        }
+      }
+    }
+
+    // Hit-test media
+    const MS = 20;
+    for (const m of store.media) {
+      const pw = m.size.width * MS, ph = m.size.height * MS;
+      if (world.x >= m.position.x - pw/2 && world.x <= m.position.x + pw/2 &&
+          world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2) {
+        (store as any).selectMedia(m.id as string);
+        showPopover(e.clientX, e.clientY, 'media', m.id as string);
+        return;
+      }
+    }
+
+    // Hit-test zone
     const clicked = store.zones.find((z) => {
       const b = z.bounds;
       return world.x >= b.x && world.x <= b.x + b.w && world.y >= b.y && world.y <= b.y + b.h;
     });
-    showMenu(e.clientX, e.clientY, clicked ? (clicked.id as string) : null);
-  }, [showMenu]);
+    if (clicked) {
+      selectZone(clicked.id as string);
+      showPopover(e.clientX, e.clientY, 'zone', clicked.id as string);
+      return;
+    }
+
+    // Empty space: show general context menu
+    showMenu(e.clientX, e.clientY, null);
+  }, [showMenu, showPopover, selectZone]);
 
   return (
     <div
@@ -1096,6 +1420,7 @@ export function CanvasPanel() {
       <CanvasToolbar />
       <TimelineBar />
       <CanvasContextMenu menu={menu} onClose={hideMenu} />
+      <PropertyPopover popover={popover} onClose={hidePopover} />
       <VisitorPopover canvasRef={canvasRef} managerRef={managerRef} />
     </div>
   );

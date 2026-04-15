@@ -132,6 +132,65 @@ export function renderGates(
         ctx.moveTo(gx - dx - nx, gy - dy - ny); ctx.lineTo(gx - dx + nx, gy - dy + ny);
         ctx.moveTo(gx + dx - nx, gy + dy - ny); ctx.lineTo(gx + dx + nx, gy + dy + ny);
         ctx.stroke();
+
+        // Gateway direction arrow
+        if (zone.type === 'gateway') {
+          const gwMode = (zone as any).gatewayMode ?? 'both';
+          const cx = zone.bounds.x + zone.bounds.w / 2;
+          const cy = zone.bounds.y + zone.bounds.h / 2;
+          // Outward direction = away from zone center
+          const outX = gx - cx;
+          const outY = gy - cy;
+          const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
+          const normX = outX / outLen;
+          const normY = outY / outLen;
+          const arrowLen = 10;
+          const arrowHead = 4;
+
+          ctx.globalAlpha = 0.8;
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = color;
+          ctx.fillStyle = color;
+
+          if (gwMode === 'spawn' || gwMode === 'both') {
+            // Inward arrow (outside → inside)
+            const startX = gx + normX * 12;
+            const startY = gy + normY * 12;
+            const endX = gx + normX * 2;
+            const endY = gy + normY * 2;
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+            // Arrowhead pointing inward
+            const aAngle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - arrowHead * Math.cos(aAngle - 0.5), endY - arrowHead * Math.sin(aAngle - 0.5));
+            ctx.lineTo(endX - arrowHead * Math.cos(aAngle + 0.5), endY - arrowHead * Math.sin(aAngle + 0.5));
+            ctx.closePath();
+            ctx.fill();
+          }
+          if (gwMode === 'exit' || gwMode === 'both') {
+            // Outward arrow (inside → outside)
+            const off = gwMode === 'both' ? -5 : 0;
+            const startX = gx - normX * 2;
+            const startY = gy - normY * 2;
+            const endX = gx + normX * 12;
+            const endY = gy + normY * 12;
+            ctx.beginPath();
+            ctx.moveTo(startX + normY * off, startY - normX * off);
+            ctx.lineTo(endX + normY * off, endY - normX * off);
+            ctx.stroke();
+            const aAngle = Math.atan2(endY - startY, endX - startX);
+            ctx.beginPath();
+            ctx.moveTo(endX + normY * off, endY - normX * off);
+            ctx.lineTo(endX + normY * off - arrowHead * Math.cos(aAngle - 0.5), endY - normX * off - arrowHead * Math.sin(aAngle - 0.5));
+            ctx.lineTo(endX + normY * off - arrowHead * Math.cos(aAngle + 0.5), endY - normX * off - arrowHead * Math.sin(aAngle + 0.5));
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
       }
 
       ctx.restore();

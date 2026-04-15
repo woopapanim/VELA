@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { Users } from 'lucide-react';
 import { useStore } from '@/stores';
 import { TimeSlotEditor } from './TimeSlotEditor';
@@ -152,11 +152,24 @@ export function VisitorConfig() {
 function NumField({ label, value, onChange, disabled, step = 1 }: {
   label: string; value: number; onChange: (v: number) => void; disabled: boolean; step?: number;
 }) {
+  const [raw, setRaw] = useState(String(value));
+  const prevValue = useRef(value);
+  // Sync from parent when value changes externally
+  if (value !== prevValue.current) { prevValue.current = value; if (parseFloat(raw) !== value) setRaw(String(value)); }
+
   return (
     <div>
       <label className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</label>
-      <input type="number" value={value} step={step}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+      <input type="number" value={raw} step={step}
+        onChange={(e) => {
+          setRaw(e.target.value);
+          const n = parseFloat(e.target.value);
+          if (!isNaN(n)) onChange(n);
+        }}
+        onBlur={() => {
+          const n = parseFloat(raw);
+          if (isNaN(n) || raw === '') { setRaw(String(value)); }
+        }}
         disabled={disabled}
         className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50" />
     </div>
