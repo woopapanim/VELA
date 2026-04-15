@@ -46,6 +46,28 @@ export const GROUP_TYPE = {
 
 export type GroupType = (typeof GROUP_TYPE)[keyof typeof GROUP_TYPE];
 
+// ---- Visitor Category (행동 분류) ----
+export const VISITOR_CATEGORY = {
+  SOLO: 'solo',
+  SMALL_GROUP: 'small_group',
+  GUIDED_TOUR: 'guided_tour',
+  VIP_EXPERT: 'vip_expert',
+} as const;
+
+export type VisitorCategory =
+  (typeof VISITOR_CATEGORY)[keyof typeof VISITOR_CATEGORY];
+
+// ---- Category Config (per-category simulation parameters) ----
+export interface VisitorCategoryConfig {
+  readonly category: VisitorCategory;
+  readonly baseSpeed: number;           // px/s
+  readonly collisionRadius: number;     // px
+  readonly dwellTimeMultiplier: number; // 1.0 = no change
+  readonly skipThresholdMod: number;    // multiplier on patience
+  readonly groupSizeRange: readonly [number, number]; // [min, max]
+  readonly cohesionModel: 'none' | 'cohesion' | 'follow_leader';
+}
+
 // ---- Visitor Profile (static archetype) ----
 export interface VisitorProfile {
   readonly type: VisitorProfileType;
@@ -66,6 +88,8 @@ export interface VisitorGroup {
   readonly memberIds: readonly VisitorId[];
   readonly cohesionStrength: number; // 0-1
   readonly maxSpread: number; // px
+  readonly dwellTimeMultiplier: number; // group dwell time multiplier (default 1.0)
+  readonly effectiveCollisionRadius: number; // for guided tour: large body radius (px)
 }
 
 // ---- Visitor (full runtime state) ----
@@ -83,6 +107,7 @@ export interface Visitor {
   readonly targetMediaId: MediaId | null;
   readonly visitedZoneIds: readonly ZoneId[];
   readonly visitedMediaIds: readonly MediaId[];
+  readonly category: VisitorCategory;
   readonly groupId: GroupId | undefined;
   readonly isGroupLeader: boolean;
   readonly steering: SteeringState;
@@ -102,8 +127,9 @@ export interface VisitorDistribution {
   readonly totalCount: number;
   readonly profileWeights: Readonly<Record<VisitorProfileType, number>>;
   readonly engagementWeights: Readonly<Record<EngagementLevel, number>>;
-  readonly groupRatio: number; // 0-1
+  readonly groupRatio: number; // 0-1 (legacy fallback)
   readonly spawnRatePerSecond: number;
+  readonly categoryWeights?: Readonly<Record<VisitorCategory, number>>; // new: category-based spawning
 }
 
 // ---- Time Slot Config ----
@@ -113,5 +139,6 @@ export interface TimeSlotConfig {
   readonly spawnRatePerSecond: number;
   readonly profileDistribution: Readonly<Record<VisitorProfileType, number>>;
   readonly engagementDistribution: Readonly<Record<EngagementLevel, number>>;
-  readonly groupRatio: number;
+  readonly groupRatio: number; // legacy fallback
+  readonly categoryDistribution?: Readonly<Record<VisitorCategory, number>>;
 }

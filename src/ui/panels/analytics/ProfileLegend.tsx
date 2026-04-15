@@ -1,5 +1,12 @@
 import { useStore } from '@/stores';
 
+const CATEGORY_INFO: Record<string, { color: string; label: string }> = {
+  solo: { color: '#60a5fa', label: '1인' },
+  small_group: { color: '#34d399', label: '소그룹' },
+  guided_tour: { color: '#f472b6', label: '도슨트' },
+  vip_expert: { color: '#fbbf24', label: 'VIP' },
+};
+
 const PROFILE_COLORS: Record<string, { color: string; label: string }> = {
   general: { color: '#60a5fa', label: 'General' },
   vip: { color: '#fbbf24', label: 'VIP' },
@@ -20,10 +27,13 @@ export function ProfileLegend() {
 
   if (active.length === 0) return null;
 
-  // Count by profile
+  // Count by category
+  const categoryCounts = new Map<string, number>();
   const profileCounts = new Map<string, number>();
   const engagementCounts = new Map<string, number>();
   for (const v of active) {
+    const cKey = v.category ?? 'solo';
+    categoryCounts.set(cKey, (categoryCounts.get(cKey) ?? 0) + 1);
     const pKey = v.profile.type;
     profileCounts.set(pKey, (profileCounts.get(pKey) ?? 0) + 1);
     const eKey = v.profile.engagementLevel;
@@ -39,7 +49,31 @@ export function ProfileLegend() {
         Visitor Profiles
       </h2>
 
+      {/* Category breakdown (primary) */}
+      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Category</p>
+      <div className="flex gap-1 mb-3">
+        {Object.entries(CATEGORY_INFO).map(([key, { color, label }]) => {
+          const count = categoryCounts.get(key) ?? 0;
+          const pct = active.length > 0 ? Math.round((count / active.length) * 100) : 0;
+          return (
+            <div key={key} className="flex-1 text-center">
+              <div
+                className="h-2 rounded-full mb-1 mx-auto"
+                style={{
+                  backgroundColor: color,
+                  opacity: count > 0 ? 0.4 + (pct / 100) * 0.6 : 0.15,
+                  width: `${Math.max(30, pct)}%`,
+                }}
+              />
+              <span className="text-[10px] font-data font-semibold">{count}</span>
+              <span className="text-[8px] text-muted-foreground block">{label}</span>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Profile type breakdown */}
+      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Profile</p>
       <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
         {Object.entries(PROFILE_COLORS).map(([key, { color, label }]) => {
           const count = profileCounts.get(key) ?? 0;

@@ -3,6 +3,15 @@ import { VISITOR_ACTION } from '@/domain';
 
 let _visitorAnimFrame = 0;
 
+// Category-based colors
+const CATEGORY_COLORS: Record<string, string> = {
+  solo: '#60a5fa',         // blue
+  small_group: '#34d399',  // emerald
+  guided_tour: '#f472b6',  // pink
+  vip_expert: '#fbbf24',   // gold
+};
+
+// Fallback to profile colors for legacy visitors without category
 const PROFILE_COLORS: Record<string, string> = {
   general: '#60a5fa',
   vip: '#fbbf24',
@@ -25,7 +34,10 @@ export function renderVisitors(
   showCohesionLines: boolean = true,
   followAgentId: string | null = null,
 ) {
-  // Draw cohesion lines first (behind agents)
+  // Draw tour group boundary circles first (behind everything)
+  renderTourBoundaries(ctx, visitors, groups, isDark);
+
+  // Draw cohesion lines (behind agents)
   if (showCohesionLines) {
     renderCohesionLines(ctx, visitors, groups, isDark);
   }
@@ -36,44 +48,40 @@ export function renderVisitors(
   for (const visitor of visitors) {
     if (!visitor.isActive) continue;
 
-    const { position, profile, currentAction, isGroupLeader } = visitor;
+    const { position, profile, currentAction, isGroupLeader, category } = visitor;
     const fatigue = visitor.fatigue;
-    // Blend base color toward red as fatigue increases
-    let baseColor = PROFILE_COLORS[profile.type] ?? '#60a5fa';
+
+    // Base color from category (fallback to profile)
+    let baseColor = CATEGORY_COLORS[category] ?? PROFILE_COLORS[profile.type] ?? '#60a5fa';
     if (fatigue > 0.5) {
-      const t = Math.min(1, (fatigue - 0.5) * 2); // 0-1 as fatigue goes 0.5-1.0
+      const t = Math.min(1, (fatigue - 0.5) * 2);
       baseColor = lerpColor(baseColor, '#ef4444', t * 0.6);
     }
     const actionColor = ACTION_COLORS[currentAction];
-    const radius = isGroupLeader ? 5 : 3.5;
 
     ctx.save();
 
-    // Agent body
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, radius, 0, Math.PI * 2);
-
-    if (currentAction === VISITOR_ACTION.WATCHING || currentAction === VISITOR_ACTION.WAITING) {
-      // Stationary — filled with action color
-      ctx.fillStyle = actionColor ?? baseColor;
-      ctx.fill();
+    // Category-specific rendering
+    if (category === 'guided_tour' && isGroupLeader) {
+      // Tour guide: diamond shape, larger
+      renderDiamond(ctx, position.x, position.y, 7, baseColor, isDark, currentAction, actionColor);
+    } else if (category === 'vip_expert') {
+      // VIP: diamond shape with gold border
+      renderDiamond(ctx, position.x, position.y, 5, baseColor, isDark, currentAction, actionColor);
+    } else if (category === 'guided_tour') {
+      // Tour member: smaller circle
+      renderCircle(ctx, position.x, position.y, 3, baseColor, isDark, currentAction, actionColor, false);
+    } else if (category === 'small_group') {
+      // Group member: slightly larger circle
+      renderCircle(ctx, position.x, position.y, isGroupLeader ? 5 : 4, baseColor, isDark, currentAction, actionColor, isGroupLeader);
     } else {
-      // Moving — outlined
-      ctx.fillStyle = isDark
-        ? hexToRgba(baseColor, 0.6)
-        : hexToRgba(baseColor, 0.7);
-      ctx.fill();
+      // Solo: default circle
+      renderCircle(ctx, position.x, position.y, 3.5, baseColor, isDark, currentAction, actionColor, false);
     }
 
-    // Border
-    ctx.strokeStyle = isDark
-      ? hexToRgba(baseColor, 0.9)
-      : hexToRgba(baseColor, 0.8);
-    ctx.lineWidth = isGroupLeader ? 1.5 : 0.8;
-    ctx.stroke();
-
-    // Watching progress arc (spinning indicator)
+    // Watching progress arc
     if (currentAction === VISITOR_ACTION.WATCHING) {
+      const radius = category === 'guided_tour' && isGroupLeader ? 7 : category === 'vip_expert' ? 5 : 3.5;
       const angle = (_visitorAnimFrame * 0.03) % (Math.PI * 2);
       ctx.beginPath();
       ctx.arc(position.x, position.y, radius + 3, angle, angle + Math.PI * 1.5);
@@ -82,8 +90,9 @@ export function renderVisitors(
       ctx.stroke();
     }
 
-    // Waiting pulse animation
+    // Waiting pulse
     if (currentAction === VISITOR_ACTION.WAITING) {
+      const radius = 3.5;
       const pulse = (Math.sin(_visitorAnimFrame * 0.1 + (position.x * 0.1)) + 1) * 0.5;
       ctx.beginPath();
       ctx.arc(position.x, position.y, radius + 2 + pulse * 3, 0, Math.PI * 2);
@@ -92,15 +101,7 @@ export function renderVisitors(
       ctx.stroke();
     }
 
-    // Leader star indicator
-    if (isGroupLeader) {
-      ctx.beginPath();
-      ctx.arc(position.x, position.y - radius - 3, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = '#fbbf24';
-      ctx.fill();
-    }
-
-    // Velocity direction line (for moving agents)
+    // Velocity direction line
     if (currentAction === VISITOR_ACTION.MOVING || currentAction === VISITOR_ACTION.EXITING) {
       const vx = visitor.velocity.x;
       const vy = visitor.velocity.y;
@@ -120,7 +121,7 @@ export function renderVisitors(
     // Follow highlight ring
     if (followAgentId && (visitor.id as string) === followAgentId) {
       ctx.beginPath();
-      ctx.arc(position.x, position.y, radius + 6, 0, Math.PI * 2);
+      ctx.arc(position.x, position.y, 10, 0, Math.PI * 2);
       ctx.strokeStyle = '#fbbf24';
       ctx.lineWidth = 2;
       ctx.setLineDash([3, 3]);
@@ -130,12 +131,97 @@ export function renderVisitors(
       ctx.fillStyle = '#fbbf24';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(`${visitor.id as string}`, position.x, position.y - radius - 8);
+      ctx.fillText(`${visitor.id as string}`, position.x, position.y - 14);
     }
 
     ctx.restore();
   }
 }
+
+// ---- Shape renderers ----
+
+function renderCircle(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, radius: number,
+  baseColor: string, isDark: boolean,
+  action: string, actionColor: string | undefined,
+  isLeader: boolean,
+) {
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+
+  if (action === VISITOR_ACTION.WATCHING || action === VISITOR_ACTION.WAITING) {
+    ctx.fillStyle = actionColor ?? baseColor;
+  } else {
+    ctx.fillStyle = isDark ? hexToRgba(baseColor, 0.6) : hexToRgba(baseColor, 0.7);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = isDark ? hexToRgba(baseColor, 0.9) : hexToRgba(baseColor, 0.8);
+  ctx.lineWidth = isLeader ? 1.5 : 0.8;
+  ctx.stroke();
+}
+
+function renderDiamond(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, size: number,
+  baseColor: string, isDark: boolean,
+  action: string, actionColor: string | undefined,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - size);
+  ctx.lineTo(x + size * 0.7, y);
+  ctx.lineTo(x, y + size);
+  ctx.lineTo(x - size * 0.7, y);
+  ctx.closePath();
+
+  if (action === VISITOR_ACTION.WATCHING || action === VISITOR_ACTION.WAITING) {
+    ctx.fillStyle = actionColor ?? baseColor;
+  } else {
+    ctx.fillStyle = isDark ? hexToRgba(baseColor, 0.7) : hexToRgba(baseColor, 0.8);
+  }
+  ctx.fill();
+
+  ctx.strokeStyle = baseColor;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+// ---- Tour boundary circles ----
+
+function renderTourBoundaries(
+  ctx: CanvasRenderingContext2D,
+  visitors: readonly Visitor[],
+  groups: readonly VisitorGroup[],
+  isDark: boolean,
+) {
+  const visitorMap = new Map<string, Visitor>();
+  for (const v of visitors) {
+    if (v.isActive) visitorMap.set(v.id as string, v);
+  }
+
+  for (const group of groups) {
+    if (group.type !== 'guided') continue;
+    const leader = visitorMap.get(group.leaderId as string);
+    if (!leader) continue;
+
+    const radius = group.effectiveCollisionRadius ?? 60;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(leader.position.x, leader.position.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = isDark ? 'rgba(244,114,182,0.06)' : 'rgba(244,114,182,0.08)';
+    ctx.fill();
+    ctx.strokeStyle = isDark ? 'rgba(244,114,182,0.2)' : 'rgba(244,114,182,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
+// ---- Cohesion lines (category-colored) ----
 
 function renderCohesionLines(
   ctx: CanvasRenderingContext2D,
@@ -155,26 +241,33 @@ function renderCohesionLines(
 
     if (members.length < 2) continue;
 
-    ctx.save();
-    ctx.strokeStyle = isDark ? 'rgba(139,92,246,0.15)' : 'rgba(139,92,246,0.1)';
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([2, 3]);
-
-    // Connect members to leader
     const leader = members.find((m) => m.isGroupLeader);
-    if (leader) {
-      for (const member of members) {
-        if (member === leader) continue;
-        ctx.beginPath();
-        ctx.moveTo(leader.position.x, leader.position.y);
-        ctx.lineTo(member.position.x, member.position.y);
-        ctx.stroke();
-      }
+    if (!leader) continue;
+
+    // Color based on group type
+    const isGuided = group.type === 'guided';
+    const lineColor = isGuided
+      ? (isDark ? 'rgba(244,114,182,0.2)' : 'rgba(244,114,182,0.15)')
+      : (isDark ? 'rgba(52,211,153,0.2)' : 'rgba(52,211,153,0.15)');
+
+    ctx.save();
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = isGuided ? 0.8 : 0.5;
+    ctx.setLineDash(isGuided ? [3, 4] : [2, 3]);
+
+    for (const member of members) {
+      if (member === leader) continue;
+      ctx.beginPath();
+      ctx.moveTo(leader.position.x, leader.position.y);
+      ctx.lineTo(member.position.x, member.position.y);
+      ctx.stroke();
     }
 
     ctx.restore();
   }
 }
+
+// ---- Utilities ----
 
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);

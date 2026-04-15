@@ -2,6 +2,7 @@ import type { PhysicsConfig, SkipThreshold } from './types/physics';
 import type { HeatmapConfig } from './types/heatmap';
 import type { MediaPreset, MediaType } from './types/media';
 import type { HexColor } from './types/common';
+import type { VisitorCategoryConfig, VisitorCategory } from './types/visitor';
 
 // ---- Physics Defaults ----
 export const DEFAULT_PHYSICS: PhysicsConfig = {
@@ -152,6 +153,54 @@ export const MEDIA_PRESETS: Record<MediaType, MediaPreset> = {
   speaker_podium: { type: 'speaker_podium', defaultSize: { width: 2, height: 1.5 }, defaultCapacity: 50, avgEngagementTimeMs: 600_000, isInteractive: false },
   seating_area: { type: 'seating_area', defaultSize: { width: 5, height: 4 }, defaultCapacity: 20, avgEngagementTimeMs: 300_000, isInteractive: false },
   custom: { type: 'custom', defaultSize: { width: 2, height: 2 }, defaultCapacity: 5, avgEngagementTimeMs: 60_000, isInteractive: false },
+};
+
+// ---- Visitor Category Configs ----
+export const CATEGORY_CONFIGS: Record<VisitorCategory, VisitorCategoryConfig> = {
+  solo: {
+    category: 'solo',
+    baseSpeed: 24,            // 1.2 m/s × 20 px/m
+    collisionRadius: 6,       // 0.3m × 20
+    dwellTimeMultiplier: 1.0,
+    skipThresholdMod: 0.7,    // impatient — skips earlier
+    groupSizeRange: [1, 1],
+    cohesionModel: 'none',
+  },
+  small_group: {
+    category: 'small_group',
+    baseSpeed: 18,            // 0.9 m/s × 20
+    collisionRadius: 16,      // 0.8m × 20
+    dwellTimeMultiplier: 1.5, // socializing → longer dwell
+    skipThresholdMod: 1.0,
+    groupSizeRange: [2, 4],
+    cohesionModel: 'cohesion',
+  },
+  guided_tour: {
+    category: 'guided_tour',
+    baseSpeed: 12,            // 0.6 m/s × 20
+    collisionRadius: 60,      // 3.0m × 20 — large moving obstacle
+    dwellTimeMultiplier: 3.0, // docent explains → very long dwell
+    skipThresholdMod: 2.0,    // very patient — rarely skips
+    groupSizeRange: [10, 20],
+    cohesionModel: 'follow_leader',
+  },
+  vip_expert: {
+    category: 'vip_expert',
+    baseSpeed: 14,            // 0.7 m/s × 20
+    collisionRadius: 8,       // 0.4m × 20
+    dwellTimeMultiplier: 2.5, // reads everything thoroughly
+    skipThresholdMod: 1.5,    // patient
+    groupSizeRange: [1, 1],
+    cohesionModel: 'none',
+  },
+};
+
+// ---- Default Category Weights ----
+export const DEFAULT_CATEGORY_WEIGHTS: Record<VisitorCategory, number> = {
+  solo: 60,
+  small_group: 25,
+  guided_tour: 5,
+  vip_expert: 10,
 };
 
 // ---- Media Physics ----

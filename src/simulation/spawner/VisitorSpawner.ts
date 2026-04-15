@@ -6,6 +6,7 @@ import type {
   TimeSlotConfig,
   VisitorProfileType,
   EngagementLevel,
+  VisitorCategory,
   FloorId,
   VisitorId,
   GroupId,
@@ -18,8 +19,10 @@ import {
   FATIGUE_RATES,
   PATIENCE_VALUES,
   ENGAGEMENT_PATIENCE_MODIFIER,
+  CATEGORY_CONFIGS,
+  DEFAULT_CATEGORY_WEIGHTS,
 } from '@/domain';
-import { VISITOR_ACTION, STEERING_BEHAVIOR } from '@/domain';
+import { VISITOR_ACTION, VISITOR_CATEGORY, STEERING_BEHAVIOR } from '@/domain';
 import type { SeededRandom } from '../utils/random';
 
 let _nextVisitorId = 0;
@@ -55,6 +58,7 @@ function pickWeighted<T extends string>(
 function createProfile(
   profileType: VisitorProfileType,
   engagementLevel: EngagementLevel,
+  speedOverride?: number,
 ): VisitorProfile {
   const patienceBase = PATIENCE_VALUES[profileType] ?? 0.5;
   const engagementMod = ENGAGEMENT_PATIENCE_MODIFIER[engagementLevel] ?? 1.0;
@@ -62,7 +66,7 @@ function createProfile(
   return {
     type: profileType,
     engagementLevel,
-    maxSpeed: VISITOR_SPEEDS[profileType] ?? 120,
+    maxSpeed: speedOverride ?? (VISITOR_SPEEDS[profileType] ?? 120),
     mass: VISITOR_MASS[profileType] ?? 70,
     maxForce: VISITOR_MAX_FORCE[profileType] ?? 200,
     fatigueRate: FATIGUE_RATES[profileType] ?? 0.00005,
@@ -78,6 +82,7 @@ export function spawnVisitor(
   simTime: number,
   groupId?: GroupId,
   isLeader: boolean = false,
+  category: VisitorCategory = VISITOR_CATEGORY.SOLO,
 ): Visitor {
   return {
     id: genVisitorId(),
@@ -93,6 +98,7 @@ export function spawnVisitor(
     targetMediaId: null,
     visitedZoneIds: [],
     visitedMediaIds: [],
+    category,
     groupId,
     isGroupLeader: isLeader,
     steering: {
@@ -127,52 +133,92 @@ export function generateSpawnBatch(
 ): SpawnBatch {
   const visitors: Visitor[] = [];
   const groups: VisitorGroup[] = [];
+  const catWeights = distribution.categoryWeights ?? DEFAULT_CATEGORY_WEIGHTS;
 
   let remaining = count;
 
   while (remaining > 0) {
-    const isGroup = rng.next() < distribution.groupRatio && remaining >= 2;
+    const cat = pickWeighted(catWeights, rng);
+    const catCfg = CATEGORY_CONFIGS[cat];
 
-    if (isGroup) {
-      const groupSize = rng.nextInt(2, Math.min(8, remaining));
+    if (cat === VISITOR_CATEGORY.SOLO || cat === VISITOR_CATEGORY.VIP_EXPERT) {
+      // ── Solo / VIP: single agent ──
+      const pType = pickWeighted(distribution.profileWeights, rng);
+      const eLevel = cat === VISITOR_CATEGORY.VIP_EXPERT ? 'immersive' as EngagementLevel : pickWeighted(distribution.engagementWeights, rng);
+      const profile = createProfile(pType, eLevel, catCfg.baseSpeed);
+      const offset: Vector2D = {
+        x: spawnPosition.x + rng.nextFloat(-10, 10),
+        y: spawnPosition.y + rng.nextFloat(-10, 10),
+      };
+      visitors.push(spawnVisitor(profile, offset, spawnFloorId, simTime, undefined, false, cat));
+      remaining -= 1;
+
+    } else if (cat === VISITOR_CATEGORY.SMALL_GROUP) {
+      // ── Small Group: 2-4 members ──
+      const [minSize, maxSize] = catCfg.groupSizeRange;
+      const groupSize = rng.nextInt(minSize, Math.min(maxSize, remaining));
+      if (groupSize < 2) { remaining -= 1; continue; } // fallback solo if not enough remaining
       const gid = genGroupId();
       const members: Visitor[] = [];
 
       for (let i = 0; i < groupSize; i++) {
         const pType = pickWeighted(distribution.profileWeights, rng);
         const eLevel = pickWeighted(distribution.engagementWeights, rng);
-        const profile = createProfile(pType, eLevel);
+        const profile = createProfile(pType, eLevel, catCfg.baseSpeed);
         const offset: Vector2D = {
           x: spawnPosition.x + rng.nextFloat(-15, 15),
           y: spawnPosition.y + rng.nextFloat(-15, 15),
         };
-        const v = spawnVisitor(profile, offset, spawnFloorId, simTime, gid, i === 0);
-        members.push(v);
+        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, gid, i === 0, cat));
       }
 
-      const groupType = groupSize <= 2 ? 'pair' : groupSize <= 5 ? 'small' : 'large';
-
+      const groupType = groupSize <= 2 ? 'pair' as const : 'small' as const;
       groups.push({
         id: gid,
-        type: groupType as 'pair' | 'small' | 'large' | 'guided',
+        type: groupType,
         leaderId: members[0].id,
         memberIds: members.map((m) => m.id),
-        cohesionStrength: groupType === 'pair' ? 0.8 : groupType === 'small' ? 0.6 : 0.4,
-        maxSpread: groupType === 'pair' ? 30 : groupType === 'small' ? 50 : 80,
+        cohesionStrength: 0.7,
+        maxSpread: 40,
+        dwellTimeMultiplier: catCfg.dwellTimeMultiplier,
+        effectiveCollisionRadius: catCfg.collisionRadius,
       });
 
       visitors.push(...members);
       remaining -= groupSize;
-    } else {
-      const pType = pickWeighted(distribution.profileWeights, rng);
-      const eLevel = pickWeighted(distribution.engagementWeights, rng);
-      const profile = createProfile(pType, eLevel);
-      const offset: Vector2D = {
-        x: spawnPosition.x + rng.nextFloat(-10, 10),
-        y: spawnPosition.y + rng.nextFloat(-10, 10),
-      };
-      visitors.push(spawnVisitor(profile, offset, spawnFloorId, simTime));
-      remaining -= 1;
+
+    } else if (cat === VISITOR_CATEGORY.GUIDED_TOUR) {
+      // ── Guided Tour: 10-20 members ──
+      const [minSize, maxSize] = catCfg.groupSizeRange;
+      const groupSize = rng.nextInt(minSize, Math.min(maxSize, remaining));
+      if (groupSize < 2) { remaining -= 1; continue; }
+      const gid = genGroupId();
+      const members: Visitor[] = [];
+
+      for (let i = 0; i < groupSize; i++) {
+        const pType = pickWeighted(distribution.profileWeights, rng);
+        const eLevel = pickWeighted(distribution.engagementWeights, rng);
+        const profile = createProfile(pType, eLevel, catCfg.baseSpeed);
+        const offset: Vector2D = {
+          x: spawnPosition.x + rng.nextFloat(-20, 20),
+          y: spawnPosition.y + rng.nextFloat(-20, 20),
+        };
+        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, gid, i === 0, cat));
+      }
+
+      groups.push({
+        id: gid,
+        type: 'guided',
+        leaderId: members[0].id,
+        memberIds: members.map((m) => m.id),
+        cohesionStrength: 0.95,
+        maxSpread: 80,
+        dwellTimeMultiplier: catCfg.dwellTimeMultiplier,
+        effectiveCollisionRadius: catCfg.collisionRadius,
+      });
+
+      visitors.push(...members);
+      remaining -= groupSize;
     }
   }
 

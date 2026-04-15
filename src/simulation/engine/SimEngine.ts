@@ -40,13 +40,15 @@ import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
 import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon } from '../collision/resolution';
-import { arrival, separation, wander, obstacleAvoidance } from '../steering/behaviors';
+import { arrival, separation, wander, obstacleAvoidance, followLeader, groupCohesion } from '../steering/behaviors';
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
 import { ZoneGraph } from '../pathfinding/navigation';
 import { WaypointNavigator } from '../pathfinding/waypointGraph';
 import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration } from '../behavior/EngagementBehavior';
+import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
+import { distance } from '../utils/math';
 
 /* ─── public types ─── */
 
@@ -111,6 +113,10 @@ export class SimulationEngine {
 
   // track per-visitor watch start time for duration calc
   private _watchStartTimes = new Map<string, number>();
+
+  // group caches (rebuilt each tick)
+  private groupMemberPositions = new Map<string, Vector2D[]>();
+  private tourLeaders: { position: Vector2D; radius: number }[] = [];
 
   // staged media state: tracks session timing per media
   private _stagedState = new Map<string, {
@@ -197,6 +203,14 @@ export class SimulationEngine {
       this._mediaStats.set(mediaId, { watchCount: 0, skipCount: 0, waitCount: 0, totalWatchMs: 0, totalWaitMs: 0, peakViewers: 0 });
     }
     return this._mediaStats.get(mediaId)!;
+  }
+
+  /** Apply group dwell time multiplier if visitor is in a group */
+  private applyGroupDwell(v: Visitor, baseDur: number): number {
+    if (!v.groupId) return baseDur;
+    const group = this.state.groups.get(v.groupId as string);
+    if (!group) return baseDur;
+    return getGroupDwellDuration(baseDur, group);
   }
 
   /** Update staged media session state */
@@ -306,6 +320,27 @@ export class SimulationEngine {
       if (v.currentNodeId) {
         const nid = v.currentNodeId as string;
         this.nodeCrowd.set(nid, (this.nodeCrowd.get(nid) ?? 0) + 1);
+      }
+    }
+
+    // rebuild group caches
+    this.groupMemberPositions.clear();
+    this.tourLeaders = [];
+    for (const [, g] of this.state.groups) {
+      const positions: Vector2D[] = [];
+      for (const mid of g.memberIds) {
+        const m = this.state.visitors.get(mid as string);
+        if (m?.isActive) positions.push(m.position);
+      }
+      this.groupMemberPositions.set(g.id as string, positions);
+      if (g.type === 'guided') {
+        const leader = this.state.visitors.get(g.leaderId as string);
+        if (leader?.isActive) {
+          this.tourLeaders.push({
+            position: leader.position,
+            radius: g.effectiveCollisionRadius ?? 60,
+          });
+        }
       }
     }
 
@@ -424,6 +459,17 @@ export class SimulationEngine {
   private stepBehavior(v: Visitor, dt: number): Visitor {
     const action = v.currentAction;
 
+    // --- GROUP FOLLOWER: sync to leader ---
+    if (isFollower(v)) {
+      const group = this.state.groups.get(v.groupId as string);
+      if (group) {
+        const leader = this.state.visitors.get(group.leaderId as string);
+        if (leader?.isActive) {
+          return syncFollowerToLeader(v, leader, group);
+        }
+      }
+    }
+
     // --- WATCHING: tick engagement timer ---
     if (action === VISITOR_ACTION.WATCHING) {
       const rem = (this.engagementTimers.get(v.id as string) ?? 0) - dt;
@@ -464,7 +510,8 @@ export class SimulationEngine {
               this.ensureMediaStats(mid).totalWaitMs += waitMs;
             }
             this.recordWatchStart(mid, v.id as string);
-            const dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+            let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+            dur = this.applyGroupDwell(v, dur);
             this.engagementTimers.set(v.id as string, dur);
             const usedSlots2 = this.getUsedMediaSlots(v.targetMediaId!);
             const slotIdx2 = this.findNextFreeSlot(media.capacity, usedSlots2);
@@ -484,7 +531,8 @@ export class SimulationEngine {
       const attr = v.targetMediaId
         ? (this.world.media.find(m => m.id === v.targetMediaId)?.attractiveness ?? 0.5)
         : 0.5;
-      if (shouldSkip(waitMs, v.profile.patience, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+      const catSkipMod = getCategorySkipMod(v.category);
+      if (shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
         // Record skip
         if (v.targetMediaId) this.recordSkip(v.targetMediaId as string, waitMs);
         // Mark skipped media as visited so it won't be picked again
@@ -619,7 +667,8 @@ export class SimulationEngine {
           // Watch at current position (wherever agent arrived in viewing area)
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          const dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           return {
             ...v,
@@ -636,7 +685,8 @@ export class SimulationEngine {
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          const dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           const slotPos = this.getMediaSlotPosition(media, viewerCount);
           return {
@@ -1424,15 +1474,83 @@ export class SimulationEngine {
       }
     }
 
-    // Separation
+    // Separation (reduce force against same-group members)
     const neighbors = this.spatialHash.queryRadius(v.id, physics.avoidanceRadius);
     if (neighbors.length > 0) {
       const targetType = v.targetNodeId ? this.nodeMap.get(v.targetNodeId as string)?.type : null;
       const isPassThrough = targetType === 'exit' || targetType === 'hub' || targetType === 'entry' || targetType === 'bend';
-      outputs.push({
-        output: separation(v.position, neighbors.map(n => n.position), physics.avoidanceRadius, physics.separationStrength),
-        weight: isPassThrough ? 0.1 : 0.5,
-      });
+
+      // Split neighbors: same-group vs others
+      const sameGroupPositions: Vector2D[] = [];
+      const otherPositions: Vector2D[] = [];
+      for (const n of neighbors) {
+        const nv = this.state.visitors.get(n.id as string);
+        if (v.groupId && nv?.groupId === v.groupId) {
+          sameGroupPositions.push(n.position);
+        } else {
+          otherPositions.push(n.position);
+        }
+      }
+      // Full separation against non-group members
+      if (otherPositions.length > 0) {
+        outputs.push({
+          output: separation(v.position, otherPositions, physics.avoidanceRadius, physics.separationStrength),
+          weight: isPassThrough ? 0.1 : 0.5,
+        });
+      }
+      // Reduced separation against same-group members (don't clip into each other, but stay close)
+      if (sameGroupPositions.length > 0) {
+        outputs.push({
+          output: separation(v.position, sameGroupPositions, physics.avoidanceRadius * 0.5, physics.separationStrength * 0.3),
+          weight: 0.15,
+        });
+      }
+    }
+
+    // Group steering: followLeader + groupCohesion
+    if (v.groupId) {
+      const group = this.state.groups.get(v.groupId as string);
+      if (group) {
+        if (v.category === 'guided_tour' && !v.isGroupLeader) {
+          const leader = this.state.visitors.get(group.leaderId as string);
+          if (leader?.isActive) {
+            outputs.push({
+              output: followLeader(v.position, leader.position, v.velocity, v.profile.maxSpeed, physics.followerArrivalRadius),
+              weight: 2.0,
+            });
+          }
+        } else if (v.category === 'small_group') {
+          const memberPos = this.groupMemberPositions.get(v.groupId as string) ?? [];
+          if (!v.isGroupLeader) {
+            const leader = this.state.visitors.get(group.leaderId as string);
+            if (leader?.isActive) {
+              outputs.push({
+                output: followLeader(v.position, leader.position, v.velocity, v.profile.maxSpeed, physics.followerArrivalRadius),
+                weight: 1.5,
+              });
+            }
+          }
+          if (memberPos.length > 0) {
+            outputs.push({
+              output: groupCohesion(v.position, memberPos, v.velocity, v.profile.maxSpeed, group.cohesionStrength),
+              weight: 0.5,
+            });
+          }
+        }
+      }
+    }
+
+    // Tour avoidance: non-tour visitors avoid guided tour groups
+    if (v.category !== 'guided_tour') {
+      for (const tour of this.tourLeaders) {
+        const dist = distance(v.position, tour.position);
+        if (dist < tour.radius + 20) {
+          outputs.push({
+            output: separation(v.position, [tour.position], tour.radius + 20, physics.separationStrength * 1.5),
+            weight: 1.5,
+          });
+        }
+      }
     }
 
     return { ...v, steering: { ...v.steering, currentSteering: combineSteeringPriority(outputs, v.profile.maxForce) } };
@@ -1550,6 +1668,19 @@ export class SimulationEngine {
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);
           }
+        }
+      }
+    }
+
+    // Tour group collision: push non-tour agents outside tour radius
+    if (v.category !== 'guided_tour') {
+      for (const tour of this.tourLeaders) {
+        const dx = pos.x - tour.position.x;
+        const dy = pos.y - tour.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < tour.radius && dist > 0.1) {
+          const overlap = tour.radius - dist;
+          pos = { x: pos.x + (dx / dist) * overlap, y: pos.y + (dy / dist) * overlap };
         }
       }
     }

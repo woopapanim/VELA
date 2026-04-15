@@ -1,57 +1,83 @@
 import { useCallback } from 'react';
-import { Zap, Clock, Crown, Users } from 'lucide-react';
+import { Zap, Clock, Crown, Users, MapPin } from 'lucide-react';
 import { useStore } from '@/stores';
+import type { VisitorCategory } from '@/domain';
 
-const PRESETS = [
+interface PresetConfig {
+  spawnRatePerSecond: number;
+  profileWeights: Record<string, number>;
+  engagementWeights: Record<string, number>;
+  groupRatio: number;
+  categoryWeights: Record<VisitorCategory, number>;
+}
+
+const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: string; config: PresetConfig }[] = [
   {
     id: 'rush_hour',
     label: 'Rush Hour',
     icon: Zap,
-    desc: '높은 유입률, 빠른 관람자 위주',
+    desc: '높은 유입률, 1인 관람 위주',
     config: {
       spawnRatePerSecond: 4,
       profileWeights: { general: 70, vip: 5, child: 15, elderly: 5, disabled: 5 },
       engagementWeights: { quick: 50, explorer: 30, immersive: 20 },
-      groupRatio: 0.4,
+      groupRatio: 0.25,
+      categoryWeights: { solo: 70, small_group: 20, guided_tour: 5, vip_expert: 5 },
     },
   },
   {
     id: 'steady_flow',
     label: 'Steady Flow',
     icon: Clock,
-    desc: '균일한 유입, 균형 잡힌 프로필',
+    desc: '균일한 유입, 균형 잡힌 구성',
     config: {
       spawnRatePerSecond: 2,
       profileWeights: { general: 60, vip: 15, child: 10, elderly: 10, disabled: 5 },
       engagementWeights: { quick: 30, explorer: 40, immersive: 30 },
-      groupRatio: 0.3,
+      groupRatio: 0.35,
+      categoryWeights: { solo: 55, small_group: 30, guided_tour: 5, vip_expert: 10 },
     },
   },
   {
     id: 'vip_event',
     label: 'VIP Event',
     icon: Crown,
-    desc: 'VIP 중심, 몰입형 관람자 다수',
+    desc: 'VIP/전문가 중심, 몰입형',
     config: {
       spawnRatePerSecond: 1.5,
       profileWeights: { general: 30, vip: 40, child: 5, elderly: 15, disabled: 10 },
       engagementWeights: { quick: 10, explorer: 40, immersive: 50 },
       groupRatio: 0.2,
+      categoryWeights: { solo: 20, small_group: 15, guided_tour: 5, vip_expert: 60 },
     },
   },
   {
     id: 'family_day',
     label: 'Family Day',
     icon: Users,
-    desc: '가족 단위, 높은 그룹 비율',
+    desc: '가족 단위, 소그룹 위주',
     config: {
       spawnRatePerSecond: 3,
       profileWeights: { general: 40, vip: 5, child: 30, elderly: 15, disabled: 10 },
       engagementWeights: { quick: 20, explorer: 50, immersive: 30 },
       groupRatio: 0.6,
+      categoryWeights: { solo: 30, small_group: 50, guided_tour: 10, vip_expert: 10 },
     },
   },
-] as const;
+  {
+    id: 'guided_tour_day',
+    label: 'Guided Tour',
+    icon: MapPin,
+    desc: '도슨트 투어 중심, 단체 관람',
+    config: {
+      spawnRatePerSecond: 2.5,
+      profileWeights: { general: 50, vip: 10, child: 20, elderly: 15, disabled: 5 },
+      engagementWeights: { quick: 15, explorer: 45, immersive: 40 },
+      groupRatio: 0.6,
+      categoryWeights: { solo: 25, small_group: 20, guided_tour: 40, vip_expert: 15 },
+    },
+  },
+];
 
 export function VisitorPresets() {
   const scenario = useStore((s) => s.scenario);
@@ -73,6 +99,7 @@ export function VisitorPresets() {
         profileWeights: preset.config.profileWeights,
         engagementWeights: preset.config.engagementWeights,
         groupRatio: preset.config.groupRatio,
+        categoryWeights: preset.config.categoryWeights,
       },
       simulationConfig: {
         ...scenario.simulationConfig,
@@ -82,6 +109,7 @@ export function VisitorPresets() {
           profileDistribution: preset.config.profileWeights,
           engagementDistribution: preset.config.engagementWeights,
           groupRatio: preset.config.groupRatio,
+          categoryDistribution: preset.config.categoryWeights,
         })),
       },
     });
