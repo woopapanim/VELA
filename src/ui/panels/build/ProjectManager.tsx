@@ -104,6 +104,7 @@ export function ProjectManager() {
       zones: store.zones,
       media: store.media,
       floors: store.floors,
+      waypointGraph: store.waypointGraph ?? undefined,
       meta: { ...s.meta, updatedAt: Date.now(), version: s.meta.version + 1 },
     };
     setScenario(updated);
