@@ -29,6 +29,9 @@ export function AnalyticsPanel() {
 
   const totalSpawned = useStore((s) => s.totalSpawned);
   const totalExited = useStore((s) => s.totalExited);
+  const spawnByNode = useStore((s) => s.spawnByNode);
+  const exitByNode = useStore((s) => s.exitByNode);
+  const graph = useStore((s) => s.waypointGraph);
   const activeCount = visitors.filter((v) => v.isActive).length;
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
@@ -59,6 +62,25 @@ export function AnalyticsPanel() {
           <KpiCard label="Spawned" value={totalSpawned} />
           <KpiCard label="Elapsed" value={`${minutes}m ${seconds}s`} />
         </div>
+        {/* Entry/Exit per-node breakdown */}
+        {graph && (spawnByNode.size > 0 || exitByNode.size > 0) && (
+          <div className="mt-3 space-y-1.5">
+            {graph.nodes.filter(n => n.type === 'entry').map(n => (
+              <div key={n.id as string} className="flex items-center gap-1.5 text-[10px]">
+                <span className="w-2 h-2 rounded-full bg-[#22c55e] shrink-0" />
+                <span className="flex-1 truncate font-data">{n.label || 'Entry'}</span>
+                <span className="text-primary font-data">{spawnByNode.get(n.id as string) ?? 0} in</span>
+              </div>
+            ))}
+            {graph.nodes.filter(n => n.type === 'exit').map(n => (
+              <div key={n.id as string} className="flex items-center gap-1.5 text-[10px]">
+                <span className="w-2 h-2 rounded-full bg-[#ef4444] shrink-0" />
+                <span className="flex-1 truncate font-data">{n.label || 'Exit'}</span>
+                <span className="text-[var(--status-danger)] font-data">{exitByNode.get(n.id as string) ?? 0} out</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Live KPIs */}

@@ -3,11 +3,11 @@
     "id": "project_1776250613172",
     "name": "55",
     "description": "",
-    "version": 2,
+    "version": 4,
     "parentId": null,
     "tags": [],
     "createdAt": 1776250613172,
-    "updatedAt": 1776251478238
+    "updatedAt": 1776263351271
   },
   "floors": [
     {
@@ -624,6 +624,74 @@
         "lookAt": 0,
         "zoneId": "z_user_114",
         "mediaId": null
+      },
+      {
+        "id": "wp_1776259985390_id1",
+        "type": "bend",
+        "position": {
+          "x": 390.54473403444604,
+          "y": 278.63841894020237
+        },
+        "floorId": "floor_1f",
+        "label": "Bend 1",
+        "attraction": 0,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_111",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776259994110_cxh",
+        "type": "bend",
+        "position": {
+          "x": 1064.164502244485,
+          "y": 276.06472955538516
+        },
+        "floorId": "floor_1f",
+        "label": "Bend 2",
+        "attraction": 0,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": "z_user_111",
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776263102946_34ot",
+        "type": "entry",
+        "position": {
+          "x": 1323.2686318895226,
+          "y": -105.44736480625295
+        },
+        "floorId": "floor_1f",
+        "label": "Entry 2",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 1,
+        "lookAt": 0,
+        "zoneId": null,
+        "mediaId": null
+      },
+      {
+        "id": "wp_1776263105739_v9z9",
+        "type": "exit",
+        "position": {
+          "x": 1396.6540123927205,
+          "y": -118.61909976836534
+        },
+        "floorId": "floor_1f",
+        "label": "Exit 2",
+        "attraction": 0.5,
+        "dwellTimeMs": 0,
+        "capacity": 20,
+        "spawnWeight": 0,
+        "lookAt": 0,
+        "zoneId": null,
+        "mediaId": null
       }
     ],
     "edges": [
@@ -708,30 +776,6 @@
         "cost": 344.81439159290903
       },
       {
-        "id": "e_1776250980618_t6cp",
-        "fromId": "wp_1776250931010_x7nn",
-        "toId": "wp_1776250931685_frn6",
-        "direction": "bidirectional",
-        "passWeight": 1,
-        "cost": 759.2770904219778
-      },
-      {
-        "id": "e_1776250987743_r7bw",
-        "fromId": "wp_1776250931010_x7nn",
-        "toId": "wp_1776250929750_0x8f",
-        "direction": "bidirectional",
-        "passWeight": 1,
-        "cost": 729.5096412211795
-      },
-      {
-        "id": "e_1776251000701_tjji",
-        "fromId": "wp_1776250931010_x7nn",
-        "toId": "wp_1776250932701_8xaq",
-        "direction": "bidirectional",
-        "passWeight": 1,
-        "cost": 669.2311119723518
-      },
-      {
         "id": "e_1776251009860_dsae",
         "fromId": "wp_1776250931685_frn6",
         "toId": "wp_1776250934280_bslh",
@@ -762,6 +806,62 @@
         "direction": "directed",
         "passWeight": 1,
         "cost": 268.55715324277696
+      },
+      {
+        "id": "e_1776259985390_a",
+        "fromId": "wp_1776250931010_x7nn",
+        "toId": "wp_1776259985390_id1",
+        "direction": "bidirectional",
+        "cost": 327.858456696039,
+        "passWeight": 1
+      },
+      {
+        "id": "e_1776259985390_b",
+        "fromId": "wp_1776259985390_id1",
+        "toId": "wp_1776250929750_0x8f",
+        "direction": "bidirectional",
+        "cost": 636.7646102607122,
+        "passWeight": 1
+      },
+      {
+        "id": "e_1776259994110_a",
+        "fromId": "wp_1776250931010_x7nn",
+        "toId": "wp_1776259994110_cxh",
+        "direction": "bidirectional",
+        "cost": 345.8430386543578,
+        "passWeight": 1
+      },
+      {
+        "id": "e_1776259994110_b",
+        "fromId": "wp_1776259994110_cxh",
+        "toId": "wp_1776250931685_frn6",
+        "direction": "bidirectional",
+        "cost": 677.169447688703,
+        "passWeight": 1
+      },
+      {
+        "id": "e_1776260007637_sk01",
+        "fromId": "wp_1776259994110_cxh",
+        "toId": "wp_1776250932701_8xaq",
+        "direction": "bidirectional",
+        "passWeight": 1,
+        "cost": 323.38983313910165
+      },
+      {
+        "id": "e_1776263109654_yryz",
+        "fromId": "wp_1776250932701_8xaq",
+        "toId": "wp_1776263105739_v9z9",
+        "direction": "directed",
+        "passWeight": 1,
+        "cost": 399.7913346659156
+      },
+      {
+        "id": "e_1776263110956_4czi",
+        "fromId": "wp_1776263102946_34ot",
+        "toId": "wp_1776250932701_8xaq",
+        "direction": "directed",
+        "passWeight": 1,
+        "cost": 391.81836831827957
       }
     ]
   }

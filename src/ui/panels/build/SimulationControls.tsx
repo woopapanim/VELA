@@ -90,6 +90,8 @@ export function SimulationControls() {
         eng.getTotalSpawned(),
         eng.getTotalExited(),
         eng.getMediaStats(),
+        eng.getSpawnByNode(),
+        eng.getExitByNode(),
       );
 
       // Completion detection

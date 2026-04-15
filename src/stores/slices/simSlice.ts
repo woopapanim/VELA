@@ -14,11 +14,13 @@ export interface SimSlice {
   totalSpawned: number;
   totalExited: number;
   mediaStats: Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }>;
+  spawnByNode: ReadonlyMap<string, number>;
+  exitByNode: ReadonlyMap<string, number>;
 
   // Actions
   setConfig: (config: SimulationConfig) => void;
   setPhase: (phase: SimulationPhase) => void;
-  updateSimState: (visitors: Visitor[], groups: VisitorGroup[], timeState: TimeState, phase: SimulationPhase, totalSpawned: number, totalExited: number, mediaStats: Map<string, any>) => void;
+  updateSimState: (visitors: Visitor[], groups: VisitorGroup[], timeState: TimeState, phase: SimulationPhase, totalSpawned: number, totalExited: number, mediaStats: Map<string, any>, spawnByNode: ReadonlyMap<string, number>, exitByNode: ReadonlyMap<string, number>) => void;
   resetSim: () => void;
 }
 
@@ -39,13 +41,15 @@ export const createSimSlice: StateCreator<SimSlice, [], [], SimSlice> = (set) =>
   totalSpawned: 0,
   totalExited: 0,
   mediaStats: new Map(),
+  spawnByNode: new Map(),
+  exitByNode: new Map(),
 
   setConfig: (config) => set({ config }),
 
   setPhase: (phase) => set({ phase }),
 
-  updateSimState: (visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats) =>
-    set({ visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats }),
+  updateSimState: (visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats, spawnByNode, exitByNode) =>
+    set({ visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats, spawnByNode, exitByNode }),
 
   resetSim: () =>
     set({
@@ -56,5 +60,7 @@ export const createSimSlice: StateCreator<SimSlice, [], [], SimSlice> = (set) =>
       totalSpawned: 0,
       totalExited: 0,
       mediaStats: new Map(),
+      spawnByNode: new Map(),
+      exitByNode: new Map(),
     }),
 });

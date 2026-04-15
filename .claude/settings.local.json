@@ -65,7 +65,8 @@
       "Bash(ls -la \"/Users/suhan/AION mark01/\"*.json)",
       "Bash(grep -l \"waypointGraph\" \"/Users/suhan/AION mark01/\"*.json)",
       "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('public/44.json','utf8'\\)\\); console.log\\('zones:', d.zones?.length, 'media:', d.media?.length, 'wpNodes:', d.waypointGraph?.nodes?.length, 'wpEdges:', d.waypointGraph?.edges?.length\\)\")",
-      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/Users/suhan/Desktop/TEST/55.json','utf8'\\)\\); console.log\\('zones:', d.zones?.length, 'media:', d.media?.length, 'nodes:', d.waypointGraph?.nodes?.length, 'edges:', d.waypointGraph?.edges?.length\\); d.zones?.forEach\\(z => console.log\\('  ', z.name, z.shape, z.type\\)\\)\")"
+      "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\('/Users/suhan/Desktop/TEST/55.json','utf8'\\)\\); console.log\\('zones:', d.zones?.length, 'media:', d.media?.length, 'nodes:', d.waypointGraph?.nodes?.length, 'edges:', d.waypointGraph?.edges?.length\\); d.zones?.forEach\\(z => console.log\\('  ', z.name, z.shape, z.type\\)\\)\")",
+      "Bash(node -e ':*)"
     ]
   }
 }
