@@ -44,7 +44,9 @@ export function VisitorConfig() {
           <Users className="w-3 h-3" /> Visitor Settings
         </p>
         <div className="grid grid-cols-2 gap-2">
-          <NumField label="Max Visitors" value={config?.maxVisitors ?? 500}
+          <NumField label="Total Visitors" value={dist?.totalCount ?? 200}
+            onChange={(v) => updateDist('totalCount', v)} disabled={isLocked} />
+          <NumField label="Max Concurrent" value={config?.maxVisitors ?? 500}
             onChange={(v) => updateConfig('maxVisitors', v)} disabled={isLocked} />
           <NumField label="Spawn Rate /min" value={(dist?.spawnRatePerSecond ?? 2) * 60}
             onChange={(v) => updateDist('spawnRatePerSecond', v / 60)} disabled={isLocked} step={10} />

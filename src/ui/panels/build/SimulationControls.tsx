@@ -61,6 +61,7 @@ export function SimulationControls() {
       globalFlowMode: flowMode,
       guidedUntilIndex: guidedIdx,
       waypointGraph: store.waypointGraph ?? undefined,
+      totalVisitors: store.scenario.visitorDistribution.totalCount,
     };
     const engine = new SimulationEngine(world);
     engineRef.current = engine;

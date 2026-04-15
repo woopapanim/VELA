@@ -65,6 +65,7 @@ export interface SimulationWorld {
   globalFlowMode?: string;
   guidedUntilIndex?: number;
   waypointGraph?: WaypointGraph;
+  totalVisitors?: number;  // 누적 입장 상한 (default: Infinity)
 }
 
 /* ─── engine ─── */
@@ -89,6 +90,8 @@ export class SimulationEngine {
   // cumulative counters
   private _totalSpawned = 0;
   private _totalExited = 0;
+  private _spawnByNode = new Map<string, number>();  // entry node id → spawn count
+  private _exitByNode = new Map<string, number>();   // exit node id → exit count
 
   // engagement timers (visitor id → remaining ms)
   private engagementTimers = new Map<string, number>();
@@ -185,6 +188,8 @@ export class SimulationEngine {
   getZoneGraph(): ZoneGraph { return this.zoneGraph; }
   getTotalSpawned(): number { return this._totalSpawned; }
   getTotalExited(): number { return this._totalExited; }
+  getSpawnByNode(): ReadonlyMap<string, number> { return this._spawnByNode; }
+  getExitByNode(): ReadonlyMap<string, number> { return this._exitByNode; }
   getMediaStats(): Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }> { return this._mediaStats; }
 
   private ensureMediaStats(mediaId: string) {
@@ -331,6 +336,9 @@ export class SimulationEngine {
 
     const activeCount = Array.from(this.state.visitors.values()).filter(v => v.isActive).length;
     if (activeCount >= this.world.config.maxVisitors) return;
+    // 누적 입장 상한 체크
+    const totalLimit = this.world.totalVisitors ?? Infinity;
+    if (this._totalSpawned >= totalLimit) return;
 
     this.spawnAccumulator += slot.spawnRatePerSecond * (dt / 1000);
 
@@ -361,6 +369,8 @@ export class SimulationEngine {
           };
           this.state.visitors.set(spawned.id as string, this.assignNextTarget(spawned));
           this._totalSpawned++;
+          const eid = entryNode.id as string;
+          this._spawnByNode.set(eid, (this._spawnByNode.get(eid) ?? 0) + 1);
         }
         for (const g of batch.groups) this.state.groups.set(g.id as string, g);
         continue;
@@ -1219,7 +1229,9 @@ export class SimulationEngine {
   }
 
   /** Graph mode: EXIT 노드 도착 → 즉시 비활성화 */
-  private beginExitGraph(v: Visitor, _exitNode: WaypointNode): Visitor {
+  private beginExitGraph(v: Visitor, exitNode: WaypointNode): Visitor {
+    const xid = exitNode.id as string;
+    this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
     return { ...v, isActive: false };
   }
 
