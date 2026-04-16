@@ -436,7 +436,7 @@ export class SimulationEngine {
       if (v.targetMediaId) this.recordWatchEnd(v.targetMediaId as string, v.id as string);
       // Move agent OUT of media rect to wait point before assigning next target
       const finishedMedia = v.targetMediaId ? this.world.media.find(m => m.id === v.targetMediaId) : null;
-      const exitPos = finishedMedia ? this.getMediaWaitPoint(finishedMedia) : v.position;
+      const exitPos = finishedMedia ? this.clampToZone(this.getMediaWaitPoint(finishedMedia), v.currentZoneId) : v.position;
       return this.assignNextTarget({
         ...v,
         currentAction: VISITOR_ACTION.IDLE,
@@ -471,7 +471,7 @@ export class SimulationEngine {
             return {
               ...v,
               currentAction: VISITOR_ACTION.WATCHING,
-              position: this.getMediaSlotPosition(media, slotIdx2),
+              position: this.clampToZone(this.getMediaSlotPosition(media, slotIdx2), v.currentZoneId),
               velocity: { x: 0, y: 0 },
               waitStartedAt: null,
             };
@@ -584,7 +584,7 @@ export class SimulationEngine {
             // Engagement = remaining session time
             const remaining = Math.max(1000, (state.sessionStartMs + media.avgEngagementTimeMs) - this.state.timeState.elapsed);
             this.engagementTimers.set(v.id as string, remaining);
-            const slotPos = this.getMediaSlotPosition(media, viewerCount);
+            const slotPos = this.clampToZone(this.getMediaSlotPosition(media, viewerCount), v.currentZoneId);
             return { ...v, currentAction: VISITOR_ACTION.WATCHING, position: slotPos, velocity: { x: 0, y: 0 } };
           }
           // Session not open or full → wait
@@ -624,8 +624,8 @@ export class SimulationEngine {
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
+            position: this.clampToZone(v.position, v.currentZoneId),
             velocity: { x: 0, y: 0 },
-            // Stay at current position — no teleport
           };
         } else if (intType === 'active') {
           // ── ACTIVE: slot-based, queue if full ──
@@ -638,7 +638,7 @@ export class SimulationEngine {
           this.recordWatchStart(mid, v.id as string);
           const dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           this.engagementTimers.set(v.id as string, dur);
-          const slotPos = this.getMediaSlotPosition(media, viewerCount);
+          const slotPos = this.clampToZone(this.getMediaSlotPosition(media, viewerCount), v.currentZoneId);
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
@@ -822,6 +822,43 @@ export class SimulationEngine {
       if (!usedSlots.has(i)) return i;
     }
     return 0; // fallback
+  }
+
+  /** Ensure position is at least `margin` px inside the zone boundary.
+   *  Prevents agents from watching/waiting right at zone edges. */
+  private clampToZone(pos: Vector2D, zoneId: unknown, margin = 15): Vector2D {
+    if (!zoneId) return pos;
+    const zone = this.zoneMap.get(zoneId as string);
+    if (!zone) return pos;
+    const poly = getZonePolygon(zone);
+    const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+
+    // If outside zone, push inside first
+    if (!isPointInPolygon(pos, poly)) {
+      pos = clampToPolygon(pos, poly, center);
+    }
+
+    // Ensure minimum distance from nearest wall
+    let minDist = Infinity;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const lenSq = dx * dx + dy * dy;
+      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((pos.x - a.x) * dx + (pos.y - a.y) * dy) / lenSq));
+      const cx = a.x + t * dx, cy = a.y + t * dy;
+      const d = Math.sqrt((pos.x - cx) ** 2 + (pos.y - cy) ** 2);
+      if (d < minDist) minDist = d;
+    }
+
+    if (minDist < margin) {
+      const push = margin - minDist;
+      const toCx = center.x - pos.x, toCy = center.y - pos.y;
+      const len = Math.sqrt(toCx * toCx + toCy * toCy);
+      if (len > 0.01) {
+        pos = { x: pos.x + (toCx / len) * push, y: pos.y + (toCy / len) * push };
+      }
+    }
+    return pos;
   }
 
   /** Get the watching position (on the media itself) — viewer stands ON the media */
@@ -1330,9 +1367,20 @@ export class SimulationEngine {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
-        const isPassive = (m as any).interactionType !== 'active';
-        // PASSIVE → close to media front. ACTIVE → wait point (queue area).
-        return isPassive ? this.getMediaViewPoint(m) : this.getMediaWaitPoint(m);
+        const intType = (m as any).interactionType ?? 'passive';
+        if (intType === 'passive') {
+          return this.clampToZone(this.getMediaViewPoint(m), v.currentZoneId);
+        }
+        // ACTIVE/STAGED: steer toward the next available slot position
+        // (reduces teleport distance when transitioning to WATCHING)
+        if (v.currentAction === VISITOR_ACTION.WAITING) {
+          return this.clampToZone(this.getMediaWaitPoint(m), v.currentZoneId);
+        }
+        const viewerCount = this._tickMediaViewers.get(v.targetMediaId as string) ?? 0;
+        const slotTarget = viewerCount < m.capacity
+          ? this.getMediaSlotPosition(m, viewerCount)
+          : this.getMediaWaitPoint(m);
+        return this.clampToZone(slotTarget, v.currentZoneId);
       }
     }
 
