@@ -1468,6 +1468,7 @@ export class SimulationEngine {
         if (zoneMedia) {
           for (const m of zoneMedia) {
             if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
+            if ((m as any).interactionType === 'passive') continue; // passive = no wall
             walls.push(...this.getMediaWalls(m));
           }
         }
@@ -1663,12 +1664,13 @@ export class SimulationEngine {
         }
       }
     }
-    // Media obstacle collision — push agent outside media (rect or circle, skip target)
+    // Media obstacle collision — push agent outside media (skip passive + skip target)
     if (v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
           if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
+          if ((m as any).interactionType === 'passive') continue; // passive media = no physical barrier
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);
           }
