@@ -1375,10 +1375,10 @@ export function CanvasPanel() {
       let newY = snap(world.y - dragOffset.current.y);
       // Clamp inside parent zone
       if (m && parentZone) {
-        const pw = m.size.width * 20, ph = m.size.height * 20, mg = 5;
+        const pw = m.size.width * 20, ph = m.size.height * 20;
         const b = parentZone.bounds;
-        newX = Math.max(b.x + pw/2 + mg, Math.min(b.x + b.w - pw/2 - mg, newX));
-        newY = Math.max(b.y + ph/2 + mg, Math.min(b.y + b.h - ph/2 - mg, newY));
+        newX = Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, newX));
+        newY = Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, newY));
       }
       updateMedia(dragMediaId.current, { position: { x: newX, y: newY } });
       didDrag.current = true;
