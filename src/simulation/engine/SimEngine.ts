@@ -676,11 +676,16 @@ export class SimulationEngine {
             // Stay at current position — no teleport
           };
         } else if (intType === 'active') {
-          // ── ACTIVE: slot-based, queue if full ──
+          // ── ACTIVE: walk into media, watch at current position ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            this.recordWaitStart(mid);
-            return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+            // Full → skip, move on to next target (no waiting)
+            return this.assignNextTarget({
+              ...v,
+              currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+              targetMediaId: null,
+            });
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
@@ -1379,9 +1384,9 @@ export class SimulationEngine {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
-        const isPassive = (m as any).interactionType !== 'active';
-        // PASSIVE → close to media front. ACTIVE → wait point (queue area).
-        return isPassive ? this.getMediaViewPoint(m) : this.getMediaWaitPoint(m);
+        // PASSIVE → close to media front. ACTIVE → walk into media center (hitbox skipped for target media).
+        const isActive = (m as any).interactionType === 'active' || (m as any).interactionType === 'staged';
+        return isActive ? m.position : this.getMediaViewPoint(m);
       }
     }
 
