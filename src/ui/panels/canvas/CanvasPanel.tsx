@@ -868,7 +868,7 @@ export function CanvasPanel() {
     // ── Select 모드: 전체 레이어 우선순위 ──
     if (anyNode) { store.selectWaypoint(anyNode.id); selectZone(null); return; }
     if (anyEdge) { store.selectEdge(anyEdge); selectZone(null); return; }
-    if (anyMedia) { (store as any).selectMedia(anyMedia); store.selectWaypoint(null); selectZone(null); return; }
+    if (anyMedia) { selectZone(null); store.selectWaypoint(null); (store as any).selectMedia(anyMedia); return; }
     if (anyZone) { selectZone(anyZone); store.selectWaypoint(null); return; }
   }, [selectZone]);
 
