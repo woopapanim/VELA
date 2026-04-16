@@ -180,7 +180,7 @@ export const CATEGORY_CONFIGS: Record<VisitorCategory, VisitorCategoryConfig> = 
   guided_tour: {
     category: 'guided_tour',
     baseSpeed: 12,            // 0.6 m/s × 20
-    collisionRadius: 60,      // 3.0m × 20 — large moving obstacle
+    collisionRadius: 30,      // 1.5m × 20 — moving obstacle
     dwellTimeMultiplier: 3.0, // docent explains → very long dwell
     skipThresholdMod: 2.0,    // very patient — rarely skips
     groupSizeRange: [10, 20],
