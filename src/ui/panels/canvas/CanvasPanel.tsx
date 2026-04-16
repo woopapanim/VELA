@@ -1347,22 +1347,29 @@ export function CanvasPanel() {
         const c = resizeCorner.current;
         const MS = 20;
         const minSize = 0.5; // min 0.5m
+        // Transform world mouse position to media's local coordinate system
+        const dx = world.x - m.position.x;
+        const dy = world.y - m.position.y;
+        const rad = (m.orientation * Math.PI) / 180;
+        const cosR = Math.cos(-rad), sinR = Math.sin(-rad);
+        const localX = dx * cosR - dy * sinR;
+        const localY = dx * sinR + dy * cosR;
+        const halfW = m.size.width * MS / 2;
+        const halfH = m.size.height * MS / 2;
         let newW = m.size.width, newH = m.size.height;
-        const pos = m.position;
         if (c === 'se') {
-          newW = Math.max(minSize, (world.x - (pos.x - m.size.width * MS / 2)) / MS);
-          newH = Math.max(minSize, (world.y - (pos.y - m.size.height * MS / 2)) / MS);
+          newW = Math.max(minSize, (localX + halfW) / MS);
+          newH = Math.max(minSize, (localY + halfH) / MS);
         } else if (c === 'nw') {
-          newW = Math.max(minSize, ((pos.x + m.size.width * MS / 2) - world.x) / MS);
-          newH = Math.max(minSize, ((pos.y + m.size.height * MS / 2) - world.y) / MS);
+          newW = Math.max(minSize, (halfW - localX) / MS);
+          newH = Math.max(minSize, (halfH - localY) / MS);
         } else if (c === 'ne') {
-          newW = Math.max(minSize, (world.x - (pos.x - m.size.width * MS / 2)) / MS);
-          newH = Math.max(minSize, ((pos.y + m.size.height * MS / 2) - world.y) / MS);
+          newW = Math.max(minSize, (localX + halfW) / MS);
+          newH = Math.max(minSize, (halfH - localY) / MS);
         } else if (c === 'sw') {
-          newW = Math.max(minSize, ((pos.x + m.size.width * MS / 2) - world.x) / MS);
-          newH = Math.max(minSize, (world.y - (pos.y - m.size.height * MS / 2)) / MS);
+          newW = Math.max(minSize, (halfW - localX) / MS);
+          newH = Math.max(minSize, (localY + halfH) / MS);
         }
-        // Round to 0.5
         newW = Math.round(newW * 2) / 2;
         newH = Math.round(newH * 2) / 2;
         updateMedia(dragMediaId.current, { size: { width: newW, height: newH } });
