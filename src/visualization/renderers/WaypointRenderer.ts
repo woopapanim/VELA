@@ -32,7 +32,9 @@ export function renderWaypoints(
   selectedEdgeId: string | null,
   isDark: boolean,
   ghostNode: { position: { x: number; y: number }; type: string } | null = null,
+  zoom: number = 1,
 ) {
+  const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
   const nodeMap = new Map<string, WaypointNode>();
   for (const node of graph.nodes) nodeMap.set(node.id as string, node);
 
@@ -65,7 +67,7 @@ export function renderWaypoints(
     if (edge.passWeight !== 1.0) {
       const mx = (from.position.x + to.position.x) / 2;
       const my = (from.position.y + to.position.y) / 2;
-      ctx.font = '10px sans-serif';
+      ctx.font = `${fs(10)}px sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
@@ -99,7 +101,7 @@ export function renderWaypoints(
     ctx.shadowBlur = 0;
 
     // Type letter inside
-    ctx.font = `bold ${isSelected ? 13 : 11}px sans-serif`;
+    ctx.font = `bold ${fs(isSelected ? 13 : 11)}px sans-serif`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -135,7 +137,7 @@ export function renderWaypoints(
     ctx.setLineDash([]);
 
     // Type letter
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = `bold ${fs(11)}px sans-serif`;
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

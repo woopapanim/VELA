@@ -167,10 +167,9 @@ export class CanvasManager {
 
     // 4c. Waypoint graph (nodes + edges + ghost preview)
     if (state.waypointGraph && state.waypointGraph.nodes.length > 0) {
-      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null);
+      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom);
     } else if (state.ghostNode) {
-      // No graph yet but ghost node visible
-      renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode);
+      renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom);
     }
 
     // 5. Flow lines (between zones)
