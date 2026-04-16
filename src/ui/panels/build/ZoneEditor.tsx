@@ -91,11 +91,19 @@ export function ZoneEditor() {
         }
       } else if (field === 'type') {
         updateZone(selectedZoneId, { type: value, color: ZONE_COLORS[value as string] ?? zone.color } as any);
+      } else if (field === 'area') {
+        // Area changed → recalc capacity from new area minus media
+        const newArea = typeof value === 'number' ? value : parseFloat(value as string) || 0;
+        const zoneMedia = media.filter(m => (m.zoneId as string) === selectedZoneId);
+        const mediaArea = zoneMedia.reduce((sum, m) => sum + m.size.width * m.size.height, 0);
+        const effectiveArea = Math.max(1, newArea - mediaArea);
+        const capacity = Math.max(1, Math.floor(effectiveArea / INTERNATIONAL_DENSITY_STANDARD));
+        updateZone(selectedZoneId, { area: newArea, capacity } as any);
       } else {
         updateZone(selectedZoneId, { [field]: value } as any);
       }
     },
-    [selectedZoneId, updateZone, isLocked, zone],
+    [selectedZoneId, updateZone, isLocked, zone, media],
   );
 
   const media = useStore((s) => s.media);

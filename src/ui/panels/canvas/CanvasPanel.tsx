@@ -1179,7 +1179,13 @@ export function CanvasPanel() {
           y: y + (g.position.y - ob.y) * scaleY,
         },
       }));
-      updateZone(dragZoneId.current, { bounds: { x, y, w, h }, gates: resizedGates } as any);
+      const pxToM = 1 / 20; // MEDIA_SCALE = 20
+      const newArea = Math.round(w * pxToM * h * pxToM * 100) / 100;
+      const zMedia = useStore.getState().media.filter(m => (m.zoneId as string) === dragZoneId.current);
+      const mediaArea = zMedia.reduce((s, m) => s + m.size.width * m.size.height, 0);
+      const effectiveArea = Math.max(1, newArea - mediaArea);
+      const newCap = Math.max(1, Math.floor(effectiveArea / 2.5));
+      updateZone(dragZoneId.current, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap } as any);
       // Proportionally reposition media
       const currentMedia2 = useStore.getState().media;
       for (const m of currentMedia2) {
