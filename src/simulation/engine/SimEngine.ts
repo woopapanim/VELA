@@ -389,6 +389,7 @@ export class SimulationEngine {
           engagementWeights: slot.engagementDistribution,
           groupRatio: slot.groupRatio,
           spawnRatePerSecond: slot.spawnRatePerSecond,
+          categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
         };
         const batch = generateSpawnBatch(1, dist, entryNode.position, entryNode.floorId, elapsed, this.rng);
         // Deduct actual spawned count from accumulator (groups spawn multiple)
@@ -436,6 +437,7 @@ export class SimulationEngine {
         engagementWeights: slot.engagementDistribution,
         groupRatio: slot.groupRatio,
         spawnRatePerSecond: slot.spawnRatePerSecond,
+        categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
       };
       const gate = spawnZone.gates[0];
       const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng);

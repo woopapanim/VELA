@@ -62,6 +62,7 @@ export function SimulationControls() {
       guidedUntilIndex: guidedIdx,
       waypointGraph: store.waypointGraph ?? undefined,
       totalVisitors: store.scenario.visitorDistribution.totalCount,
+      categoryWeights: store.scenario.visitorDistribution.categoryWeights,
     };
     const engine = new SimulationEngine(world);
     engineRef.current = engine;
