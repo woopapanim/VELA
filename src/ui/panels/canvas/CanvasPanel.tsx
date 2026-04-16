@@ -657,9 +657,9 @@ export function CanvasPanel() {
           if (adx * adx + ady * ady < 200) {
             dragMode.current = 'media-rotate';
             dragMediaId.current = m.id as string;
-            (store as any).selectMedia(m.id as string);
             selectZone(null);
             store.selectWaypoint(null);
+            (store as any).selectMedia(m.id as string);
             e.preventDefault();
             return;
           }
@@ -667,9 +667,9 @@ export function CanvasPanel() {
           dragMode.current = 'media-move';
           dragMediaId.current = m.id as string;
           dragOffset.current = { x: world.x - m.position.x, y: world.y - m.position.y };
-          (store as any).selectMedia(m.id as string);
           selectZone(null);
           store.selectWaypoint(null);
+          (store as any).selectMedia(m.id as string);
           e.preventDefault();
           return;
         }
