@@ -279,14 +279,13 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     let clamped = media;
     if (zone) {
       const pw = media.size.width * SCALE, ph = media.size.height * SCALE;
-      const gateMargin = 25; // keep away from gates on left/right walls
-      const wallMargin = 10;
+      const margin = 2; // minimal margin — media can touch zone walls
       const b = zone.bounds;
       clamped = {
         ...media,
         position: {
-          x: Math.max(b.x + pw/2 + gateMargin, Math.min(b.x + b.w - pw/2 - gateMargin, media.position.x)),
-          y: Math.max(b.y + ph/2 + wallMargin, Math.min(b.y + b.h - ph/2 - wallMargin, media.position.y)),
+          x: Math.max(b.x + pw/2 + margin, Math.min(b.x + b.w - pw/2 - margin, media.position.x)),
+          y: Math.max(b.y + ph/2 + margin, Math.min(b.y + b.h - ph/2 - margin, media.position.y)),
         },
       };
     }
@@ -308,10 +307,10 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         if (zone && updated.position && updated.size) {
           const SCALE = 20;
           const pw = updated.size.width * SCALE, ph = updated.size.height * SCALE;
-          const gm = 25, wm = 10, b = zone.bounds;
+          const margin = 2, b = zone.bounds;
           updated.position = {
-            x: Math.max(b.x + pw/2 + gm, Math.min(b.x + b.w - pw/2 - gm, updated.position.x)),
-            y: Math.max(b.y + ph/2 + wm, Math.min(b.y + b.h - ph/2 - wm, updated.position.y)),
+            x: Math.max(b.x + pw/2 + margin, Math.min(b.x + b.w - pw/2 - margin, updated.position.x)),
+            y: Math.max(b.y + ph/2 + margin, Math.min(b.y + b.h - ph/2 - margin, updated.position.y)),
           };
         }
         // Block if overlapping another media
