@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState as __useState } from 'react';
+import { Trash2, X, Plus } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, ZoneType } from '@/domain';
+import type { WaypointType, ZoneType, MediaPlacement, MediaId } from '@/domain';
+import { MEDIA_PRESETS } from '@/domain';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
 
@@ -296,6 +297,11 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1" />
         </Row>
 
+        {/* Add Media button */}
+        {zone.type !== 'corridor' && (
+          <AddMediaSection zoneId={popover.targetId!} zoneBounds={zone.bounds} />
+        )}
+
         <div className="text-[8px] text-muted-foreground">
           {zone.bounds.w}x{zone.bounds.h}px · {zone.shape}
         </div>
@@ -369,6 +375,92 @@ export function PropertyPopover({ popover, onClose }: {
   }
 
   return null;
+}
+
+// ── Media categories for quick-add ──
+const MEDIA_CATEGORIES = [
+  { key: 'analog', label: '아날로그', color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
+  { key: 'passive_media', label: '패시브', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { key: 'active', label: '액티브', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { key: 'immersive', label: '이머시브', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+] as const;
+
+let _popoverMediaId = 5000;
+
+function AddMediaSection({ zoneId, zoneBounds }: { zoneId: string; zoneBounds: { x: number; y: number; w: number; h: number } }) {
+  const [expanded, setExpanded] = __useState(false);
+  const addMedia = useStore((s) => s.addMedia);
+
+  const handleAdd = (mediaType: string) => {
+    const preset = (MEDIA_PRESETS as Record<string, any>)[mediaType];
+    if (!preset) return;
+
+    const SCALE = 20;
+    const pw = preset.defaultSize.width * SCALE;
+    const ph = preset.defaultSize.height * SCALE;
+    const interactionType = preset.category === 'immersive' ? 'staged'
+      : preset.isInteractive ? 'active' : 'passive';
+
+    const media: MediaPlacement = {
+      id: `m_pop_${_popoverMediaId++}` as MediaId,
+      name: preset.type.replace(/_/g, ' '),
+      type: mediaType as any,
+      category: preset.category,
+      zoneId: zoneId as any,
+      position: {
+        x: zoneBounds.x + zoneBounds.w / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.w - pw - 40),
+        y: zoneBounds.y + zoneBounds.h / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.h - ph - 40),
+      },
+      size: preset.defaultSize,
+      orientation: 0,
+      capacity: preset.defaultCapacity,
+      avgEngagementTimeMs: preset.avgEngagementTimeMs,
+      attractiveness: 0.7,
+      attractionRadius: preset.attractionRadius,
+      interactionType: interactionType as any,
+      queueBehavior: preset.queueBehavior,
+      groupFriendly: preset.groupFriendly,
+    };
+
+    addMedia(media);
+  };
+
+  return (
+    <div className="border-t border-border pt-2">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1 text-[10px] text-primary hover:underline w-full"
+      >
+        <Plus size={10} />
+        미디어 추가
+        <span className="text-[8px] text-muted-foreground ml-auto">{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div className="mt-1.5 space-y-1.5 max-h-48 overflow-y-auto">
+          {MEDIA_CATEGORIES.map(({ key, label, color, items }) => (
+            <div key={key}>
+              <div className="flex items-center gap-1 mb-0.5">
+                <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
+                <span className="text-[8px] text-muted-foreground uppercase">{label}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-0.5">
+                {items.map(type => (
+                  <button
+                    key={type}
+                    onClick={() => handleAdd(type)}
+                    className="px-1.5 py-1 text-[9px] rounded bg-secondary hover:bg-accent text-left truncate transition-colors"
+                    style={{ borderLeft: `2px solid ${color}` }}
+                  >
+                    {type.replace(/_/g, ' ')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
