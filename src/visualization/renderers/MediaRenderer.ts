@@ -83,11 +83,11 @@ export function renderMedia(
     // Border — category-colored
     const catColor = CATEGORY_BORDER_COLORS[(m as any).category] ?? null;
     ctx.strokeStyle = isSelected
-      ? (isDark ? '#3b82f6' : '#2563eb')
+      ? (isDark ? '#60a5fa' : '#3b82f6')
       : catColor
-        ? (isDark ? catColor + '80' : catColor + '60') // 50%/37% alpha via hex
+        ? (isDark ? catColor + '80' : catColor + '60')
         : (isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)');
-    ctx.lineWidth = isSelected ? 1.5 : catColor ? 1.2 : 0.8;
+    ctx.lineWidth = isSelected ? 1.5 : catColor ? 1.0 : 0.6;
     if (isCircle) {
       ctx.beginPath();
       ctx.arc(0, 0, circleR, 0, Math.PI * 2);
@@ -159,9 +159,9 @@ export function renderMedia(
       ctx.fillText(`${watchCount}/${m.capacity}`, position.x, position.y + ph / 2 + 3);
     }
 
-    // Resize handles (selected only, not rotated)
+    // Resize handles (selected only)
     if (isSelected) {
-      const hr = 3;
+      const hr = 2;
       const corners = [
         { x: position.x - pw/2, y: position.y - ph/2 },
         { x: position.x + pw/2, y: position.y - ph/2 },
@@ -169,7 +169,7 @@ export function renderMedia(
         { x: position.x - pw/2, y: position.y + ph/2 },
       ];
       for (const c of corners) {
-        ctx.fillStyle = isDark ? '#3b82f6' : '#2563eb';
+        ctx.fillStyle = isDark ? '#60a5fa' : '#3b82f6';
         ctx.fillRect(c.x - hr, c.y - hr, hr * 2, hr * 2);
       }
     }
