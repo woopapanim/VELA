@@ -27,6 +27,9 @@ function saveHistory(entries: ProjectEntry[]) {
   } catch {}
 }
 
+// Keep fileHandle across saves so repeat saves go to the same file
+let _lastFileHandle: any = null;
+
 export function ProjectManager() {
   const scenario = useStore((s) => s.scenario);
   const setScenario = useStore((s) => s.setScenario);
@@ -129,13 +132,18 @@ export function ProjectManager() {
       setHistory(existing);
     };
 
-    // ── File System Access API: 저장 위치 직접 선택 (Chrome/Edge 지원) ──
+    // ── File System Access API (Chrome/Edge) ──
     if ('showSaveFilePicker' in window) {
       try {
-        const fileHandle = await (window as any).showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
-        });
+        // Reuse previous file handle if available (same file, no dialog)
+        let fileHandle = _lastFileHandle;
+        if (!fileHandle) {
+          fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
+          });
+          _lastFileHandle = fileHandle;
+        }
         const writable = await fileHandle.createWritable();
         await writable.write(json);
         await writable.close();
@@ -143,8 +151,24 @@ export function ProjectManager() {
         toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
         return;
       } catch (err: any) {
-        if (err?.name === 'AbortError') return; // 취소 → localStorage도 저장 안 함
-        // 실패 시 fallback
+        if (err?.name === 'AbortError') return;
+        // Handle revoked/invalid handle — clear and retry with picker
+        _lastFileHandle = null;
+        try {
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
+          });
+          _lastFileHandle = fileHandle;
+          const writable = await fileHandle.createWritable();
+          await writable.write(json);
+          await writable.close();
+          commitToHistory();
+          toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
+          return;
+        } catch (e2: any) {
+          if (e2?.name === 'AbortError') return;
+        }
       }
     }
 
@@ -197,6 +221,7 @@ export function ProjectManager() {
           types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
           multiple: false,
         });
+        _lastFileHandle = fileHandle; // Remember handle so Save writes to same file
         const file = await fileHandle.getFile();
         await loadFile(file);
         return;

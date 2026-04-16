@@ -472,7 +472,7 @@ export class SimulationEngine {
           // If leader is WATCHING active/staged media, place follower in slot
           if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
             const media = this.world.media.find(m => m.id === leader.targetMediaId);
-            if (media && (media as any).interactionType !== 'passive') {
+            if (media && (media as any).interactionType !== 'passive' && (media as any).interactionType !== 'analog') {
               if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
                 return v; // already watching same media
               }
@@ -546,12 +546,13 @@ export class SimulationEngine {
             let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
             dur = this.applyGroupDwell(v, dur);
             this.engagementTimers.set(v.id as string, dur);
-            const usedSlots2 = this.getUsedMediaSlots(v.targetMediaId!);
-            const slotIdx2 = this.findNextFreeSlot(media.capacity, usedSlots2);
+            const watchPos = (intType === 'analog')
+              ? this.getAnalogClosePosition(media, v.position)
+              : (() => { const usedSlots2 = this.getUsedMediaSlots(v.targetMediaId!); const slotIdx2 = this.findNextFreeSlot(media.capacity, usedSlots2); return this.getMediaSlotPosition(media, slotIdx2); })();
             return {
               ...v,
               currentAction: VISITOR_ACTION.WATCHING,
-              position: this.getMediaSlotPosition(media, slotIdx2),
+              position: watchPos,
               velocity: { x: 0, y: 0 },
               waitStartedAt: null,
             };
@@ -685,7 +686,7 @@ export class SimulationEngine {
         }
 
         if (intType === 'analog') {
-          // ── ANALOG: snap to slot just outside the box ──
+          // ── ANALOG: close-up viewing — walk to nearby position outside the media box ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
             return this.assignNextTarget({
@@ -698,15 +699,16 @@ export class SimulationEngine {
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
-          const slotPos = this.getAnalogSlotPosition(media, viewerCount);
+          // Position: close to media edge with random offset (no fixed slot grid)
+          const closePos = this.getAnalogClosePosition(media, v.position);
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
-            position: slotPos,
+            position: closePos,
             velocity: { x: 0, y: 0 },
           };
         } else if (intType === 'passive') {
-          // ── PASSIVE: arrive at viewing area → watch immediately ──
+          // ── PASSIVE: arrive at viewing area → watch from current position ──
           // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
@@ -998,7 +1000,36 @@ export class SimulationEngine {
     };
   }
 
-  /** Get analog viewing slot — just outside the media box */
+  /** Get analog close-up position — nearby the media edge with random jitter (no fixed grid) */
+  private getAnalogClosePosition(m: MediaPlacement, agentPos: Vector2D): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const margin = 6 + this.rng.next() * 8; // 6–14px outside
+
+    if ((m as any).omnidirectional) {
+      // Pick a random angle around the media
+      const angle = this.rng.next() * Math.PI * 2;
+      const halfW = pw / 2 + margin;
+      const halfH = ph / 2 + margin;
+      return {
+        x: m.position.x + Math.cos(angle) * halfW,
+        y: m.position.y + Math.sin(angle) * halfH,
+      };
+    }
+
+    // Directional: spread along the front face with random offset
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const frontDist = ph / 2 + margin;
+    const lateralOffset = (this.rng.next() - 0.5) * pw * 0.9; // random spread across width
+    return {
+      x: m.position.x - sin * frontDist + cos * lateralOffset,
+      y: m.position.y - cos * frontDist - sin * lateralOffset,
+    };
+  }
+
+  /** Get analog viewing slot — just outside the media box (legacy) */
   private getAnalogSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;

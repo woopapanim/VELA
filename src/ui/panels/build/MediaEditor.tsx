@@ -178,12 +178,13 @@ export function MediaEditor() {
         </div>
       )}
 
-      {/* Capacity */}
+      {/* Capacity (not for analog) */}
+      {interactionType !== 'analog' && (
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
-            <InfoTooltip text="Max simultaneous viewers. Active/Staged enforce hard cap with slots. Passive/Analog use soft cap." />
+            <InfoTooltip text="Max simultaneous viewers. Active/Staged enforce hard cap with slots. Passive uses soft cap." />
           </div>
           <input type="number" min="1" max="200"
             value={m.capacity}
@@ -203,6 +204,7 @@ export function MediaEditor() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Engagement Time */}
       <div>
@@ -252,7 +254,8 @@ export function MediaEditor() {
         />
       </div>
 
-      {/* Queue Behavior */}
+      {/* Queue Behavior (not for analog) */}
+      {interactionType !== 'analog' && (
       <div>
         <div className="flex items-center gap-1">
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
@@ -269,6 +272,7 @@ export function MediaEditor() {
           <option value="area">Area</option>
         </select>
       </div>
+      )}
 
       {/* Group Friendly */}
       <div className="flex items-center justify-between">

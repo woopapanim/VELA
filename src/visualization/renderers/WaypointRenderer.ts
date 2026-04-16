@@ -33,6 +33,7 @@ export function renderWaypoints(
   isDark: boolean,
   ghostNode: { position: { x: number; y: number }; type: string } | null = null,
   zoom: number = 1,
+  showLabels: boolean = true,
 ) {
   const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
   const nodeMap = new Map<string, WaypointNode>();
@@ -108,7 +109,7 @@ export function renderWaypoints(
     ctx.fillText(colors.label, x, y);
 
     // Label above
-    if (node.label) {
+    if (node.label && showLabels) {
       ctx.font = `${fs(11)}px sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
       ctx.textAlign = 'center';
