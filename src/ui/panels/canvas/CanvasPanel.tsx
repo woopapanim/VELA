@@ -615,19 +615,23 @@ export function CanvasPanel() {
         }
       }
 
-      // Check selected media resize handles first
+      // Check selected media resize handles first (rotated coordinates)
       const MEDIA_SCALE_VAL = 20;
       if (store.selectedMediaId) {
         const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
         if (selMedia) {
           const pw = selMedia.size.width * MEDIA_SCALE_VAL, ph = selMedia.size.height * MEDIA_SCALE_VAL;
-          const corners = [
-            { corner: 'nw' as const, cx: selMedia.position.x - pw/2, cy: selMedia.position.y - ph/2 },
-            { corner: 'ne' as const, cx: selMedia.position.x + pw/2, cy: selMedia.position.y - ph/2 },
-            { corner: 'se' as const, cx: selMedia.position.x + pw/2, cy: selMedia.position.y + ph/2 },
-            { corner: 'sw' as const, cx: selMedia.position.x - pw/2, cy: selMedia.position.y + ph/2 },
+          const mRad = (selMedia.orientation * Math.PI) / 180;
+          const mCos = Math.cos(mRad), mSin = Math.sin(mRad);
+          const localCorners = [
+            { corner: 'nw' as const, lx: -pw/2, ly: -ph/2 },
+            { corner: 'ne' as const, lx:  pw/2, ly: -ph/2 },
+            { corner: 'se' as const, lx:  pw/2, ly:  ph/2 },
+            { corner: 'sw' as const, lx: -pw/2, ly:  ph/2 },
           ];
-          for (const { corner, cx, cy } of corners) {
+          for (const { corner, lx, ly } of localCorners) {
+            const cx = selMedia.position.x + lx * mCos - ly * mSin;
+            const cy = selMedia.position.y + lx * mSin + ly * mCos;
             if (Math.abs(world.x - cx) < 8 && Math.abs(world.y - cy) < 8) {
               store.pushUndo(store.zones, store.media, store.waypointGraph);
               dragMode.current = 'media-resize';

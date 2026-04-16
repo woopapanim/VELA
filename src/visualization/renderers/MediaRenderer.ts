@@ -178,18 +178,21 @@ export function renderMedia(
       ctx.fillText(`${watchCount}/${m.capacity}`, position.x, position.y + ph / 2 + 3);
     }
 
-    // Resize handles (selected only)
+    // Resize handles (selected only, rotated with media)
     if (isSelected) {
       const hr = 2;
-      const corners = [
-        { x: position.x - pw/2, y: position.y - ph/2 },
-        { x: position.x + pw/2, y: position.y - ph/2 },
-        { x: position.x + pw/2, y: position.y + ph/2 },
-        { x: position.x - pw/2, y: position.y + ph/2 },
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const localCorners = [
+        { lx: -pw/2, ly: -ph/2 },
+        { lx:  pw/2, ly: -ph/2 },
+        { lx:  pw/2, ly:  ph/2 },
+        { lx: -pw/2, ly:  ph/2 },
       ];
-      for (const c of corners) {
+      for (const { lx, ly } of localCorners) {
+        const rx = position.x + lx * cos - ly * sin;
+        const ry = position.y + lx * sin + ly * cos;
         ctx.fillStyle = isDark ? '#60a5fa' : '#3b82f6';
-        ctx.fillRect(c.x - hr, c.y - hr, hr * 2, hr * 2);
+        ctx.fillRect(rx - hr, ry - hr, hr * 2, hr * 2);
       }
     }
 
