@@ -350,6 +350,7 @@ export class SimulationEngine {
       let a = this.stepBehavior(v, dt);
       a = this.stepSteering(a, dtS);
       a = this.stepPhysics(a, dtS);
+      a = this.stepFollowerSnap(a);
       a = this.stepCollision(a);
       a = this.stepFatigue(a, dt);
       // Count newly deactivated
@@ -1559,6 +1560,70 @@ export class SimulationEngine {
     }
 
     return { ...v, steering: { ...v.steering, currentSteering: combineSteeringPriority(outputs, v.profile.maxForce) } };
+  }
+
+  /* ═══════════════════════════════════════════════
+   *  DIRECTION SNAP — redirect velocity toward target
+   *  when heading away (angle > 90°)
+   *  - Followers → snap toward leader position
+   *  - Leaders/Solo → snap toward target node position
+   * ═══════════════════════════════════════════════ */
+
+  private stepFollowerSnap(v: Visitor): Visitor {
+    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+
+    const speed = Math.sqrt(v.velocity.x * v.velocity.x + v.velocity.y * v.velocity.y);
+    if (speed < 0.1) return v;
+
+    // Determine snap target position
+    let targetX: number | null = null;
+    let targetY: number | null = null;
+
+    if (v.groupId && !v.isGroupLeader) {
+      // Follower → snap toward leader
+      const group = this.state.groups.get(v.groupId as string);
+      if (group) {
+        const leader = this.state.visitors.get(group.leaderId as string);
+        if (leader?.isActive) {
+          targetX = leader.position.x;
+          targetY = leader.position.y;
+        }
+      }
+    } else if (v.targetNodeId) {
+      // Leader or solo → snap toward target node
+      const node = this.nodeMap.get(v.targetNodeId as string);
+      if (node) {
+        targetX = node.position.x;
+        targetY = node.position.y;
+      }
+    }
+
+    if (targetX === null || targetY === null) return v;
+
+    // Direction from me to target
+    const toTargetX = targetX - v.position.x;
+    const toTargetY = targetY - v.position.y;
+    const dist = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
+
+    if (dist < 5) return v; // already there
+
+    // Normalize
+    const tnx = toTargetX / dist;
+    const tny = toTargetY / dist;
+
+    // Dot product: velocity direction vs target direction
+    const vnx = v.velocity.x / speed;
+    const vny = v.velocity.y / speed;
+    const dot = vnx * tnx + vny * tny;
+
+    // dot < 0 means angle > 90° — heading away from target
+    if (dot >= 0) return v;
+
+    // Snap velocity direction toward target, keep speed
+    return {
+      ...v,
+      velocity: { x: tnx * speed, y: tny * speed },
+    };
   }
 
   /* ═══════════════════════════════════════════════
