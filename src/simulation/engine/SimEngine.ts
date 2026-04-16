@@ -1441,9 +1441,15 @@ export class SimulationEngine {
         const desired = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
         outputs.push({ output: { linear: { x: desired.x - v.velocity.x, y: desired.y - v.velocity.y }, angular: 0 }, weight: 1.0 });
       } else {
+        // Media targets get larger arrival radius based on media size
+        let effectiveArrival = physics.arrivalRadius;
+        if (v.targetMediaId && !v.targetNodeId) {
+          const tm = this.world.media.find(mm => mm.id === v.targetMediaId);
+          if (tm) effectiveArrival = Math.max(physics.arrivalRadius, Math.max(tm.size.width, tm.size.height) * 10);
+        }
         // Normal arrival with deceleration
-        outputs.push({ output: arrival(v.position, target, v.profile.maxSpeed, v.velocity, physics.arrivalSlowRadius, physics.arrivalRadius), weight: 1.0 });
-        if (distSq < physics.arrivalRadius * physics.arrivalRadius) {
+        outputs.push({ output: arrival(v.position, target, v.profile.maxSpeed, v.velocity, physics.arrivalSlowRadius, effectiveArrival), weight: 1.0 });
+        if (distSq < effectiveArrival * effectiveArrival) {
           return { ...v, steering: { ...v.steering, isArrived: true }, velocity: { x: 0, y: 0 } };
         }
       }
