@@ -163,6 +163,7 @@ export function BuildTools() {
     };
 
     addMedia(media);
+    useStore.getState().selectMedia(id as string);
   }, [selectedZoneId, zones, addMedia]);
 
   return (

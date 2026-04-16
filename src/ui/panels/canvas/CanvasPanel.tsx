@@ -880,11 +880,12 @@ export function CanvasPanel() {
     }
 
     if (mode === 'place-media') {
-      if (anyMedia) { (store as any).selectMedia(anyMedia); store.selectWaypoint(null); return; }
+      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       return;
     }
 
     if (mode === 'create-zone') {
+      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       selectZone(anyZone);
       store.selectWaypoint(null);
       return;
