@@ -1376,9 +1376,12 @@ export function CanvasPanel() {
       // Clamp inside parent zone
       if (m && parentZone) {
         const pw = m.size.width * 20, ph = m.size.height * 20;
+        const rad = (m.orientation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+        const hx = (pw * cos + ph * sin) / 2, hy = (pw * sin + ph * cos) / 2;
         const b = parentZone.bounds;
-        newX = Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, newX));
-        newY = Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, newY));
+        newX = Math.max(b.x + hx, Math.min(b.x + b.w - hx, newX));
+        newY = Math.max(b.y + hy, Math.min(b.y + b.h - hy, newY));
       }
       updateMedia(dragMediaId.current, { position: { x: newX, y: newY } });
       didDrag.current = true;

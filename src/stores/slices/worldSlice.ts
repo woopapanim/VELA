@@ -96,6 +96,13 @@ function expandCanvasForZones(floors: FloorConfig[], zones: readonly ZoneConfig[
 }
 
 /** Check if a media rect overlaps any other media in the same zone */
+/** Get half-extents of rotated media's AABB */
+function rotatedHalfExtents(w: number, h: number, orientationDeg: number): { hx: number; hy: number } {
+  const rad = (orientationDeg * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+  return { hx: (w * cos + h * sin) / 2, hy: (w * sin + h * cos) / 2 };
+}
+
 function mediaOverlapsOthers(m: MediaPlacement, allMedia: readonly MediaPlacement[], excludeId?: string): boolean {
   const pw = m.size.width * MEDIA_SCALE, ph = m.size.height * MEDIA_SCALE;
   const ax = m.position.x - pw / 2, ay = m.position.y - ph / 2;
@@ -273,18 +280,19 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     // Save undo snapshot BEFORE mutation
     const s = get();
     (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
-    // Clamp position inside parent zone
+    // Clamp position inside parent zone (rotation-aware)
     const SCALE = 20;
     const zone = s.zones.find((z) => (z.id as string) === (media.zoneId as string));
     let clamped = media;
     if (zone) {
       const pw = media.size.width * SCALE, ph = media.size.height * SCALE;
+      const { hx, hy } = rotatedHalfExtents(pw, ph, media.orientation);
       const b = zone.bounds;
       clamped = {
         ...media,
         position: {
-          x: Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, media.position.x)),
-          y: Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, media.position.y)),
+          x: Math.max(b.x + hx, Math.min(b.x + b.w - hx, media.position.x)),
+          y: Math.max(b.y + hy, Math.min(b.y + b.h - hy, media.position.y)),
         },
       };
     }
@@ -306,10 +314,11 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         if (zone && updated.position && updated.size) {
           const SCALE = 20;
           const pw = updated.size.width * SCALE, ph = updated.size.height * SCALE;
+          const { hx, hy } = rotatedHalfExtents(pw, ph, updated.orientation);
           const b = zone.bounds;
           updated.position = {
-            x: Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, updated.position.x)),
-            y: Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, updated.position.y)),
+            x: Math.max(b.x + hx, Math.min(b.x + b.w - hx, updated.position.x)),
+            y: Math.max(b.y + hy, Math.min(b.y + b.h - hy, updated.position.y)),
           };
         }
         // Block if overlapping another media
