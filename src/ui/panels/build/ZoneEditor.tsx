@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
-import { ZONE_COLORS } from '@/domain';
+import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -98,13 +98,21 @@ export function ZoneEditor() {
     [selectedZoneId, updateZone, isLocked, zone],
   );
 
+  const media = useStore((s) => s.media);
+
   const handleRecalcArea = useCallback(() => {
     if (!selectedZoneId || isLocked || !zone) return;
-    // Area = width * height in pixels, converted to m² using floor scale
-    const scale = 0.025; // default px → m
-    const areaM2 = Math.round(zone.bounds.w * zone.bounds.h * scale * scale * 100) / 100;
-    updateZone(selectedZoneId, { area: areaM2 } as any);
-  }, [selectedZoneId, isLocked, zone, updateZone]);
+    // Zone gross area (px → m²)
+    const pxToM = 1 / MEDIA_SCALE; // 1px = 0.05m
+    const grossArea = zone.bounds.w * pxToM * zone.bounds.h * pxToM;
+    // Subtract media hitbox areas in this zone
+    const zoneMedia = media.filter(m => (m.zoneId as string) === selectedZoneId);
+    const mediaArea = zoneMedia.reduce((sum, m) => sum + m.size.width * m.size.height, 0);
+    const effectiveArea = Math.max(1, Math.round((grossArea - mediaArea) * 100) / 100);
+    // Capacity = effective area ÷ international density standard (2.5 m²/person)
+    const capacity = Math.max(1, Math.floor(effectiveArea / INTERNATIONAL_DENSITY_STANDARD));
+    updateZone(selectedZoneId, { area: effectiveArea, capacity } as any);
+  }, [selectedZoneId, isLocked, zone, media, updateZone]);
 
   const polygonEditMode = useStore((s) => s.polygonEditMode);
   const isPolygonEditing = zone?.shape === 'custom' && polygonEditMode;
@@ -146,7 +154,7 @@ export function ZoneEditor() {
           <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} />
           <div>
             <Field label="Area (m²)" value={String(zone.area)} type="number" onChange={(v) => handleUpdate('area', parseFloat(v) || 0)} disabled={isLocked} />
-            {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">Auto-calc</button>}
+            {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">Auto-calc (net)</button>}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">

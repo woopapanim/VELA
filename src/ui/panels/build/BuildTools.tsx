@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Plus, Monitor, MousePointer2, Circle, GitBranch } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
-import { ZONE_COLORS, MEDIA_PRESETS } from '@/domain';
+import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { BackgroundUpload } from './BackgroundUpload';
 
 const ZONE_TYPES = [
@@ -80,8 +80,8 @@ export function BuildTools() {
       shape: 'rect',
       bounds: { x, y, w: zoneW, h: zoneH },
       polygon: null,
-      area: 37.5,
-      capacity: 30,
+      area: Math.round(zoneW / MEDIA_SCALE * zoneH / MEDIA_SCALE * 100) / 100,
+      capacity: Math.floor((zoneW / MEDIA_SCALE * zoneH / MEDIA_SCALE) / INTERNATIONAL_DENSITY_STANDARD),
       flowType: 'free',
       gates: [],
       mediaIds: [],
