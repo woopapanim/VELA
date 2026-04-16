@@ -378,12 +378,10 @@ export class SimulationEngine {
     this.spawnAccumulator += slot.spawnRatePerSecond * (dt / 1000);
 
     while (this.spawnAccumulator >= 1) {
-      this.spawnAccumulator -= 1;
-
       // ═══ Graph-Point mode: spawn at ENTRY nodes ═══
       if (this.waypointNav) {
         const entryNode = this.waypointNav.selectEntryNode(this.rng);
-        if (!entryNode) continue;
+        if (!entryNode) { this.spawnAccumulator -= 1; continue; }
 
         const dist = {
           totalCount: 1,
@@ -393,6 +391,8 @@ export class SimulationEngine {
           spawnRatePerSecond: slot.spawnRatePerSecond,
         };
         const batch = generateSpawnBatch(1, dist, entryNode.position, entryNode.floorId, elapsed, this.rng);
+        // Deduct actual spawned count from accumulator (groups spawn multiple)
+        this.spawnAccumulator -= batch.visitors.length;
         for (const v of batch.visitors) {
           const spawned: Visitor = {
             ...v,
@@ -439,6 +439,7 @@ export class SimulationEngine {
       };
       const gate = spawnZone.gates[0];
       const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng);
+      this.spawnAccumulator -= batch.visitors.length;
       for (const v of batch.visitors) {
         const spawned: Visitor = {
           ...v,
