@@ -220,6 +220,25 @@ export function MediaEditor() {
         />
       </div>
 
+      {/* View Distance (passive only) */}
+      {interactionType === 'passive' && (
+      <div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">View Distance (m)</label>
+            <InfoTooltip text="How far from the media viewers stand to watch. Larger = viewers watch from further away (e.g. media wall). Smaller = viewers stand close." />
+          </div>
+          <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
+        </div>
+        <input type="range" min="0.5" max="10" step="0.5"
+          value={(m as any).viewDistance ?? 2.0}
+          onChange={(e) => handleUpdate('viewDistance', parseFloat(e.target.value))}
+          disabled={isLocked}
+          className="w-full h-1"
+        />
+      </div>
+      )}
+
       {/* Attractiveness */}
       <div>
         <div className="flex items-center justify-between">

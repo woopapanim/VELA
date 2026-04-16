@@ -156,7 +156,7 @@ export function BuildTools() {
       orientation: 0,
       capacity: preset.defaultCapacity,
       avgEngagementTimeMs: preset.avgEngagementTimeMs,
-      attractiveness: 0.7,
+      attractiveness: preset.category === 'analog' ? 0.3 : 0.7,
       attractionRadius: preset.attractionRadius,
       interactionType,
       omnidirectional: (preset as any).omnidirectional ?? false,

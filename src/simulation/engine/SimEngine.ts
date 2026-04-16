@@ -469,33 +469,27 @@ export class SimulationEngine {
       if (group) {
         const leader = this.state.visitors.get(group.leaderId as string);
         if (leader?.isActive) {
-          // If leader is WATCHING active/staged media, place follower in slot
+          // If leader is WATCHING media, follower walks toward it then watches
           if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
             const media = this.world.media.find(m => m.id === leader.targetMediaId);
-            if (media && (media as any).interactionType !== 'passive' && (media as any).interactionType !== 'analog') {
+            if (media) {
+              const intType = (media as any).interactionType ?? 'passive';
+              // Already watching same media → keep
               if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
-                return v; // already watching same media
-              }
-              // Find follower's slot index
-              const mid = leader.targetMediaId as string;
-              const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-              if (viewerCount >= media.capacity) {
-                // No slot → follower stays idle near leader
-                if (v.currentAction !== VISITOR_ACTION.IDLE) {
-                  return { ...v, currentAction: VISITOR_ACTION.IDLE, velocity: { x: 0, y: 0 } };
-                }
                 return v;
               }
-              // Assign follower to slot
-              const slotPos = this.getMediaSlotPosition(media, viewerCount);
-              this._tickMediaViewers.set(mid, viewerCount + 1);
-              return {
-                ...v,
-                currentAction: VISITOR_ACTION.WATCHING,
-                targetMediaId: leader.targetMediaId,
-                position: slotPos,
-                velocity: { x: 0, y: 0 },
-              };
+              // Follower walks toward media (MOVING), not teleport
+              if (v.currentAction !== VISITOR_ACTION.MOVING || v.targetMediaId !== leader.targetMediaId) {
+                return {
+                  ...v,
+                  currentAction: VISITOR_ACTION.MOVING,
+                  targetMediaId: leader.targetMediaId,
+                  targetZoneId: leader.currentZoneId,
+                  steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+                };
+              }
+              // Already moving toward the media → let steering handle it
+              return v;
             }
           }
           return syncFollowerToLeader(v, leader, group);
@@ -654,6 +648,36 @@ export class SimulationEngine {
         const mid = v.targetMediaId as string;
         const intType = (media as any).interactionType ?? 'passive';
 
+        // ── GROUP FOLLOWER arriving at leader's media: sync to leader's remaining time ──
+        if (isFollower(v) && v.groupId) {
+          const group = this.state.groups.get(v.groupId as string);
+          if (group) {
+            const leader = this.state.visitors.get(group.leaderId as string);
+            if (leader?.isActive && leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId === v.targetMediaId) {
+              const leaderRem = this.engagementTimers.get(leader.id as string) ?? 0;
+              if (leaderRem <= 0) {
+                // Leader already done → skip watching, follow leader
+                return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
+              }
+              this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
+              this.recordWatchStart(mid, v.id as string);
+              this.engagementTimers.set(v.id as string, leaderRem); // sync to leader's remaining time
+              // Position: close to media (type-appropriate)
+              const watchPos = intType === 'active' || intType === 'staged'
+                ? this.getMediaSlotPosition(media, (this._tickMediaViewers.get(mid) ?? 1) - 1)
+                : intType === 'analog'
+                  ? this.getAnalogClosePosition(media, v.position)
+                  : v.position; // passive: stay at current position
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.WATCHING,
+                position: watchPos,
+                velocity: { x: 0, y: 0 },
+              };
+            }
+          }
+        }
+
         if (intType === 'staged') {
           // ── STAGED: session-based entry ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
@@ -686,15 +710,8 @@ export class SimulationEngine {
         }
 
         if (intType === 'analog') {
-          // ── ANALOG: close-up viewing — walk to nearby position outside the media box ──
-          const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= media.capacity) {
-            return this.assignNextTarget({
-              ...v, currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null,
-            });
-          }
-          this._tickMediaViewers.set(mid, viewerCount + 1);
+          // ── ANALOG: close-up viewing — no capacity limit ──
+          this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
@@ -992,11 +1009,24 @@ export class SimulationEngine {
   /** Get the passive viewing position — just in front of media (close) */
   private getMediaViewPoint(m: MediaPlacement): Vector2D {
     const halfDepth = (m.size.height * MEDIA_SCALE) / 2;
-    const dist = halfDepth + 5; // just 5px outside the rect
+    // viewDistance (meters) → pixels, fallback to just outside the rect
+    const viewDistPx = (m as any).viewDistance ? (m as any).viewDistance * MEDIA_SCALE : halfDepth + 5;
     const rad = (m.orientation * Math.PI) / 180;
+    const pt = {
+      x: m.position.x + Math.sin(rad) * viewDistPx,
+      y: m.position.y - Math.cos(rad) * viewDistPx,
+    };
+    return this.clampToMediaZone(m, pt);
+  }
+
+  /** Clamp a point to the parent zone bounds of a media */
+  private clampToMediaZone(m: MediaPlacement, pt: Vector2D): Vector2D {
+    const zone = this.zoneMap.get((m as any).zoneId as string);
+    if (!zone) return pt;
+    const pad = 4;
     return {
-      x: m.position.x + Math.sin(rad) * dist,
-      y: m.position.y - Math.cos(rad) * dist,
+      x: Math.max(zone.bounds.x + pad, Math.min(zone.bounds.x + zone.bounds.w - pad, pt.x)),
+      y: Math.max(zone.bounds.y + pad, Math.min(zone.bounds.y + zone.bounds.h - pad, pt.y)),
     };
   }
 
@@ -1006,27 +1036,27 @@ export class SimulationEngine {
     const ph = m.size.height * MEDIA_SCALE;
     const margin = 6 + this.rng.next() * 8; // 6–14px outside
 
+    let pt: Vector2D;
     if ((m as any).omnidirectional) {
-      // Pick a random angle around the media
       const angle = this.rng.next() * Math.PI * 2;
       const halfW = pw / 2 + margin;
       const halfH = ph / 2 + margin;
-      return {
+      pt = {
         x: m.position.x + Math.cos(angle) * halfW,
         y: m.position.y + Math.sin(angle) * halfH,
       };
+    } else {
+      const rad = (m.orientation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const frontDist = ph / 2 + margin;
+      const lateralOffset = (this.rng.next() - 0.5) * pw * 0.9;
+      pt = {
+        x: m.position.x - sin * frontDist + cos * lateralOffset,
+        y: m.position.y - cos * frontDist - sin * lateralOffset,
+      };
     }
-
-    // Directional: spread along the front face with random offset
-    const rad = (m.orientation * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const frontDist = ph / 2 + margin;
-    const lateralOffset = (this.rng.next() - 0.5) * pw * 0.9; // random spread across width
-    return {
-      x: m.position.x - sin * frontDist + cos * lateralOffset,
-      y: m.position.y - cos * frontDist - sin * lateralOffset,
-    };
+    return this.clampToMediaZone(m, pt);
   }
 
   /** Get analog viewing slot — just outside the media box (legacy) */
