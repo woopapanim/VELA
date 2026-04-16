@@ -109,7 +109,7 @@ export function renderWaypoints(
 
     // Label above
     if (node.label) {
-      ctx.font = LABEL_FONT;
+      ctx.font = `${fs(11)}px sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
