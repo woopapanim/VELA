@@ -23,6 +23,24 @@ const MEDIA_QUICK_CATEGORIES = [
 let _zoneCounter = 100;
 let _mediaCounter = 100;
 
+function ensureCounters() {
+  const state = useStore.getState();
+  // Sync counters to be above any existing IDs
+  let maxZ = _zoneCounter - 1;
+  for (const z of state.zones) {
+    const match = (z.id as string).match(/^z_user_(\d+)$/);
+    if (match) maxZ = Math.max(maxZ, parseInt(match[1]));
+  }
+  _zoneCounter = maxZ + 1;
+
+  let maxM = _mediaCounter - 1;
+  for (const m of state.media) {
+    const match = (m.id as string).match(/^m_user_(\d+)$/);
+    if (match) maxM = Math.max(maxM, parseInt(match[1]));
+  }
+  _mediaCounter = maxM + 1;
+}
+
 export function BuildTools() {
   const editorMode = useStore((s) => s.editorMode);
   const setEditorMode = useStore((s) => s.setEditorMode);
@@ -36,6 +54,7 @@ export function BuildTools() {
   const isSimRunning = phase === 'running'; // paused = editable
 
   const handleCreateZone = useCallback((zoneType: string) => {
+    ensureCounters();
     const id = `z_user_${_zoneCounter++}` as ZoneId;
     const floorId = (activeFloorId ?? 'floor_1f') as FloorId;
 
@@ -98,6 +117,7 @@ export function BuildTools() {
   }, [zones, activeFloorId]);
 
   const handlePlaceMedia = useCallback((mediaType: string) => {
+    ensureCounters();
     if (!selectedZoneId) return;
     const zone = zones.find((z) => (z.id as string) === selectedZoneId);
     if (!zone) return;
