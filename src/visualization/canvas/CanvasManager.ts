@@ -150,7 +150,7 @@ export class CanvasManager {
     }
 
     // 3. Zones (with occupancy overlay)
-    renderZones(ctx, state.zones, state.selectedZoneId, state.showLabels, isDark, state.visitors);
+    renderZones(ctx, state.zones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
 
     // 4. Gates (rendered relative to zone bounds for wall alignment)
     if (state.showGates) {
@@ -179,7 +179,7 @@ export class CanvasManager {
     }
 
     // 6. Media (with queue visualization)
-    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors);
+    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom);
 
     // 7. Path trails (subtle traces behind visitors)
     if (state.visitors.length > 0) {

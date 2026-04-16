@@ -15,7 +15,11 @@ export function renderMedia(
   isDark: boolean,
   visitors?: readonly Visitor[],
   showDebug?: boolean,
+  zoom: number = 1,
 ) {
+  // Scale font sizes inversely with zoom
+  const fs = (basePx: number) => Math.max(3, basePx / Math.max(zoom, 0.3));
+
   // Pre-compute queue/watch counts
   const queueCounts = new Map<string, number>();
   const watchCounts = new Map<string, number>();
@@ -127,7 +131,7 @@ export function renderMedia(
     // ── Media name (instead of icon) ──
     ctx.rotate(-rad); // un-rotate for readable text
     const name = (m as any).name || m.type.replace(/_/g, ' ');
-    const fontSize = Math.max(7, Math.min(10, pw * 0.15));
+    const fontSize = fs(Math.max(7, Math.min(10, pw * 0.15)));
     ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -139,17 +143,17 @@ export function renderMedia(
     const catBadgeColor = CATEGORY_BORDER_COLORS[cat];
     if (catBadgeColor) {
       const catLabels: Record<string, string> = { analog: 'ANALOG', passive_media: 'PASSIVE', active: 'ACTIVE', immersive: 'IMMERSIVE' };
-      ctx.font = '5px "JetBrains Mono", monospace';
+      ctx.font = `${fs(5)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = isDark ? catBadgeColor + 'aa' : catBadgeColor + '99';
       ctx.fillText(catLabels[cat] ?? '', 0, fontSize * 0.8);
     } else {
       const isStaged = (m as any).interactionType === 'staged';
       if (isActive) {
-        ctx.font = '6px "JetBrains Mono", monospace';
+        ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
         ctx.fillText('ACTIVE', 0, fontSize * 0.8);
       } else if (isStaged) {
-        ctx.font = '6px "JetBrains Mono", monospace';
+        ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
         ctx.fillText('STAGED', 0, fontSize * 0.8);
       }
@@ -162,7 +166,7 @@ export function renderMedia(
 
     // Queue count (ACTIVE only)
     if (isActive && queueCount > 0) {
-      ctx.font = '7px "JetBrains Mono", monospace';
+      ctx.font = `${fs(7)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = isDark ? '#fbbf24' : '#f59e0b';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
@@ -171,7 +175,7 @@ export function renderMedia(
 
     // Watch count / capacity
     if (watchCount > 0 || isSelected) {
-      ctx.font = '7px "JetBrains Mono", monospace';
+      ctx.font = `${fs(7)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = ratio >= 1 ? '#ef4444' : ratio >= 0.7 ? '#fbbf24' : (isDark ? '#4ade80' : '#22c55e');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';

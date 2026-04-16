@@ -10,8 +10,11 @@ export function renderZones(
   showLabels: boolean,
   isDark: boolean,
   visitors?: readonly Visitor[],
+  zoom: number = 1,
 ) {
   _zoneAnimFrame++;
+  // Scale font sizes inversely with zoom so text stays readable but not oversized
+  const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
 
   // Pre-compute occupancy per zone (position-based: count visitors physically inside bounds)
   const occupancy = new Map<string, number>();
@@ -140,7 +143,7 @@ export function renderZones(
           ctx.stroke();
         }
         const diameter = Math.round(r * 2);
-        ctx.font = '8px "JetBrains Mono", monospace';
+        ctx.font = `${fs(8)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -158,7 +161,7 @@ export function renderZones(
           ctx.fillStyle = handleColor;
           ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
         }
-        ctx.font = '8px "JetBrains Mono", monospace';
+        ctx.font = `${fs(8)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
@@ -200,7 +203,7 @@ export function renderZones(
       ctx.fillRect(barX, barY, barW * Math.min(1, fillRatio), barH);
 
       // Count label
-      ctx.font = '8px "JetBrains Mono", monospace';
+      ctx.font = `${fs(8)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
@@ -226,7 +229,7 @@ export function renderZones(
 
       // Capacity warning icon
       if (fillRatio > 1.0) {
-        ctx.font = '14px sans-serif';
+        ctx.font = `${fs(14)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('⚠️', bounds.x + bounds.w - 12, bounds.y + 12);
@@ -238,12 +241,12 @@ export function renderZones(
       const cx = bounds.x + bounds.w / 2;
       const cy = bounds.y + bounds.h / 2;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
-      ctx.font = '11px Inter, sans-serif';
+      ctx.font = `${fs(11)}px Inter, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(name, cx, cy);
 
-      ctx.font = '9px "JetBrains Mono", monospace';
+      ctx.font = `${fs(9)}px "JetBrains Mono", monospace`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.35)';
       ctx.fillText(type.toUpperCase(), cx, cy + 14);
     }
