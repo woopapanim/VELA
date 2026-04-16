@@ -1567,13 +1567,20 @@ export class SimulationEngine {
 
   private stepPhysics(v: Visitor, dtS: number): Visitor {
     if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+    // IDLE agents: stop immediately (no jitter from residual forces)
+    if (v.currentAction === VISITOR_ACTION.IDLE) {
+      return v.velocity.x === 0 && v.velocity.y === 0 ? v : { ...v, velocity: { x: 0, y: 0 } };
+    }
     const { currentSteering } = v.steering;
     const ax = currentSteering.linear.x / v.profile.mass;
     const ay = currentSteering.linear.y / v.profile.mass;
-    const vel = clampMagnitude(
+    let vel = clampMagnitude(
       { x: v.velocity.x + ax * dtS, y: v.velocity.y + ay * dtS },
       v.profile.maxSpeed,
     );
+    // Damping: kill micro-jitter when speed is negligible
+    const speedSq = vel.x * vel.x + vel.y * vel.y;
+    if (speedSq < 1) vel = { x: 0, y: 0 };
     return {
       ...v,
       position: { x: v.position.x + vel.x * dtS, y: v.position.y + vel.y * dtS },
