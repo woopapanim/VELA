@@ -649,12 +649,13 @@ export function CanvasPanel() {
         if (world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
 
-          // Check if near front arrow (rotation handle) — top edge center of media
+          // Check if near rotation handle (green circle above media)
           const rad = (m.orientation * Math.PI) / 180;
-          const arrowX = m.position.x + Math.sin(rad) * (ph / 2 + 8);
-          const arrowY = m.position.y - Math.cos(rad) * (ph / 2 + 8);
+          const handleDist = ph / 2 + 15;
+          const arrowX = m.position.x + Math.sin(rad) * handleDist;
+          const arrowY = m.position.y - Math.cos(rad) * handleDist;
           const adx = world.x - arrowX, ady = world.y - arrowY;
-          if (adx * adx + ady * ady < 200) {
+          if (adx * adx + ady * ady < 150) {
             dragMode.current = 'media-rotate';
             dragMediaId.current = m.id as string;
             selectZone(null);

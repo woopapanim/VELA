@@ -96,14 +96,33 @@ export function renderMedia(
       ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
     }
 
-    // ── Front indicator (orientation arrow) ──
+    // ── Front indicator / rotation handle ──
     const edgeDist = isCircle ? circleR : ph / 2;
-    ctx.beginPath();
-    ctx.moveTo(-pw / 4, -edgeDist);
-    ctx.lineTo(0, -edgeDist - 5);
-    ctx.lineTo(pw / 4, -edgeDist);
-    ctx.fillStyle = isDark ? 'rgba(59,130,246,0.5)' : 'rgba(37,99,235,0.4)';
-    ctx.fill();
+    if (isSelected) {
+      // Rotation handle: line + green circle (like standard design tools)
+      const handleDist = edgeDist + 15;
+      ctx.beginPath();
+      ctx.moveTo(0, -edgeDist);
+      ctx.lineTo(0, -handleDist);
+      ctx.strokeStyle = isDark ? 'rgba(96,165,250,0.6)' : 'rgba(59,130,246,0.5)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, -handleDist, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#22c55e';
+      ctx.fill();
+      ctx.strokeStyle = isDark ? '#166534' : '#fff';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    } else {
+      // Small front arrow (non-selected)
+      ctx.beginPath();
+      ctx.moveTo(-pw / 4, -edgeDist);
+      ctx.lineTo(0, -edgeDist - 5);
+      ctx.lineTo(pw / 4, -edgeDist);
+      ctx.fillStyle = isDark ? 'rgba(59,130,246,0.5)' : 'rgba(37,99,235,0.4)';
+      ctx.fill();
+    }
 
     // ── Media name (instead of icon) ──
     ctx.rotate(-rad); // un-rotate for readable text
