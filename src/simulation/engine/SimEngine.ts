@@ -656,16 +656,11 @@ export class SimulationEngine {
 
         if (intType === 'passive') {
           // ── PASSIVE: arrive at viewing area → watch immediately ──
-          // Soft capacity: if over capacity, skip instead of wait
+          // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            // Over soft cap → skip (mark as visited, move on)
-            this.recordSkip(mid, 0);
-            return this.assignNextTarget({
-              ...v, currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
-              targetMediaId: null,
-            });
+            // Over soft cap → wait briefly, try again (don't permanently skip)
+            return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
           }
           // Watch at current position (wherever agent arrived in viewing area)
           this._tickMediaViewers.set(mid, viewerCount + 1);
