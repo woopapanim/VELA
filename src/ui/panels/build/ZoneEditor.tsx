@@ -69,6 +69,7 @@ export function ZoneEditor() {
 
   const zone = zones.find((z) => (z.id as string) === selectedZoneId);
   const isLocked = phase === 'running' || phase === 'paused';
+  const media = useStore((s) => s.media);
 
   const handleUpdate = useCallback(
     (field: string, value: string | number) => {
@@ -105,8 +106,6 @@ export function ZoneEditor() {
     },
     [selectedZoneId, updateZone, isLocked, zone, media],
   );
-
-  const media = useStore((s) => s.media);
 
   const handleRecalcArea = useCallback(() => {
     if (!selectedZoneId || isLocked || !zone) return;
