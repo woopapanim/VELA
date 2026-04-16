@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2, Eye, EyeOff } from 'lucide-react';
+import { Trash2, Eye, EyeOff, Plus, Square, Monitor, Circle, GitBranch } from 'lucide-react';
 import { useStore } from '@/stores';
 
 interface MenuState {
@@ -37,6 +37,7 @@ export function CanvasContextMenu({ menu, onClose }: {
 }) {
   const removeZone = useStore((s) => s.removeZone);
   const selectZone = useStore((s) => s.selectZone);
+  const setEditorMode = useStore((s) => s.setEditorMode);
   const phase = useStore((s) => s.phase);
   const zones = useStore((s) => s.zones);
   const overlayMode = useStore((s) => s.overlayMode);
@@ -70,6 +71,36 @@ export function CanvasContextMenu({ menu, onClose }: {
               onClick={() => { removeZone(zone.id as string); selectZone(null); onClose(); }}
             />
           )}
+          <div className="border-t border-border my-0.5" />
+        </>
+      )}
+      {!zone && isIdle && (
+        <>
+          <div className="px-3 py-1 text-[9px] text-muted-foreground/60 uppercase tracking-wider">Add</div>
+          <MenuItem
+            label="Zone"
+            icon={Square}
+            shortcut="2"
+            onClick={() => { setEditorMode('create-zone'); onClose(); }}
+          />
+          <MenuItem
+            label="Media"
+            icon={Monitor}
+            shortcut="3"
+            onClick={() => { setEditorMode('place-media'); onClose(); }}
+          />
+          <MenuItem
+            label="Node"
+            icon={Circle}
+            shortcut="4"
+            onClick={() => { setEditorMode('place-waypoint'); onClose(); }}
+          />
+          <MenuItem
+            label="Edge"
+            icon={GitBranch}
+            shortcut="5"
+            onClick={() => { setEditorMode('connect-waypoint'); onClose(); }}
+          />
           <div className="border-t border-border my-0.5" />
         </>
       )}
