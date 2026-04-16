@@ -469,6 +469,35 @@ export class SimulationEngine {
       if (group) {
         const leader = this.state.visitors.get(group.leaderId as string);
         if (leader?.isActive) {
+          // If leader is WATCHING active/staged media, place follower in slot
+          if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
+            const media = this.world.media.find(m => m.id === leader.targetMediaId);
+            if (media && (media as any).interactionType !== 'passive') {
+              if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
+                return v; // already watching same media
+              }
+              // Find follower's slot index
+              const mid = leader.targetMediaId as string;
+              const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
+              if (viewerCount >= media.capacity) {
+                // No slot → follower stays idle near leader
+                if (v.currentAction !== VISITOR_ACTION.IDLE) {
+                  return { ...v, currentAction: VISITOR_ACTION.IDLE, velocity: { x: 0, y: 0 } };
+                }
+                return v;
+              }
+              // Assign follower to slot
+              const slotPos = this.getMediaSlotPosition(media, viewerCount);
+              this._tickMediaViewers.set(mid, viewerCount + 1);
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.WATCHING,
+                targetMediaId: leader.targetMediaId,
+                position: slotPos,
+                velocity: { x: 0, y: 0 },
+              };
+            }
+          }
           return syncFollowerToLeader(v, leader, group);
         }
       }
@@ -676,10 +705,18 @@ export class SimulationEngine {
             // Stay at current position — no teleport
           };
         } else if (intType === 'active') {
-          // ── ACTIVE: walk into media, watch at current position ──
+          // ── ACTIVE: group reserves slots together, or skip as group ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= media.capacity) {
-            // Full → skip, move on to next target (no waiting)
+
+          // Calculate how many slots this agent needs (self + group members)
+          let groupSize = 1;
+          if (v.groupId && v.isGroupLeader) {
+            const group = this.state.groups.get(v.groupId as string);
+            if (group) groupSize = group.memberIds.length;
+          }
+
+          if (viewerCount + groupSize > media.capacity) {
+            // Not enough slots for the group → skip
             return this.assignNextTarget({
               ...v,
               currentAction: VISITOR_ACTION.IDLE,
@@ -687,12 +724,32 @@ export class SimulationEngine {
               targetMediaId: null,
             });
           }
+
+          // Reserve slot for leader
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           const slotPos = this.getMediaSlotPosition(media, viewerCount);
+
+          // Pre-reserve slots for followers (they'll sync via syncFollowerToLeader)
+          if (v.groupId && v.isGroupLeader) {
+            const group = this.state.groups.get(v.groupId as string);
+            if (group) {
+              let slotIdx = viewerCount + 1;
+              for (const memberId of group.memberIds) {
+                if ((memberId as string) === (v.id as string)) continue; // skip leader
+                const follower = this.state.visitors.get(memberId as string);
+                if (!follower?.isActive) continue;
+                this._tickMediaViewers.set(mid, slotIdx + 1);
+                this.recordWatchStart(mid, memberId as string);
+                this.engagementTimers.set(memberId as string, dur);
+                slotIdx++;
+              }
+            }
+          }
+
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
@@ -1384,9 +1441,8 @@ export class SimulationEngine {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
-        // PASSIVE → close to media front. ACTIVE → walk into media center (hitbox skipped for target media).
-        const isActive = (m as any).interactionType === 'active' || (m as any).interactionType === 'staged';
-        return isActive ? m.position : this.getMediaViewPoint(m);
+        // ALL media types: walk to viewing point in front of media
+        return this.getMediaViewPoint(m);
       }
     }
 
@@ -1734,12 +1790,13 @@ export class SimulationEngine {
         }
       }
     }
-    // Media obstacle collision — push agent outside media (skip passive + skip target)
+    // Media obstacle collision — push agent outside media (skip passive, only WATCHING can be inside target)
     if (v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
-          if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
+          // Only WATCHING agents can stay inside their target media box
+          if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
           if ((m as any).interactionType === 'passive') continue; // passive media = no physical barrier
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);
