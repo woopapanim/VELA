@@ -1211,18 +1211,6 @@ export function CanvasPanel() {
       const effectiveArea = Math.max(1, newArea - mediaArea);
       const newCap = Math.max(1, Math.floor(effectiveArea / 2.5));
       updateZone(dragZoneId.current, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap } as any);
-      // Proportionally reposition media
-      const currentMedia2 = useStore.getState().media;
-      for (const m of currentMedia2) {
-        if ((m.zoneId as string) === dragZoneId.current) {
-          updateMedia(m.id as string, {
-            position: {
-              x: x + (m.position.x - ob.x) * scaleX,
-              y: y + (m.position.y - ob.y) * scaleY,
-            },
-          });
-        }
-      }
       didDrag.current = true;
     } else if (mode === 'gate' && dragGateId.current && dragZoneId.current && zone) {
       const b = zone.bounds;
