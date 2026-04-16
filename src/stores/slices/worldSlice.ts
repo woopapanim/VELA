@@ -158,11 +158,18 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   setScenario: (scenario) => {
     const activeFloorId = scenario.floors[0]?.id as string ?? null;
     const expandedFloors = expandCanvasForZones([...scenario.floors], scenario.zones, activeFloorId);
+    // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
+    const correctedMedia = scenario.media.map((m: any) => {
+      if (m.category === 'analog' && m.interactionType !== 'analog') {
+        return { ...m, interactionType: 'analog' };
+      }
+      return m;
+    });
     set({
-      scenario: { ...scenario, floors: expandedFloors },
+      scenario: { ...scenario, floors: expandedFloors, media: correctedMedia },
       floors: expandedFloors,
       zones: [...scenario.zones],
-      media: [...scenario.media],
+      media: correctedMedia,
       activeFloorId,
       waypointGraph: scenario.waypointGraph ?? null,
     });

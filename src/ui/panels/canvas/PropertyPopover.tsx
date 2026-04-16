@@ -209,7 +209,7 @@ export function PropertyPopover({ popover, onClose }: {
           </select>
           {edge.direction === 'directed' && (
             <button
-              title="방향 전환"
+              title="Flip Direction"
               onClick={() => updateEdge(popover.targetId!, { fromId: edge.toId, toId: edge.fromId } as any)}
               className="px-1.5 py-0.5 rounded bg-secondary hover:bg-accent text-[10px] border border-border"
             >⇄</button>
@@ -367,6 +367,7 @@ export function PropertyPopover({ popover, onClose }: {
             <option value="passive">Passive</option>
             <option value="active">Active</option>
             <option value="staged">Staged</option>
+            <option value="analog">Analog</option>
           </select>
         </Row>
 

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   analog: { label: 'Analog', color: '#a78bfa' },
@@ -30,7 +31,7 @@ export function MediaEditor() {
 
   if (!m) return null;
 
-  const isActive = (m as any).interactionType === 'active';
+  const interactionType = (m as any).interactionType || 'passive';
   const autoCapacity = Math.max(1, Math.floor(
     (m.size.width * m.size.height) / MEDIA_SQMETER_PER_PERSON
   ));
@@ -47,7 +48,7 @@ export function MediaEditor() {
                 {badge.label}
               </span>
             ) : (
-              <div className={`w-2 h-2 rounded-sm ${isActive ? 'bg-amber-400' : 'bg-blue-400'}`} />
+              <div className={`w-2 h-2 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
             );
           })()}
           Edit Media
@@ -95,7 +96,10 @@ export function MediaEditor() {
       {/* Orientation */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
+            <InfoTooltip text="Front-facing direction of the media. 0°=up, 90°=right, 180°=down, 270°=left. Determines where viewers stand." />
+          </div>
           <span className="text-[9px] font-data">{m.orientation}°</span>
         </div>
         <input type="range" min="0" max="315" step="45"
@@ -122,39 +126,65 @@ export function MediaEditor() {
 
       {/* Interaction Type */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
+          <InfoTooltip text={"Passive: viewers watch from a distance (e.g. video wall)\nActive: viewers enter the media box (e.g. kiosk)\nStaged: session-based entry at intervals (e.g. VR)\nAnalog: physical exhibit, viewers stand close outside the box"} />
+        </div>
         <select
-          value={(m as any).interactionType || 'passive'}
+          value={interactionType}
           onChange={(e) => handleUpdate('interactionType', e.target.value)}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="passive">Passive (관람형)</option>
-          <option value="active">Active (체험형)</option>
-          <option value="staged">Staged (회차형)</option>
+          <option value="passive">Passive</option>
+          <option value="active">Active</option>
+          <option value="staged">Staged</option>
+          <option value="analog">Analog</option>
         </select>
       </div>
 
+      {/* Omnidirectional (analog only) */}
+      {interactionType === 'analog' && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Omnidirectional</label>
+            <InfoTooltip text="If enabled, viewers can approach from any direction (360°). Best for center-placed exhibits like artifacts or sculptures. Otherwise, viewers stand in front based on orientation." />
+          </div>
+          <button
+            onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
+            disabled={isLocked}
+            className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {(m as any).omnidirectional ? '360°' : 'Front'}
+          </button>
+        </div>
+      )}
+
       {/* Stage Interval (staged only) */}
-      {(m as any).interactionType === 'staged' && (
+      {interactionType === 'staged' && (
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+            <InfoTooltip text="Time between sessions. Viewers wait for the next session to start, then enter as a group." />
+          </div>
           <input type="number" step="10" min="10"
             value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
             onChange={(e) => handleUpdate('stageIntervalMs', (parseInt(e.target.value) || 60) * 1000)}
             disabled={isLocked}
             className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
           />
-          <p className="text-[8px] text-muted-foreground mt-0.5">
-            Viewers enter in groups every interval. Session = engagement time.
-          </p>
         </div>
       )}
 
       {/* Capacity */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
+            <InfoTooltip text="Max simultaneous viewers. Active/Staged enforce hard cap with slots. Passive/Analog use soft cap." />
+          </div>
           <input type="number" min="1" max="200"
             value={m.capacity}
             onChange={(e) => handleUpdate('capacity', parseInt(e.target.value) || 1)}
@@ -176,7 +206,10 @@ export function MediaEditor() {
 
       {/* Engagement Time */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
+          <InfoTooltip text="Average time a viewer spends at this media. Actual time varies by visitor profile and fatigue level." />
+        </div>
         <input type="number" step="5" min="1"
           value={Math.round(m.avgEngagementTimeMs / 1000)}
           onChange={(e) => handleUpdate('avgEngagementTimeMs', (parseInt(e.target.value) || 10) * 1000)}
@@ -188,7 +221,10 @@ export function MediaEditor() {
       {/* Attractiveness */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+            <InfoTooltip text="How likely visitors are to choose this media (0-1). Higher value = more visitors attracted." />
+          </div>
           <span className="text-[9px] font-data">{m.attractiveness.toFixed(1)}</span>
         </div>
         <input type="range" min="0" max="1" step="0.1"
@@ -202,7 +238,10 @@ export function MediaEditor() {
       {/* Attraction Radius */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
+            <InfoTooltip text="Distance (meters) from which visitors can detect and be drawn to this media." />
+          </div>
           <span className="text-[9px] font-data">{((m as any).attractionRadius ?? 3).toFixed(1)}</span>
         </div>
         <input type="range" min="1" max="15" step="0.5"
@@ -215,22 +254,28 @@ export function MediaEditor() {
 
       {/* Queue Behavior */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+          <InfoTooltip text={"None: skip if full\nLinear: form a queue line\nArea: wait in a designated area"} />
+        </div>
         <select
           value={(m as any).queueBehavior || 'none'}
           onChange={(e) => handleUpdate('queueBehavior', e.target.value)}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="none">None (넘치면 skip)</option>
-          <option value="linear">Linear (순차 대기)</option>
-          <option value="area">Area (구역 내 대기)</option>
+          <option value="none">None</option>
+          <option value="linear">Linear</option>
+          <option value="area">Area</option>
         </select>
       </div>
 
       {/* Group Friendly */}
       <div className="flex items-center justify-between">
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+          <InfoTooltip text="Whether groups can experience this media together. If yes, group members share engagement time." />
+        </div>
         <button
           onClick={() => handleUpdate('groupFriendly', !(m as any).groupFriendly)}
           disabled={isLocked}
