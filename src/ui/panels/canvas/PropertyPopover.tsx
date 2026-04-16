@@ -297,14 +297,17 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1" />
         </Row>
 
-        {/* Add Media button */}
-        {zone.type !== 'corridor' && (
-          <AddMediaSection zoneId={popover.targetId!} zoneBounds={zone.bounds} />
-        )}
-
         <div className="text-[8px] text-muted-foreground">
           {zone.bounds.w}x{zone.bounds.h}px · {zone.shape}
         </div>
+
+        {/* Add Media — inline expandable */}
+        {zone.type !== 'corridor' && (
+          <AddMediaInline
+            zoneId={popover.targetId!}
+            zoneBounds={zone.bounds}
+          />
+        )}
       </div>
     );
   }
@@ -379,16 +382,19 @@ export function PropertyPopover({ popover, onClose }: {
 
 // ── Media categories for quick-add ──
 const MEDIA_CATEGORIES = [
-  { key: 'analog', label: '아날로그', color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
-  { key: 'passive_media', label: '패시브', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
-  { key: 'active', label: '액티브', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
-  { key: 'immersive', label: '이머시브', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+  { key: 'analog', label: 'Analog', color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
+  { key: 'passive_media', label: 'Passive', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { key: 'active', label: 'Active', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { key: 'immersive', label: 'Immersive', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _popoverMediaId = 5000;
 
-function AddMediaSection({ zoneId, zoneBounds }: { zoneId: string; zoneBounds: { x: number; y: number; w: number; h: number } }) {
-  const [expanded, setExpanded] = __useState(false);
+function AddMediaInline({ zoneId, zoneBounds }: {
+  zoneId: string;
+  zoneBounds: { x: number; y: number; w: number; h: number };
+}) {
+  const [open, setOpen] = __useState(false);
   const addMedia = useStore((s) => s.addMedia);
 
   const handleAdd = (mediaType: string) => {
@@ -426,22 +432,25 @@ function AddMediaSection({ zoneId, zoneBounds }: { zoneId: string; zoneBounds: {
   };
 
   return (
-    <div className="border-t border-border pt-2">
+    <div className="border-t border-border pt-1.5 mt-1">
       <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-[10px] text-primary hover:underline w-full"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 w-full px-2 py-1.5 text-[10px] rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
       >
         <Plus size={10} />
-        미디어 추가
-        <span className="text-[8px] text-muted-foreground ml-auto">{expanded ? '▲' : '▼'}</span>
+        Add Media
+        <span className="text-[8px] text-muted-foreground ml-auto">{open ? '▲' : '▼'}</span>
       </button>
-      {expanded && (
-        <div className="mt-1.5 space-y-1.5 max-h-48 overflow-y-auto">
+      {open && (
+        <div
+          className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto overscroll-contain pr-0.5"
+          onWheel={e => e.stopPropagation()}
+        >
           {MEDIA_CATEGORIES.map(({ key, label, color, items }) => (
             <div key={key}>
               <div className="flex items-center gap-1 mb-0.5">
                 <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="text-[8px] text-muted-foreground uppercase">{label}</span>
+                <span className="text-[8px] text-muted-foreground uppercase tracking-wider">{label}</span>
               </div>
               <div className="grid grid-cols-2 gap-0.5">
                 {items.map(type => (

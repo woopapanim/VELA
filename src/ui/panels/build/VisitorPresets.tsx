@@ -16,7 +16,7 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
     id: 'rush_hour',
     label: 'Rush Hour',
     icon: Zap,
-    desc: '높은 유입률, 1인 관람 위주',
+    desc: 'High inflow, solo-dominant',
     config: {
       spawnRatePerSecond: 4,
       profileWeights: { general: 70, vip: 5, child: 15, elderly: 5, disabled: 5 },
@@ -29,7 +29,7 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
     id: 'steady_flow',
     label: 'Steady Flow',
     icon: Clock,
-    desc: '균일한 유입, 균형 잡힌 구성',
+    desc: 'Steady inflow, balanced mix',
     config: {
       spawnRatePerSecond: 2,
       profileWeights: { general: 60, vip: 15, child: 10, elderly: 10, disabled: 5 },
@@ -42,7 +42,7 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
     id: 'vip_event',
     label: 'VIP Event',
     icon: Crown,
-    desc: 'VIP/전문가 중심, 몰입형',
+    desc: 'VIP-focused, immersive',
     config: {
       spawnRatePerSecond: 1.5,
       profileWeights: { general: 30, vip: 40, child: 5, elderly: 15, disabled: 10 },
@@ -55,7 +55,7 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
     id: 'family_day',
     label: 'Family Day',
     icon: Users,
-    desc: '가족 단위, 소그룹 위주',
+    desc: 'Family groups, high group ratio',
     config: {
       spawnRatePerSecond: 3,
       profileWeights: { general: 40, vip: 5, child: 30, elderly: 15, disabled: 10 },
@@ -68,7 +68,7 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
     id: 'guided_tour_day',
     label: 'Guided Tour',
     icon: MapPin,
-    desc: '도슨트 투어 중심, 단체 관람',
+    desc: 'Docent tours, large groups',
     config: {
       spawnRatePerSecond: 2.5,
       profileWeights: { general: 50, vip: 10, child: 20, elderly: 15, disabled: 5 },

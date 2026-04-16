@@ -4,10 +4,10 @@ import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
-  analog: { label: '아날로그', color: '#a78bfa' },
-  passive_media: { label: '패시브', color: '#3b82f6' },
-  active: { label: '액티브', color: '#f59e0b' },
-  immersive: { label: '이머시브', color: '#ec4899' },
+  analog: { label: 'Analog', color: '#a78bfa' },
+  passive_media: { label: 'Passive', color: '#3b82f6' },
+  active: { label: 'Active', color: '#f59e0b' },
+  immersive: { label: 'Immersive', color: '#ec4899' },
 };
 
 export function MediaEditor() {

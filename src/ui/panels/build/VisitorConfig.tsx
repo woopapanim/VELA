@@ -191,10 +191,10 @@ function NumField({ label, value, onChange, disabled, step = 1 }: {
 
 // ── Category labels ──
 const CATEGORY_LABELS: Record<string, { label: string; color: string; desc: string }> = {
-  solo: { label: '1인 (Solo)', color: '#60a5fa', desc: `${CATEGORY_CONFIGS.solo.baseSpeed / 20}m/s` },
-  small_group: { label: '소그룹 (2-4인)', color: '#34d399', desc: `${CATEGORY_CONFIGS.small_group.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.small_group.dwellTimeMultiplier}` },
-  guided_tour: { label: '도슨트 (10-20인)', color: '#f472b6', desc: `${CATEGORY_CONFIGS.guided_tour.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.guided_tour.dwellTimeMultiplier}` },
-  vip_expert: { label: 'VIP/전문가', color: '#fbbf24', desc: `${CATEGORY_CONFIGS.vip_expert.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.vip_expert.dwellTimeMultiplier}` },
+  solo: { label: 'Solo (1)', color: '#60a5fa', desc: `${CATEGORY_CONFIGS.solo.baseSpeed / 20}m/s` },
+  small_group: { label: 'Small Group (2-4)', color: '#34d399', desc: `${CATEGORY_CONFIGS.small_group.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.small_group.dwellTimeMultiplier}` },
+  guided_tour: { label: 'Guided Tour (10-20)', color: '#f472b6', desc: `${CATEGORY_CONFIGS.guided_tour.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.guided_tour.dwellTimeMultiplier}` },
+  vip_expert: { label: 'VIP / Expert', color: '#fbbf24', desc: `${CATEGORY_CONFIGS.vip_expert.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.vip_expert.dwellTimeMultiplier}` },
 };
 
 function CategoryMix({ values, onChange, disabled }: {

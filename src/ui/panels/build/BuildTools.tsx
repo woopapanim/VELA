@@ -14,10 +14,10 @@ const ZONE_TYPES = [
 ] as const;
 
 const MEDIA_QUICK_CATEGORIES = [
-  { label: '아날로그', color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
-  { label: '패시브', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
-  { label: '액티브', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
-  { label: '이머시브', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+  { label: 'Analog', color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
+  { label: 'Passive', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { label: 'Active', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { label: 'Immersive', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _zoneCounter = 100;

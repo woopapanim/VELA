@@ -1,9 +1,9 @@
 import { useStore } from '@/stores';
 
 const CATEGORY_INFO: Record<string, { color: string; label: string }> = {
-  solo: { color: '#60a5fa', label: '1인' },
-  small_group: { color: '#34d399', label: '소그룹' },
-  guided_tour: { color: '#f472b6', label: '도슨트' },
+  solo: { color: '#60a5fa', label: 'Solo' },
+  small_group: { color: '#34d399', label: 'Group' },
+  guided_tour: { color: '#f472b6', label: 'Tour' },
   vip_expert: { color: '#fbbf24', label: 'VIP' },
 };
 
