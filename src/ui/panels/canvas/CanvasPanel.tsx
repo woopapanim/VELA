@@ -640,7 +640,28 @@ export function CanvasPanel() {
         }
       }
 
-      // Check media click for move/rotate (before zone click)
+      // Check media rotation handle FIRST (handle is outside media rect)
+      if (store.selectedMediaId) {
+        const selM = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
+        if (selM) {
+          const pw2 = selM.size.width * MEDIA_SCALE_VAL;
+          const ph2 = selM.size.height * MEDIA_SCALE_VAL;
+          const rad2 = (selM.orientation * Math.PI) / 180;
+          const handleDist2 = ph2 / 2 + 15;
+          const hx = selM.position.x + Math.sin(rad2) * handleDist2;
+          const hy = selM.position.y - Math.cos(rad2) * handleDist2;
+          const hdx = world.x - hx, hdy = world.y - hy;
+          if (hdx * hdx + hdy * hdy < 150) {
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            dragMode.current = 'media-rotate';
+            dragMediaId.current = store.selectedMediaId;
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
+      // Check media click for move (before zone click)
       for (const m of store.media) {
         const pw = m.size.width * MEDIA_SCALE_VAL;
         const ph = m.size.height * MEDIA_SCALE_VAL;
@@ -648,23 +669,6 @@ export function CanvasPanel() {
         const my = m.position.y - ph / 2;
         if (world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
-
-          // Check if near rotation handle (green circle above media)
-          const rad = (m.orientation * Math.PI) / 180;
-          const handleDist = ph / 2 + 15;
-          const arrowX = m.position.x + Math.sin(rad) * handleDist;
-          const arrowY = m.position.y - Math.cos(rad) * handleDist;
-          const adx = world.x - arrowX, ady = world.y - arrowY;
-          if (adx * adx + ady * ady < 150) {
-            dragMode.current = 'media-rotate';
-            dragMediaId.current = m.id as string;
-            selectZone(null);
-            store.selectWaypoint(null);
-            (store as any).selectMedia(m.id as string);
-            e.preventDefault();
-            return;
-          }
-
           dragMode.current = 'media-move';
           dragMediaId.current = m.id as string;
           dragOffset.current = { x: world.x - m.position.x, y: world.y - m.position.y };
