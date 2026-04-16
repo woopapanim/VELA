@@ -54,7 +54,7 @@ export interface MediaPreset {
   readonly fatigueCategory: string;   // fatigue group key — same category in sequence → skip↑
 }
 
-export type MediaInteractionType = 'passive' | 'active' | 'staged';
+export type MediaInteractionType = 'passive' | 'active' | 'staged' | 'analog';
 export type MediaShape = 'rect' | 'circle';
 
 export interface MediaPlacement {
@@ -70,7 +70,8 @@ export interface MediaPlacement {
   readonly avgEngagementTimeMs: number;
   readonly attractiveness: number; // 0-1
   readonly attractionRadius: number; // meters — instance override
-  readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형
+  readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형, analog=실물전시
+  readonly omnidirectional?: boolean; // true=360도 관람 가능 (analog용, 중앙 전시물)
   readonly shape?: MediaShape; // rect (default) or circle
   readonly stageIntervalMs?: number; // staged only: time between sessions (e.g. 60000 = 1min)
   readonly queueBehavior?: QueueBehavior;

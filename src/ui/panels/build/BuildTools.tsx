@@ -129,6 +129,7 @@ export function BuildTools() {
     const id = `m_user_${_mediaCounter++}` as MediaId;
     // Determine interactionType from category
     const interactionType = preset.category === 'immersive' ? 'staged' as const
+      : preset.category === 'analog' ? 'analog' as const
       : preset.isInteractive ? 'active' as const
       : 'passive' as const;
 
@@ -158,6 +159,7 @@ export function BuildTools() {
       attractiveness: 0.7,
       attractionRadius: preset.attractionRadius,
       interactionType,
+      omnidirectional: (preset as any).omnidirectional ?? false,
       queueBehavior: preset.queueBehavior,
       groupFriendly: preset.groupFriendly,
     };

@@ -684,7 +684,28 @@ export class SimulationEngine {
           return v; // keep waiting
         }
 
-        if (intType === 'passive') {
+        if (intType === 'analog') {
+          // ── ANALOG: snap to slot just outside the box ──
+          const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
+          if (viewerCount >= media.capacity) {
+            return this.assignNextTarget({
+              ...v, currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null,
+            });
+          }
+          this._tickMediaViewers.set(mid, viewerCount + 1);
+          this.recordWatchStart(mid, v.id as string);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          dur = this.applyGroupDwell(v, dur);
+          this.engagementTimers.set(v.id as string, dur);
+          const slotPos = this.getAnalogSlotPosition(media, viewerCount);
+          return {
+            ...v,
+            currentAction: VISITOR_ACTION.WATCHING,
+            position: slotPos,
+            velocity: { x: 0, y: 0 },
+          };
+        } else if (intType === 'passive') {
           // ── PASSIVE: arrive at viewing area → watch immediately ──
           // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
@@ -974,6 +995,63 @@ export class SimulationEngine {
     return {
       x: m.position.x + Math.sin(rad) * dist,
       y: m.position.y - Math.cos(rad) * dist,
+    };
+  }
+
+  /** Get analog viewing slot — just outside the media box */
+  private getAnalogSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const cap = Math.max(1, m.capacity);
+    const margin = 8; // px outside the box edge
+
+    if ((m as any).omnidirectional) {
+      // 360° distribution around the box perimeter
+      const perimeter = 2 * (pw + ph);
+      const spacing = perimeter / cap;
+      const dist = spacing * slotIndex;
+
+      // Walk around the perimeter: top → right → bottom → left
+      const halfW = pw / 2 + margin;
+      const halfH = ph / 2 + margin;
+      let d = dist;
+      if (d < pw) {
+        // Top edge
+        return { x: m.position.x - pw / 2 + d, y: m.position.y - halfH };
+      }
+      d -= pw;
+      if (d < ph) {
+        // Right edge
+        return { x: m.position.x + halfW, y: m.position.y - ph / 2 + d };
+      }
+      d -= ph;
+      if (d < pw) {
+        // Bottom edge
+        return { x: m.position.x + pw / 2 - d, y: m.position.y + halfH };
+      }
+      d -= pw;
+      // Left edge
+      return { x: m.position.x - halfW, y: m.position.y + ph / 2 - d };
+    }
+
+    // Directional: slots along the front face, just outside
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const frontDist = ph / 2 + margin;
+
+    const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
+    const rows = Math.ceil(cap / cols);
+    const col = slotIndex % cols;
+    const row = Math.floor(slotIndex / cols);
+
+    // Spread along media width (tangent), rows go further from media
+    const localX = (col - (cols - 1) / 2) * (pw / Math.max(cols, 1));
+    const rowDist = frontDist + row * 10;
+
+    return {
+      x: m.position.x + localX * cos + sin * rowDist,
+      y: m.position.y + localX * sin - cos * rowDist,
     };
   }
 
@@ -1441,7 +1519,11 @@ export class SimulationEngine {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
-        // ALL media types: walk to viewing point in front of media
+        const intType = (m as any).interactionType ?? 'passive';
+        if (intType === 'analog' && (m as any).omnidirectional) {
+          // Omnidirectional analog: approach from any direction (walk toward media center)
+          return this.getMediaViewPoint(m); // close to media, any side
+        }
         return this.getMediaViewPoint(m);
       }
     }

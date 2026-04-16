@@ -416,6 +416,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
     const pw = preset.defaultSize.width * SCALE;
     const ph = preset.defaultSize.height * SCALE;
     const interactionType = preset.category === 'immersive' ? 'staged'
+      : preset.category === 'analog' ? 'analog'
       : preset.isInteractive ? 'active' : 'passive';
 
     const media: MediaPlacement = {
@@ -435,6 +436,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       attractiveness: 0.7,
       attractionRadius: preset.attractionRadius,
       interactionType: interactionType as any,
+      omnidirectional: (preset as any).omnidirectional ?? false,
       queueBehavior: preset.queueBehavior,
       groupFriendly: preset.groupFriendly,
     };
