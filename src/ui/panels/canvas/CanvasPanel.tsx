@@ -644,6 +644,22 @@ export function CanvasPanel() {
         }
       }
 
+      // Check ALL zone corners before media — even if zone isn't selected
+      // This prevents media from capturing zone resize handle clicks
+      for (const z of store.zones) {
+        const corner = hitTestCorner(world, z);
+        if (corner) {
+          store.pushUndo(store.zones, store.media, store.waypointGraph);
+          selectZone(z.id as string);
+          (store as any).selectMedia(null);
+          dragMode.current = 'resize';
+          dragZoneId.current = z.id as string;
+          resizeCorner.current = corner;
+          e.preventDefault();
+          return;
+        }
+      }
+
       // Check media rotation handle FIRST (handle is outside media rect)
       if (store.selectedMediaId) {
         const selM = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
