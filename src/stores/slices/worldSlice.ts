@@ -233,19 +233,29 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         (z.id as string) === zoneId ? { ...z, ...updates } : z,
       );
       const newZones = updates.bounds || updates.gates ? autoLinkGates(rawZones) : rawZones;
-      // Clamp media inside updated zone bounds
+      // Move/clamp media inside updated zone bounds
       const SCALE = 20;
       const newBounds = updates.bounds;
       const newMedia = newBounds ? s.media.map((m) => {
         if ((m.zoneId as string) !== zoneId) return m;
+        const oldZone = s.zones.find((z) => (z.id as string) === zoneId);
+        const oldBounds = oldZone?.bounds;
+        if (!oldBounds) return m;
+        const dx = newBounds.x - oldBounds.x;
+        const dy = newBounds.y - oldBounds.y;
+        const isMove = newBounds.w === oldBounds.w && newBounds.h === oldBounds.h;
+        if (isMove) {
+          // Pure move: shift media by exact same delta (no clamp)
+          return { ...m, position: { x: m.position.x + dx, y: m.position.y + dy } };
+        }
+        // Resize: clamp media inside new bounds (no margin)
         const pw = m.size.width * SCALE, ph = m.size.height * SCALE;
-        const gm = 25, wm = 10; // gate margin / wall margin
         const b = newBounds;
         return {
           ...m,
           position: {
-            x: Math.max(b.x + pw/2 + gm, Math.min(b.x + b.w - pw/2 - gm, m.position.x)),
-            y: Math.max(b.y + ph/2 + wm, Math.min(b.y + b.h - ph/2 - wm, m.position.y)),
+            x: Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, m.position.x)),
+            y: Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, m.position.y)),
           },
         };
       }) : s.media;
