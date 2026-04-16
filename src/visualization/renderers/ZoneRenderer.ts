@@ -162,7 +162,7 @@ export function renderZones(
         ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(`${bounds.w}×${bounds.h}`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4);
+        ctx.fillText(`${(bounds.w / 20).toFixed(1)}×${(bounds.h / 20).toFixed(1)}m`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4);
       }
 
       // L-shape inner corner handle

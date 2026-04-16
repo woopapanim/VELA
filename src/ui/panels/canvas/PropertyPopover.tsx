@@ -298,7 +298,7 @@ export function PropertyPopover({ popover, onClose }: {
         </Row>
 
         <div className="text-[8px] text-muted-foreground">
-          {zone.bounds.w}x{zone.bounds.h}px · {zone.shape}
+          {(zone.bounds.w / 20).toFixed(1)}x{(zone.bounds.h / 20).toFixed(1)}m · {zone.area.toFixed(1)}m² · {zone.shape}
         </div>
 
         {/* Add Media — inline expandable */}
