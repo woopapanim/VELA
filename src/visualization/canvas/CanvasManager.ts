@@ -167,9 +167,9 @@ export class CanvasManager {
 
     // 4c. Waypoint graph (nodes + edges + ghost preview)
     if (state.waypointGraph && state.waypointGraph.nodes.length > 0) {
-      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom);
+      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels);
     } else if (state.ghostNode) {
-      renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom);
+      renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
     }
 
     // 5. Flow lines (between zones)
@@ -178,7 +178,7 @@ export class CanvasManager {
     }
 
     // 6. Media (with queue visualization)
-    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom);
+    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom, state.showLabels);
 
     // 7. Path trails (subtle traces behind visitors)
     if (state.visitors.length > 0) {

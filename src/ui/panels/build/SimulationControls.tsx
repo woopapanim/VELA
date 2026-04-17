@@ -142,7 +142,7 @@ export function SimulationControls() {
         if (Math.floor(elapsed / 30000) > Math.floor((elapsed - KPI_SAMPLE_INTERVAL_MS) / 30000)) {
           const scen = currentStore.scenario;
           if (scen) {
-            try { localStorage.setItem('aion-autosave', JSON.stringify({ scenario: scen, timestamp: Date.now() })); } catch {}
+            try { localStorage.setItem('vela-autosave', JSON.stringify({ scenario: scen, timestamp: Date.now() })); } catch {}
           }
         }
 

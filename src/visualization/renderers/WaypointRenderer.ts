@@ -2,9 +2,8 @@ import type { WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
 
 const NODE_RADIUS = 10;
 const NODE_RADIUS_SELECTED = 14;
-const EDGE_WIDTH = 2;
+const EDGE_WIDTH = 1.5;
 const ARROW_SIZE = 8;
-const LABEL_FONT = '11px sans-serif';
 
 // 노드 타입별 색상
 const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string }> = {
@@ -17,7 +16,8 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
   bend:      { fill: '#64748b', stroke: '#475569', label: '·' },    // slate (작은 점)
 };
 
-const EDGE_COLOR = 'rgba(148, 163, 184, 0.6)';      // slate-400
+const EDGE_COLOR_DARK = 'rgba(148, 163, 184, 0.6)';  // slate-400 (dark bg)
+const EDGE_COLOR_LIGHT = 'rgba(71, 85, 105, 0.7)';   // slate-600 (light bg)
 const EDGE_COLOR_SELECTED = 'rgba(99, 102, 241, 0.8)'; // indigo-500
 
 /**
@@ -33,8 +33,13 @@ export function renderWaypoints(
   isDark: boolean,
   ghostNode: { position: { x: number; y: number }; type: string } | null = null,
   zoom: number = 1,
+  showLabels: boolean = true,
 ) {
   const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
+  // Keep strokes at constant screen-pixel width regardless of zoom
+  const px = 1 / Math.max(zoom, 0.3);
+  const arrowSize = ARROW_SIZE * px;
+  const edgeColor = isDark ? EDGE_COLOR_DARK : EDGE_COLOR_LIGHT;
   const nodeMap = new Map<string, WaypointNode>();
   for (const node of graph.nodes) nodeMap.set(node.id as string, node);
 
@@ -45,8 +50,9 @@ export function renderWaypoints(
     if (!from || !to) continue;
 
     const isSelected = (edge.id as string) === selectedEdgeId;
-    ctx.strokeStyle = isSelected ? EDGE_COLOR_SELECTED : EDGE_COLOR;
-    ctx.lineWidth = isSelected ? EDGE_WIDTH + 1 : EDGE_WIDTH;
+    const lineColor = isSelected ? EDGE_COLOR_SELECTED : edgeColor;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = (isSelected ? EDGE_WIDTH + 0.75 : EDGE_WIDTH) * px;
     ctx.setLineDash([]);
 
     // Line
@@ -55,12 +61,13 @@ export function renderWaypoints(
     ctx.lineTo(to.position.x, to.position.y);
     ctx.stroke();
 
-    // Arrow head (at "to" end)
-    drawArrow(ctx, from.position.x, from.position.y, to.position.x, to.position.y, NODE_RADIUS);
+    // Arrow head (at "to" end) — uses same color as line
+    ctx.fillStyle = lineColor;
+    drawArrow(ctx, from.position.x, from.position.y, to.position.x, to.position.y, NODE_RADIUS, arrowSize);
 
     // Bidirectional: arrow at "from" end too
     if (edge.direction === 'bidirectional') {
-      drawArrow(ctx, to.position.x, to.position.y, from.position.x, from.position.y, NODE_RADIUS);
+      drawArrow(ctx, to.position.x, to.position.y, from.position.x, from.position.y, NODE_RADIUS, arrowSize);
     }
 
     // passWeight label on edge midpoint (if != 1.0)
@@ -94,7 +101,7 @@ export function renderWaypoints(
     ctx.fillStyle = colors.fill;
     ctx.fill();
     ctx.strokeStyle = isSelected ? '#ffffff' : colors.stroke;
-    ctx.lineWidth = isSelected ? 3 : 2;
+    ctx.lineWidth = (isSelected ? 2 : 1.25) * px;
     ctx.stroke();
 
     ctx.shadowColor = 'transparent';
@@ -107,8 +114,8 @@ export function renderWaypoints(
     ctx.textBaseline = 'middle';
     ctx.fillText(colors.label, x, y);
 
-    // Label above
-    if (node.label) {
+    // Label above (hidden when labels are toggled off)
+    if (showLabels && node.label) {
       ctx.font = `${fs(11)}px sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
       ctx.textAlign = 'center';
@@ -130,9 +137,9 @@ export function renderWaypoints(
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = colors.fill;
     ctx.fill();
-    ctx.setLineDash([4, 3]);
+    ctx.setLineDash([4 * px, 3 * px]);
     ctx.strokeStyle = colors.stroke;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.25 * px;
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -152,6 +159,7 @@ function drawArrow(
   ctx: CanvasRenderingContext2D,
   fx: number, fy: number, tx: number, ty: number,
   nodeRadius: number,
+  size: number,
 ) {
   const dx = tx - fx;
   const dy = ty - fy;
@@ -159,19 +167,18 @@ function drawArrow(
   if (len < nodeRadius * 2) return;
 
   const angle = Math.atan2(dy, dx);
-  // Arrow tip stops at nodeRadius from target center
   const tipX = tx - Math.cos(angle) * nodeRadius;
   const tipY = ty - Math.sin(angle) * nodeRadius;
 
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
   ctx.lineTo(
-    tipX - ARROW_SIZE * Math.cos(angle - Math.PI / 6),
-    tipY - ARROW_SIZE * Math.sin(angle - Math.PI / 6),
+    tipX - size * Math.cos(angle - Math.PI / 6),
+    tipY - size * Math.sin(angle - Math.PI / 6),
   );
   ctx.lineTo(
-    tipX - ARROW_SIZE * Math.cos(angle + Math.PI / 6),
-    tipY - ARROW_SIZE * Math.sin(angle + Math.PI / 6),
+    tipX - size * Math.cos(angle + Math.PI / 6),
+    tipY - size * Math.sin(angle + Math.PI / 6),
   );
   ctx.closePath();
   ctx.fill();

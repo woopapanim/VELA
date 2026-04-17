@@ -39,7 +39,7 @@ import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
-import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon } from '../collision/resolution';
+import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon, pushOutsidePolygon } from '../collision/resolution';
 import { arrival, separation, wander, obstacleAvoidance, followLeader, groupCohesion } from '../steering/behaviors';
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
@@ -350,6 +350,7 @@ export class SimulationEngine {
       let a = this.stepBehavior(v, dt);
       a = this.stepSteering(a, dtS);
       a = this.stepPhysics(a, dtS);
+      a = this.stepFollowerSnap(a);
       a = this.stepCollision(a);
       a = this.stepFatigue(a, dt);
       // Count newly deactivated
@@ -468,6 +469,29 @@ export class SimulationEngine {
       if (group) {
         const leader = this.state.visitors.get(group.leaderId as string);
         if (leader?.isActive) {
+          // If leader is WATCHING media, follower walks toward it then watches
+          if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
+            const media = this.world.media.find(m => m.id === leader.targetMediaId);
+            if (media) {
+              const intType = (media as any).interactionType ?? 'passive';
+              // Already watching same media → keep
+              if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
+                return v;
+              }
+              // Follower walks toward media (MOVING), not teleport
+              if (v.currentAction !== VISITOR_ACTION.MOVING || v.targetMediaId !== leader.targetMediaId) {
+                return {
+                  ...v,
+                  currentAction: VISITOR_ACTION.MOVING,
+                  targetMediaId: leader.targetMediaId,
+                  targetZoneId: leader.currentZoneId,
+                  steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+                };
+              }
+              // Already moving toward the media → let steering handle it
+              return v;
+            }
+          }
           return syncFollowerToLeader(v, leader, group);
         }
       }
@@ -516,12 +540,13 @@ export class SimulationEngine {
             let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
             dur = this.applyGroupDwell(v, dur);
             this.engagementTimers.set(v.id as string, dur);
-            const usedSlots2 = this.getUsedMediaSlots(v.targetMediaId!);
-            const slotIdx2 = this.findNextFreeSlot(media.capacity, usedSlots2);
+            const watchPos = (intType === 'analog')
+              ? this.getAnalogClosePosition(media, v.position)
+              : (() => { const usedSlots2 = this.getUsedMediaSlots(v.targetMediaId!); const slotIdx2 = this.findNextFreeSlot(media.capacity, usedSlots2); return this.getMediaSlotPosition(media, slotIdx2); })();
             return {
               ...v,
               currentAction: VISITOR_ACTION.WATCHING,
-              position: this.clampToZone(this.getMediaSlotPosition(media, slotIdx2), v.currentZoneId),
+              position: this.clampToZone(watchPos, v.currentZoneId),
               velocity: { x: 0, y: 0 },
               waitStartedAt: null,
             };
@@ -574,8 +599,11 @@ export class SimulationEngine {
         const dx = v.position.x - node.position.x;
         const dy = v.position.y - node.position.y;
         const distSq = dx * dx + dy * dy;
-        // HUB/ENTRY/BEND: 넓은 도착 판정 (통과점)
-        const snapDist = (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500 : 625;
+        // HUB/ENTRY/BEND/EXIT: 넓은 도착 판정 (통과점)
+        // EXIT은 존 바깥에 있고 군중 정체로 정확한 위치 도달이 어려워 가장 관대하게 판정 (150px = 7.5m)
+        const snapDist = node.type === 'exit' ? 22500
+          : (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500
+          : 625;
         if (distSq < snapDist) {
           return this.onNodeArrival({
             ...v,
@@ -623,6 +651,36 @@ export class SimulationEngine {
         const mid = v.targetMediaId as string;
         const intType = (media as any).interactionType ?? 'passive';
 
+        // ── GROUP FOLLOWER arriving at leader's media: sync to leader's remaining time ──
+        if (isFollower(v) && v.groupId) {
+          const group = this.state.groups.get(v.groupId as string);
+          if (group) {
+            const leader = this.state.visitors.get(group.leaderId as string);
+            if (leader?.isActive && leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId === v.targetMediaId) {
+              const leaderRem = this.engagementTimers.get(leader.id as string) ?? 0;
+              if (leaderRem <= 0) {
+                // Leader already done → skip watching, follow leader
+                return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
+              }
+              this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
+              this.recordWatchStart(mid, v.id as string);
+              this.engagementTimers.set(v.id as string, leaderRem); // sync to leader's remaining time
+              // Position: close to media (type-appropriate)
+              const watchPos = intType === 'active' || intType === 'staged'
+                ? this.getMediaSlotPosition(media, (this._tickMediaViewers.get(mid) ?? 1) - 1)
+                : intType === 'analog'
+                  ? this.getAnalogClosePosition(media, v.position)
+                  : v.position; // passive: stay at current position
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.WATCHING,
+                position: watchPos,
+                velocity: { x: 0, y: 0 },
+              };
+            }
+          }
+        }
+
         if (intType === 'staged') {
           // ── STAGED: session-based entry ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
@@ -654,15 +712,38 @@ export class SimulationEngine {
           return v; // keep waiting
         }
 
-        if (intType === 'passive') {
-          // ── PASSIVE: arrive at viewing area → watch immediately ──
+        if (intType === 'analog') {
+          // ── ANALOG: close-up viewing — no capacity limit ──
+          this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
+          this.recordWatchStart(mid, v.id as string);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          dur = this.applyGroupDwell(v, dur);
+          this.engagementTimers.set(v.id as string, dur);
+          // Position: close to media edge with random offset (no fixed slot grid)
+          const closePos = this.getAnalogClosePosition(media, v.position);
+          return {
+            ...v,
+            currentAction: VISITOR_ACTION.WATCHING,
+            position: closePos,
+            velocity: { x: 0, y: 0 },
+          };
+        } else if (intType === 'passive') {
+          // ── PASSIVE: arrive at viewing area → watch from current position ──
+          // Distance check: must be within reasonable range of media to watch
+          const mdx = v.position.x - media.position.x;
+          const mdy = v.position.y - media.position.y;
+          const mediaDist = Math.sqrt(mdx * mdx + mdy * mdy);
+          const maxViewDist = Math.max(media.size.width, media.size.height) * 20 + 40; // media size + margin
+          if (mediaDist > maxViewDist) {
+            // Too far from media (likely bounced by collision) — re-approach
+            return { ...v, currentAction: VISITOR_ACTION.MOVING, steering: { ...v.steering, isArrived: false } };
+          }
           // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            // Over soft cap → wait briefly, try again (don't permanently skip)
             return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
           }
-          // Watch at current position (wherever agent arrived in viewing area)
+          // Watch at current position
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
@@ -675,18 +756,51 @@ export class SimulationEngine {
             velocity: { x: 0, y: 0 },
           };
         } else if (intType === 'active') {
-          // ── ACTIVE: slot-based, queue if full ──
+          // ── ACTIVE: group reserves slots together, or skip as group ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= media.capacity) {
-            this.recordWaitStart(mid);
-            return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+
+          // Calculate how many slots this agent needs (self + group members)
+          let groupSize = 1;
+          if (v.groupId && v.isGroupLeader) {
+            const group = this.state.groups.get(v.groupId as string);
+            if (group) groupSize = group.memberIds.length;
           }
+
+          if (viewerCount + groupSize > media.capacity) {
+            // Not enough slots for the group → skip
+            return this.assignNextTarget({
+              ...v,
+              currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+              targetMediaId: null,
+            });
+          }
+
+          // Reserve slot for leader
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           const slotPos = this.clampToZone(this.getMediaSlotPosition(media, viewerCount), v.currentZoneId);
+
+          // Pre-reserve slots for followers (they'll sync via syncFollowerToLeader)
+          if (v.groupId && v.isGroupLeader) {
+            const group = this.state.groups.get(v.groupId as string);
+            if (group) {
+              let slotIdx = viewerCount + 1;
+              for (const memberId of group.memberIds) {
+                if ((memberId as string) === (v.id as string)) continue; // skip leader
+                const follower = this.state.visitors.get(memberId as string);
+                if (!follower?.isActive) continue;
+                this._tickMediaViewers.set(mid, slotIdx + 1);
+                this.recordWatchStart(mid, memberId as string);
+                this.engagementTimers.set(memberId as string, dur);
+                slotIdx++;
+              }
+            }
+          }
+
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
@@ -770,6 +884,21 @@ export class SimulationEngine {
     return (m as any).shape === 'circle';
   }
 
+  private isMediaPolygon(m: MediaPlacement): boolean {
+    return (m as any).shape === 'custom' && m.polygon != null && m.polygon.length > 2;
+  }
+
+  /** Transform polygon from center-relative local coords to world coords */
+  private getMediaWorldPolygon(m: MediaPlacement): Vector2D[] {
+    const poly = m.polygon!;
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return poly.map(p => ({
+      x: m.position.x + p.x * cos - p.y * sin,
+      y: m.position.y + p.x * sin + p.y * cos,
+    }));
+  }
+
   /** Get media radius for circle shape (pixels) */
   private getMediaRadius(m: MediaPlacement): number {
     return Math.max(m.size.width, m.size.height) * MEDIA_SCALE / 2;
@@ -777,6 +906,17 @@ export class SimulationEngine {
 
   /** Get media bounding rect in canvas pixels */
   private getMediaRect(m: MediaPlacement): { x: number; y: number; w: number; h: number } {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of wp) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       return { x: m.position.x - r, y: m.position.y - r, w: r * 2, h: r * 2 };
@@ -786,8 +926,16 @@ export class SimulationEngine {
     return { x: m.position.x - pw / 2, y: m.position.y - ph / 2, w: pw, h: ph };
   }
 
-  /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon) */
+  /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon, custom=polygon edges) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      const walls: { a: Vector2D; b: Vector2D }[] = [];
+      for (let i = 0; i < wp.length; i++) {
+        walls.push({ a: wp[i], b: wp[(i + 1) % wp.length] });
+      }
+      return walls;
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const cx = m.position.x, cy = m.position.y;
@@ -812,8 +960,12 @@ export class SimulationEngine {
     ];
   }
 
-  /** Check if point is inside media (rect or circle) */
+  /** Check if point is inside media (rect, circle, or polygon) */
   private isInsideMedia(pos: Vector2D, m: MediaPlacement): boolean {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      return isPointInPolygon(pos, wp);
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
@@ -823,8 +975,12 @@ export class SimulationEngine {
     return pos.x > rect.x && pos.x < rect.x + rect.w && pos.y > rect.y && pos.y < rect.y + rect.h;
   }
 
-  /** Push point outside media (rect or circle) */
+  /** Push point outside media (rect, circle, or polygon) */
   private pushOutsideMedia(pos: Vector2D, m: MediaPlacement): Vector2D {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      return pushOutsidePolygon(pos, wp, m.position);
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
@@ -914,10 +1070,26 @@ export class SimulationEngine {
 
   /** Get a specific slot position within the media rect for the nth viewer */
   private getMediaSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
-    const pw = m.size.width * MEDIA_SCALE;
-    const ph = m.size.height * MEDIA_SCALE;
     const rad = (m.orientation * Math.PI) / 180;
     const cap = Math.max(1, m.capacity);
+
+    // For polygon shapes, use AABB of local polygon for slot distribution
+    let pw: number, ph: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of poly) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      pw = maxX - minX;
+      ph = maxY - minY;
+    } else {
+      pw = m.size.width * MEDIA_SCALE;
+      ph = m.size.height * MEDIA_SCALE;
+    }
 
     // Distribute slots evenly across the media width
     const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
@@ -940,19 +1112,133 @@ export class SimulationEngine {
 
   /** Get the passive viewing position — just in front of media (close) */
   private getMediaViewPoint(m: MediaPlacement): Vector2D {
-    const halfDepth = (m.size.height * MEDIA_SCALE) / 2;
-    const dist = halfDepth + 5; // just 5px outside the rect
+    let halfDepth: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let maxY = -Infinity;
+      for (const p of poly) if (Math.abs(p.y) > maxY) maxY = Math.abs(p.y);
+      halfDepth = maxY;
+    } else {
+      halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    }
+    // viewDistance (meters) → pixels, fallback to just outside the media
+    const viewDistPx = (m as any).viewDistance ? (m as any).viewDistance * MEDIA_SCALE : halfDepth + 5;
     const rad = (m.orientation * Math.PI) / 180;
+    const pt = {
+      x: m.position.x + Math.sin(rad) * viewDistPx,
+      y: m.position.y - Math.cos(rad) * viewDistPx,
+    };
+    return this.clampToMediaZone(m, pt);
+  }
+
+  /** Clamp a point to the parent zone bounds of a media */
+  private clampToMediaZone(m: MediaPlacement, pt: Vector2D): Vector2D {
+    const zone = this.zoneMap.get((m as any).zoneId as string);
+    if (!zone) return pt;
+    const pad = 4;
     return {
-      x: m.position.x + Math.sin(rad) * dist,
-      y: m.position.y - Math.cos(rad) * dist,
+      x: Math.max(zone.bounds.x + pad, Math.min(zone.bounds.x + zone.bounds.w - pad, pt.x)),
+      y: Math.max(zone.bounds.y + pad, Math.min(zone.bounds.y + zone.bounds.h - pad, pt.y)),
+    };
+  }
+
+  /** Get analog close-up position — nearby the media edge with random jitter (no fixed grid) */
+  private getAnalogClosePosition(m: MediaPlacement, agentPos: Vector2D): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const margin = 6 + this.rng.next() * 8; // 6–14px outside
+
+    let pt: Vector2D;
+    if ((m as any).omnidirectional) {
+      const angle = this.rng.next() * Math.PI * 2;
+      const halfW = pw / 2 + margin;
+      const halfH = ph / 2 + margin;
+      pt = {
+        x: m.position.x + Math.cos(angle) * halfW,
+        y: m.position.y + Math.sin(angle) * halfH,
+      };
+    } else {
+      const rad = (m.orientation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const frontDist = ph / 2 + margin;
+      const lateralOffset = (this.rng.next() - 0.5) * pw * 0.9;
+      pt = {
+        x: m.position.x - sin * frontDist + cos * lateralOffset,
+        y: m.position.y - cos * frontDist - sin * lateralOffset,
+      };
+    }
+    return this.clampToMediaZone(m, pt);
+  }
+
+  /** Get analog viewing slot — just outside the media box (legacy) */
+  private getAnalogSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const cap = Math.max(1, m.capacity);
+    const margin = 8; // px outside the box edge
+
+    if ((m as any).omnidirectional) {
+      // 360° distribution around the box perimeter
+      const perimeter = 2 * (pw + ph);
+      const spacing = perimeter / cap;
+      const dist = spacing * slotIndex;
+
+      // Walk around the perimeter: top → right → bottom → left
+      const halfW = pw / 2 + margin;
+      const halfH = ph / 2 + margin;
+      let d = dist;
+      if (d < pw) {
+        // Top edge
+        return { x: m.position.x - pw / 2 + d, y: m.position.y - halfH };
+      }
+      d -= pw;
+      if (d < ph) {
+        // Right edge
+        return { x: m.position.x + halfW, y: m.position.y - ph / 2 + d };
+      }
+      d -= ph;
+      if (d < pw) {
+        // Bottom edge
+        return { x: m.position.x + pw / 2 - d, y: m.position.y + halfH };
+      }
+      d -= pw;
+      // Left edge
+      return { x: m.position.x - halfW, y: m.position.y + ph / 2 - d };
+    }
+
+    // Directional: slots along the front face, just outside
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const frontDist = ph / 2 + margin;
+
+    const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
+    const rows = Math.ceil(cap / cols);
+    const col = slotIndex % cols;
+    const row = Math.floor(slotIndex / cols);
+
+    // Spread along media width (tangent), rows go further from media
+    const localX = (col - (cols - 1) / 2) * (pw / Math.max(cols, 1));
+    const rowDist = frontDist + row * 10;
+
+    return {
+      x: m.position.x + localX * cos + sin * rowDist,
+      y: m.position.y + localX * sin - cos * rowDist,
     };
   }
 
   /** Get the waiting position (in front of media, outside media rect) */
   private getMediaWaitPoint(m: MediaPlacement): Vector2D {
-    // Distance = half of media depth + margin (ensure outside rect)
-    const halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    let halfDepth: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let maxY = -Infinity;
+      for (const p of poly) if (Math.abs(p.y) > maxY) maxY = Math.abs(p.y);
+      halfDepth = maxY;
+    } else {
+      halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    }
     const margin = 15;
     const dist = halfDepth + margin;
     const rad = (m.orientation * Math.PI) / 180;
@@ -1287,8 +1573,8 @@ export class SimulationEngine {
       }
     }
 
-    // 4. 다음 노드 선택 (Score 기반)
-    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng);
+    // 4. 다음 노드 선택 (Score 기반) — stuck 감지를 위해 now 전달
+    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng, this.state.timeState.elapsed);
     if (!nextNode) {
       // 막다른 길: wander
       return {
@@ -1414,7 +1700,8 @@ export class SimulationEngine {
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
         const intType = (m as any).interactionType ?? 'passive';
-        if (intType === 'passive') {
+        if (intType === 'passive' || intType === 'analog') {
+          // Analog treated like passive for approach (uses viewPoint which accounts for analog logic)
           return this.clampToZone(this.getMediaViewPoint(m), v.currentZoneId);
         }
         if (v.currentAction === VISITOR_ACTION.WAITING) {
@@ -1606,18 +1893,93 @@ export class SimulationEngine {
   }
 
   /* ═══════════════════════════════════════════════
+   *  DIRECTION SNAP — redirect velocity toward target
+   *  when heading away (angle > 90°)
+   *  - Followers → snap toward leader position
+   *  - Leaders/Solo → snap toward target node position
+   * ═══════════════════════════════════════════════ */
+
+  private stepFollowerSnap(v: Visitor): Visitor {
+    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+
+    const speed = Math.sqrt(v.velocity.x * v.velocity.x + v.velocity.y * v.velocity.y);
+    if (speed < 0.1) return v;
+
+    // Determine snap target position
+    let targetX: number | null = null;
+    let targetY: number | null = null;
+
+    if (v.groupId && !v.isGroupLeader) {
+      // Follower → snap toward leader
+      const group = this.state.groups.get(v.groupId as string);
+      if (group) {
+        const leader = this.state.visitors.get(group.leaderId as string);
+        if (leader?.isActive) {
+          targetX = leader.position.x;
+          targetY = leader.position.y;
+        }
+      }
+    } else if (v.targetNodeId) {
+      // Leader or solo → snap toward target node
+      const node = this.nodeMap.get(v.targetNodeId as string);
+      if (node) {
+        targetX = node.position.x;
+        targetY = node.position.y;
+      }
+    }
+
+    if (targetX === null || targetY === null) return v;
+
+    // Direction from me to target
+    const toTargetX = targetX - v.position.x;
+    const toTargetY = targetY - v.position.y;
+    const dist = Math.sqrt(toTargetX * toTargetX + toTargetY * toTargetY);
+
+    if (dist < 5) return v; // already there
+
+    // Normalize
+    const tnx = toTargetX / dist;
+    const tny = toTargetY / dist;
+
+    // Dot product: velocity direction vs target direction
+    const vnx = v.velocity.x / speed;
+    const vny = v.velocity.y / speed;
+    const dot = vnx * tnx + vny * tny;
+
+    // dot < 0 means angle > 90° — heading away from target
+    if (dot >= 0) return v;
+
+    // Snap velocity direction toward target, keep speed
+    return {
+      ...v,
+      velocity: { x: tnx * speed, y: tny * speed },
+    };
+  }
+
+  /* ═══════════════════════════════════════════════
    *  PHYSICS — apply velocity
    * ═══════════════════════════════════════════════ */
 
   private stepPhysics(v: Visitor, dtS: number): Visitor {
     if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+    // IDLE: 잔여 힘으로 인한 jitter 방지 — velocity 0으로 고정
+    if (v.currentAction === VISITOR_ACTION.IDLE) {
+      return v.velocity.x === 0 && v.velocity.y === 0 ? v : { ...v, velocity: { x: 0, y: 0 } };
+    }
     const { currentSteering } = v.steering;
     const ax = currentSteering.linear.x / v.profile.mass;
     const ay = currentSteering.linear.y / v.profile.mass;
-    const vel = clampMagnitude(
+    let vel = clampMagnitude(
       { x: v.velocity.x + ax * dtS, y: v.velocity.y + ay * dtS },
       v.profile.maxSpeed,
     );
+    // 벽/이웃 반발력과 스티어링이 평형을 이룰 때 미세 진동(vibrating-at-wall) 방지
+    // 속도가 아주 작으면서 가속도가 현재 velocity와 반대 방향이면 오실레이션 상태 → 감쇠
+    const speedSq = vel.x * vel.x + vel.y * vel.y;
+    const velDotAccel = v.velocity.x * ax + v.velocity.y * ay;
+    if (speedSq < 4 && velDotAccel < 0) {
+      vel = { x: 0, y: 0 };
+    }
     return {
       ...v,
       position: { x: v.position.x + vel.x * dtS, y: v.position.y + vel.y * dtS },
@@ -1635,10 +1997,21 @@ export class SimulationEngine {
 
     let pos = v.position;
 
-    // Agent-agent overlap
-    const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
-    for (const n of neighbors) {
-      pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
+    // Check if this agent is heading to an EXIT node — "exit express" mode
+    // skips agent-agent overlap so they can push through crowds to reach exit.
+    const isExitingToNode = !!v.targetNodeId && this.waypointNav
+      && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
+
+    // Agent-agent overlap (skipped for exit-seekers AND same-group members)
+    if (!isExitingToNode) {
+      const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
+      for (const n of neighbors) {
+        if (v.groupId) {
+          const nv = this.state.visitors.get(n.id as string);
+          if (nv?.groupId === v.groupId) continue; // same group = no collision
+        }
+        pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
+      }
     }
 
     // Zone boundary collision
@@ -1708,12 +2081,13 @@ export class SimulationEngine {
         }
       }
     }
-    // Media obstacle collision — push agent outside media (skip passive + skip target)
+    // Media obstacle collision — push agent outside media (skip passive, only WATCHING can be inside target)
     if (v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
-          if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
+          // Only WATCHING agents can stay inside their target media box
+          if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
           if ((m as any).interactionType === 'passive') continue; // passive media = no physical barrier
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);

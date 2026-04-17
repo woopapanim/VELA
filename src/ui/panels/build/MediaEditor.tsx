@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
+import type { Vector2D } from '@/domain';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   analog: { label: 'Analog', color: '#a78bfa' },
@@ -16,6 +18,8 @@ export function MediaEditor() {
   const updateMedia = useStore((s) => s.updateMedia);
   const removeMedia = useStore((s) => s.removeMedia);
   const phase = useStore((s) => s.phase);
+  const mediaPolygonEditMode = useStore((s) => s.mediaPolygonEditMode);
+  const setMediaPolygonEditMode = useStore((s) => s.setMediaPolygonEditMode);
 
   const m = media.find((m) => (m.id as string) === selectedMediaId);
   const isLocked = phase === 'running' || phase === 'paused';
@@ -30,7 +34,7 @@ export function MediaEditor() {
 
   if (!m) return null;
 
-  const isActive = (m as any).interactionType === 'active';
+  const interactionType = (m as any).interactionType || 'passive';
   const autoCapacity = Math.max(1, Math.floor(
     (m.size.width * m.size.height) / MEDIA_SQMETER_PER_PERSON
   ));
@@ -47,7 +51,7 @@ export function MediaEditor() {
                 {badge.label}
               </span>
             ) : (
-              <div className={`w-2 h-2 rounded-sm ${isActive ? 'bg-amber-400' : 'bg-blue-400'}`} />
+              <div className={`w-2 h-2 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
             );
           })()}
           Edit Media
@@ -70,32 +74,37 @@ export function MediaEditor() {
         />
       </div>
 
-      {/* Size */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Width (m)</label>
-          <input type="number" step="0.5" min="0.5" max="20"
-            value={m.size.width}
-            onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
-            disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
-          />
+      {/* Size (hidden for custom polygon — derived from vertices) */}
+      {(m as any).shape !== 'custom' && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Width (m)</label>
+            <input type="number" step="0.5" min="0.5" max="20"
+              value={m.size.width}
+              onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
+              disabled={isLocked}
+              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Height (m)</label>
+            <input type="number" step="0.5" min="0.5" max="20"
+              value={m.size.height}
+              onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
+              disabled={isLocked}
+              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Height (m)</label>
-          <input type="number" step="0.5" min="0.5" max="20"
-            value={m.size.height}
-            onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
-            disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Orientation */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
+            <InfoTooltip text="Front-facing direction of the media. 0°=up, 90°=right, 180°=down, 270°=left. Determines where viewers stand." />
+          </div>
           <span className="text-[9px] font-data">{m.orientation}°</span>
         </div>
         <input type="range" min="0" max="315" step="45"
@@ -111,50 +120,127 @@ export function MediaEditor() {
         <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Shape</label>
         <select
           value={(m as any).shape || 'rect'}
-          onChange={(e) => handleUpdate('shape', e.target.value)}
+          onChange={(e) => {
+            const newShape = e.target.value;
+            if (newShape === 'custom' && (m as any).shape !== 'custom') {
+              // Convert rect/circle to polygon: generate 4 corners from current size
+              const pw = m.size.width * MEDIA_SCALE;
+              const ph = m.size.height * MEDIA_SCALE;
+              const poly: Vector2D[] = [
+                { x: -pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y:  ph / 2 },
+                { x: -pw / 2, y:  ph / 2 },
+              ];
+              updateMedia(selectedMediaId!, { shape: 'custom', polygon: poly } as any);
+              setMediaPolygonEditMode(true);
+            } else if (newShape !== 'custom' && (m as any).shape === 'custom') {
+              // Convert polygon back to rect/circle: derive size from polygon AABB
+              const poly = m.polygon;
+              if (poly && poly.length > 2) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (const p of poly) {
+                  if (p.x < minX) minX = p.x;
+                  if (p.y < minY) minY = p.y;
+                  if (p.x > maxX) maxX = p.x;
+                  if (p.y > maxY) maxY = p.y;
+                }
+                const w = Math.max(0.5, (maxX - minX) / MEDIA_SCALE);
+                const h = Math.max(0.5, (maxY - minY) / MEDIA_SCALE);
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } } as any);
+              } else {
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined } as any);
+              }
+              setMediaPolygonEditMode(false);
+            } else {
+              handleUpdate('shape', newShape);
+            }
+          }}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
+          <option value="custom">Polygon</option>
         </select>
       </div>
 
+      {/* Polygon edit mode toggle */}
+      {(m as any).shape === 'custom' && !isLocked && (
+        <button
+          onClick={() => setMediaPolygonEditMode(!mediaPolygonEditMode)}
+          className={`w-full px-2 py-1 text-[10px] rounded-lg border transition-colors ${
+            mediaPolygonEditMode
+              ? 'bg-green-500/20 border-green-500/40 text-green-400'
+              : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {mediaPolygonEditMode ? '✓ 형태 완료' : '형태 편집'}
+        </button>
+      )}
+
       {/* Interaction Type */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
+          <InfoTooltip text={"Passive: viewers watch from a distance (e.g. video wall)\nActive: viewers enter the media box (e.g. kiosk)\nStaged: session-based entry at intervals (e.g. VR)\nAnalog: physical exhibit, viewers stand close outside the box"} />
+        </div>
         <select
-          value={(m as any).interactionType || 'passive'}
+          value={interactionType}
           onChange={(e) => handleUpdate('interactionType', e.target.value)}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="passive">Passive (관람형)</option>
-          <option value="active">Active (체험형)</option>
-          <option value="staged">Staged (회차형)</option>
+          <option value="passive">Passive</option>
+          <option value="active">Active</option>
+          <option value="staged">Staged</option>
+          <option value="analog">Analog</option>
         </select>
       </div>
 
+      {/* Omnidirectional (analog only) */}
+      {interactionType === 'analog' && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Omnidirectional</label>
+            <InfoTooltip text="If enabled, viewers can approach from any direction (360°). Best for center-placed exhibits like artifacts or sculptures. Otherwise, viewers stand in front based on orientation." />
+          </div>
+          <button
+            onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
+            disabled={isLocked}
+            className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {(m as any).omnidirectional ? '360°' : 'Front'}
+          </button>
+        </div>
+      )}
+
       {/* Stage Interval (staged only) */}
-      {(m as any).interactionType === 'staged' && (
+      {interactionType === 'staged' && (
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+            <InfoTooltip text="Time between sessions. Viewers wait for the next session to start, then enter as a group." />
+          </div>
           <input type="number" step="10" min="10"
             value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
             onChange={(e) => handleUpdate('stageIntervalMs', (parseInt(e.target.value) || 60) * 1000)}
             disabled={isLocked}
             className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
           />
-          <p className="text-[8px] text-muted-foreground mt-0.5">
-            Viewers enter in groups every interval. Session = engagement time.
-          </p>
         </div>
       )}
 
-      {/* Capacity */}
+      {/* Capacity (not for analog) */}
+      {interactionType !== 'analog' && (
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
+            <InfoTooltip text="Max simultaneous viewers. Active/Staged enforce hard cap with slots. Passive uses soft cap." />
+          </div>
           <input type="number" min="1" max="200"
             value={m.capacity}
             onChange={(e) => handleUpdate('capacity', parseInt(e.target.value) || 1)}
@@ -173,10 +259,14 @@ export function MediaEditor() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Engagement Time */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
+          <InfoTooltip text="Average time a viewer spends at this media. Actual time varies by visitor profile and fatigue level." />
+        </div>
         <input type="number" step="5" min="1"
           value={Math.round(m.avgEngagementTimeMs / 1000)}
           onChange={(e) => handleUpdate('avgEngagementTimeMs', (parseInt(e.target.value) || 10) * 1000)}
@@ -185,10 +275,32 @@ export function MediaEditor() {
         />
       </div>
 
+      {/* View Distance (passive only) */}
+      {interactionType === 'passive' && (
+      <div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">View Distance (m)</label>
+            <InfoTooltip text="How far from the media viewers stand to watch. Larger = viewers watch from further away (e.g. media wall). Smaller = viewers stand close." />
+          </div>
+          <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
+        </div>
+        <input type="range" min="0.5" max="10" step="0.5"
+          value={(m as any).viewDistance ?? 2.0}
+          onChange={(e) => handleUpdate('viewDistance', parseFloat(e.target.value))}
+          disabled={isLocked}
+          className="w-full h-1"
+        />
+      </div>
+      )}
+
       {/* Attractiveness */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+            <InfoTooltip text="How likely visitors are to choose this media (0-1). Higher value = more visitors attracted." />
+          </div>
           <span className="text-[9px] font-data">{m.attractiveness.toFixed(1)}</span>
         </div>
         <input type="range" min="0" max="1" step="0.1"
@@ -202,7 +314,10 @@ export function MediaEditor() {
       {/* Attraction Radius */}
       <div>
         <div className="flex items-center justify-between">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
+          <div className="flex items-center gap-1">
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
+            <InfoTooltip text="Distance (meters) from which visitors can detect and be drawn to this media." />
+          </div>
           <span className="text-[9px] font-data">{((m as any).attractionRadius ?? 3).toFixed(1)}</span>
         </div>
         <input type="range" min="1" max="15" step="0.5"
@@ -213,24 +328,32 @@ export function MediaEditor() {
         />
       </div>
 
-      {/* Queue Behavior */}
+      {/* Queue Behavior (not for analog) */}
+      {interactionType !== 'analog' && (
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+          <InfoTooltip text={"None: skip if full\nLinear: form a queue line\nArea: wait in a designated area"} />
+        </div>
         <select
           value={(m as any).queueBehavior || 'none'}
           onChange={(e) => handleUpdate('queueBehavior', e.target.value)}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="none">None (넘치면 skip)</option>
-          <option value="linear">Linear (순차 대기)</option>
-          <option value="area">Area (구역 내 대기)</option>
+          <option value="none">None</option>
+          <option value="linear">Linear</option>
+          <option value="area">Area</option>
         </select>
       </div>
+      )}
 
       {/* Group Friendly */}
       <div className="flex items-center justify-between">
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+        <div className="flex items-center gap-1">
+          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+          <InfoTooltip text="Whether groups can experience this media together. If yes, group members share engagement time." />
+        </div>
         <button
           onClick={() => handleUpdate('groupFriendly', !(m as any).groupFriendly)}
           disabled={isLocked}

@@ -158,11 +158,18 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   setScenario: (scenario) => {
     const activeFloorId = scenario.floors[0]?.id as string ?? null;
     const expandedFloors = expandCanvasForZones([...scenario.floors], scenario.zones, activeFloorId);
+    // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
+    const correctedMedia = scenario.media.map((m: any) => {
+      if (m.category === 'analog' && m.interactionType !== 'analog') {
+        return { ...m, interactionType: 'analog' };
+      }
+      return m;
+    });
     set({
-      scenario: { ...scenario, floors: expandedFloors },
+      scenario: { ...scenario, floors: expandedFloors, media: correctedMedia },
       floors: expandedFloors,
       zones: [...scenario.zones],
-      media: [...scenario.media],
+      media: correctedMedia,
       activeFloorId,
       waypointGraph: scenario.waypointGraph ?? null,
     });
@@ -233,19 +240,29 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         (z.id as string) === zoneId ? { ...z, ...updates } : z,
       );
       const newZones = updates.bounds || updates.gates ? autoLinkGates(rawZones) : rawZones;
-      // Clamp media inside updated zone bounds
+      // Move/clamp media inside updated zone bounds
       const SCALE = 20;
       const newBounds = updates.bounds;
       const newMedia = newBounds ? s.media.map((m) => {
         if ((m.zoneId as string) !== zoneId) return m;
+        const oldZone = s.zones.find((z) => (z.id as string) === zoneId);
+        const oldBounds = oldZone?.bounds;
+        if (!oldBounds) return m;
+        const dx = newBounds.x - oldBounds.x;
+        const dy = newBounds.y - oldBounds.y;
+        const isMove = newBounds.w === oldBounds.w && newBounds.h === oldBounds.h;
+        if (isMove) {
+          // Pure move: shift media by exact same delta (no clamp)
+          return { ...m, position: { x: m.position.x + dx, y: m.position.y + dy } };
+        }
+        // Resize: clamp media inside new bounds (no margin)
         const pw = m.size.width * SCALE, ph = m.size.height * SCALE;
-        const gm = 25, wm = 10; // gate margin / wall margin
         const b = newBounds;
         return {
           ...m,
           position: {
-            x: Math.max(b.x + pw/2 + gm, Math.min(b.x + b.w - pw/2 - gm, m.position.x)),
-            y: Math.max(b.y + ph/2 + wm, Math.min(b.y + b.h - ph/2 - wm, m.position.y)),
+            x: Math.max(b.x + pw/2, Math.min(b.x + b.w - pw/2, m.position.x)),
+            y: Math.max(b.y + ph/2, Math.min(b.y + b.h - ph/2, m.position.y)),
           },
         };
       }) : s.media;
@@ -264,14 +281,19 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => {
       const newZones = s.zones.filter((z) => (z.id as string) !== zoneId);
+      // Cascade: remove media belonging to this zone
+      const newMedia = s.media.filter((m) => (m.zoneId as string) !== zoneId);
       const newFloors = s.floors.map((f) => ({
         ...f,
         zoneIds: f.zoneIds.filter((id) => (id as string) !== zoneId),
       }));
       return {
         zones: newZones,
+        media: newMedia,
         floors: newFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, floors: newFloors } : s.scenario,
+        scenario: s.scenario
+          ? { ...s.scenario, zones: newZones, media: newMedia, floors: newFloors }
+          : s.scenario,
       };
     });
   },

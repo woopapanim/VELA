@@ -7,11 +7,11 @@ import { ZoneEditor } from '../panels/build/ZoneEditor';
 import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
+import { SpawnConfig } from '../panels/build/SpawnConfig';
 import { FloorTabs } from '../panels/build/FloorTabs';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
 import { MediaStatsPanel } from '../panels/analytics/MediaStatsPanel';
-import { Sparkline } from '../components/Sparkline';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
@@ -44,16 +44,11 @@ export function MainLayout() {
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)]">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold tracking-tight">
-            AION <span className="text-muted-foreground font-normal">mark01</span>
+            VELA
           </h1>
           {scenario && (
             <span className="text-xs text-muted-foreground font-data truncate max-w-48">
               {scenario.meta.name}
-            </span>
-          )}
-          {!scenario && (
-            <span className="text-xs text-muted-foreground font-data">
-              ABOARD INTERACTIVE
             </span>
           )}
         </div>
@@ -64,8 +59,6 @@ export function MainLayout() {
               <span className="text-muted-foreground">
                 {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
               </span>
-              <Sparkline data={visitorHistory.current} color="#3b82f6" />
-              <span className="text-primary">{activeCount} agents</span>
             </div>
           )}
           <HelpButton />
@@ -105,6 +98,16 @@ export function MainLayout() {
             <ZoneListDragDrop />
 
             <div className="bento-box p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Spawn
+              </h2>
+              <SpawnConfig />
+            </div>
+
+            <div className="bento-box p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Visitors
+              </h2>
               <VisitorConfig />
             </div>
 
@@ -161,6 +164,7 @@ function rechainGates(zones: any[]): any[] {
 function ZoneListDragDrop() {
   const zones = useStore((s) => s.zones);
   const scenario = useStore((s) => s.scenario);
+  const selectedZoneId = useStore((s) => s.selectedZoneId);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
 
@@ -226,7 +230,7 @@ function ZoneListDragDrop() {
       </h2>
       <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
         {zones.map((zone, idx) => {
-          const isSelected = (zone.id as string) === useStore.getState().selectedZoneId;
+          const isSelected = (zone.id as string) === selectedZoneId;
           const isEntrance = zone.type === 'entrance';
           const isExit = zone.type === 'exit';
           const canDrag = isDraggable(idx);

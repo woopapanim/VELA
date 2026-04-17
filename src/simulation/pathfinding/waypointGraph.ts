@@ -20,8 +20,12 @@ const W_CROWD = 0.4;
 const W_VISITED = 9999;
 
 // EXIT 노드 진입 조건
-const EXIT_VISIT_RATIO = 0.8;    // 필수 노드의 80% 방문 시
-const EXIT_FATIGUE_THRESHOLD = 0.9;
+const EXIT_VISIT_RATIO = 0.6;    // 필수 노드의 60% 방문 시 (이전 0.8)
+const EXIT_FATIGUE_THRESHOLD = 0.75; // 피로 75% 이상 (이전 0.9)
+
+// Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성
+const STUCK_AT_NODE_MS = 60_000;       // 동일 노드에 60초 이상 체류
+const MAX_TOTAL_DWELL_MS = 15 * 60_000; // 전체 체류 15분 초과
 
 export class WaypointNavigator {
   private adjacency = new Map<string, { node: WaypointNode; edge: WaypointEdge }[]>();
@@ -90,6 +94,7 @@ export class WaypointNavigator {
     currentNodeId: WaypointId,
     crowdMap: ReadonlyMap<string, number>,
     rng: SeededRandom,
+    now: number = 0,
   ): WaypointNode | null {
     const neighbors = this.getNeighbors(currentNodeId);
     if (neighbors.length === 0) return null;
@@ -97,13 +102,30 @@ export class WaypointNavigator {
     const visitedNodeIds = new Set(visitor.pathLog.map(e => e.nodeId as string));
     const visitedCount = this.countVisitedEssential(visitor.pathLog);
 
+    // Stuck 감지: 같은 노드에 너무 오래 체류 또는 전체 체류 시간 초과
+    let stuck = false;
+    if (now > 0) {
+      // 현재 노드(진입만 기록되고 종료 안 된 마지막 pathLog 엔트리) 체류 시간
+      let timeAtNode = 0;
+      for (let i = visitor.pathLog.length - 1; i >= 0; i--) {
+        const e = visitor.pathLog[i];
+        if ((e.nodeId as string) === (currentNodeId as string) && e.exitTime === 0) {
+          timeAtNode = now - e.entryTime;
+          break;
+        }
+      }
+      const totalDwell = now - visitor.enteredAt;
+      stuck = timeAtNode >= STUCK_AT_NODE_MS || totalDwell >= MAX_TOTAL_DWELL_MS;
+    }
+
     // EXIT 진입 조건 체크
-    const canExit = visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
+    const canExit = stuck
+      || visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
       || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD;
 
-    // canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
+    // Stuck 또는 canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
     const allEssentialDone = visitedCount >= this.essentialCount;
-    if (canExit && allEssentialDone) {
+    if (stuck || (canExit && allEssentialDone)) {
       const exitFirstHop = this.findFirstHopToExit(currentNodeId);
       if (exitFirstHop) return exitFirstHop;
     }

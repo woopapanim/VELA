@@ -3,7 +3,7 @@ import type {
   VisitorGroup,
   VisitorCategory,
 } from '@/domain';
-import { VISITOR_ACTION, VISITOR_CATEGORY } from '@/domain';
+import { VISITOR_ACTION, VISITOR_CATEGORY, STEERING_BEHAVIOR } from '@/domain';
 import { CATEGORY_CONFIGS } from '@/domain';
 
 /**
@@ -20,19 +20,24 @@ export function syncFollowerToLeader(
 ): Visitor {
   const leaderAction = leader.currentAction;
 
-  // Leader is watching → follower also watches same media (position handled by steering)
+  // Leader is watching → follower walks toward same media (not instant teleport)
   if (leaderAction === VISITOR_ACTION.WATCHING) {
     if (follower.currentAction === VISITOR_ACTION.WATCHING && follower.targetMediaId === leader.targetMediaId) {
       return follower; // already watching same media
     }
+    // If follower is already MOVING toward the same media, let steering handle it
+    if (follower.currentAction === VISITOR_ACTION.MOVING && follower.targetMediaId === leader.targetMediaId) {
+      return follower;
+    }
+    // Start moving toward the media instead of instantly watching
     return {
       ...follower,
-      currentAction: VISITOR_ACTION.WATCHING,
+      currentAction: VISITOR_ACTION.MOVING,
       targetMediaId: leader.targetMediaId,
       targetZoneId: leader.currentZoneId,
       targetNodeId: leader.currentNodeId,
-      velocity: { x: 0, y: 0 },
       waitStartedAt: null,
+      steering: { ...follower.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
     };
   }
 

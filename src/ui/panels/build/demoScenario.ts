@@ -397,7 +397,7 @@ export function createDemoScenario(): Scenario {
   return {
     meta: {
       id: 'demo_scenario_1' as any,
-      name: 'AION Demo Exhibition',
+      name: 'VELA Demo Exhibition',
       description: 'Multi-floor exhibition with interactive elements and VIP gallery',
       version: 1,
       parentId: null,

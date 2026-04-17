@@ -26,8 +26,11 @@ export class HeatmapRenderer {
     const ctx = this.fadeCtx;
     const { gaussianRadius, decayRate } = this.config;
 
-    // Fade existing content (dynamic decay)
-    ctx.globalCompositeOperation = 'source-over';
+    // Fade existing content (dynamic decay).
+    // Use 'destination-out' so the fade removes opacity from prior content
+    // instead of painting a solid color over it — this keeps the offscreen
+    // canvas transparent in empty areas (no gray wash in light mode).
+    ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = `rgba(0,0,0,${1 - decayRate})`;
     ctx.fillRect(0, 0, this.width, this.height);
 

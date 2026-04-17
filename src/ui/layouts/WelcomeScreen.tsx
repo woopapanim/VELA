@@ -4,7 +4,7 @@ import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import type { Scenario } from '@/domain';
 
-const HISTORY_KEY = 'aion-project-history';
+const HISTORY_KEY = 'vela-project-history';
 
 interface ProjectEntry {
   id: string;
@@ -208,10 +208,9 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         {/* Logo */}
         <div className="text-center mb-10">
           <h1 className="text-2xl font-semibold tracking-tight mb-1">
-            AION <span className="text-muted-foreground font-normal">mark01</span>
+            VELA
           </h1>
-          <p className="text-xs text-muted-foreground font-data tracking-widest">ABOARD INTERACTIVE</p>
-          <p className="text-xs text-muted-foreground mt-3">Exhibition Digital Twin &amp; Analytics Engine</p>
+          <p className="text-xs text-muted-foreground mt-3">Spatial Simulation &amp; Flow Analytics</p>
         </div>
 
         {/* New Project */}
@@ -303,10 +302,6 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           </div>
         )}
 
-        {/* Footer */}
-        <p className="text-center text-[9px] text-muted-foreground mt-8">
-          Built by ABOARD INTERACTIVE · 2026
-        </p>
       </div>
     </div>
   );

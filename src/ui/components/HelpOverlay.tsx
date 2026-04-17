@@ -52,10 +52,7 @@ export function HelpButton() {
             </div>
             <div className="p-4 border-t border-border">
               <p className="text-[10px] text-muted-foreground">
-                AION mark01 — Exhibition Digital Twin & Analytics Engine
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Built by ABOARD INTERACTIVE
+                VELA — Spatial Simulation & Flow Analytics
               </p>
             </div>
           </div>

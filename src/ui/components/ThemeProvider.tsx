@@ -10,7 +10,7 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'aion-theme';
+const STORAGE_KEY = 'vela-theme';
 
 function getSystemTheme(): 'dark' | 'light' {
   if (typeof window === 'undefined') return 'dark';

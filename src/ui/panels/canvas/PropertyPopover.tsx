@@ -5,6 +5,7 @@ import type { WaypointType, ZoneType, MediaPlacement, MediaId } from '@/domain';
 import { MEDIA_PRESETS } from '@/domain';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
+import { useToast } from '@/ui/components/Toast';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -97,6 +98,31 @@ export function PropertyPopover({ popover, onClose }: {
     return () => window.removeEventListener('mousedown', handler);
   }, [popover.visible, onClose]);
 
+  // Auto-flip when close to viewport edges
+  const [flipped, setFlipped] = __import_useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!popover.visible) return;
+    // Measure actual popover size after paint, then record for next-frame adjustment
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      if (r.width !== flipped.w || r.height !== flipped.h) {
+        setFlipped({ w: r.width, h: r.height });
+      }
+    }
+  });
+
+  const popoverStyle = (): React.CSSProperties => {
+    // Estimate until measured
+    const w = flipped.w || 240;
+    const h = flipped.h || 380;
+    const flipX = popover.x + w > window.innerWidth - 8;
+    const flipY = popover.y + h > window.innerHeight - 8;
+    return {
+      left: flipX ? Math.max(8, popover.x - w) : popover.x,
+      top: flipY ? Math.max(8, popover.y - h) : popover.y,
+    };
+  };
+
   if (!popover.visible || !popover.targetId) return null;
 
   // ── Node popover ──
@@ -106,7 +132,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -186,7 +212,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-52 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -209,7 +235,7 @@ export function PropertyPopover({ popover, onClose }: {
           </select>
           {edge.direction === 'directed' && (
             <button
-              title="방향 전환"
+              title="Flip Direction"
               onClick={() => updateEdge(popover.targetId!, { fromId: edge.toId, toId: edge.fromId } as any)}
               className="px-1.5 py-0.5 rounded bg-secondary hover:bg-accent text-[10px] border border-border"
             >⇄</button>
@@ -237,7 +263,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -319,7 +345,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -367,6 +393,7 @@ export function PropertyPopover({ popover, onClose }: {
             <option value="passive">Passive</option>
             <option value="active">Active</option>
             <option value="staged">Staged</option>
+            <option value="analog">Analog</option>
           </select>
         </Row>
 
@@ -390,22 +417,83 @@ const MEDIA_CATEGORIES = [
 
 let _popoverMediaId = 5000;
 
+function ensurePopoverCounter() {
+  const state = useStore.getState();
+  let max = _popoverMediaId - 1;
+  for (const m of state.media) {
+    const match = (m.id as string).match(/^m_pop_(\d+)$/);
+    if (match) max = Math.max(max, parseInt(match[1]));
+  }
+  _popoverMediaId = max + 1;
+}
+
 function AddMediaInline({ zoneId, zoneBounds }: {
   zoneId: string;
   zoneBounds: { x: number; y: number; w: number; h: number };
 }) {
   const [open, setOpen] = __useState(false);
   const addMedia = useStore((s) => s.addMedia);
+  const { toast } = useToast();
 
   const handleAdd = (mediaType: string) => {
+    ensurePopoverCounter();
     const preset = (MEDIA_PRESETS as Record<string, any>)[mediaType];
     if (!preset) return;
 
     const SCALE = 20;
+    const GAP = 10; // matches MEDIA_GAP in worldSlice
     const pw = preset.defaultSize.width * SCALE;
     const ph = preset.defaultSize.height * SCALE;
     const interactionType = preset.category === 'immersive' ? 'staged'
+      : preset.category === 'analog' ? 'analog'
       : preset.isInteractive ? 'active' : 'passive';
+
+    // Find a non-overlapping position: random tries first, then grid search fallback
+    const existingInZone = useStore.getState().media.filter(
+      (m) => (m.zoneId as string) === zoneId,
+    );
+    const collides = (cx: number, cy: number): boolean => {
+      for (const o of existingInZone) {
+        const ow = o.size.width * SCALE, oh = o.size.height * SCALE;
+        if (Math.abs(cx - o.position.x) < (pw + ow) / 2 + GAP &&
+            Math.abs(cy - o.position.y) < (ph + oh) / 2 + GAP) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const minX = zoneBounds.x + pw / 2 + 4;
+    const maxX = zoneBounds.x + zoneBounds.w - pw / 2 - 4;
+    const minY = zoneBounds.y + ph / 2 + 4;
+    const maxY = zoneBounds.y + zoneBounds.h - ph / 2 - 4;
+
+    let px = (minX + maxX) / 2;
+    let py = (minY + maxY) / 2;
+    let found = !collides(px, py);
+
+    // 20 random attempts
+    for (let i = 0; !found && i < 20; i++) {
+      const rx = minX + Math.random() * Math.max(0, maxX - minX);
+      const ry = minY + Math.random() * Math.max(0, maxY - minY);
+      if (!collides(rx, ry)) { px = rx; py = ry; found = true; }
+    }
+
+    // Grid search fallback — step by (pw + GAP) / (ph + GAP)
+    if (!found) {
+      const stepX = pw + GAP;
+      const stepY = ph + GAP;
+      outer: for (let gy = minY; gy <= maxY; gy += stepY) {
+        for (let gx = minX; gx <= maxX; gx += stepX) {
+          if (!collides(gx, gy)) { px = gx; py = gy; found = true; break outer; }
+        }
+      }
+    }
+
+    if (!found) {
+      toast('error', '공간이 부족합니다. 존을 늘리거나 기존 미디어를 이동해주세요.');
+      return;
+    }
 
     const media: MediaPlacement = {
       id: `m_pop_${_popoverMediaId++}` as MediaId,
@@ -413,10 +501,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       type: mediaType as any,
       category: preset.category,
       zoneId: zoneId as any,
-      position: {
-        x: zoneBounds.x + zoneBounds.w / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.w - pw - 40),
-        y: zoneBounds.y + zoneBounds.h / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.h - ph - 40),
-      },
+      position: { x: px, y: py },
       size: preset.defaultSize,
       orientation: 0,
       capacity: preset.defaultCapacity,
@@ -424,11 +509,13 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       attractiveness: 0.7,
       attractionRadius: preset.attractionRadius,
       interactionType: interactionType as any,
+      omnidirectional: (preset as any).omnidirectional ?? false,
       queueBehavior: preset.queueBehavior,
       groupFriendly: preset.groupFriendly,
     };
 
     addMedia(media);
+    useStore.getState().selectMedia(media.id as string);
   };
 
   return (

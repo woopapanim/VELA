@@ -309,63 +309,70 @@
     }
 }
 
-/* ── Range Slider (Dark Observatory theme) ── */
+/* ── Range Slider (Material-style: solid thumb, two-color track, hover halo) ── */
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;
     background: transparent;
     cursor: pointer;
+    height: 20px; /* hit area */
 }
 
-/* Track */
+/* Track — split progress using background-size trick (CSS-only, no JS) */
 input[type="range"]::-webkit-slider-runnable-track {
-    height: 4px;
+    height: 3px;
     border-radius: 2px;
-    background: var(--border);
+    background: linear-gradient(var(--primary), var(--primary)) 0/var(--_p, 0%) 100% no-repeat,
+                var(--border);
 }
 input[type="range"]::-moz-range-track {
-    height: 4px;
+    height: 3px;
     border-radius: 2px;
     background: var(--border);
     border: none;
 }
+input[type="range"]::-moz-range-progress {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--primary);
+}
 
-/* Thumb */
+/* Thumb — solid filled circle, no border */
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
     background: var(--primary);
-    border: 2px solid var(--background);
-    margin-top: -5px;
-    box-shadow: 0 0 0 1px var(--primary), 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border: none;
+    margin-top: -4px;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    transition: box-shadow 0.18s ease;
 }
 input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
+    width: 11px;
+    height: 11px;
     border-radius: 50%;
     background: var(--primary);
-    border: 2px solid var(--background);
-    box-shadow: 0 0 0 1px var(--primary), 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    border: none;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    transition: box-shadow 0.18s ease;
 }
 
-/* Hover / Active states */
+/* Hover — translucent halo around thumb */
 input[type="range"]:hover::-webkit-slider-thumb {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 2px var(--primary), 0 0 8px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.18);
 }
 input[type="range"]:hover::-moz-range-thumb {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 2px var(--primary), 0 0 8px rgba(59, 130, 246, 0.4);
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.18);
 }
+
+/* Active — slightly tighter halo */
 input[type="range"]:active::-webkit-slider-thumb {
-    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.24);
 }
 input[type="range"]:active::-moz-range-thumb {
-    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.24);
 }
 
 /* Disabled */
