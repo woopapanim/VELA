@@ -12,7 +12,6 @@ import { FloorTabs } from '../panels/build/FloorTabs';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
 import { MediaStatsPanel } from '../panels/analytics/MediaStatsPanel';
-import { Sparkline } from '../components/Sparkline';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
@@ -60,8 +59,6 @@ export function MainLayout() {
               <span className="text-muted-foreground">
                 {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
               </span>
-              <Sparkline data={visitorHistory.current} color="#3b82f6" />
-              <span className="text-primary">{activeCount} agents</span>
             </div>
           )}
           <HelpButton />

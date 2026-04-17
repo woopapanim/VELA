@@ -1724,7 +1724,7 @@ export function CanvasPanel() {
     }
 
     // Empty space: show general context menu
-    showMenu(e.clientX, e.clientY, null);
+    showMenu(e.clientX, e.clientY, world.x, world.y, null);
   }, [showMenu, showPopover, selectZone]);
 
   return (

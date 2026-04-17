@@ -1325,8 +1325,8 @@ export class SimulationEngine {
       }
     }
 
-    // 4. 다음 노드 선택 (Score 기반)
-    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng);
+    // 4. 다음 노드 선택 (Score 기반) — stuck 감지를 위해 now 전달
+    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng, this.state.timeState.elapsed);
     if (!nextNode) {
       // 막다른 길: wander
       return {
@@ -1664,10 +1664,17 @@ export class SimulationEngine {
 
     let pos = v.position;
 
-    // Agent-agent overlap
-    const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
-    for (const n of neighbors) {
-      pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
+    // Check if this agent is heading to an EXIT node — "exit express" mode
+    // skips agent-agent overlap so they can push through crowds to reach exit.
+    const isExitingToNode = !!v.targetNodeId && this.waypointNav
+      && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
+
+    // Agent-agent overlap (skipped for exit-seekers)
+    if (!isExitingToNode) {
+      const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
+      for (const n of neighbors) {
+        pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
+      }
     }
 
     // Zone boundary collision

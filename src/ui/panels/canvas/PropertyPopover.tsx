@@ -98,6 +98,31 @@ export function PropertyPopover({ popover, onClose }: {
     return () => window.removeEventListener('mousedown', handler);
   }, [popover.visible, onClose]);
 
+  // Auto-flip when close to viewport edges
+  const [flipped, setFlipped] = __import_useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  useEffect(() => {
+    if (!popover.visible) return;
+    // Measure actual popover size after paint, then record for next-frame adjustment
+    if (ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      if (r.width !== flipped.w || r.height !== flipped.h) {
+        setFlipped({ w: r.width, h: r.height });
+      }
+    }
+  });
+
+  const popoverStyle = (): React.CSSProperties => {
+    // Estimate until measured
+    const w = flipped.w || 240;
+    const h = flipped.h || 380;
+    const flipX = popover.x + w > window.innerWidth - 8;
+    const flipY = popover.y + h > window.innerHeight - 8;
+    return {
+      left: flipX ? Math.max(8, popover.x - w) : popover.x,
+      top: flipY ? Math.max(8, popover.y - h) : popover.y,
+    };
+  };
+
   if (!popover.visible || !popover.targetId) return null;
 
   // ── Node popover ──
@@ -107,7 +132,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -187,7 +212,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-52 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -238,7 +263,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
@@ -320,7 +345,7 @@ export function PropertyPopover({ popover, onClose }: {
 
     return (
       <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
-        style={{ left: popover.x, top: popover.y }}
+        style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}

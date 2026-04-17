@@ -319,7 +319,7 @@ function ModeBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${fullWidth ? 'w-full' : 'flex-1'} flex flex-col items-center gap-0.5 px-2 py-1.5 text-[10px] rounded-xl transition-all ${
+      className={`${fullWidth ? 'w-full' : 'flex-1'} flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all ${
         active
           ? 'bg-primary text-primary-foreground'
           : disabled
