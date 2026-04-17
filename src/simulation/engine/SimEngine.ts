@@ -729,13 +729,21 @@ export class SimulationEngine {
           };
         } else if (intType === 'passive') {
           // ── PASSIVE: arrive at viewing area → watch from current position ──
+          // Distance check: must be within reasonable range of media to watch
+          const mdx = v.position.x - media.position.x;
+          const mdy = v.position.y - media.position.y;
+          const mediaDist = Math.sqrt(mdx * mdx + mdy * mdy);
+          const maxViewDist = Math.max(media.size.width, media.size.height) * 20 + 40; // media size + margin
+          if (mediaDist > maxViewDist) {
+            // Too far from media (likely bounced by collision) — re-approach
+            return { ...v, currentAction: VISITOR_ACTION.MOVING, steering: { ...v.steering, isArrived: false } };
+          }
           // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            // Over soft cap → wait briefly, try again (don't permanently skip)
             return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
           }
-          // Watch at current position (wherever agent arrived in viewing area)
+          // Watch at current position
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
@@ -745,7 +753,6 @@ export class SimulationEngine {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
             velocity: { x: 0, y: 0 },
-            // Stay at current position — no teleport
           };
         } else if (intType === 'active') {
           // ── ACTIVE: group reserves slots together, or skip as group ──
@@ -1952,10 +1959,14 @@ export class SimulationEngine {
     const isExitingToNode = !!v.targetNodeId && this.waypointNav
       && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
 
-    // Agent-agent overlap (skipped for exit-seekers)
+    // Agent-agent overlap (skipped for exit-seekers AND same-group members)
     if (!isExitingToNode) {
       const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
       for (const n of neighbors) {
+        if (v.groupId) {
+          const nv = this.state.visitors.get(n.id as string);
+          if (nv?.groupId === v.groupId) continue; // same group = no collision
+        }
         pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
       }
     }

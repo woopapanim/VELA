@@ -1222,12 +1222,27 @@ export function CanvasPanel() {
       const movedPolygon = zone.polygon
         ? (zone.polygon as {x:number;y:number}[]).map(v => ({ x: v.x + dx, y: v.y + dy }))
         : null;
-      updateZone(dragZoneId.current, {
-        bounds: newBounds,
-        gates: movedGates,
-        ...(movedPolygon ? { polygon: movedPolygon } : {}),
-      } as any);
-      // Media is moved together with zone inside updateZone (worldSlice)
+      // Batch update zone + media positions together (avoid clamp/overlap race)
+      const currentMedia = useStore.getState().media;
+      const movedMedia = currentMedia.map(m => {
+        if ((m.zoneId as string) !== dragZoneId.current) return m;
+        return { ...m, position: { x: m.position.x + dx, y: m.position.y + dy } };
+      });
+      useStore.setState((s) => ({
+        zones: s.zones.map(z => (z.id as string) !== dragZoneId.current ? z : {
+          ...z, bounds: newBounds, gates: movedGates,
+          ...(movedPolygon ? { polygon: movedPolygon } : {}),
+        }),
+        media: movedMedia,
+        scenario: s.scenario ? {
+          ...s.scenario,
+          zones: s.zones.map(z => (z.id as string) !== dragZoneId.current ? z : {
+            ...z, bounds: newBounds, gates: movedGates,
+            ...(movedPolygon ? { polygon: movedPolygon } : {}),
+          }),
+          media: movedMedia,
+        } : s.scenario,
+      }));
       didDrag.current = true;
     } else if (mode === 'resize' && zone) {
       const ob = zone.bounds; // old bounds
