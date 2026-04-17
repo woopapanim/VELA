@@ -118,6 +118,10 @@ export class SimulationEngine {
   // per-tick media viewer counter (prevents same-tick race condition)
   private _tickMediaViewers = new Map<string, number>();
 
+  // per-tick media targeter counter (viewers + en-route + waiting)
+  // used to hard-cap media selection so capacity is enforced at assignment time
+  private _tickMediaTargeters = new Map<string, number>();
+
   // media analytics
   private _mediaStats = new Map<string, {
     watchCount: number;      // total visitors who watched
@@ -325,11 +329,16 @@ export class SimulationEngine {
     // rebuild spatial hash + media viewer counts + node crowd for this tick
     this.spatialHash.clear();
     this._tickMediaViewers.clear();
+    this._tickMediaTargeters.clear();
     this.nodeCrowd.clear();
     this.zoneOccupancy.clear();
     for (const [, v] of this.state.visitors) {
       if (!v.isActive) continue;
       this.spatialHash.insert(v.id, v.position);
+      if (v.targetMediaId) {
+        const mid = v.targetMediaId as string;
+        this._tickMediaTargeters.set(mid, (this._tickMediaTargeters.get(mid) ?? 0) + 1);
+      }
       if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId) {
         const mid = v.targetMediaId as string;
         this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
@@ -374,6 +383,7 @@ export class SimulationEngine {
       a = this.stepSteering(a, dtS);
       a = this.stepPhysics(a, dtS);
       a = this.stepFollowerSnap(a);
+      a = this.stepFollowerTether(a);
       a = this.stepCollision(a);
       a = this.stepFatigue(a, dt);
       // Count newly deactivated
@@ -980,6 +990,30 @@ export class SimulationEngine {
     return o !== 0 && o !== 180;
   }
 
+  /** Effective capacity for hard-cap selection filtering.
+   *  Matches the cap used at WATCHING entry in stepBehavior:
+   *  - analog: soft cap derived from perimeter (fallback to declared capacity)
+   *  - passive/active/staged: declared capacity
+   */
+  private effectiveMediaCapacity(m: MediaPlacement): number {
+    const intType = (m as any).interactionType ?? 'passive';
+    if (intType === 'analog') {
+      const pwM = m.size.width, phM = m.size.height;
+      const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
+      return Math.max(m.capacity || 0, autoCap);
+    }
+    return Math.max(1, m.capacity || 1);
+  }
+
+  /** Filter media candidates to those with free capacity (viewers + en-route targeters). */
+  private filterAvailableMedia(zMedia: readonly MediaPlacement[]): MediaPlacement[] {
+    return zMedia.filter(m => {
+      const mid = m.id as string;
+      const occ = this._tickMediaTargeters.get(mid) ?? 0;
+      return occ < this.effectiveMediaCapacity(m);
+    });
+  }
+
   /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon, custom=polygon edges) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
     if (this.isMediaPolygon(m)) {
@@ -1175,10 +1209,75 @@ export class SimulationEngine {
    */
   private computeMediaTargetPos(m: MediaPlacement): Vector2D | null {
     const intType = (m as any).interactionType ?? 'passive';
-    if (intType === 'passive') return this.getMediaViewPoint(m);
+    if (intType === 'passive') return this.pickPassiveSlot(m);
     if (intType === 'analog') return this.pickAnalogSlot(m);
     if (intType === 'active' || intType === 'staged') return this.pickMediaSlot(m);
     return null;
+  }
+
+  /**
+   * Passive 미디어 관람 slot 을 분산 배치하여 반환.
+   * 미디어 앞쪽에 viewDistance 만큼 떨어진 지점을 기준으로
+   * width 를 따라 여러 slot 을 만들고, 과밀 시 뒤쪽으로도 행 확장.
+   * 다른 MOVING/WATCHING 에이전트가 예약한 slot 과 겹치지 않는 첫 free slot 반환.
+   */
+  private pickPassiveSlot(m: MediaPlacement): Vector2D {
+    const mid = m.id as string;
+    const cap = Math.max(1, this.effectiveMediaCapacity(m));
+
+    // Collect occupied positions
+    const occupied: Vector2D[] = [];
+    for (const [, other] of this.state.visitors) {
+      if (!other.isActive) continue;
+      if ((other.targetMediaId as string) !== mid) continue;
+      if (other.currentAction === VISITOR_ACTION.WATCHING) {
+        occupied.push(other.position);
+      } else if (other.targetPosition) {
+        occupied.push(other.targetPosition);
+      }
+    }
+
+    const MIN_DIST_SQ = 14 * 14;
+    for (let i = 0; i < cap; i++) {
+      const slotPos = this.getPassiveSlotPosition(m, i, cap);
+      let free = true;
+      for (const op of occupied) {
+        const dx = slotPos.x - op.x, dy = slotPos.y - op.y;
+        if (dx * dx + dy * dy < MIN_DIST_SQ) { free = false; break; }
+      }
+      if (free) return slotPos;
+    }
+    return this.getPassiveSlotPosition(m, 0, cap);
+  }
+
+  /** Passive slot 위치 — 미디어 앞 width 방향으로 분산, 과밀 시 뒤쪽으로 행 추가. */
+  private getPassiveSlotPosition(m: MediaPlacement, slotIndex: number, cap: number): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const halfDepth = ph / 2;
+    const viewDistPx = (m as any).viewDistance != null
+      ? (m as any).viewDistance * MEDIA_SCALE
+      : 5;
+
+    // 1m = 20px 기준, slot 간 최소 간격 14px(=0.7m)
+    const SPACING = 14;
+    const usableWidth = Math.max(SPACING, pw - SPACING);
+    const cols = Math.max(1, Math.min(cap, Math.floor(usableWidth / SPACING) + 1));
+    const rows = Math.ceil(cap / cols);
+    const col = slotIndex % cols;
+    const row = Math.floor(slotIndex / cols);
+
+    // Local offset: X spread across width, Y = front depth + row offset behind
+    const localX = cols === 1 ? 0 : (col / (cols - 1) - 0.5) * usableWidth;
+    const localY = -(halfDepth + viewDistPx + row * SPACING);
+
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const pt = {
+      x: m.position.x + localX * cos - localY * sin,
+      y: m.position.y + localX * sin + localY * cos,
+    };
+    return this.clampToMediaZone(m, pt);
   }
 
   /**
@@ -1440,16 +1539,20 @@ export class SimulationEngine {
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
 
       if (unvisited.length > 0) {
+        // Hard-cap: exclude media already at capacity (viewers + en-route targeters)
+        const available = this.filterAvailableMedia(unvisited);
+        const pickPool = available.length > 0 ? available : unvisited;
         const pick = curZone.flowType === 'guided'
-          ? [...unvisited].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
-          : this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
-        if (pick) {
+          ? [...pickPool].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
+          : this.world.media.find(m => m.id === selectNextMedia(v, pickPool, this.rng));
+        if (pick && available.length > 0) {
           return {
             ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
             currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
           };
         }
+        // All zone media over capacity → fall through to zone/exit transition below
       }
 
       // In last zone + media all done → exit
@@ -1582,16 +1685,20 @@ export class SimulationEngine {
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
 
       if (unvisited.length > 0) {
-        const pick = curZone.flowType === 'guided'
-          ? [...unvisited].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
-          : this.world.media.find(m => m.id === selectNextMedia(v, this.mediaByZone.get(curZone.id as string) ?? [], this.rng));
-        if (pick) {
-          return {
-            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
-            currentAction: VISITOR_ACTION.MOVING,
-            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
-          };
+        const available = this.filterAvailableMedia(unvisited);
+        if (available.length > 0) {
+          const pick = curZone.flowType === 'guided'
+            ? [...available].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
+            : this.world.media.find(m => m.id === selectNextMedia(v, available, this.rng));
+          if (pick) {
+            return {
+              ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+              currentAction: VISITOR_ACTION.MOVING,
+              steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+            };
+          }
         }
+        // All zone media over capacity → fall through to zone/exit transition
       }
 
       // In exit zone + media done → walk off-canvas
@@ -1697,17 +1804,21 @@ export class SimulationEngine {
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
       if (unvisited.length > 0) {
-        const pick = this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
-        if (pick) {
-          return {
-            ...v,
-            targetMediaId: pick.id,
-            targetPosition: this.computeMediaTargetPos(pick),
-            targetNodeId: null,
-            currentAction: VISITOR_ACTION.MOVING,
-            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
-          };
+        const available = this.filterAvailableMedia(unvisited);
+        if (available.length > 0) {
+          const pick = this.world.media.find(m => m.id === selectNextMedia(v, available, this.rng));
+          if (pick) {
+            return {
+              ...v,
+              targetMediaId: pick.id,
+              targetPosition: this.computeMediaTargetPos(pick),
+              targetNodeId: null,
+              currentAction: VISITOR_ACTION.MOVING,
+              steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+            };
+          }
         }
+        // All zone media over capacity → fall through to next node selection
       }
     }
 
@@ -2201,6 +2312,39 @@ export class SimulationEngine {
     return {
       ...v,
       velocity: { x: tnx * speed, y: tny * speed },
+    };
+  }
+
+  /* ═══════════════════════════════════════════════
+   *  FOLLOWER TETHER — warp follower near leader
+   *  when distance exceeds tether threshold (pushed out of crowd etc.)
+   * ═══════════════════════════════════════════════ */
+
+  private stepFollowerTether(v: Visitor): Visitor {
+    if (!v.groupId || v.isGroupLeader) return v;
+    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+
+    const group = this.state.groups.get(v.groupId as string);
+    if (!group) return v;
+    const leader = this.state.visitors.get(group.leaderId as string);
+    if (!leader?.isActive) return v;
+
+    const dx = leader.position.x - v.position.x;
+    const dy = leader.position.y - v.position.y;
+    const distSq = dx * dx + dy * dy;
+
+    // Tether max: 8m (160px) — beyond this, follower has strayed too far
+    const TETHER_MAX = 160;
+    if (distSq < TETHER_MAX * TETHER_MAX) return v;
+
+    // Warp to random offset within arrival radius of leader
+    const R = 30; // 1.5m spread
+    const ang = this.rng.next() * Math.PI * 2;
+    const r = Math.sqrt(this.rng.next()) * R;
+    return {
+      ...v,
+      position: { x: leader.position.x + Math.cos(ang) * r, y: leader.position.y + Math.sin(ang) * r },
+      velocity: { x: leader.velocity.x * 0.5, y: leader.velocity.y * 0.5 },
     };
   }
 
