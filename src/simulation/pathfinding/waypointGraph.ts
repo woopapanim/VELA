@@ -16,8 +16,10 @@ import type { SeededRandom } from '../utils/random';
 const W_ATTRACTION = 1.0;
 const W_DISTANCE = 0.3;
 const W_INTEREST = 0.5;
-const W_CROWD = 0.4;
+const W_CROWD = 0.4; // node crowd (원래값 유지)
 const W_VISITED = 9999;
+const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
+const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
 // EXIT 노드 진입 조건
 const EXIT_VISIT_RATIO = 0.6;    // 필수 노드의 60% 방문 시 (이전 0.8)
@@ -95,6 +97,8 @@ export class WaypointNavigator {
     crowdMap: ReadonlyMap<string, number>,
     rng: SeededRandom,
     now: number = 0,
+    zoneOccupancy: ReadonlyMap<string, number> = new Map(),
+    zoneCapacity: ReadonlyMap<string, number> = new Map(),
   ): WaypointNode | null {
     const neighbors = this.getNeighbors(currentNodeId);
     if (neighbors.length === 0) return null;
@@ -140,6 +144,20 @@ export class WaypointNavigator {
       if (candidate.type === 'exit' && !canExit) continue;
 
       let score = this.scoreNode(visitor, candidate, edge, currentNodeId, visitedNodeIds, crowdMap);
+
+      // Zone overcrowding penalty — 목적지 zone이 capacity 초과 근처면 강하게 감점
+      if (candidate.zoneId) {
+        const zid = candidate.zoneId as string;
+        const zOcc = zoneOccupancy.get(zid) ?? 0;
+        const zCap = zoneCapacity.get(zid) ?? 0;
+        if (zCap > 0) {
+          const ratio = zOcc / zCap;
+          if (ratio >= ZONE_SOFT_FULL_RATIO) {
+            // 0.9부터 시작해서 overcapacity까지 강한 감점 (ratio=1.0 → -0.5, ratio=2.0 → -5.5 등)
+            score -= (ratio - ZONE_SOFT_FULL_RATIO) * W_ZONE_OVERCAP;
+          }
+        }
+      }
 
       // EXIT 방향 보너스: canExit 상태에서 EXIT까지의 경로 첫 홉에 +3
       if (exitHopId && (candidate.id as string) === (exitHopId as string)) {

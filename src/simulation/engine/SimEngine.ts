@@ -50,6 +50,22 @@ import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFoll
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 import { distance } from '../utils/math';
 
+/* ═══════════════════════════════════════════════════════════════════
+ *  SIM FEATURE FLAGS — 최소 파이프라인 디버깅용
+ *  기본: 모두 OFF. "walk → watch → exit" 기본 흐름 확인 후 하나씩 ON.
+ *  정리 시: grep "ENABLE_" 로 모든 사용처 찾아 false 블록 제거.
+ * ═══════════════════════════════════════════════════════════════════ */
+const ENABLE_ARRIVAL_DECEL      = false; // slowRadius 감속 (false = arrivalRadius 도달까지 full speed)
+const ENABLE_OBSTACLE_AVOIDANCE = false; // zone 벽 / 미디어 벽 회피력
+const ENABLE_SEPARATION         = false; // 에이전트 간 분리력 (steering)
+const ENABLE_GROUP_STEERING     = false; // followLeader / groupCohesion
+const ENABLE_TOUR_AVOIDANCE     = false; // guided_tour 회피력
+const ENABLE_FOLLOWER_SNAP      = false; // stepFollowerSnap (velocity redirect)
+const ENABLE_AGENT_OVERLAP      = true;  // stepCollision agent-agent push (겹침 방지)
+const ENABLE_MEDIA_HITBOX       = true;  // stepCollision 미디어 박스 push-out (관통 방지)
+const ENABLE_ZONE_CLAMP         = true;  // stepCollision zone polygon clamp (필수 — zone 이탈 방지)
+const ENABLE_FLOOR_CLAMP        = true;  // stepCollision floor bounds clamp
+
 /* ─── public types ─── */
 
 export interface SimulationState {
@@ -85,6 +101,7 @@ export class SimulationEngine {
   private mediaByZone = new Map<string, MediaPlacement[]>();
   private nodeMap = new Map<string, WaypointNode>();
   private nodeCrowd = new Map<string, number>(); // node id → current visitor count
+  private zoneOccupancy = new Map<string, number>(); // zone id → current visitor count
 
   // spawner
   private spawnAccumulator = 0;
@@ -309,6 +326,7 @@ export class SimulationEngine {
     this.spatialHash.clear();
     this._tickMediaViewers.clear();
     this.nodeCrowd.clear();
+    this.zoneOccupancy.clear();
     for (const [, v] of this.state.visitors) {
       if (!v.isActive) continue;
       this.spatialHash.insert(v.id, v.position);
@@ -320,6 +338,11 @@ export class SimulationEngine {
       if (v.currentNodeId) {
         const nid = v.currentNodeId as string;
         this.nodeCrowd.set(nid, (this.nodeCrowd.get(nid) ?? 0) + 1);
+      }
+      // Track zone occupancy
+      if (v.currentZoneId) {
+        const zid = v.currentZoneId as string;
+        this.zoneOccupancy.set(zid, (this.zoneOccupancy.get(zid) ?? 0) + 1);
       }
     }
 
@@ -484,6 +507,7 @@ export class SimulationEngine {
                   ...v,
                   currentAction: VISITOR_ACTION.MOVING,
                   targetMediaId: leader.targetMediaId,
+                  targetPosition: this.computeMediaTargetPos(media),
                   targetZoneId: leader.currentZoneId,
                   steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
                 };
@@ -516,6 +540,7 @@ export class SimulationEngine {
         position: exitPos,
         visitedMediaIds: v.targetMediaId ? [...v.visitedMediaIds, v.targetMediaId] : v.visitedMediaIds,
         targetMediaId: null,
+        targetPosition: null,
       });
     }
 
@@ -571,6 +596,7 @@ export class SimulationEngine {
           ...v,
           currentAction: VISITOR_ACTION.IDLE,
           targetMediaId: null,
+          targetPosition: null,
           waitStartedAt: null,
           visitedMediaIds: skippedMediaIds,
         });
@@ -592,22 +618,22 @@ export class SimulationEngine {
       return this.onArrival(v);
     }
 
-    // --- Graph-Point: node proximity check (snap to node when close) ---
+    // --- Graph-Point: node proximity check (trigger arrival but DON'T stop velocity) ---
+    // 노드는 물리 장애물이 아니므로 도착 처리만 하고 속도는 유지 (자석처럼 멈추는 현상 방지)
     if (action === VISITOR_ACTION.MOVING && v.targetNodeId) {
       const node = this.nodeMap.get(v.targetNodeId as string);
       if (node) {
         const dx = v.position.x - node.position.x;
         const dy = v.position.y - node.position.y;
         const distSq = dx * dx + dy * dy;
-        // HUB/ENTRY/BEND/EXIT: 넓은 도착 판정 (통과점)
-        // EXIT은 존 바깥에 있고 군중 정체로 정확한 위치 도달이 어려워 가장 관대하게 판정 (150px = 7.5m)
-        const snapDist = node.type === 'exit' ? 22500
+        // EXIT: 20px (실제 도달 후 사라짐) / HUB/ENTRY/BEND: 50px (통과점) / ZONE/REST/ATTRACTOR: 25px
+        const snapDist = node.type === 'exit' ? 400
           : (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500
           : 625;
         if (distSq < snapDist) {
+          // velocity 유지 — 다음 노드로 자연스럽게 이어지도록 (isArrived 만 세팅)
           return this.onNodeArrival({
             ...v,
-            velocity: { x: 0, y: 0 },
             steering: { ...v.steering, isArrived: true },
           });
         }
@@ -660,17 +686,16 @@ export class SimulationEngine {
               const leaderRem = this.engagementTimers.get(leader.id as string) ?? 0;
               if (leaderRem <= 0) {
                 // Leader already done → skip watching, follow leader
-                return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
+                return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null, targetPosition: null };
               }
               this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
               this.recordWatchStart(mid, v.id as string);
               this.engagementTimers.set(v.id as string, leaderRem); // sync to leader's remaining time
-              // Position: close to media (type-appropriate)
+              // Active/staged: slot 위치로 snap (Phase C 에서 예약 시스템 개선 예정)
+              // Passive/analog: 이미 targetPosition 에 도착 — position 유지
               const watchPos = intType === 'active' || intType === 'staged'
                 ? this.getMediaSlotPosition(media, (this._tickMediaViewers.get(mid) ?? 1) - 1)
-                : intType === 'analog'
-                  ? this.getAnalogClosePosition(media, v.position)
-                  : v.position; // passive: stay at current position
+                : v.position;
               return {
                 ...v,
                 currentAction: VISITOR_ACTION.WATCHING,
@@ -693,8 +718,8 @@ export class SimulationEngine {
             // Engagement = remaining session time
             const remaining = Math.max(1000, (state.sessionStartMs + media.avgEngagementTimeMs) - this.state.timeState.elapsed);
             this.engagementTimers.set(v.id as string, remaining);
-            const slotPos = this.getMediaSlotPosition(media, viewerCount);
-            return { ...v, currentAction: VISITOR_ACTION.WATCHING, position: slotPos, velocity: { x: 0, y: 0 } };
+            // 이미 targetPosition (예약된 slot) 에 도착 — position 유지
+            return { ...v, currentAction: VISITOR_ACTION.WATCHING, velocity: { x: 0, y: 0 } };
           }
           // Session not open or full → wait
           if (!v.waitStartedAt) {
@@ -707,43 +732,48 @@ export class SimulationEngine {
           if (shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
             this.recordSkip(mid, waitMs);
             return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, waitStartedAt: null });
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, targetPosition: null, waitStartedAt: null });
           }
           return v; // keep waiting
         }
 
         if (intType === 'analog') {
-          // ── ANALOG: close-up viewing — no capacity limit ──
-          this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
+          // ── ANALOG: close-up viewing with soft capacity ──
+          // Soft cap: auto-derived from physical viewing area (perimeter-based)
+          // 4 sides × media size / 0.8 m² per person (or explicit capacity if set)
+          const pwM = media.size.width, phM = media.size.height;
+          const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
+          const softCap = Math.max(media.capacity || 0, autoCap);
+          const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
+          if (viewerCount >= softCap) {
+            // Over soft cap — skip this media, pick next target
+            return this.assignNextTarget({
+              ...v,
+              currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+              targetMediaId: null,
+              targetPosition: null,
+            });
+          }
+          this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
-          // Position: close to media edge with random offset (no fixed slot grid)
-          const closePos = this.getAnalogClosePosition(media, v.position);
+          // Position: 이미 targetPosition (예약된 slot) 에 도착한 상태 — 덮어쓰지 않음
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
-            position: closePos,
             velocity: { x: 0, y: 0 },
           };
         } else if (intType === 'passive') {
-          // ── PASSIVE: arrive at viewing area → watch from current position ──
-          // Distance check: must be within reasonable range of media to watch
-          const mdx = v.position.x - media.position.x;
-          const mdy = v.position.y - media.position.y;
-          const mediaDist = Math.sqrt(mdx * mdx + mdy * mdy);
-          const maxViewDist = Math.max(media.size.width, media.size.height) * 20 + 40; // media size + margin
-          if (mediaDist > maxViewDist) {
-            // Too far from media (likely bounced by collision) — re-approach
-            return { ...v, currentAction: VISITOR_ACTION.MOVING, steering: { ...v.steering, isArrived: false } };
-          }
+          // ── PASSIVE: arrive at targetPosition (= viewpoint) → watch at current position ──
+          // targetPosition 불변 조건: 에이전트는 이미 정확한 viewpoint 에 도착해 있음.
           // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null };
+            return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null, targetPosition: null };
           }
-          // Watch at current position
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
@@ -772,6 +802,7 @@ export class SimulationEngine {
               currentAction: VISITOR_ACTION.IDLE,
               visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
               targetMediaId: null,
+              targetPosition: null,
             });
           }
 
@@ -781,7 +812,6 @@ export class SimulationEngine {
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
-          const slotPos = this.getMediaSlotPosition(media, viewerCount);
 
           // Pre-reserve slots for followers (they'll sync via syncFollowerToLeader)
           if (v.groupId && v.isGroupLeader) {
@@ -800,10 +830,10 @@ export class SimulationEngine {
             }
           }
 
+          // 이미 targetPosition (예약된 slot) 에 도착 — position 유지
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
-            position: slotPos,
             velocity: { x: 0, y: 0 },
           };
         }
@@ -1074,7 +1104,7 @@ export class SimulationEngine {
     };
   }
 
-  /** Get the passive viewing position — just in front of media (close) */
+  /** Get the passive viewing position — viewDistance meters in front of media front edge */
   private getMediaViewPoint(m: MediaPlacement): Vector2D {
     let halfDepth: number;
     if (this.isMediaPolygon(m)) {
@@ -1085,12 +1115,128 @@ export class SimulationEngine {
     } else {
       halfDepth = (m.size.height * MEDIA_SCALE) / 2;
     }
-    // viewDistance (meters) → pixels, fallback to just outside the media
-    const viewDistPx = (m as any).viewDistance ? (m as any).viewDistance * MEDIA_SCALE : halfDepth + 5;
+    // viewDistance (meters) = 미디어 "앞면"으로부터 관람자까지 거리 (중심 아님)
+    const viewDistPx = (m as any).viewDistance != null
+      ? halfDepth + (m as any).viewDistance * MEDIA_SCALE
+      : halfDepth + 5;
     const rad = (m.orientation * Math.PI) / 180;
     const pt = {
       x: m.position.x + Math.sin(rad) * viewDistPx,
       y: m.position.y - Math.cos(rad) * viewDistPx,
+    };
+    return this.clampToMediaZone(m, pt);
+  }
+
+  /**
+   * 미디어 선택 시점에 최종 WATCHING 위치를 계산 및 예약.
+   * - PASSIVE: getMediaViewPoint (viewDistance 앞)
+   * - ANALOG: 현재 다른 에이전트가 점유하지 않은 perimeter slot 반환 (softCap 기준)
+   * - ACTIVE/STAGED: null (Phase C 에서 slot 예약 시스템 확장 예정)
+   */
+  private computeMediaTargetPos(m: MediaPlacement): Vector2D | null {
+    const intType = (m as any).interactionType ?? 'passive';
+    if (intType === 'passive') return this.getMediaViewPoint(m);
+    if (intType === 'analog') return this.pickAnalogSlot(m);
+    if (intType === 'active' || intType === 'staged') return this.pickMediaSlot(m);
+    return null;
+  }
+
+  /**
+   * Active/Staged 미디어의 빈 slot 을 예약. 다른 에이전트가 현재 점유(WATCHING) 하거나
+   * 이동 중(targetPosition) 인 slot 은 제외하고, 가장 낮은 free idx 의 위치 반환.
+   * 모든 slot 이 점유된 경우 slot 0 반환 (onArrival capacity 체크에서 skip 됨).
+   */
+  private pickMediaSlot(m: MediaPlacement): Vector2D {
+    const mid = m.id as string;
+    const cap = Math.max(1, m.capacity);
+    // Collect reserved slot indices by comparing targetPosition/position to each slot
+    const reserved = new Set<number>();
+    for (const [, other] of this.state.visitors) {
+      if (!other.isActive) continue;
+      if ((other.targetMediaId as string) !== mid) continue;
+      const ref = other.currentAction === VISITOR_ACTION.WATCHING
+        ? other.position
+        : other.targetPosition;
+      if (!ref) continue;
+      for (let i = 0; i < cap; i++) {
+        const sp = this.getMediaSlotPosition(m, i);
+        const dx = sp.x - ref.x, dy = sp.y - ref.y;
+        if (dx * dx + dy * dy < 36) { reserved.add(i); break; } // within 6px = same slot
+      }
+    }
+    for (let i = 0; i < cap; i++) {
+      if (!reserved.has(i)) return this.getMediaSlotPosition(m, i);
+    }
+    return this.getMediaSlotPosition(m, 0);
+  }
+
+  /**
+   * Analog 미디어의 빈 perimeter slot 을 찾아 반환.
+   * 다른 MOVING/WATCHING 에이전트의 targetPosition/position 과 충돌하지 않는 slot 선택.
+   */
+  private pickAnalogSlot(m: MediaPlacement): Vector2D {
+    const pwM = m.size.width, phM = m.size.height;
+    const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
+    const softCap = Math.max(m.capacity || 0, autoCap);
+    const mid = m.id as string;
+
+    // Collect occupied positions from other visitors targeting/watching this media
+    const occupied: Vector2D[] = [];
+    for (const [, other] of this.state.visitors) {
+      if (!other.isActive) continue;
+      if ((other.targetMediaId as string) !== mid) continue;
+      if (other.currentAction === VISITOR_ACTION.WATCHING) {
+        occupied.push(other.position);
+      } else if (other.targetPosition) {
+        occupied.push(other.targetPosition);
+      }
+    }
+
+    // Find a free slot (min distance > 12px from any occupied point)
+    const MIN_DIST_SQ = 12 * 12;
+    for (let i = 0; i < softCap; i++) {
+      const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
+      let free = true;
+      for (const op of occupied) {
+        const dx = slotPos.x - op.x, dy = slotPos.y - op.y;
+        if (dx * dx + dy * dy < MIN_DIST_SQ) { free = false; break; }
+      }
+      if (free) return slotPos;
+    }
+    // All full — fall back to slot 0 (onArrival softCap check 에서 reject 됨)
+    return this.getAnalogSlotWithCap(m, 0, softCap);
+  }
+
+  /** getAnalogSlotPosition 의 cap 파라미터화 버전 (softCap 기반 분산). */
+  private getAnalogSlotWithCap(m: MediaPlacement, slotIndex: number, cap: number): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const margin = 3; // 미디어 테두리 바로 앞 (0.15m) — analog 는 근접 관람
+    const effCap = Math.max(1, cap);
+    if ((m as any).omnidirectional) {
+      const perimeter = 2 * (pw + ph);
+      const spacing = perimeter / effCap;
+      const halfW = pw / 2 + margin;
+      const halfH = ph / 2 + margin;
+      let d = spacing * slotIndex;
+      if (d < pw) return this.clampToMediaZone(m, { x: m.position.x - pw / 2 + d, y: m.position.y - halfH });
+      d -= pw;
+      if (d < ph) return this.clampToMediaZone(m, { x: m.position.x + halfW, y: m.position.y - ph / 2 + d });
+      d -= ph;
+      if (d < pw) return this.clampToMediaZone(m, { x: m.position.x + pw / 2 - d, y: m.position.y + halfH });
+      d -= pw;
+      return this.clampToMediaZone(m, { x: m.position.x - halfW, y: m.position.y + ph / 2 - d });
+    }
+    // Directional: slots along the front face (orientation-aware)
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const frontDist = ph / 2 + margin;
+    const spacing = pw / Math.max(1, effCap);
+    const lateralOffset = (slotIndex + 0.5) * spacing - pw / 2;
+    const pt = {
+      x: m.position.x + cos * lateralOffset + sin * frontDist,
+      y: m.position.y + sin * lateralOffset - cos * frontDist,
     };
     return this.clampToMediaZone(m, pt);
   }
@@ -1127,9 +1273,10 @@ export class SimulationEngine {
       const sin = Math.sin(rad);
       const frontDist = ph / 2 + margin;
       const lateralOffset = (this.rng.next() - 0.5) * pw * 0.9;
+      // Local (lateralOffset, -frontDist) rotated by orientation to world coords
       pt = {
-        x: m.position.x - sin * frontDist + cos * lateralOffset,
-        y: m.position.y - cos * frontDist - sin * lateralOffset,
+        x: m.position.x + cos * lateralOffset + sin * frontDist,
+        y: m.position.y + sin * lateralOffset - cos * frontDist,
       };
     }
     return this.clampToMediaZone(m, pt);
@@ -1258,7 +1405,8 @@ export class SimulationEngine {
           : this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
         if (pick) {
           return {
-            ...v, targetMediaId: pick.id, currentAction: VISITOR_ACTION.MOVING,
+            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+            currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
           };
         }
@@ -1399,7 +1547,8 @@ export class SimulationEngine {
           : this.world.media.find(m => m.id === selectNextMedia(v, this.mediaByZone.get(curZone.id as string) ?? [], this.rng));
         if (pick) {
           return {
-            ...v, targetMediaId: pick.id, currentAction: VISITOR_ACTION.MOVING,
+            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+            currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
           };
         }
@@ -1494,6 +1643,7 @@ export class SimulationEngine {
             return {
               ...v,
               targetMediaId: media.id,
+              targetPosition: this.computeMediaTargetPos(media),
               targetNodeId: null,
               currentAction: VISITOR_ACTION.MOVING,
               steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
@@ -1512,6 +1662,7 @@ export class SimulationEngine {
           return {
             ...v,
             targetMediaId: pick.id,
+            targetPosition: this.computeMediaTargetPos(pick),
             targetNodeId: null,
             currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
@@ -1520,25 +1671,32 @@ export class SimulationEngine {
       }
     }
 
-    // 3. dwellTime 체류 (미디어 없는 노드: rest, zone, attractor)
-    if (curNode.dwellTimeMs > 0 && (curNode.type === 'rest' || curNode.type === 'zone' || curNode.type === 'attractor')) {
-      // pathLog의 마지막 항목이 이 노드이고 exitTime=0이면 아직 체류 중
+    // 3. dwellTime 체류 — 첫 방문 시에만 (rest/attractor)
+    //    ZONE 노드는 거점이므로 체류 없이 즉시 다음 타겟 선택
+    //    재방문 시는 이미 관람한 노드이므로 대기 없이 통과
+    if (curNode.dwellTimeMs > 0 && (curNode.type === 'rest' || curNode.type === 'attractor')) {
       const lastLog = v.pathLog[v.pathLog.length - 1];
-      if (lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
+      const isFirstVisit = v.pathLog.filter(e => (e.nodeId as string) === (curNode.id as string)).length <= 1;
+      if (isFirstVisit && lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
         const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
         if (elapsed < curNode.dwellTimeMs) {
-          // 체류 중 — WATCHING 상태로 대기
+          // 체류 중 — IDLE 상태로 대기 (WATCHING 아님: 미디어 시청과 구분)
+          // currentSteering 을 0으로 초기화해서 잔여 힘으로 움직이지 않게 함
           return {
             ...v,
-            currentAction: VISITOR_ACTION.WATCHING,
+            currentAction: VISITOR_ACTION.IDLE,
             velocity: { x: 0, y: 0 },
+            steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
           };
         }
       }
     }
 
     // 4. 다음 노드 선택 (Score 기반) — stuck 감지를 위해 now 전달
-    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng, this.state.timeState.elapsed);
+    // Build zone capacity map for zone overcrowding penalty
+    const zoneCapacity = new Map<string, number>();
+    for (const z of this.world.zones) zoneCapacity.set(z.id as string, z.capacity);
+    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity);
     if (!nextNode) {
       // 막다른 길: wander
       return {
@@ -1554,6 +1712,7 @@ export class SimulationEngine {
       ...v,
       targetNodeId: nextNode.id,
       targetMediaId: null,
+      targetPosition: null,
       targetZoneId: null,
       pathLog: updatedPathLog,
       currentAction: VISITOR_ACTION.MOVING,
@@ -1561,11 +1720,17 @@ export class SimulationEngine {
     };
   }
 
-  /** Graph mode: EXIT 노드 도착 → 즉시 비활성화 */
+  /** Graph mode: EXIT 노드 도착 → exit 위치로 이동 후 비활성화 (시각적으로 exit에 도달해서 사라짐) */
   private beginExitGraph(v: Visitor, exitNode: WaypointNode): Visitor {
     const xid = exitNode.id as string;
     this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
-    return { ...v, isActive: false };
+    // position 덮어쓰기 제거 — 에이전트가 실제로 도달한 위치에서 사라지도록.
+    // snap 거리 자체는 기존 유지 (군중 정체로 인한 stuck 방지).
+    return {
+      ...v,
+      velocity: { x: 0, y: 0 },
+      isActive: false,
+    };
   }
 
   /** Graph mode: visitor arrived at target node */
@@ -1620,6 +1785,7 @@ export class SimulationEngine {
       ...v,
       targetZoneId: null,
       targetMediaId: null,
+      targetPosition: null,
       currentAction: VISITOR_ACTION.EXITING,
       steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
     };
@@ -1643,6 +1809,15 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private getTargetPosition(v: Visitor): Vector2D | null {
+    // ── 0. targetPosition (선택 시점에 고정된 최종 좌표) 가 있으면 최우선 ──
+    // 미디어 시청 목표 위치는 선택 시점에 계산해서 저장 (점프 방지 불변 조건).
+    // WATCHING 중에는 watchPoint 가 별도로 적용 (아래).
+    if (v.targetPosition
+        && v.currentAction !== VISITOR_ACTION.WATCHING
+        && v.currentAction !== VISITOR_ACTION.WAITING) {
+      return v.targetPosition;
+    }
+
     // Graph-Point: target node position
     if (v.targetNodeId) {
       const node = this.nodeMap.get(v.targetNodeId as string);
@@ -1658,17 +1833,25 @@ export class SimulationEngine {
       }
     }
 
-    // 1. Media
+    // 1. Media (fallback — targetPosition 이 없을 때)
     if (v.targetMediaId) {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
         const intType = (m as any).interactionType ?? 'passive';
-        if (intType === 'analog' && (m as any).omnidirectional) {
-          // Omnidirectional analog: approach from any direction (walk toward media center)
-          return this.getMediaViewPoint(m); // close to media, any side
+        if (intType === 'passive' || intType === 'analog') {
+          return this.getMediaViewPoint(m);
         }
-        return this.getMediaViewPoint(m);
+        if (v.currentAction === VISITOR_ACTION.WAITING) {
+          return this.getMediaWaitPoint(m);
+        }
+        // Active/staged: pick next free slot (not one already occupied)
+        const usedSlots = this.getUsedMediaSlots(v.targetMediaId);
+        const slotIdx = this.findNextFreeSlot(m.capacity, usedSlots);
+        const viewerCount = this._tickMediaViewers.get(v.targetMediaId as string) ?? 0;
+        return viewerCount < m.capacity
+          ? this.getMediaSlotPosition(m, slotIdx)
+          : this.getMediaWaitPoint(m);
       }
     }
 
@@ -1729,17 +1912,25 @@ export class SimulationEngine {
         const desired = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
         outputs.push({ output: { linear: { x: desired.x - v.velocity.x, y: desired.y - v.velocity.y }, angular: 0 }, weight: 1.0 });
       } else {
-        // Media targets get larger arrival radius based on media size
-        let effectiveArrival = physics.arrivalRadius;
-        if (v.targetMediaId && !v.targetNodeId) {
-          const tm = this.world.media.find(mm => mm.id === v.targetMediaId);
-          if (tm) effectiveArrival = Math.max(physics.arrivalRadius, Math.max(tm.size.width, tm.size.height) * 10);
-        }
-        // Normal arrival with deceleration
-        outputs.push({ output: arrival(v.position, target, v.profile.maxSpeed, v.velocity, physics.arrivalSlowRadius, effectiveArrival), weight: 1.0 });
+        // Kinematic seek: velocity 를 desired 로 직접 설정 (관성 없음, 즉시 방향 전환).
+        // 미디어 도착 판정은 유지 (정확한 정지).
+        const isMediaTarget = !!v.targetMediaId && !v.targetNodeId && !!v.targetPosition;
+        const effectiveArrival = isMediaTarget ? 12 : physics.arrivalRadius;
         if (distSq < effectiveArrival * effectiveArrival) {
-          return { ...v, steering: { ...v.steering, isArrived: true }, velocity: { x: 0, y: 0 } };
+          if (isMediaTarget) {
+            return { ...v, steering: { ...v.steering, isArrived: true, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } }, velocity: { x: 0, y: 0 } };
+          }
+          // node/gate: arrival 만 마크, velocity 유지 (proximity snap 이 처리)
+          return { ...v, steering: { ...v.steering, isArrived: true } };
         }
+        const dist = Math.sqrt(distSq);
+        const desiredVel = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
+        // velocity 직접 설정 + currentSteering 0 (관성 차단)
+        return {
+          ...v,
+          velocity: desiredVel,
+          steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+        };
       }
     } else {
       const { steering: ws, newWanderAngle } = wander(v.velocity, v.steering.wanderAngle, physics, (this.rng.next() - 0.5) * physics.wanderJitter * dtS);
@@ -1748,7 +1939,7 @@ export class SimulationEngine {
     }
 
     // Wall avoidance — 그래프 이동 중에는 스킵 (크로스존 이동 시 잘못된 벽 회피 방지)
-    if (v.currentZoneId && !v.targetNodeId) {
+    if (ENABLE_OBSTACLE_AVOIDANCE && v.currentZoneId && !v.targetNodeId) {
       const zone = this.zoneMap.get(v.currentZoneId as string);
       if (zone) {
         const walls = getZoneWalls(zone);
@@ -1768,21 +1959,39 @@ export class SimulationEngine {
     }
 
     // Separation (reduce force against same-group members)
-    const neighbors = this.spatialHash.queryRadius(v.id, physics.avoidanceRadius);
+    // WATCHING/WAITING 에이전트는 정적이므로 분리력에서 제외 — 인접 slot 접근 허용
+    const neighbors = ENABLE_SEPARATION
+      ? this.spatialHash.queryRadius(v.id, physics.avoidanceRadius)
+      : [];
     if (neighbors.length > 0) {
       const targetType = v.targetNodeId ? this.nodeMap.get(v.targetNodeId as string)?.type : null;
       const isPassThrough = targetType === 'exit' || targetType === 'hub' || targetType === 'entry' || targetType === 'bend';
 
-      // Split neighbors: same-group vs others
+      // Split neighbors: same-group vs others (skip stationary)
+      // Same-media targets: 별도 약한 분리 (겹침 방지) 적용
       const sameGroupPositions: Vector2D[] = [];
+      const sameMediaPositions: Vector2D[] = [];
       const otherPositions: Vector2D[] = [];
       for (const n of neighbors) {
         const nv = this.state.visitors.get(n.id as string);
-        if (v.groupId && nv?.groupId === v.groupId) {
+        if (!nv) continue;
+        if (nv.currentAction === VISITOR_ACTION.WATCHING || nv.currentAction === VISITOR_ACTION.WAITING) continue;
+        if (v.targetMediaId && (nv.targetMediaId as string) === (v.targetMediaId as string)) {
+          sameMediaPositions.push(n.position);
+          continue;
+        }
+        if (v.groupId && nv.groupId === v.groupId) {
           sameGroupPositions.push(n.position);
         } else {
           otherPositions.push(n.position);
         }
+      }
+      // 같은 미디어 목표 에이전트끼리: 매우 가까울 때만 약하게 밀어냄
+      if (sameMediaPositions.length > 0) {
+        outputs.push({
+          output: separation(v.position, sameMediaPositions, physics.avoidanceRadius * 0.3, physics.separationStrength * 0.2),
+          weight: 0.2,
+        });
       }
       // Full separation against non-group members
       if (otherPositions.length > 0) {
@@ -1801,7 +2010,7 @@ export class SimulationEngine {
     }
 
     // Group steering: followLeader + groupCohesion
-    if (v.groupId) {
+    if (ENABLE_GROUP_STEERING && v.groupId) {
       const group = this.state.groups.get(v.groupId as string);
       if (group) {
         if (v.category === 'guided_tour' && !v.isGroupLeader) {
@@ -1834,7 +2043,7 @@ export class SimulationEngine {
     }
 
     // Tour avoidance: non-tour visitors avoid guided tour groups
-    if (v.category !== 'guided_tour') {
+    if (ENABLE_TOUR_AVOIDANCE && v.category !== 'guided_tour') {
       for (const tour of this.tourLeaders) {
         const dist = distance(v.position, tour.position);
         if (dist < tour.radius + 20) {
@@ -1857,6 +2066,7 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private stepFollowerSnap(v: Visitor): Visitor {
+    if (!ENABLE_FOLLOWER_SNAP) return v;
     if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
 
     const speed = Math.sqrt(v.velocity.x * v.velocity.x + v.velocity.y * v.velocity.y);
@@ -1919,24 +2129,13 @@ export class SimulationEngine {
 
   private stepPhysics(v: Visitor, dtS: number): Visitor {
     if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
-    // IDLE: 잔여 힘으로 인한 jitter 방지 — velocity 0으로 고정
-    if (v.currentAction === VISITOR_ACTION.IDLE) {
-      return v.velocity.x === 0 && v.velocity.y === 0 ? v : { ...v, velocity: { x: 0, y: 0 } };
-    }
     const { currentSteering } = v.steering;
     const ax = currentSteering.linear.x / v.profile.mass;
     const ay = currentSteering.linear.y / v.profile.mass;
-    let vel = clampMagnitude(
+    const vel = clampMagnitude(
       { x: v.velocity.x + ax * dtS, y: v.velocity.y + ay * dtS },
       v.profile.maxSpeed,
     );
-    // 벽/이웃 반발력과 스티어링이 평형을 이룰 때 미세 진동(vibrating-at-wall) 방지
-    // 속도가 아주 작으면서 가속도가 현재 velocity와 반대 방향이면 오실레이션 상태 → 감쇠
-    const speedSq = vel.x * vel.x + vel.y * vel.y;
-    const velDotAccel = v.velocity.x * ax + v.velocity.y * ay;
-    if (speedSq < 4 && velDotAccel < 0) {
-      vel = { x: 0, y: 0 };
-    }
     return {
       ...v,
       position: { x: v.position.x + vel.x * dtS, y: v.position.y + vel.y * dtS },
@@ -1959,15 +2158,16 @@ export class SimulationEngine {
     const isExitingToNode = !!v.targetNodeId && this.waypointNav
       && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
 
-    // Agent-agent overlap (skipped for exit-seekers AND same-group members)
-    if (!isExitingToNode) {
-      const neighbors = this.spatialHash.queryRadius(v.id, this.world.config.physics.avoidanceRadius);
+    // Agent-agent overlap: 모든 에이전트 간 겹침 방지.
+    // 같은 그룹은 겹침 허용, exit 가는 에이전트는 군중 뚫고 지나가도록 skip.
+    if (ENABLE_AGENT_OVERLAP && !isExitingToNode) {
+      const avoidR = this.world.config.physics.avoidanceRadius;
+      const neighbors = this.spatialHash.queryRadius(v.id, avoidR);
       for (const n of neighbors) {
-        if (v.groupId) {
-          const nv = this.state.visitors.get(n.id as string);
-          if (nv?.groupId === v.groupId) continue; // same group = no collision
-        }
-        pos = resolveAgentOverlap(pos, n.position, this.world.config.physics.avoidanceRadius * 0.5);
+        const nv = this.state.visitors.get(n.id as string);
+        if (!nv) continue;
+        if (v.groupId && nv.groupId === v.groupId) continue;
+        pos = resolveAgentOverlap(pos, n.position, avoidR * 0.5);
       }
     }
 
@@ -1977,7 +2177,9 @@ export class SimulationEngine {
     // Legacy agents: full zone boundary + gate crossing logic
     const isGraphAgent = !!v.currentNodeId;
     const isGraphTransit = isGraphAgent && !!v.targetNodeId;
-    if (isGraphTransit) {
+    if (!ENABLE_ZONE_CLAMP) {
+      // Zone 경계 체크 완전 생략 (최소 파이프라인 디버깅)
+    } else if (isGraphTransit) {
       // Skip zone wall collision entirely — agent follows edge freely between nodes
     } else if (isGraphAgent && v.currentZoneId) {
       // Graph agent at rest — clamp to current zone
@@ -2038,14 +2240,14 @@ export class SimulationEngine {
         }
       }
     }
-    // Media obstacle collision — push agent outside media (skip passive, only WATCHING can be inside target)
-    if (v.currentZoneId) {
+    // Media obstacle collision — push agent outside media
+    if (ENABLE_MEDIA_HITBOX && v.currentZoneId) {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
-          // Only WATCHING agents can stay inside their target media box
-          if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
           if ((m as any).interactionType === 'passive') continue; // passive media = no physical barrier
+          // Target media 는 모든 interaction type 에서 hitbox 통과 (slot 도달 허용)
+          if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);
           }
@@ -2066,13 +2268,36 @@ export class SimulationEngine {
       }
     }
 
-    // Floor bounds — skip for EXITING agents so they walk off-canvas and deactivate
-    if (v.currentAction !== VISITOR_ACTION.EXITING) {
+    // Floor bounds — skip for EXITING agents and exit-node seekers so they reach exit
+    const targetingExit = !!v.targetNodeId && this.waypointNav
+      && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
+    if (ENABLE_FLOOR_CLAMP && v.currentAction !== VISITOR_ACTION.EXITING && !targetingExit) {
       const floor = this.world.floors.find(f => f.id === v.currentFloorId);
       if (floor) pos = clampToRect(pos, { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height });
     }
 
-    return pos === v.position ? v : { ...v, position: pos };
+    if (pos === v.position) return v;
+
+    // Kinematic 모드에서는 velocity 가 매 tick target 방향으로 재설정됨.
+    // 벽/미디어 clamp 로 position 이 뒤로 밀리면 velocity 도 같은 방향 성분만큼 줄이면
+    // stepPhysics 가 다시 벽을 뚫지 않고 접선 방향으로만 움직여 덜덜거림 없음.
+    const pdx = pos.x - v.position.x;
+    const pdy = pos.y - v.position.y;
+    const pLenSq = pdx * pdx + pdy * pdy;
+    if (pLenSq < 0.0001) return { ...v, position: pos };
+    const pLen = Math.sqrt(pLenSq);
+    const pushNx = pdx / pLen;  // push direction (벽에서 밀려나는 방향)
+    const pushNy = pdy / pLen;
+    const vDotPush = v.velocity.x * pushNx + v.velocity.y * pushNy;
+    // velocity 중 push 반대 방향 (= 벽 향하는) 성분 제거
+    if (vDotPush < 0) {
+      const newVel = {
+        x: v.velocity.x - vDotPush * pushNx,
+        y: v.velocity.y - vDotPush * pushNy,
+      };
+      return { ...v, position: pos, velocity: newVel };
+    }
+    return { ...v, position: pos };
   }
 
   /* ═══════════════════════════════════════════════

@@ -138,12 +138,27 @@ export function renderMedia(
       edgeDist = isCircle ? circleR : ph / 2;
     }
     // Front indicator: thick colored line on the front edge (category color)
+    // If omnidirectional: draw the entire perimeter thick (360° indicator)
     const frontColor = catColor ?? (isDark ? '#60a5fa' : '#3b82f6');
     const frontLineWidth = 3 * px;
+    const isOmni = (m as any).omnidirectional === true;
     ctx.strokeStyle = frontColor;
     ctx.lineWidth = frontLineWidth;
     ctx.lineCap = 'round';
-    if (isCustom) {
+    ctx.lineJoin = 'round';
+    if (isOmni) {
+      // 360° — whole perimeter
+      if (isCustom) {
+        polyPath();
+        ctx.stroke();
+      } else if (isCircle) {
+        ctx.beginPath();
+        ctx.arc(0, 0, circleR, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
+      }
+    } else if (isCustom) {
       // Find edge whose midpoint has smallest Y (most forward)
       const poly = m.polygon!;
       let bestIdx = 0, bestMidY = Infinity;
@@ -170,6 +185,7 @@ export function renderMedia(
       ctx.stroke();
     }
     ctx.lineCap = 'butt';
+    ctx.lineJoin = 'miter';
 
     // Rotation handle (selected only) — line + green circle above the front edge
     if (isSelected) {
