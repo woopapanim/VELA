@@ -96,6 +96,7 @@ export function spawnVisitor(
     targetZoneId: null,
     targetFloorId: null,
     targetMediaId: null,
+    targetPosition: null,
     visitedZoneIds: [],
     visitedMediaIds: [],
     category,

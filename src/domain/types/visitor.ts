@@ -105,6 +105,12 @@ export interface Visitor {
   readonly targetZoneId: ZoneId | null;
   readonly targetFloorId: FloorId | null;
   readonly targetMediaId: MediaId | null;
+  /**
+   * 최종 도착 위치 (WATCHING 을 시작할 정확한 좌표).
+   * 미디어 선택 시점에 slot/close/view 위치를 계산해 고정.
+   * null 이면 targetNodeId / targetMediaId 로부터 기본 위치 추론.
+   */
+  readonly targetPosition: Vector2D | null;
   readonly visitedZoneIds: readonly ZoneId[];
   readonly visitedMediaIds: readonly MediaId[];
   readonly category: VisitorCategory;
