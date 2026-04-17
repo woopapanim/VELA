@@ -955,6 +955,31 @@ export class SimulationEngine {
     return { x: m.position.x - pw / 2, y: m.position.y - ph / 2, w: pw, h: ph };
   }
 
+  /** Get 4 world-space corners of rect media, respecting orientation */
+  private getMediaRectCorners(m: MediaPlacement): Vector2D[] {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const hw = pw / 2, hh = ph / 2;
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const local = [
+      { x: -hw, y: -hh },
+      { x:  hw, y: -hh },
+      { x:  hw, y:  hh },
+      { x: -hw, y:  hh },
+    ];
+    return local.map(p => ({
+      x: m.position.x + p.x * cos - p.y * sin,
+      y: m.position.y + p.x * sin + p.y * cos,
+    }));
+  }
+
+  /** True if rect media has a non-axis-aligned orientation */
+  private isRectRotated(m: MediaPlacement): boolean {
+    const o = ((m.orientation % 360) + 360) % 360;
+    return o !== 0 && o !== 180;
+  }
+
   /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon, custom=polygon edges) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
     if (this.isMediaPolygon(m)) {
@@ -980,6 +1005,15 @@ export class SimulationEngine {
       }
       return walls;
     }
+    if (this.isRectRotated(m)) {
+      const c = this.getMediaRectCorners(m);
+      return [
+        { a: c[0], b: c[1] },
+        { a: c[1], b: c[2] },
+        { a: c[2], b: c[3] },
+        { a: c[3], b: c[0] },
+      ];
+    }
     const rect = this.getMediaRect(m);
     return [
       { a: { x: rect.x, y: rect.y }, b: { x: rect.x + rect.w, y: rect.y } },
@@ -1000,6 +1034,9 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       return dx * dx + dy * dy < r * r;
     }
+    if (this.isRectRotated(m)) {
+      return isPointInPolygon(pos, this.getMediaRectCorners(m));
+    }
     const rect = this.getMediaRect(m);
     return pos.x > rect.x && pos.x < rect.x + rect.w && pos.y > rect.y && pos.y < rect.y + rect.h;
   }
@@ -1015,6 +1052,9 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       return { x: m.position.x + (dx / dist) * (r + 1), y: m.position.y + (dy / dist) * (r + 1) };
+    }
+    if (this.isRectRotated(m)) {
+      return pushOutsidePolygon(pos, this.getMediaRectCorners(m), m.position);
     }
     // Rect push — find nearest edge
     const rect = this.getMediaRect(m);
@@ -1924,7 +1964,48 @@ export class SimulationEngine {
           return { ...v, steering: { ...v.steering, isArrived: true } };
         }
         const dist = Math.sqrt(distSq);
-        const desiredVel = { x: (dx / dist) * v.profile.maxSpeed, y: (dy / dist) * v.profile.maxSpeed };
+        let dirX = dx / dist;
+        let dirY = dy / dist;
+
+        // 비타겟 미디어 회피: 앞쪽 lookahead 가 non-target 미디어 hitbox 에 부딪히면
+        // velocity 를 tangent 방향으로 회전 (벽을 따라 미끄러짐) — 덜덜거림 방지
+        if (v.currentZoneId) {
+          const lookahead = 15;
+          const lookX = v.position.x + dirX * lookahead;
+          const lookY = v.position.y + dirY * lookahead;
+          const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
+          if (zoneMedia) {
+            for (const m of zoneMedia) {
+              const mt = (m as any).interactionType;
+              if (mt === 'passive') continue;
+              if (
+                v.targetMediaId &&
+                (m.id as string) === (v.targetMediaId as string) &&
+                (mt === 'active' || mt === 'staged')
+              ) continue;
+              if (this.isInsideMedia({ x: lookX, y: lookY }, m)) {
+                // 미디어 중심으로부터 에이전트까지의 법선 추정
+                const nx = v.position.x - m.position.x;
+                const ny = v.position.y - m.position.y;
+                const nLen = Math.sqrt(nx * nx + ny * ny);
+                if (nLen > 0.01) {
+                  const nnx = nx / nLen, nny = ny / nLen;
+                  // 두 가지 tangent (시계/반시계) 중 타겟 방향에 더 가까운 쪽 선택
+                  const tA = { x: -nny, y: nnx };
+                  const tB = { x: nny, y: -nnx };
+                  const dotA = tA.x * dirX + tA.y * dirY;
+                  const dotB = tB.x * dirX + tB.y * dirY;
+                  const tan = dotA > dotB ? tA : tB;
+                  dirX = tan.x;
+                  dirY = tan.y;
+                }
+                break;
+              }
+            }
+          }
+        }
+
+        const desiredVel = { x: dirX * v.profile.maxSpeed, y: dirY * v.profile.maxSpeed };
         // velocity 직접 설정 + currentSteering 0 (관성 차단)
         return {
           ...v,
@@ -2245,9 +2326,15 @@ export class SimulationEngine {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
-          if ((m as any).interactionType === 'passive') continue; // passive media = no physical barrier
-          // Target media 는 모든 interaction type 에서 hitbox 통과 (slot 도달 허용)
-          if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
+          const mt = (m as any).interactionType;
+          if (mt === 'passive') continue; // passive media = no physical barrier
+          // Target media 의 hitbox skip 은 slot 이 rect 내부인 경우(active/staged)만.
+          // analog 는 slot 이 rect 외부라 skip 하면 관통 발생 → 유지.
+          if (
+            v.targetMediaId &&
+            (m.id as string) === (v.targetMediaId as string) &&
+            (mt === 'active' || mt === 'staged')
+          ) continue;
           if (this.isInsideMedia(pos, m)) {
             pos = this.pushOutsideMedia(pos, m);
           }
