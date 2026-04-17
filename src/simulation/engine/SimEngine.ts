@@ -2333,34 +2333,28 @@ export class SimulationEngine {
     const dy = leader.position.y - v.position.y;
     const distSq = dx * dx + dy * dy;
 
-    const TETHER_SOFT = 80;   // 4m — start pulling (override speed cap)
-    const TETHER_HARD = 160;  // 8m — warp
+    // Bounding radius per group type:
+    //  - guided: effectiveCollisionRadius (visible outline)
+    //  - pair/small: maxSpread (invisible bubble)
+    const boundR = group.type === 'guided'
+      ? (group.effectiveCollisionRadius ?? 60) * 0.9
+      : Math.max(30, group.maxSpread ?? 40);
 
-    if (distSq < TETHER_SOFT * TETHER_SOFT) return v;
+    if (distSq <= boundR * boundR) return v;
 
     const dist = Math.sqrt(distSq);
-
-    // Hard tether: warp near leader
-    if (dist > TETHER_HARD) {
-      const R = 30; // 1.5m spread
-      const ang = this.rng.next() * Math.PI * 2;
-      const r = Math.sqrt(this.rng.next()) * R;
-      return {
-        ...v,
-        position: { x: leader.position.x + Math.cos(ang) * r, y: leader.position.y + Math.sin(ang) * r },
-        velocity: { x: leader.velocity.x * 0.5, y: leader.velocity.y * 0.5 },
-      };
-    }
-
-    // Soft tether: override velocity toward leader, up to 1.5x maxSpeed
-    // Lerp from 1.0x → 1.5x over the 4m–8m range
-    const t = Math.min(1, (dist - TETHER_SOFT) / (TETHER_HARD - TETHER_SOFT));
-    const pullSpeed = v.profile.maxSpeed * (1.0 + 0.5 * t);
-    const nx = dx / dist, ny = dy / dist;
-    return {
-      ...v,
-      velocity: { x: nx * pullSpeed, y: ny * pullSpeed },
+    const nx = dx / dist, ny = dy / dist; // v → leader unit vector
+    const newPos = {
+      x: leader.position.x - nx * boundR,
+      y: leader.position.y - ny * boundR,
     };
+    // Remove outward velocity component so follower doesn't keep escaping
+    const outX = -nx, outY = -ny;
+    const vOut = v.velocity.x * outX + v.velocity.y * outY;
+    const newVel = vOut > 0
+      ? { x: v.velocity.x - vOut * outX, y: v.velocity.y - vOut * outY }
+      : v.velocity;
+    return { ...v, position: newPos, velocity: newVel };
   }
 
   /* ═══════════════════════════════════════════════
