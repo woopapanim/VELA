@@ -574,8 +574,11 @@ export class SimulationEngine {
         const dx = v.position.x - node.position.x;
         const dy = v.position.y - node.position.y;
         const distSq = dx * dx + dy * dy;
-        // HUB/ENTRY/BEND: 넓은 도착 판정 (통과점)
-        const snapDist = (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500 : 625;
+        // HUB/ENTRY/BEND/EXIT: 넓은 도착 판정 (통과점)
+        // EXIT은 존 바깥에 있고 군중 정체로 정확한 위치 도달이 어려워 가장 관대하게 판정 (150px = 7.5m)
+        const snapDist = node.type === 'exit' ? 22500
+          : (node.type === 'hub' || node.type === 'entry' || node.type === 'bend') ? 2500
+          : 625;
         if (distSq < snapDist) {
           return this.onNodeArrival({
             ...v,
@@ -1640,13 +1643,24 @@ export class SimulationEngine {
 
   private stepPhysics(v: Visitor, dtS: number): Visitor {
     if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+    // IDLE: 잔여 힘으로 인한 jitter 방지 — velocity 0으로 고정
+    if (v.currentAction === VISITOR_ACTION.IDLE) {
+      return v.velocity.x === 0 && v.velocity.y === 0 ? v : { ...v, velocity: { x: 0, y: 0 } };
+    }
     const { currentSteering } = v.steering;
     const ax = currentSteering.linear.x / v.profile.mass;
     const ay = currentSteering.linear.y / v.profile.mass;
-    const vel = clampMagnitude(
+    let vel = clampMagnitude(
       { x: v.velocity.x + ax * dtS, y: v.velocity.y + ay * dtS },
       v.profile.maxSpeed,
     );
+    // 벽/이웃 반발력과 스티어링이 평형을 이룰 때 미세 진동(vibrating-at-wall) 방지
+    // 속도가 아주 작으면서 가속도가 현재 velocity와 반대 방향이면 오실레이션 상태 → 감쇠
+    const speedSq = vel.x * vel.x + vel.y * vel.y;
+    const velDotAccel = v.velocity.x * ax + v.velocity.y * ay;
+    if (speedSq < 4 && velDotAccel < 0) {
+      vel = { x: 0, y: 0 };
+    }
     return {
       ...v,
       position: { x: v.position.x + vel.x * dtS, y: v.position.y + vel.y * dtS },
