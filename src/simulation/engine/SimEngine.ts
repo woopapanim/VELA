@@ -2333,18 +2333,33 @@ export class SimulationEngine {
     const dy = leader.position.y - v.position.y;
     const distSq = dx * dx + dy * dy;
 
-    // Tether max: 8m (160px) — beyond this, follower has strayed too far
-    const TETHER_MAX = 160;
-    if (distSq < TETHER_MAX * TETHER_MAX) return v;
+    const TETHER_SOFT = 80;   // 4m — start pulling (override speed cap)
+    const TETHER_HARD = 160;  // 8m — warp
 
-    // Warp to random offset within arrival radius of leader
-    const R = 30; // 1.5m spread
-    const ang = this.rng.next() * Math.PI * 2;
-    const r = Math.sqrt(this.rng.next()) * R;
+    if (distSq < TETHER_SOFT * TETHER_SOFT) return v;
+
+    const dist = Math.sqrt(distSq);
+
+    // Hard tether: warp near leader
+    if (dist > TETHER_HARD) {
+      const R = 30; // 1.5m spread
+      const ang = this.rng.next() * Math.PI * 2;
+      const r = Math.sqrt(this.rng.next()) * R;
+      return {
+        ...v,
+        position: { x: leader.position.x + Math.cos(ang) * r, y: leader.position.y + Math.sin(ang) * r },
+        velocity: { x: leader.velocity.x * 0.5, y: leader.velocity.y * 0.5 },
+      };
+    }
+
+    // Soft tether: override velocity toward leader, up to 1.5x maxSpeed
+    // Lerp from 1.0x → 1.5x over the 4m–8m range
+    const t = Math.min(1, (dist - TETHER_SOFT) / (TETHER_HARD - TETHER_SOFT));
+    const pullSpeed = v.profile.maxSpeed * (1.0 + 0.5 * t);
+    const nx = dx / dist, ny = dy / dist;
     return {
       ...v,
-      position: { x: leader.position.x + Math.cos(ang) * r, y: leader.position.y + Math.sin(ang) * r },
-      velocity: { x: leader.velocity.x * 0.5, y: leader.velocity.y * 0.5 },
+      velocity: { x: nx * pullSpeed, y: ny * pullSpeed },
     };
   }
 
