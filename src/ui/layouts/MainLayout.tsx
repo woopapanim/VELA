@@ -7,6 +7,7 @@ import { ZoneEditor } from '../panels/build/ZoneEditor';
 import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
+import { SpawnConfig } from '../panels/build/SpawnConfig';
 import { FloorTabs } from '../panels/build/FloorTabs';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
@@ -100,6 +101,16 @@ export function MainLayout() {
             <ZoneListDragDrop />
 
             <div className="bento-box p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Spawn
+              </h2>
+              <SpawnConfig />
+            </div>
+
+            <div className="bento-box p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                Visitors
+              </h2>
               <VisitorConfig />
             </div>
 
@@ -156,6 +167,7 @@ function rechainGates(zones: any[]): any[] {
 function ZoneListDragDrop() {
   const zones = useStore((s) => s.zones);
   const scenario = useStore((s) => s.scenario);
+  const selectedZoneId = useStore((s) => s.selectedZoneId);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
 
@@ -221,7 +233,7 @@ function ZoneListDragDrop() {
       </h2>
       <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
         {zones.map((zone, idx) => {
-          const isSelected = (zone.id as string) === useStore.getState().selectedZoneId;
+          const isSelected = (zone.id as string) === selectedZoneId;
           const isEntrance = zone.type === 'entrance';
           const isExit = zone.type === 'exit';
           const canDrag = isDraggable(idx);

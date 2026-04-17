@@ -5,6 +5,7 @@ import type { WaypointType, ZoneType, MediaPlacement, MediaId } from '@/domain';
 import { MEDIA_PRESETS } from '@/domain';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
+import { useToast } from '@/ui/components/Toast';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -396,16 +397,65 @@ function AddMediaInline({ zoneId, zoneBounds }: {
 }) {
   const [open, setOpen] = __useState(false);
   const addMedia = useStore((s) => s.addMedia);
+  const { toast } = useToast();
 
   const handleAdd = (mediaType: string) => {
     const preset = (MEDIA_PRESETS as Record<string, any>)[mediaType];
     if (!preset) return;
 
     const SCALE = 20;
+    const GAP = 10; // matches MEDIA_GAP in worldSlice
     const pw = preset.defaultSize.width * SCALE;
     const ph = preset.defaultSize.height * SCALE;
     const interactionType = preset.category === 'immersive' ? 'staged'
       : preset.isInteractive ? 'active' : 'passive';
+
+    // Find a non-overlapping position: random tries first, then grid search fallback
+    const existingInZone = useStore.getState().media.filter(
+      (m) => (m.zoneId as string) === zoneId,
+    );
+    const collides = (cx: number, cy: number): boolean => {
+      for (const o of existingInZone) {
+        const ow = o.size.width * SCALE, oh = o.size.height * SCALE;
+        if (Math.abs(cx - o.position.x) < (pw + ow) / 2 + GAP &&
+            Math.abs(cy - o.position.y) < (ph + oh) / 2 + GAP) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const minX = zoneBounds.x + pw / 2 + 4;
+    const maxX = zoneBounds.x + zoneBounds.w - pw / 2 - 4;
+    const minY = zoneBounds.y + ph / 2 + 4;
+    const maxY = zoneBounds.y + zoneBounds.h - ph / 2 - 4;
+
+    let px = (minX + maxX) / 2;
+    let py = (minY + maxY) / 2;
+    let found = !collides(px, py);
+
+    // 20 random attempts
+    for (let i = 0; !found && i < 20; i++) {
+      const rx = minX + Math.random() * Math.max(0, maxX - minX);
+      const ry = minY + Math.random() * Math.max(0, maxY - minY);
+      if (!collides(rx, ry)) { px = rx; py = ry; found = true; }
+    }
+
+    // Grid search fallback — step by (pw + GAP) / (ph + GAP)
+    if (!found) {
+      const stepX = pw + GAP;
+      const stepY = ph + GAP;
+      outer: for (let gy = minY; gy <= maxY; gy += stepY) {
+        for (let gx = minX; gx <= maxX; gx += stepX) {
+          if (!collides(gx, gy)) { px = gx; py = gy; found = true; break outer; }
+        }
+      }
+    }
+
+    if (!found) {
+      toast('error', '공간이 부족합니다. 존을 늘리거나 기존 미디어를 이동해주세요.');
+      return;
+    }
 
     const media: MediaPlacement = {
       id: `m_pop_${_popoverMediaId++}` as MediaId,
@@ -413,10 +463,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       type: mediaType as any,
       category: preset.category,
       zoneId: zoneId as any,
-      position: {
-        x: zoneBounds.x + zoneBounds.w / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.w - pw - 40),
-        y: zoneBounds.y + zoneBounds.h / 2 + (Math.random() - 0.5) * Math.max(0, zoneBounds.h - ph - 40),
-      },
+      position: { x: px, y: py },
       size: preset.defaultSize,
       orientation: 0,
       capacity: preset.defaultCapacity,

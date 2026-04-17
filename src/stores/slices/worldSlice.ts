@@ -264,14 +264,19 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => {
       const newZones = s.zones.filter((z) => (z.id as string) !== zoneId);
+      // Cascade: remove media belonging to this zone
+      const newMedia = s.media.filter((m) => (m.zoneId as string) !== zoneId);
       const newFloors = s.floors.map((f) => ({
         ...f,
         zoneIds: f.zoneIds.filter((id) => (id as string) !== zoneId),
       }));
       return {
         zones: newZones,
+        media: newMedia,
         floors: newFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, floors: newFloors } : s.scenario,
+        scenario: s.scenario
+          ? { ...s.scenario, zones: newZones, media: newMedia, floors: newFloors }
+          : s.scenario,
       };
     });
   },

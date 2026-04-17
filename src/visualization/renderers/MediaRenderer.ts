@@ -136,8 +136,42 @@ export function renderMedia(
     } else {
       edgeDist = isCircle ? circleR : ph / 2;
     }
+    // Front indicator: thick colored line on the front edge (category color)
+    const frontColor = catColor ?? (isDark ? '#60a5fa' : '#3b82f6');
+    const frontLineWidth = 3 * px;
+    ctx.strokeStyle = frontColor;
+    ctx.lineWidth = frontLineWidth;
+    ctx.lineCap = 'round';
+    if (isCustom) {
+      // Find edge whose midpoint has smallest Y (most forward)
+      const poly = m.polygon!;
+      let bestIdx = 0, bestMidY = Infinity;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i], b = poly[(i + 1) % poly.length];
+        const midY = (a.y + b.y) / 2;
+        if (midY < bestMidY) { bestMidY = midY; bestIdx = i; }
+      }
+      const a = poly[bestIdx], b = poly[(bestIdx + 1) % poly.length];
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    } else if (isCircle) {
+      // Top arc spanning 90° (from -3π/4 to -π/4, centered at top)
+      ctx.beginPath();
+      ctx.arc(0, 0, circleR, -Math.PI * 3 / 4, -Math.PI / 4);
+      ctx.stroke();
+    } else {
+      // Rect: line on top edge
+      ctx.beginPath();
+      ctx.moveTo(-pw / 2, -ph / 2);
+      ctx.lineTo(pw / 2, -ph / 2);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+
+    // Rotation handle (selected only) — line + green circle above the front edge
     if (isSelected) {
-      // Rotation handle: line + green circle (like standard design tools)
       const handleDist = edgeDist + 15 * px;
       ctx.beginPath();
       ctx.moveTo(0, -edgeDist);
@@ -152,14 +186,6 @@ export function renderMedia(
       ctx.strokeStyle = isDark ? '#166534' : '#fff';
       ctx.lineWidth = 0.6 * px;
       ctx.stroke();
-    } else {
-      // Small front arrow (non-selected)
-      ctx.beginPath();
-      ctx.moveTo(-pw / 4, -edgeDist);
-      ctx.lineTo(0, -edgeDist - 5);
-      ctx.lineTo(pw / 4, -edgeDist);
-      ctx.fillStyle = isDark ? 'rgba(59,130,246,0.5)' : 'rgba(37,99,235,0.4)';
-      ctx.fill();
     }
 
     // ── Media name (instead of icon) ──

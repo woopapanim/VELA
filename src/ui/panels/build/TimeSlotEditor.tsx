@@ -56,44 +56,14 @@ export function TimeSlotEditor() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Time Slots ({slots.length})
-        </p>
-        {!isLocked && (
-          <button onClick={addSlot} className="p-0.5 rounded hover:bg-secondary">
-            <Plus className="w-3 h-3 text-muted-foreground" />
-          </button>
-        )}
-      </div>
-
-      {/* Visual timeline bar */}
-      <div className="h-6 bg-secondary rounded-lg overflow-hidden flex relative">
-        {slots.map((slot, i) => {
-          const widthPct = ((slot.endTimeMs - slot.startTimeMs) / duration) * 100;
-          const colors = ['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b'];
-          return (
-            <div
-              key={i}
-              className="relative h-full flex items-center justify-center border-r border-background/30"
-              style={{
-                width: `${widthPct}%`,
-                backgroundColor: colors[i % colors.length],
-                opacity: 0.6,
-              }}
-            >
-              <span className="text-[7px] font-data text-white/80 truncate px-0.5">
-                {slot.spawnRatePerSecond}/s
-              </span>
-            </div>
-          );
-        })}
-        {slots.length === 0 && (
-          <div className="flex items-center justify-center w-full text-[8px] text-muted-foreground">
-            No time slots
-          </div>
-        )}
-      </div>
+      {!isLocked && (
+        <button
+          onClick={addSlot}
+          className="flex items-center gap-1 text-[9px] text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="w-3 h-3" /> Add slot
+        </button>
+      )}
 
       {/* Slot details */}
       {slots.map((slot, i) => {
