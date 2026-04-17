@@ -104,7 +104,7 @@ export function CompletionReport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `aion-report-${report.scenarioMeta.name.replace(/\s+/g, '-')}-v${report.scenarioMeta.version}.json`;
+    a.download = `vela-report-${report.scenarioMeta.name.replace(/\s+/g, '-')}-v${report.scenarioMeta.version}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };

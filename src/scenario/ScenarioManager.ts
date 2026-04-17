@@ -6,7 +6,7 @@ export interface SavedScenario {
   savedAt: number;
 }
 
-const STORAGE_KEY = 'aion-scenarios';
+const STORAGE_KEY = 'vela-scenarios';
 
 export class ScenarioManager {
   private scenarios = new Map<string, SavedScenario>();

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
+import type { Vector2D } from '@/domain';
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   analog: { label: 'Analog', color: '#a78bfa' },
@@ -16,6 +17,8 @@ export function MediaEditor() {
   const updateMedia = useStore((s) => s.updateMedia);
   const removeMedia = useStore((s) => s.removeMedia);
   const phase = useStore((s) => s.phase);
+  const mediaPolygonEditMode = useStore((s) => s.mediaPolygonEditMode);
+  const setMediaPolygonEditMode = useStore((s) => s.setMediaPolygonEditMode);
 
   const m = media.find((m) => (m.id as string) === selectedMediaId);
   const isLocked = phase === 'running' || phase === 'paused';
@@ -70,27 +73,29 @@ export function MediaEditor() {
         />
       </div>
 
-      {/* Size */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Width (m)</label>
-          <input type="number" step="0.5" min="0.5" max="20"
-            value={m.size.width}
-            onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
-            disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
-          />
+      {/* Size (hidden for custom polygon — derived from vertices) */}
+      {(m as any).shape !== 'custom' && (
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Width (m)</label>
+            <input type="number" step="0.5" min="0.5" max="20"
+              value={m.size.width}
+              onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
+              disabled={isLocked}
+              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Height (m)</label>
+            <input type="number" step="0.5" min="0.5" max="20"
+              value={m.size.height}
+              onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
+              disabled={isLocked}
+              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            />
+          </div>
         </div>
-        <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Height (m)</label>
-          <input type="number" step="0.5" min="0.5" max="20"
-            value={m.size.height}
-            onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
-            disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Orientation */}
       <div>
@@ -111,14 +116,64 @@ export function MediaEditor() {
         <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Shape</label>
         <select
           value={(m as any).shape || 'rect'}
-          onChange={(e) => handleUpdate('shape', e.target.value)}
+          onChange={(e) => {
+            const newShape = e.target.value;
+            if (newShape === 'custom' && (m as any).shape !== 'custom') {
+              // Convert rect/circle to polygon: generate 4 corners from current size
+              const pw = m.size.width * MEDIA_SCALE;
+              const ph = m.size.height * MEDIA_SCALE;
+              const poly: Vector2D[] = [
+                { x: -pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y:  ph / 2 },
+                { x: -pw / 2, y:  ph / 2 },
+              ];
+              updateMedia(selectedMediaId!, { shape: 'custom', polygon: poly } as any);
+              setMediaPolygonEditMode(true);
+            } else if (newShape !== 'custom' && (m as any).shape === 'custom') {
+              // Convert polygon back to rect/circle: derive size from polygon AABB
+              const poly = m.polygon;
+              if (poly && poly.length > 2) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (const p of poly) {
+                  if (p.x < minX) minX = p.x;
+                  if (p.y < minY) minY = p.y;
+                  if (p.x > maxX) maxX = p.x;
+                  if (p.y > maxY) maxY = p.y;
+                }
+                const w = Math.max(0.5, (maxX - minX) / MEDIA_SCALE);
+                const h = Math.max(0.5, (maxY - minY) / MEDIA_SCALE);
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } } as any);
+              } else {
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined } as any);
+              }
+              setMediaPolygonEditMode(false);
+            } else {
+              handleUpdate('shape', newShape);
+            }
+          }}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
+          <option value="custom">Polygon</option>
         </select>
       </div>
+
+      {/* Polygon edit mode toggle */}
+      {(m as any).shape === 'custom' && !isLocked && (
+        <button
+          onClick={() => setMediaPolygonEditMode(!mediaPolygonEditMode)}
+          className={`w-full px-2 py-1 text-[10px] rounded-lg border transition-colors ${
+            mediaPolygonEditMode
+              ? 'bg-green-500/20 border-green-500/40 text-green-400'
+              : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {mediaPolygonEditMode ? '✓ 형태 완료' : '형태 편집'}
+        </button>
+      )}
 
       {/* Interaction Type */}
       <div>

@@ -33,7 +33,7 @@ export function CsvExport() {
       csv += `${timeSec},${occCols.join(',')},${utilCols.join(',')},${fatigue},${bottlenecks},${skipRate}\n`;
     }
 
-    downloadCsv(csv, `aion-zone-utilization-${scenario?.meta.name ?? 'export'}.csv`);
+    downloadCsv(csv, `vela-zone-utilization-${scenario?.meta.name ?? 'export'}.csv`);
   }, [kpiHistory, zones, scenario]);
 
   const handleExportVisitorSummary = useCallback(() => {
@@ -57,7 +57,7 @@ export function CsvExport() {
       ].join(',') + '\n';
     }
 
-    downloadCsv(csv, `aion-visitors-${scenario?.meta.name ?? 'export'}.csv`);
+    downloadCsv(csv, `vela-visitors-${scenario?.meta.name ?? 'export'}.csv`);
   }, [zones, scenario]);
 
   const handleExportMediaStats = useCallback(() => {
@@ -93,7 +93,7 @@ export function CsvExport() {
       ].join(',') + '\n';
     }
 
-    downloadCsv(csv, `aion-media-${scenario?.meta.name ?? 'export'}.csv`);
+    downloadCsv(csv, `vela-media-${scenario?.meta.name ?? 'export'}.csv`);
   }, [scenario]);
 
   if (kpiHistory.length < 2) return null;

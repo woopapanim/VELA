@@ -218,7 +218,7 @@ export function CanvasPanel() {
   // Mouse world position for ghost node preview
   const mouseWorldPos = useRef<{ x: number; y: number } | null>(null);
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
@@ -294,6 +294,10 @@ export function CanvasPanel() {
       // Escape: 폴리곤 편집 모드 종료
       if (e.code === 'Escape') {
         const store = useStore.getState();
+        if (store.mediaPolygonEditMode) {
+          store.setMediaPolygonEditMode(false);
+          return;
+        }
         if (store.polygonEditMode) {
           store.setPolygonEditMode(false);
           return;
@@ -615,11 +619,61 @@ export function CanvasPanel() {
         }
       }
 
-      // Check selected media resize handles first (rotated coordinates)
+      // Check media polygon vertex/edge (only in mediaPolygonEditMode)
       const MEDIA_SCALE_VAL = 20;
+      if (store.selectedMediaId && store.mediaPolygonEditMode) {
+        const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
+        if (selMedia && (selMedia as any).shape === 'custom' && selMedia.polygon && selMedia.polygon.length > 2) {
+          const mRad = (selMedia.orientation * Math.PI) / 180;
+          const mCos = Math.cos(mRad), mSin = Math.sin(mRad);
+          // Transform world→local (center-relative, pre-rotation)
+          const dx = world.x - selMedia.position.x;
+          const dy = world.y - selMedia.position.y;
+          const localX = dx * Math.cos(-mRad) - dy * Math.sin(-mRad);
+          const localY = dx * Math.sin(-mRad) + dy * Math.cos(-mRad);
+          const vts = selMedia.polygon as {x:number;y:number}[];
+
+          // ① Vertex drag (8px hit radius in world space)
+          for (let vi = 0; vi < vts.length; vi++) {
+            const vdx = vts[vi].x - localX, vdy = vts[vi].y - localY;
+            if (vdx * vdx + vdy * vdy < 64) {
+              store.pushUndo(store.zones, store.media, store.waypointGraph);
+              dragMode.current = 'media-vertex';
+              dragMediaId.current = store.selectedMediaId;
+              dragVertexIdx.current = vi;
+              vertexOriginal.current = { x: vts[vi].x, y: vts[vi].y };
+              e.preventDefault();
+              return;
+            }
+          }
+          // ② Edge click → insert vertex + start drag
+          let bestEdge = { dist: Infinity, idx: -1, pt: { x: 0, y: 0 } };
+          for (let vi = 0; vi < vts.length; vi++) {
+            const a = vts[vi], b = vts[(vi + 1) % vts.length];
+            const cp = closestPointOnSeg(localX, localY, a.x, a.y, b.x, b.y);
+            const edx = cp.x - localX, edy = cp.y - localY;
+            const d = Math.sqrt(edx * edx + edy * edy);
+            if (d < bestEdge.dist) bestEdge = { dist: d, idx: vi, pt: cp };
+          }
+          if (bestEdge.dist <= 6) {
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            const newVerts = [...vts];
+            newVerts.splice(bestEdge.idx + 1, 0, { x: bestEdge.pt.x, y: bestEdge.pt.y });
+            updateMedia(store.selectedMediaId, { polygon: newVerts } as any);
+            dragMode.current = 'media-vertex';
+            dragMediaId.current = store.selectedMediaId;
+            dragVertexIdx.current = bestEdge.idx + 1;
+            vertexOriginal.current = { x: bestEdge.pt.x, y: bestEdge.pt.y };
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+
+      // Check selected media resize handles first (rotated coordinates, skip for custom polygon)
       if (store.selectedMediaId) {
         const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
-        if (selMedia) {
+        if (selMedia && (selMedia as any).shape !== 'custom') {
           const pw = selMedia.size.width * MEDIA_SCALE_VAL, ph = selMedia.size.height * MEDIA_SCALE_VAL;
           const mRad = (selMedia.orientation * Math.PI) / 180;
           const mCos = Math.cos(mRad), mSin = Math.sin(mRad);
@@ -683,11 +737,22 @@ export function CanvasPanel() {
 
       // Check media click for move (before zone click)
       for (const m of store.media) {
-        const pw = m.size.width * MEDIA_SCALE_VAL;
-        const ph = m.size.height * MEDIA_SCALE_VAL;
-        const mx = m.position.x - pw / 2;
-        const my = m.position.y - ph / 2;
-        if (world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph) {
+        let mediaHit = false;
+        if ((m as any).shape === 'custom' && m.polygon && m.polygon.length > 2) {
+          // Transform world to local, then point-in-polygon
+          const mRad = (m.orientation * Math.PI) / 180;
+          const ddx = world.x - m.position.x, ddy = world.y - m.position.y;
+          const lx = ddx * Math.cos(-mRad) - ddy * Math.sin(-mRad);
+          const ly = ddx * Math.sin(-mRad) + ddy * Math.cos(-mRad);
+          mediaHit = ptInPoly(m.polygon as {x:number;y:number}[], lx, ly);
+        } else {
+          const pw = m.size.width * MEDIA_SCALE_VAL;
+          const ph = m.size.height * MEDIA_SCALE_VAL;
+          const mx = m.position.x - pw / 2;
+          const my = m.position.y - ph / 2;
+          mediaHit = world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph;
+        }
+        if (mediaHit) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
           dragMode.current = 'media-move';
           dragMediaId.current = m.id as string;
@@ -1345,6 +1410,36 @@ export function CanvasPanel() {
         } as any);
       }
       didDrag.current = true;
+    } else if (mode === 'media-vertex' && dragMediaId.current && dragVertexIdx.current !== null) {
+      const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
+      if (m && m.polygon && dragVertexIdx.current < m.polygon.length) {
+        const mRad = (m.orientation * Math.PI) / 180;
+        // Transform world to local coords
+        const dx = world.x - m.position.x;
+        const dy = world.y - m.position.y;
+        const localX = dx * Math.cos(-mRad) - dy * Math.sin(-mRad);
+        const localY = dx * Math.sin(-mRad) + dy * Math.cos(-mRad);
+        // Snap to grid in local coords
+        const snappedX = Math.round(localX / 5) * 5;
+        const snappedY = Math.round(localY / 5) * 5;
+        const vIdx = dragVertexIdx.current;
+        const newPoly = m.polygon.map((v: any, i: number) =>
+          i === vIdx ? { x: snappedX, y: snappedY } : { x: v.x, y: v.y }
+        );
+        // Recompute size from AABB of polygon
+        let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+        for (const v of newPoly) {
+          if (v.x < mnX) mnX = v.x;
+          if (v.y < mnY) mnY = v.y;
+          if (v.x > mxX) mxX = v.x;
+          if (v.y > mxY) mxY = v.y;
+        }
+        updateMedia(dragMediaId.current, {
+          polygon: newPoly,
+          size: { width: (mxX - mnX) / 20, height: (mxY - mnY) / 20 },
+        } as any);
+      }
+      didDrag.current = true;
     } else if (mode === 'media-resize' && dragMediaId.current) {
       const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
       if (m) {
@@ -1565,12 +1660,52 @@ export function CanvasPanel() {
       }
     }
 
+    // Media polygon vertex right-click → delete vertex
+    if (store.mediaPolygonEditMode && store.selectedMediaId) {
+      const selM = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
+      if (selM && (selM as any).shape === 'custom' && selM.polygon && selM.polygon.length > 3) {
+        const mRad = (selM.orientation * Math.PI) / 180;
+        const dx = world.x - selM.position.x, dy = world.y - selM.position.y;
+        const localX = dx * Math.cos(-mRad) - dy * Math.sin(-mRad);
+        const localY = dx * Math.sin(-mRad) + dy * Math.cos(-mRad);
+        for (let vi = 0; vi < selM.polygon.length; vi++) {
+          const vdx = selM.polygon[vi].x - localX, vdy = selM.polygon[vi].y - localY;
+          if (vdx * vdx + vdy * vdy < 64) {
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            const newPoly = selM.polygon.filter((_: any, i: number) => i !== vi);
+            let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+            for (const v of newPoly) {
+              if (v.x < mnX) mnX = v.x;
+              if (v.y < mnY) mnY = v.y;
+              if (v.x > mxX) mxX = v.x;
+              if (v.y > mxY) mxY = v.y;
+            }
+            updateMedia(store.selectedMediaId, {
+              polygon: newPoly,
+              size: { width: (mxX - mnX) / 20, height: (mxY - mnY) / 20 },
+            } as any);
+            return;
+          }
+        }
+      }
+    }
+
     // Hit-test media
     const MS = 20;
     for (const m of store.media) {
-      const pw = m.size.width * MS, ph = m.size.height * MS;
-      if (world.x >= m.position.x - pw/2 && world.x <= m.position.x + pw/2 &&
-          world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2) {
+      let mHit = false;
+      if ((m as any).shape === 'custom' && m.polygon && m.polygon.length > 2) {
+        const mRad = (m.orientation * Math.PI) / 180;
+        const dx2 = world.x - m.position.x, dy2 = world.y - m.position.y;
+        const lx2 = dx2 * Math.cos(-mRad) - dy2 * Math.sin(-mRad);
+        const ly2 = dx2 * Math.sin(-mRad) + dy2 * Math.cos(-mRad);
+        mHit = ptInPoly(m.polygon as {x:number;y:number}[], lx2, ly2);
+      } else {
+        const pw = m.size.width * MS, ph = m.size.height * MS;
+        mHit = world.x >= m.position.x - pw/2 && world.x <= m.position.x + pw/2 &&
+               world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2;
+      }
+      if (mHit) {
         (store as any).selectMedia(m.id as string);
         showPopover(e.clientX, e.clientY, 'media', m.id as string);
         return;

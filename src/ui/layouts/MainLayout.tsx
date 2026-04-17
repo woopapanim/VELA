@@ -44,16 +44,11 @@ export function MainLayout() {
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)]">
         <div className="flex items-center gap-3">
           <h1 className="text-sm font-semibold tracking-tight">
-            AION <span className="text-muted-foreground font-normal">mark01</span>
+            VELA
           </h1>
           {scenario && (
             <span className="text-xs text-muted-foreground font-data truncate max-w-48">
               {scenario.meta.name}
-            </span>
-          )}
-          {!scenario && (
-            <span className="text-xs text-muted-foreground font-data">
-              ABOARD INTERACTIVE
             </span>
           )}
         </div>

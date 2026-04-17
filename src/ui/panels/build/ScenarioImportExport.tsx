@@ -16,7 +16,7 @@ export function ScenarioImportExport() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `aion-scenario-${scenario.meta.name.replace(/\s+/g, '-')}-v${scenario.meta.version}.json`;
+    a.download = `vela-scenario-${scenario.meta.name.replace(/\s+/g, '-')}-v${scenario.meta.version}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }, [scenario]);

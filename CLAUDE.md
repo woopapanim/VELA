@@ -1,4 +1,4 @@
-# AION mark01 — Exhibition Digital Twin
+# VELA — Spatial Simulation & Flow Analytics
 
 ## 프로젝트 개요
 전시관 시뮬레이션 + 분석 엔진. 에이전트 기반 관람객 동선 시뮬레이션, KPI 분석, A/B 비교.

@@ -15,6 +15,8 @@ export function renderZones(
   _zoneAnimFrame++;
   // Scale font sizes inversely with zoom so text stays readable but not oversized
   const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
+  // Keep strokes/handles at constant screen-pixel size regardless of zoom
+  const px = 1 / Math.max(zoom, 0.3);
 
   // Pre-compute occupancy per zone (position-based: count visitors physically inside bounds)
   const occupancy = new Map<string, number>();
@@ -102,28 +104,30 @@ export function renderZones(
       : isDark
         ? hexToRgba(zoneColor, 0.4)
         : hexToRgba(zoneColor, 0.3);
-    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.lineWidth = (isSelected ? 1.5 : 0.75) * px;
     ctx.stroke();
 
     // Resize/vertex handles (selected zone only)
     if (isSelected) {
       const handleColor = isDark ? '#60a5fa' : '#2563eb';
+      const handleR = 4 * px;   // handle radius in world units → constant on screen
+      const handleSq = 6 * px;  // square handle edge
+      const handleStroke = 1 * px;
 
       const polyEditMode = shape === 'custom' && polygon && polygon.length > 2 && (!zone.gates || zone.gates.length === 0);
       if (polyEditMode) {
         // Polygon editing: vertex handles only (no rect resize handles)
         for (const v of polygon) {
           ctx.beginPath();
-          ctx.arc(v.x, v.y, 6, 0, Math.PI * 2);
+          ctx.arc(v.x, v.y, handleR, 0, Math.PI * 2);
           ctx.fillStyle = '#fff';
           ctx.fill();
           ctx.strokeStyle = handleColor;
-          ctx.lineWidth = 2;
+          ctx.lineWidth = handleStroke;
           ctx.stroke();
         }
       } else if (shape === 'circle' || shape === 'o_ring') {
         // Circle: cardinal-direction handles on circle edge
-        const handleSize = 6;
         const cx = bounds.x + bounds.w / 2;
         const cy = bounds.y + bounds.h / 2;
         const r = Math.min(bounds.w, bounds.h) / 2;
@@ -135,11 +139,11 @@ export function renderZones(
         ];
         for (const c of cardinals) {
           ctx.beginPath();
-          ctx.arc(c.x, c.y, handleSize / 2 + 1, 0, Math.PI * 2);
+          ctx.arc(c.x, c.y, handleR, 0, Math.PI * 2);
           ctx.fillStyle = '#fff';
           ctx.fill();
           ctx.strokeStyle = handleColor;
-          ctx.lineWidth = 2;
+          ctx.lineWidth = handleStroke;
           ctx.stroke();
         }
         const diameter = Math.round(r * 2);
@@ -147,10 +151,9 @@ export function renderZones(
         ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(`⌀${diameter}`, cx, cy + r + 4);
+        ctx.fillText(`⌀${diameter}`, cx, cy + r + 4 * px);
       } else if (shape !== 'custom') {
         // Rect/L/other: corner resize handles
-        const handleSize = 6;
         const corners = [
           { x: bounds.x, y: bounds.y },
           { x: bounds.x + bounds.w, y: bounds.y },
@@ -158,14 +161,17 @@ export function renderZones(
           { x: bounds.x + bounds.w, y: bounds.y + bounds.h },
         ];
         for (const c of corners) {
-          ctx.fillStyle = handleColor;
-          ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(c.x - handleSq / 2, c.y - handleSq / 2, handleSq, handleSq);
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = handleStroke;
+          ctx.strokeRect(c.x - handleSq / 2, c.y - handleSq / 2, handleSq, handleSq);
         }
         ctx.font = `${fs(8)}px "JetBrains Mono", monospace`;
         ctx.fillStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(`${(bounds.w / 20).toFixed(1)}×${(bounds.h / 20).toFixed(1)}m`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4);
+        ctx.fillText(`${(bounds.w / 20).toFixed(1)}×${(bounds.h / 20).toFixed(1)}m`, bounds.x + bounds.w / 2, bounds.y + bounds.h + 4 * px);
       }
 
       // L-shape inner corner handle
@@ -174,13 +180,12 @@ export function renderZones(
         const ry = (zone.lRatioY ?? 0.5);
         const lx = bounds.x + bounds.w * rx;
         const ly = bounds.y + bounds.h * ry;
-        const lHandleSize = 7;
         ctx.fillStyle = isDark ? '#fbbf24' : '#f59e0b';
         ctx.beginPath();
-        ctx.arc(lx, ly, lHandleSize / 2, 0, Math.PI * 2);
+        ctx.arc(lx, ly, handleR, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = isDark ? '#fbbf2480' : '#f59e0b80';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = handleStroke;
         ctx.stroke();
       }
     }
@@ -213,7 +218,7 @@ export function renderZones(
       if (fillRatio > 0.9) {
         const pulse = (Math.sin(_zoneAnimFrame * 0.06) + 1) * 0.5;
         ctx.strokeStyle = `rgba(239,68,68,${0.2 + pulse * 0.4})`;
-        ctx.lineWidth = 2 + pulse * 2;
+        ctx.lineWidth = (1.5 + pulse * 1.5) * px;
         ctx.setLineDash([]);
         if (polygon && polygon.length > 2) {
           ctx.beginPath();

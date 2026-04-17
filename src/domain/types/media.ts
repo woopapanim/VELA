@@ -1,4 +1,4 @@
-import type { MediaId, ZoneId, Vector2D, Degrees } from './common';
+import type { MediaId, ZoneId, Vector2D, Degrees, Polygon } from './common';
 
 // ---- Media Category (4대 분류) ----
 export const MEDIA_CATEGORY = {
@@ -55,7 +55,7 @@ export interface MediaPreset {
 }
 
 export type MediaInteractionType = 'passive' | 'active' | 'staged';
-export type MediaShape = 'rect' | 'circle';
+export type MediaShape = 'rect' | 'circle' | 'custom';
 
 export interface MediaPlacement {
   readonly id: MediaId;
@@ -71,7 +71,8 @@ export interface MediaPlacement {
   readonly attractiveness: number; // 0-1
   readonly attractionRadius: number; // meters — instance override
   readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형
-  readonly shape?: MediaShape; // rect (default) or circle
+  readonly shape?: MediaShape; // rect (default), circle, or custom polygon
+  readonly polygon?: Polygon; // custom shape vertices (center-relative local coords, pre-rotation)
   readonly stageIntervalMs?: number; // staged only: time between sessions (e.g. 60000 = 1min)
   readonly queueBehavior?: QueueBehavior;
   readonly groupFriendly?: boolean;

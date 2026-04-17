@@ -5,7 +5,7 @@ import { useToast } from '@/ui/components/Toast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import type { Scenario } from '@/domain';
 
-const HISTORY_KEY = 'aion-project-history';
+const HISTORY_KEY = 'vela-project-history';
 
 interface ProjectEntry {
   id: string;
@@ -134,7 +134,7 @@ export function ProjectManager() {
       try {
         const fileHandle = await (window as any).showSaveFilePicker({
           suggestedName: fileName,
-          types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
+          types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
         });
         const writable = await fileHandle.createWritable();
         await writable.write(json);
@@ -194,7 +194,7 @@ export function ProjectManager() {
     if ('showOpenFilePicker' in window) {
       try {
         const [fileHandle] = await (window as any).showOpenFilePicker({
-          types: [{ description: 'AION Project', accept: { 'application/json': ['.json'] } }],
+          types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
           multiple: false,
         });
         const file = await fileHandle.getFile();

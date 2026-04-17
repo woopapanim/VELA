@@ -131,7 +131,7 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
             if (zone) {
-              (window as any).__aion_clipboard_zone = JSON.parse(JSON.stringify(zone));
+              (window as any).__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
             }
           }
           break;
@@ -141,7 +141,7 @@ export function useKeyboardShortcuts() {
           // Paste zone (Cmd/Ctrl+V)
           if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
             e.preventDefault();
-            const clipZone = (window as any).__aion_clipboard_zone;
+            const clipZone = (window as any).__vela_clipboard_zone;
             if (clipZone) {
               const newId = `z_paste_${Date.now()}`;
               const pasted = {

@@ -39,7 +39,7 @@ import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
-import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon } from '../collision/resolution';
+import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon, pushOutsidePolygon } from '../collision/resolution';
 import { arrival, separation, wander, obstacleAvoidance, followLeader, groupCohesion } from '../steering/behaviors';
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
@@ -770,6 +770,21 @@ export class SimulationEngine {
     return (m as any).shape === 'circle';
   }
 
+  private isMediaPolygon(m: MediaPlacement): boolean {
+    return (m as any).shape === 'custom' && m.polygon != null && m.polygon.length > 2;
+  }
+
+  /** Transform polygon from center-relative local coords to world coords */
+  private getMediaWorldPolygon(m: MediaPlacement): Vector2D[] {
+    const poly = m.polygon!;
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return poly.map(p => ({
+      x: m.position.x + p.x * cos - p.y * sin,
+      y: m.position.y + p.x * sin + p.y * cos,
+    }));
+  }
+
   /** Get media radius for circle shape (pixels) */
   private getMediaRadius(m: MediaPlacement): number {
     return Math.max(m.size.width, m.size.height) * MEDIA_SCALE / 2;
@@ -777,6 +792,17 @@ export class SimulationEngine {
 
   /** Get media bounding rect in canvas pixels */
   private getMediaRect(m: MediaPlacement): { x: number; y: number; w: number; h: number } {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of wp) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       return { x: m.position.x - r, y: m.position.y - r, w: r * 2, h: r * 2 };
@@ -786,8 +812,16 @@ export class SimulationEngine {
     return { x: m.position.x - pw / 2, y: m.position.y - ph / 2, w: pw, h: ph };
   }
 
-  /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon) */
+  /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon, custom=polygon edges) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      const walls: { a: Vector2D; b: Vector2D }[] = [];
+      for (let i = 0; i < wp.length; i++) {
+        walls.push({ a: wp[i], b: wp[(i + 1) % wp.length] });
+      }
+      return walls;
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const cx = m.position.x, cy = m.position.y;
@@ -812,8 +846,12 @@ export class SimulationEngine {
     ];
   }
 
-  /** Check if point is inside media (rect or circle) */
+  /** Check if point is inside media (rect, circle, or polygon) */
   private isInsideMedia(pos: Vector2D, m: MediaPlacement): boolean {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      return isPointInPolygon(pos, wp);
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
@@ -823,8 +861,12 @@ export class SimulationEngine {
     return pos.x > rect.x && pos.x < rect.x + rect.w && pos.y > rect.y && pos.y < rect.y + rect.h;
   }
 
-  /** Push point outside media (rect or circle) */
+  /** Push point outside media (rect, circle, or polygon) */
   private pushOutsideMedia(pos: Vector2D, m: MediaPlacement): Vector2D {
+    if (this.isMediaPolygon(m)) {
+      const wp = this.getMediaWorldPolygon(m);
+      return pushOutsidePolygon(pos, wp, m.position);
+    }
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
@@ -879,10 +921,26 @@ export class SimulationEngine {
 
   /** Get a specific slot position within the media rect for the nth viewer */
   private getMediaSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
-    const pw = m.size.width * MEDIA_SCALE;
-    const ph = m.size.height * MEDIA_SCALE;
     const rad = (m.orientation * Math.PI) / 180;
     const cap = Math.max(1, m.capacity);
+
+    // For polygon shapes, use AABB of local polygon for slot distribution
+    let pw: number, ph: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of poly) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      pw = maxX - minX;
+      ph = maxY - minY;
+    } else {
+      pw = m.size.width * MEDIA_SCALE;
+      ph = m.size.height * MEDIA_SCALE;
+    }
 
     // Distribute slots evenly across the media width
     const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
@@ -905,8 +963,16 @@ export class SimulationEngine {
 
   /** Get the passive viewing position — just in front of media (close) */
   private getMediaViewPoint(m: MediaPlacement): Vector2D {
-    const halfDepth = (m.size.height * MEDIA_SCALE) / 2;
-    const dist = halfDepth + 5; // just 5px outside the rect
+    let halfDepth: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let maxY = -Infinity;
+      for (const p of poly) if (Math.abs(p.y) > maxY) maxY = Math.abs(p.y);
+      halfDepth = maxY;
+    } else {
+      halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    }
+    const dist = halfDepth + 5;
     const rad = (m.orientation * Math.PI) / 180;
     return {
       x: m.position.x + Math.sin(rad) * dist,
@@ -916,8 +982,15 @@ export class SimulationEngine {
 
   /** Get the waiting position (in front of media, outside media rect) */
   private getMediaWaitPoint(m: MediaPlacement): Vector2D {
-    // Distance = half of media depth + margin (ensure outside rect)
-    const halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    let halfDepth: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let maxY = -Infinity;
+      for (const p of poly) if (Math.abs(p.y) > maxY) maxY = Math.abs(p.y);
+      halfDepth = maxY;
+    } else {
+      halfDepth = (m.size.height * MEDIA_SCALE) / 2;
+    }
     const margin = 15;
     const dist = halfDepth + margin;
     const rad = (m.orientation * Math.PI) / 180;

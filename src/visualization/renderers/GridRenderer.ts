@@ -33,9 +33,12 @@ export function renderGrid(
 
   ctx.save();
 
+  // Keep grid lines at constant screen-pixel width regardless of zoom
+  const px = 1 / cameraZoom;
+
   // Minor grid lines
   ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.10)';
-  ctx.lineWidth = 0.75;
+  ctx.lineWidth = 0.5 * px;
 
   for (let x = startX; x <= endX; x += gridSize) {
     ctx.beginPath();
@@ -52,7 +55,7 @@ export function renderGrid(
 
   // Major grid lines (every 5th)
   ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 1.0;
+  ctx.lineWidth = 0.75 * px;
 
   const majorStep = gridSize * 5;
   const majorStartX = Math.floor(worldLeft / majorStep) * majorStep;
@@ -76,8 +79,8 @@ export function renderGrid(
   // Origin crosshair (blueprint style)
   if (isDark) {
     ctx.strokeStyle = 'rgba(59,130,246,0.08)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([8, 8]);
+    ctx.lineWidth = px;
+    ctx.setLineDash([8 * px, 8 * px]);
     ctx.beginPath();
     ctx.moveTo(width / 2, startY);
     ctx.lineTo(width / 2, endY);
