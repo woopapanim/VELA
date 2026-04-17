@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Trash2, Eye, EyeOff, Square, Monitor, Circle, GitBranch, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
-import type { ZoneId, MediaId, MediaInteractionType } from '@/domain';
+import type { ZoneId, MediaId } from '@/domain';
 
 interface MenuState {
   visible: boolean;
@@ -83,6 +83,7 @@ let _ctxMediaCounter = 200;
 
 function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) {
   const store = useStore.getState();
+  // Sync counter
   for (const z of store.zones) {
     const m = (z.id as string).match(/^z_user_(\d+)$/);
     if (m) _ctxZoneCounter = Math.max(_ctxZoneCounter, parseInt(m[1]) + 1);
@@ -92,6 +93,7 @@ function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) 
   let x = Math.round(worldX - zoneW / 2);
   let y = Math.round(worldY - zoneH / 2);
 
+  // Overlap avoidance
   const isOverlapping = (tx: number, ty: number) =>
     store.zones.some((z) => {
       const b = z.bounds;
@@ -136,24 +138,26 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
   const preset = MEDIA_PRESETS[mediaType as keyof typeof MEDIA_PRESETS];
   if (!preset) return;
 
+  // Find the zone that contains this position
   const zone = store.zones.find((z) => {
     const b = z.bounds;
     return worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h;
   });
-  if (!zone) return;
+  if (!zone) return; // Media must be inside a zone
 
+  // Sync counter
   for (const m of store.media) {
     const match = (m.id as string).match(/^m_user_(\d+)$/);
     if (match) _ctxMediaCounter = Math.max(_ctxMediaCounter, parseInt(match[1]) + 1);
   }
   const id = `m_user_${_ctxMediaCounter++}` as MediaId;
 
-  const interactionType: MediaInteractionType = preset.category === 'immersive'
-    ? 'staged'
-    : preset.isInteractive
-      ? 'active'
-      : 'passive';
+  const interactionType = preset.category === 'immersive' ? 'staged' as const
+    : preset.category === 'analog' ? 'analog' as const
+    : preset.isInteractive ? 'active' as const
+    : 'passive' as const;
 
+  // Clamp position inside zone
   const pw = preset.defaultSize.width * MEDIA_SCALE;
   const ph = preset.defaultSize.height * MEDIA_SCALE;
   const margin = 10;
@@ -171,9 +175,10 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
     orientation: 0,
     capacity: preset.defaultCapacity,
     avgEngagementTimeMs: preset.avgEngagementTimeMs,
-    attractiveness: 0.7,
+    attractiveness: preset.category === 'analog' ? 0.3 : 0.7,
     attractionRadius: preset.attractionRadius,
     interactionType,
+    omnidirectional: (preset as any).omnidirectional ?? false,
     queueBehavior: preset.queueBehavior,
     groupFriendly: preset.groupFriendly,
   } as any);
@@ -205,6 +210,7 @@ export function CanvasContextMenu({ menu, onClose }: {
   const estSubH = 380;
   const flipSubY = menu.y > window.innerHeight - estSubH - 16;
 
+  // Check if right-click position is inside any zone (for media placement)
   const insideZone = zones.find((z) => {
     const b = z.bounds;
     return menu.worldX >= b.x && menu.worldX <= b.x + b.w && menu.worldY >= b.y && menu.worldY <= b.y + b.h;
@@ -245,6 +251,7 @@ export function CanvasContextMenu({ menu, onClose }: {
         <>
           <div className="px-3 py-1 text-[9px] text-muted-foreground/60 uppercase tracking-wider">Add</div>
 
+          {/* Zone — submenu: creates zone at click position */}
           <SubMenuItem
             label="Zone"
             icon={Square}
@@ -263,6 +270,7 @@ export function CanvasContextMenu({ menu, onClose }: {
             ))}
           </SubMenuItem>
 
+          {/* Media — submenu: creates media at click position (only if inside a zone) */}
           <SubMenuItem
             label="Media"
             icon={Monitor}
@@ -296,6 +304,7 @@ export function CanvasContextMenu({ menu, onClose }: {
             )}
           </SubMenuItem>
 
+          {/* Node — submenu: sets pending type for canvas click */}
           <SubMenuItem
             label="Node"
             icon={Circle}

@@ -178,7 +178,7 @@ export class CanvasManager {
     }
 
     // 6. Media (with queue visualization)
-    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom);
+    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom, state.showLabels);
 
     // 7. Path trails (subtle traces behind visitors)
     if (state.visitors.length > 0) {

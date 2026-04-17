@@ -235,7 +235,7 @@ export function PropertyPopover({ popover, onClose }: {
           </select>
           {edge.direction === 'directed' && (
             <button
-              title="방향 전환"
+              title="Flip Direction"
               onClick={() => updateEdge(popover.targetId!, { fromId: edge.toId, toId: edge.fromId } as any)}
               className="px-1.5 py-0.5 rounded bg-secondary hover:bg-accent text-[10px] border border-border"
             >⇄</button>
@@ -393,6 +393,7 @@ export function PropertyPopover({ popover, onClose }: {
             <option value="passive">Passive</option>
             <option value="active">Active</option>
             <option value="staged">Staged</option>
+            <option value="analog">Analog</option>
           </select>
         </Row>
 
@@ -416,6 +417,16 @@ const MEDIA_CATEGORIES = [
 
 let _popoverMediaId = 5000;
 
+function ensurePopoverCounter() {
+  const state = useStore.getState();
+  let max = _popoverMediaId - 1;
+  for (const m of state.media) {
+    const match = (m.id as string).match(/^m_pop_(\d+)$/);
+    if (match) max = Math.max(max, parseInt(match[1]));
+  }
+  _popoverMediaId = max + 1;
+}
+
 function AddMediaInline({ zoneId, zoneBounds }: {
   zoneId: string;
   zoneBounds: { x: number; y: number; w: number; h: number };
@@ -425,6 +436,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
   const { toast } = useToast();
 
   const handleAdd = (mediaType: string) => {
+    ensurePopoverCounter();
     const preset = (MEDIA_PRESETS as Record<string, any>)[mediaType];
     if (!preset) return;
 
@@ -433,6 +445,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
     const pw = preset.defaultSize.width * SCALE;
     const ph = preset.defaultSize.height * SCALE;
     const interactionType = preset.category === 'immersive' ? 'staged'
+      : preset.category === 'analog' ? 'analog'
       : preset.isInteractive ? 'active' : 'passive';
 
     // Find a non-overlapping position: random tries first, then grid search fallback
@@ -496,11 +509,13 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       attractiveness: 0.7,
       attractionRadius: preset.attractionRadius,
       interactionType: interactionType as any,
+      omnidirectional: (preset as any).omnidirectional ?? false,
       queueBehavior: preset.queueBehavior,
       groupFriendly: preset.groupFriendly,
     };
 
     addMedia(media);
+    useStore.getState().selectMedia(media.id as string);
   };
 
   return (

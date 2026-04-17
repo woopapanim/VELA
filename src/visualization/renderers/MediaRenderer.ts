@@ -16,6 +16,7 @@ export function renderMedia(
   visitors?: readonly Visitor[],
   showDebug?: boolean,
   zoom: number = 1,
+  showLabels: boolean = true,
 ) {
   // Scale font sizes inversely with zoom
   const fs = (basePx: number) => Math.max(3, basePx / Math.max(zoom, 0.3));
@@ -188,34 +189,36 @@ export function renderMedia(
       ctx.stroke();
     }
 
-    // ── Media name (instead of icon) ──
+    // ── Media name + category badge (hidden when labels off) ──
     ctx.rotate(-rad); // un-rotate for readable text
-    const name = (m as any).name || m.type.replace(/_/g, ' ');
-    const fontSize = fs(Math.max(7, Math.min(10, pw * 0.15)));
-    ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
-    ctx.fillText(name, 0, 0);
+    if (showLabels) {
+      const name = (m as any).name || m.type.replace(/_/g, ' ');
+      const fontSize = fs(Math.max(7, Math.min(10, pw * 0.15)));
+      ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';
+      ctx.fillText(name, 0, 0);
 
-    // ── Category badge ──
-    const cat = (m as any).category as string;
-    const catBadgeColor = CATEGORY_BORDER_COLORS[cat];
-    if (catBadgeColor) {
-      const catLabels: Record<string, string> = { analog: 'ANALOG', passive_media: 'PASSIVE', active: 'ACTIVE', immersive: 'IMMERSIVE' };
-      ctx.font = `${fs(5)}px "JetBrains Mono", monospace`;
-      ctx.fillStyle = isDark ? catBadgeColor + 'aa' : catBadgeColor + '99';
-      ctx.fillText(catLabels[cat] ?? '', 0, fontSize * 0.8);
-    } else {
-      const isStaged = (m as any).interactionType === 'staged';
-      if (isActive) {
-        ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
-        ctx.fillText('ACTIVE', 0, fontSize * 0.8);
-      } else if (isStaged) {
-        ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
-        ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
-        ctx.fillText('STAGED', 0, fontSize * 0.8);
+      // ── Category badge ──
+      const cat = (m as any).category as string;
+      const catBadgeColor = CATEGORY_BORDER_COLORS[cat];
+      if (catBadgeColor) {
+        const catLabels: Record<string, string> = { analog: 'ANALOG', passive_media: 'PASSIVE', active: 'ACTIVE', immersive: 'IMMERSIVE' };
+        ctx.font = `${fs(5)}px "JetBrains Mono", monospace`;
+        ctx.fillStyle = isDark ? catBadgeColor + 'aa' : catBadgeColor + '99';
+        ctx.fillText(catLabels[cat] ?? '', 0, fontSize * 0.8);
+      } else {
+        const isStaged = (m as any).interactionType === 'staged';
+        if (isActive) {
+          ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
+          ctx.fillText('ACTIVE', 0, fontSize * 0.8);
+        } else if (isStaged) {
+          ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
+          ctx.fillStyle = isDark ? 'rgba(168,85,247,0.6)' : 'rgba(126,34,206,0.6)';
+          ctx.fillText('STAGED', 0, fontSize * 0.8);
+        }
       }
     }
 

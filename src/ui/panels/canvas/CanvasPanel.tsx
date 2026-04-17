@@ -945,11 +945,12 @@ export function CanvasPanel() {
     }
 
     if (mode === 'place-media') {
-      if (anyMedia) { (store as any).selectMedia(anyMedia); store.selectWaypoint(null); return; }
+      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       return;
     }
 
     if (mode === 'create-zone') {
+      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       selectZone(anyZone);
       store.selectWaypoint(null);
       return;
@@ -1226,13 +1227,7 @@ export function CanvasPanel() {
         gates: movedGates,
         ...(movedPolygon ? { polygon: movedPolygon } : {}),
       } as any);
-      // Move media with zone
-      const currentMedia = useStore.getState().media;
-      for (const m of currentMedia) {
-        if ((m.zoneId as string) === dragZoneId.current) {
-          updateMedia(m.id as string, { position: { x: m.position.x + dx, y: m.position.y + dy } });
-        }
-      }
+      // Media is moved together with zone inside updateZone (worldSlice)
       didDrag.current = true;
     } else if (mode === 'resize' && zone) {
       const ob = zone.bounds; // old bounds

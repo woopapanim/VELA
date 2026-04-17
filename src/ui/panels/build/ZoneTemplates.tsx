@@ -7,6 +7,22 @@ import { ZONE_COLORS } from '@/domain';
 let _tplCounter = 200;
 let _tplGateCounter = 200;
 
+function ensureTplCounters() {
+  const state = useStore.getState();
+  let maxZ = _tplCounter - 1;
+  let maxG = _tplGateCounter - 1;
+  for (const z of state.zones) {
+    const zm = (z.id as string).match(/^z_tpl_(\d+)$/);
+    if (zm) maxZ = Math.max(maxZ, parseInt(zm[1]));
+    for (const g of z.gates) {
+      const gm = (g.id as string).match(/^g_tpl_(\d+)$/);
+      if (gm) maxG = Math.max(maxG, parseInt(gm[1]));
+    }
+  }
+  _tplCounter = maxZ + 1;
+  _tplGateCounter = maxG + 1;
+}
+
 interface ZoneTemplate {
   id: string;
   label: string;
@@ -19,6 +35,7 @@ function makeZone(
   name: string, type: string, x: number, y: number, w: number, h: number,
   cap: number, attract: number, floorId: FloorId, gates: Array<{ type: string; x: number; y: number; connId?: string }>,
 ): ZoneConfig {
+  ensureTplCounters();
   const zoneId = `z_tpl_${_tplCounter++}` as ZoneId;
   return {
     id: zoneId,
