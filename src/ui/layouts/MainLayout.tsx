@@ -1,4 +1,5 @@
 import { ThemeToggle } from '../components/ThemeToggle';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
@@ -11,12 +12,13 @@ import { SpawnConfig } from '../panels/build/SpawnConfig';
 import { FloorTabs } from '../panels/build/FloorTabs';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
-import { MediaStatsPanel } from '../panels/analytics/MediaStatsPanel';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
+import { InfoTooltip } from '../components/InfoTooltip';
 import { useStore } from '@/stores';
 import { useRef, useState } from 'react';
+import { useT } from '@/i18n';
 
 export function MainLayout() {
   const visitors = useStore((s) => s.visitors);
@@ -26,6 +28,7 @@ export function MainLayout() {
   const zones = useStore((s) => s.zones);
   const scenario = useStore((s) => s.scenario);
   const simProgress = scenario ? Math.min(1, timeState.elapsed / scenario.simulationConfig.duration) : 0;
+  const t = useT();
 
   const activeCount = visitors.filter((v) => v.isActive).length;
   const elapsed = timeState.elapsed;
@@ -62,6 +65,7 @@ export function MainLayout() {
             </div>
           )}
           <HelpButton />
+          <LanguageToggle />
           <ThemeToggle />
         </div>
       </header>
@@ -72,15 +76,17 @@ export function MainLayout() {
         <aside className="w-72 border-r border-border bg-[var(--surface)] overflow-y-auto">
           <div className="p-3 space-y-3">
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Project
+                <InfoTooltip text={t('tooltip.project')} />
               </h2>
               <ProjectManager />
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Simulation
+                <InfoTooltip text={t('tooltip.simulation')} />
               </h2>
               <SimulationControls />
             </div>
@@ -98,15 +104,17 @@ export function MainLayout() {
             <ZoneListDragDrop />
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Spawn
+                <InfoTooltip text={t('tooltip.spawn')} />
               </h2>
               <SpawnConfig />
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Visitors
+                <InfoTooltip text={t('tooltip.visitors')} />
               </h2>
               <VisitorConfig />
             </div>
@@ -124,7 +132,6 @@ export function MainLayout() {
 
         {/* Right Panel — Analytics / Insight */}
         <aside className="w-80 border-l border-border bg-[var(--surface)] overflow-y-auto">
-          <MediaStatsPanel />
           <AnalyticsPanel />
         </aside>
       </div>
@@ -167,6 +174,7 @@ function ZoneListDragDrop() {
   const selectedZoneId = useStore((s) => s.selectedZoneId);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const t = useT();
 
   // Entrance = first, Exit = last — only middle zones are draggable
   const isDraggable = (idx: number) => {
@@ -225,8 +233,9 @@ function ZoneListDragDrop() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
         Zones ({zones.length})
+        <InfoTooltip text={t('tooltip.zones')} />
       </h2>
       <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
         {zones.map((zone, idx) => {
@@ -255,7 +264,7 @@ function ZoneListDragDrop() {
             >
               {/* Drag handle */}
               {canDrag ? (
-                <span className="text-muted-foreground text-[10px] select-none" title="드래그하여 순서 변경">⠿</span>
+                <span className="text-muted-foreground text-[10px] select-none" title={t('mainLayout.dragHandle')}>⠿</span>
               ) : (
                 <span className="w-3" />
               )}

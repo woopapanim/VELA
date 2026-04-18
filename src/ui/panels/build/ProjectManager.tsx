@@ -4,6 +4,7 @@ import { useStore } from '@/stores';
 import { useToast } from '@/ui/components/Toast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import type { Scenario } from '@/domain';
+import { useT } from '@/i18n';
 
 const HISTORY_KEY = 'vela-project-history';
 
@@ -39,6 +40,7 @@ export function ProjectManager() {
   const clearReplay = useStore((s) => s.clearReplay);
   const phase = useStore((s) => s.phase);
   const { toast } = useToast();
+  const t = useT();
 
   const [history, setHistory] = useState<ProjectEntry[]>(() => loadHistory());
 
@@ -148,7 +150,7 @@ export function ProjectManager() {
         await writable.write(json);
         await writable.close();
         commitToHistory();
-        toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
+        toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
         return;
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
@@ -164,7 +166,7 @@ export function ProjectManager() {
           await writable.write(json);
           await writable.close();
           commitToHistory();
-          toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
+          toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
           return;
         } catch (e2: any) {
           if (e2?.name === 'AbortError') return;
@@ -181,8 +183,8 @@ export function ProjectManager() {
     a.click();
     URL.revokeObjectURL(url);
     commitToHistory();
-    toast('success', `"${updated.meta.name}" v${updated.meta.version} 저장됨`);
-  }, [scenario, setScenario, toast]);
+    toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
+  }, [scenario, setScenario, toast, t]);
 
   // Open JSON file
   const handleOpen = useCallback(async () => {
@@ -190,7 +192,7 @@ export function ProjectManager() {
       const text = await file.text();
       const data = JSON.parse(text) as Scenario;
       if (!data.meta || !data.zones || !data.simulationConfig) {
-        toast('error', '유효하지 않은 프로젝트 파일');
+        toast('error', t('project.toast.invalid'));
         return;
       }
       // 파일명에서 프로젝트 이름 설정
@@ -211,7 +213,7 @@ export function ProjectManager() {
       else existing.push(entry);
       saveHistory(existing);
       setHistory(existing);
-      toast('success', `"${nameFromFile}" 열림`);
+      toast('success', t('project.toast.opened', { name: nameFromFile }));
     };
 
     // ── File System Access API (Chrome/Edge) ──
@@ -239,11 +241,11 @@ export function ProjectManager() {
       const file = input.files?.[0];
       document.body.removeChild(input);
       if (!file) return;
-      try { await loadFile(file); } catch { toast('error', '파일 파싱 오류'); }
+      try { await loadFile(file); } catch { toast('error', t('project.toast.parseError')); }
     };
     input.oncancel = () => { if (document.body.contains(input)) document.body.removeChild(input); };
     input.click();
-  }, [setScenario, resetSim, clearHistory, clearReplay, toast]);
+  }, [setScenario, resetSim, clearHistory, clearReplay, toast, t]);
 
   // Export JSON
   const handleExport = useCallback(() => {
@@ -297,7 +299,7 @@ export function ProjectManager() {
         </button>
         <button
           onClick={handleOpen}
-          title="JSON 파일 열기"
+          title={t('project.openTitle')}
           className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent transition-colors"
         >
           <FolderOpen className="w-3.5 h-3.5" />

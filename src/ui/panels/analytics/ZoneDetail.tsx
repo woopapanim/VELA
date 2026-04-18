@@ -31,10 +31,11 @@ export function ZoneDetail() {
   const meetsDensity = areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD;
 
   const actionCounts = {
-    IDLE: zoneVisitors.filter((v) => v.currentAction === 'IDLE').length,
     MOVING: zoneVisitors.filter((v) => v.currentAction === 'MOVING').length,
     WATCHING: zoneVisitors.filter((v) => v.currentAction === 'WATCHING').length,
     WAITING: zoneVisitors.filter((v) => v.currentAction === 'WAITING').length,
+    RESTING: zoneVisitors.filter((v) => v.currentAction === 'RESTING').length,
+    EXITING: zoneVisitors.filter((v) => v.currentAction === 'EXITING').length,
   };
 
   return (

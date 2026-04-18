@@ -10,6 +10,11 @@ interface MediaStatsEntry {
   peakViewers: number;
 }
 
+type TParams = Record<string, string | number>;
+type TFn = (key: string, params?: TParams, fallback?: string) => string;
+
+const identityT: TFn = (key, _params, fallback) => fallback ?? key;
+
 export function generateInsights(
   snapshot: KpiSnapshot,
   zones: readonly ZoneConfig[],
@@ -17,6 +22,7 @@ export function generateInsights(
   mediaStats?: Map<string, MediaStatsEntry>,
   visitors?: readonly Visitor[],
   groups?: readonly VisitorGroup[],
+  t: TFn = identityT,
 ): InsightEntry[] {
   const insights: InsightEntry[] = [];
   const zoneMap = new Map(zones.map((z) => [z.id as string, z]));
@@ -32,9 +38,13 @@ export function generateInsights(
       insights.push({
         severity: 'critical',
         category: 'congestion',
-        problem: `${zone.name} 과밀 상태 (수용률 ${Math.round(util.ratio * 100)}%)`,
-        cause: `현재 ${util.currentOccupancy}명이 수용 인원 ${util.capacity}명을 초과 접근`,
-        recommendation: '입장 제한 또는 존 면적 확장, 출구 게이트 추가 검토',
+        problem: t('insight.congestion.critical.problem', { zone: zone.name }),
+        cause: t('insight.congestion.critical.cause', {
+          occupancy: util.currentOccupancy,
+          capacity: util.capacity,
+          pct: Math.round(util.ratio * 100),
+        }),
+        recommendation: t('insight.congestion.critical.rec'),
         affectedZoneIds: [util.zoneId],
         affectedMediaIds: [],
         dataEvidence: { metric: 'utilization_ratio', value: util.ratio, threshold: 0.9 },
@@ -43,9 +53,9 @@ export function generateInsights(
       insights.push({
         severity: 'warning',
         category: 'congestion',
-        problem: `${zone.name} 혼잡도 상승 (수용률 ${Math.round(util.ratio * 100)}%)`,
-        cause: '유입량 대비 공간 여유 부족',
-        recommendation: '동선 분산 또는 인접 존으로 관심 요소 분배 고려',
+        problem: t('insight.congestion.warning.problem', { zone: zone.name }),
+        cause: t('insight.congestion.warning.cause', { pct: Math.round(util.ratio * 100) }),
+        recommendation: t('insight.congestion.warning.rec'),
         affectedZoneIds: [util.zoneId],
         affectedMediaIds: [],
         dataEvidence: { metric: 'utilization_ratio', value: util.ratio, threshold: 0.7 },
@@ -61,17 +71,23 @@ export function generateInsights(
     if (!zone) continue;
 
     if (bn.score > 0.7) {
-      const groupNote = bn.isGroupInduced
-        ? ' (단체 방문객에 의한 일시적 정체 가능성)'
-        : '';
+      const isCritical = bn.score > 0.85;
       insights.push({
-        severity: bn.score > 0.85 ? 'critical' : 'warning',
+        severity: isCritical ? 'critical' : 'warning',
         category: 'congestion',
-        problem: `${zone.name} 병목 감지 (지수 ${Math.round(bn.score * 100)})${groupNote}`,
-        cause: `유입률(${bn.flowInRate}/s) > 유출률(${bn.flowOutRate}/s), 대기 발생`,
+        problem: bn.isGroupInduced
+          ? t('insight.bottleneck.group.problem', { zone: zone.name })
+          : isCritical
+            ? t('insight.bottleneck.critical.problem', { zone: zone.name })
+            : t('insight.bottleneck.warning.problem', { zone: zone.name }),
+        cause: t('insight.bottleneck.cause', {
+          flowIn: bn.flowInRate,
+          flowOut: bn.flowOutRate,
+          score: Math.round(bn.score * 100),
+        }),
         recommendation: bn.isGroupInduced
-          ? '단체 통과 시간 고려한 게이트 폭 확장 또는 별도 동선 제공'
-          : '출구 게이트 추가 또는 미디어 배치 분산으로 체류 시간 단축',
+          ? t('insight.bottleneck.group.rec')
+          : t('insight.bottleneck.nonGroup.rec'),
         affectedZoneIds: [bn.zoneId],
         affectedMediaIds: [],
         dataEvidence: { metric: 'bottleneck_score', value: bn.score, threshold: 0.7 },
@@ -88,12 +104,21 @@ export function generateInsights(
 
     const areaPerPerson = zone.area / util.currentOccupancy;
     if (areaPerPerson < INTERNATIONAL_DENSITY_STANDARD) {
+      const safeCap = Math.floor(zone.area / INTERNATIONAL_DENSITY_STANDARD);
       insights.push({
         severity: 'warning',
         category: 'capacity',
-        problem: `${zone.name} 국제 밀도 기준 미달 (${areaPerPerson.toFixed(1)}m²/인 < ${INTERNATIONAL_DENSITY_STANDARD}m²/인)`,
-        cause: `현재 점유 ${util.currentOccupancy}명 대비 면적 ${zone.area}m² 부족`,
-        recommendation: '존 면적 확대 또는 수용 인원 상한 설정 필요',
+        problem: t('insight.density.problem', { zone: zone.name }),
+        cause: t('insight.density.cause', {
+          areaPerPerson: areaPerPerson.toFixed(1),
+          standard: INTERNATIONAL_DENSITY_STANDARD,
+          occupancy: util.currentOccupancy,
+          area: zone.area,
+        }),
+        recommendation: t('insight.density.rec', {
+          safeCap,
+          expandM2: Math.ceil(util.currentOccupancy * INTERNATIONAL_DENSITY_STANDARD - zone.area),
+        }),
         affectedZoneIds: [util.zoneId],
         affectedMediaIds: [],
         dataEvidence: { metric: 'area_per_person', value: areaPerPerson, threshold: INTERNATIONAL_DENSITY_STANDARD },
@@ -105,16 +130,17 @@ export function generateInsights(
   // 4. Skip Rate Warning
   // ══════════════════════════════════
   if (snapshot.skipRate.globalSkipRate > 0.3) {
+    const highSkipMedia = snapshot.skipRate.perMedia.filter((m) => m.rate > 0.4);
     insights.push({
       severity: 'warning',
       category: 'skip',
-      problem: `전체 스킵률 ${Math.round(snapshot.skipRate.globalSkipRate * 100)}% — 관람 포기 다수 발생`,
-      cause: '대기 시간 초과 또는 미디어 수용량 부족',
-      recommendation: '인기 미디어의 복제 배치 또는 대기열 관리 시스템 도입',
+      problem: t('insight.skip.problem'),
+      cause: t('insight.skip.cause', { pct: Math.round(snapshot.skipRate.globalSkipRate * 100) }),
+      recommendation: highSkipMedia.length > 0
+        ? t('insight.skip.rec.withHighSkip', { count: highSkipMedia.length })
+        : t('insight.skip.rec.default'),
       affectedZoneIds: [],
-      affectedMediaIds: snapshot.skipRate.perMedia
-        .filter((m) => m.rate > 0.4)
-        .map((m) => m.mediaId),
+      affectedMediaIds: highSkipMedia.map((m) => m.mediaId),
       dataEvidence: { metric: 'global_skip_rate', value: snapshot.skipRate.globalSkipRate, threshold: 0.3 },
     });
   }
@@ -126,9 +152,9 @@ export function generateInsights(
     insights.push({
       severity: 'warning',
       category: 'fatigue',
-      problem: `관람객 90%가 피로도 ${Math.round(snapshot.fatigueDistribution.p90 * 100)}% 이상`,
-      cause: '휴식 공간 부족 또는 동선 과다',
-      recommendation: '중간 지점에 휴식 존 추가 또는 동선 단축 검토',
+      problem: t('insight.fatigue.problem'),
+      cause: t('insight.fatigue.cause', { pct: Math.round(snapshot.fatigueDistribution.p90 * 100) }),
+      recommendation: t('insight.fatigue.rec'),
       affectedZoneIds: [],
       affectedMediaIds: [],
       dataEvidence: { metric: 'fatigue_p90', value: snapshot.fatigueDistribution.p90, threshold: 0.7 },
@@ -142,9 +168,9 @@ export function generateInsights(
     insights.push({
       severity: 'info',
       category: 'flow',
-      problem: `관람 완주율 ${Math.round(snapshot.flowEfficiency.completionRate * 100)}% — 절반 이상 조기 이탈`,
-      cause: '피로 축적, 동선 혼잡, 또는 관심도 낮은 존 배치',
-      recommendation: '핵심 전시물을 초반 동선에 배치하여 관람 동기 유지',
+      problem: t('insight.flow.problem'),
+      cause: t('insight.flow.cause', { pct: Math.round(snapshot.flowEfficiency.completionRate * 100) }),
+      recommendation: t('insight.flow.rec'),
       affectedZoneIds: [],
       affectedMediaIds: [],
       dataEvidence: { metric: 'completion_rate', value: snapshot.flowEfficiency.completionRate, threshold: 0.5 },
@@ -152,27 +178,28 @@ export function generateInsights(
   }
 
   // ══════════════════════════════════════════════════════════
-  // 7~11: 확장 인사이트 (media, visitors, groups 필요)
+  // 7~11: Extended insights (media, visitors, groups required)
   // ══════════════════════════════════════════════════════════
   if (media && mediaStats && media.length > 0) {
-    generateSpaceRoiInsights(insights, media, mediaStats);
-    generateContentMixInsights(insights, media, mediaStats);
-    generateContentFatigueInsights(insights, media, mediaStats);
+    generateSpaceRoiInsights(insights, media, mediaStats, t);
+    generateContentMixInsights(insights, media, mediaStats, t);
+    generateContentFatigueInsights(insights, media, mediaStats, t);
   }
   if (visitors && visitors.length > 0) {
-    generateGroupImpactInsights(insights, visitors, groups ?? [], snapshot);
+    generateGroupImpactInsights(insights, visitors, groups ?? [], snapshot, t);
   }
 
   return insights;
 }
 
 // ══════════════════════════════════
-// 7. 공간 효율 (Space ROI)
+// 7. Space ROI
 // ══════════════════════════════════
 function generateSpaceRoiInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
   mediaStats: Map<string, MediaStatsEntry>,
+  t: TFn,
 ) {
   // engagement density = totalWatchMs / area(m²)
   const roiEntries: { m: MediaPlacement; density: number; watchCount: number }[] = [];
@@ -203,9 +230,9 @@ function generateSpaceRoiInsights(
     insights.push({
       severity: 'info',
       category: 'space_roi',
-      problem: `${names.join(', ')} — 공간 대비 관람 효율 저조 (평균의 ${worstPct}%)`,
-      cause: `넓은 면적을 차지하지만 관람 시간이 짧거나 방문자가 적음`,
-      recommendation: '크기 축소, 위치 변경, 또는 매력도 높은 콘텐츠로 교체 검토',
+      problem: t('insight.spaceRoi.low.problem', { names: names.join(', ') }),
+      cause: t('insight.spaceRoi.low.cause', { pct: worstPct }),
+      recommendation: t('insight.spaceRoi.low.rec'),
       affectedZoneIds: [],
       affectedMediaIds: lowRoi.map(e => e.m.id),
       dataEvidence: { metric: 'engagement_density', value: lowRoi[0].density, threshold: avgDensity * 0.2 },
@@ -219,9 +246,12 @@ function generateSpaceRoiInsights(
     insights.push({
       severity: 'info',
       category: 'space_roi',
-      problem: `${name} — 최고 공간 효율 (평균의 ${Math.round((best.density / avgDensity) * 100)}%)`,
-      cause: `${best.watchCount}명이 관람, 단위 면적당 관람 시간이 가장 높음`,
-      recommendation: '유사 콘텐츠 확대 배치 또는 동선 최적화로 접근성 강화',
+      problem: t('insight.spaceRoi.high.problem', { name }),
+      cause: t('insight.spaceRoi.high.cause', {
+        pct: Math.round((best.density / avgDensity) * 100),
+        count: best.watchCount,
+      }),
+      recommendation: t('insight.spaceRoi.high.rec'),
       affectedZoneIds: [],
       affectedMediaIds: [best.m.id],
       dataEvidence: { metric: 'engagement_density', value: best.density, threshold: avgDensity * 2 },
@@ -230,12 +260,13 @@ function generateSpaceRoiInsights(
 }
 
 // ══════════════════════════════════
-// 8. 카테고리별 체류시간/스킵 분석
+// 8. Content mix — dwell/skip analysis by category
 // ══════════════════════════════════
 function generateContentMixInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
   mediaStats: Map<string, MediaStatsEntry>,
+  t: TFn,
 ) {
   const catStats = new Map<string, { totalWatch: number; totalSkip: number; totalWatchMs: number; count: number }>();
 
@@ -252,10 +283,6 @@ function generateContentMixInsights(
     catStats.set(cat, prev);
   }
 
-  const catLabels: Record<string, string> = {
-    analog: '아날로그', passive_media: '패시브 미디어', active: '액티브', immersive: '이머시브'
-  };
-
   for (const [cat, stats] of catStats) {
     const total = stats.totalWatch + stats.totalSkip;
     if (total < 5) continue;
@@ -265,14 +292,23 @@ function generateContentMixInsights(
       : 0;
 
     if (skipRate > 0.4) {
+      const catLabel = t(`insight.category.${cat}`, undefined, cat);
+      const isHighCapacityCat = cat === 'active' || cat === 'immersive';
       insights.push({
         severity: 'warning',
         category: 'content_mix',
-        problem: `${catLabels[cat] ?? cat} 카테고리 스킵률 ${Math.round(skipRate * 100)}% — 콘텐츠 접근 불균형`,
-        cause: `${stats.count}개 ${catLabels[cat] ?? cat} 콘텐츠에서 총 ${stats.totalSkip}회 스킵 발생 (평균 관람 ${avgWatchSec}초)`,
-        recommendation: cat === 'active' || cat === 'immersive'
-          ? '수용량 증설 또는 동일 유형 추가 배치로 대기시간 단축'
-          : '배치 간격 조정 또는 다른 카테고리 콘텐츠와 교차 배치',
+        problem: isHighCapacityCat
+          ? t('insight.contentMix.capacity.problem', { category: catLabel })
+          : t('insight.contentMix.layout.problem', { category: catLabel }),
+        cause: t('insight.contentMix.cause', {
+          pct: Math.round(skipRate * 100),
+          count: stats.count,
+          skipCount: stats.totalSkip,
+          avgSec: avgWatchSec,
+        }),
+        recommendation: isHighCapacityCat
+          ? t('insight.contentMix.capacity.rec')
+          : t('insight.contentMix.layout.rec'),
         affectedZoneIds: [],
         affectedMediaIds: media
           .filter(m => (m as any).category === cat)
@@ -284,13 +320,14 @@ function generateContentMixInsights(
 }
 
 // ══════════════════════════════════
-// 9. 도슨트 그룹 영향도
+// 9. Docent group impact
 // ══════════════════════════════════
 function generateGroupImpactInsights(
   insights: InsightEntry[],
   visitors: readonly Visitor[],
   groups: readonly VisitorGroup[],
   snapshot: KpiSnapshot,
+  t: TFn,
 ) {
   const active = visitors.filter(v => v.isActive);
   if (active.length < 10) return;
@@ -319,9 +356,14 @@ function generateGroupImpactInsights(
         insights.push({
           severity: 'warning',
           category: 'group_impact',
-          problem: `도슨트 그룹이 전체의 ${tourPct}%이지만 병목의 ${impactPct}%를 유발`,
-          cause: `${groups.filter(g => g.type === 'guided').length}개 도슨트 그룹(${tourCount}명)이 이동 시 통로 점유`,
-          recommendation: '도슨트 전용 동선 설계 또는 투어 시간대 분산 운영 검토',
+          problem: t('insight.groupImpact.tour.problem'),
+          cause: t('insight.groupImpact.tour.cause', {
+            tourPct,
+            impactPct,
+            groupCount: groups.filter(g => g.type === 'guided').length,
+            tourCount,
+          }),
+          recommendation: t('insight.groupImpact.tour.rec'),
           affectedZoneIds: snapshot.bottlenecks
             .filter(b => b.isGroupInduced)
             .map(b => b.zoneId),
@@ -349,9 +391,13 @@ function generateGroupImpactInsights(
       insights.push({
         severity: 'info',
         category: 'group_impact',
-        problem: `그룹 관람객 평균 피로도(${Math.round(groupAvgFatigue * 100)}%)가 솔로(${Math.round(soloAvgFatigue * 100)}%)보다 높음`,
-        cause: `그룹 관람(${groupCount}명)은 체류시간 배율이 높아 피로 누적이 빠름`,
-        recommendation: '그룹 동선 중간에 휴식 존 배치 또는 관람 콘텐츠 수 조절',
+        problem: t('insight.groupImpact.fatigue.problem'),
+        cause: t('insight.groupImpact.fatigue.cause', {
+          groupPct: Math.round(groupAvgFatigue * 100),
+          soloPct: Math.round(soloAvgFatigue * 100),
+          count: groupCount,
+        }),
+        recommendation: t('insight.groupImpact.fatigue.rec'),
         affectedZoneIds: [],
         affectedMediaIds: [],
         dataEvidence: { metric: 'group_fatigue_ratio', value: groupAvgFatigue, threshold: soloAvgFatigue * 1.3 },
@@ -361,12 +407,13 @@ function generateGroupImpactInsights(
 }
 
 // ══════════════════════════════════
-// 10. 콘텐츠 피로도 패턴
+// 10. Content fatigue pattern
 // ══════════════════════════════════
 function generateContentFatigueInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
   mediaStats: Map<string, MediaStatsEntry>,
+  t: TFn,
 ) {
   // Check fatigue categories: if same fatigueCategory media have high skip rates
   const presets = MEDIA_PRESETS as Record<string, any>;
@@ -385,23 +432,23 @@ function generateContentFatigueInsights(
     fatigueCatStats.set(fatCat, prev);
   }
 
-  const fatLabels: Record<string, string> = {
-    analog: '아날로그 전시물', screen: '스크린 미디어', interactive: '인터랙션 체험', immersive: '이머시브 체험'
-  };
-
   for (const [fatCat, stats] of fatigueCatStats) {
-    if (stats.mediaCount < 3) continue; // 3개 이상일 때만 피로도 의미
+    if (stats.mediaCount < 3) continue; // fatigue only meaningful with 3+
     const total = stats.totalWatch + stats.totalSkip;
     if (total < 10) continue;
     const skipRate = stats.totalSkip / total;
 
     if (skipRate > 0.35 && stats.mediaCount >= 3) {
+      const fatLabel = t(`insight.fatigueCategory.${fatCat}`, undefined, fatCat);
       insights.push({
         severity: 'info',
         category: 'content_fatigue',
-        problem: `${fatLabels[fatCat] ?? fatCat} 유형 ${stats.mediaCount}개 연속 배치 — 스킵률 ${Math.round(skipRate * 100)}%`,
-        cause: `같은 유형(${fatLabels[fatCat] ?? fatCat}) 콘텐츠 반복으로 관람 피로도 누적`,
-        recommendation: '다른 카테고리 콘텐츠를 사이에 교차 배치하여 관람 리듬 변화 유도',
+        problem: t('insight.contentFatigue.problem', { category: fatLabel }),
+        cause: t('insight.contentFatigue.cause', {
+          count: stats.mediaCount,
+          pct: Math.round(skipRate * 100),
+        }),
+        recommendation: t('insight.contentFatigue.rec'),
         affectedZoneIds: [],
         affectedMediaIds: media
           .filter(m => presets[m.type as string]?.fatigueCategory === fatCat)

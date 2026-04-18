@@ -1,11 +1,14 @@
 import { useMemo, useRef } from 'react';
 import { useStore } from '@/stores';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 export function NodeTraffic() {
   const visitors = useStore((s) => s.visitors);
   const graph = useStore((s) => s.waypointGraph);
   const phase = useStore((s) => s.phase);
   const elapsed = useStore((s) => s.timeState.elapsed);
+  const t = useT();
 
   // Throttle: recalc only every ~5s of sim time
   const lastCalcRef = useRef(0);
@@ -29,8 +32,9 @@ export function NodeTraffic() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
         Node Traffic
+        <InfoTooltip text={t('tooltip.nodeTraffic')} />
       </h2>
       <div className="space-y-1 max-h-48 overflow-y-auto">
         {stats.filter(s => s.visits > 0).map((s) => {

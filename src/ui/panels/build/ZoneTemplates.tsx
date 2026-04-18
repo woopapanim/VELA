@@ -3,6 +3,7 @@ import { LayoutGrid, Rows3, Circle, Maximize2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, GateId, FloorId } from '@/domain';
 import { ZONE_COLORS } from '@/domain';
+import { useT } from '@/i18n';
 
 let _tplCounter = 200;
 let _tplGateCounter = 200;
@@ -27,7 +28,7 @@ interface ZoneTemplate {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  desc: string;
+  descKey: string;
   generate: (floorId: FloorId) => ZoneConfig[];
 }
 
@@ -70,7 +71,7 @@ const TEMPLATES: ZoneTemplate[] = [
     id: 'linear',
     label: 'Linear',
     icon: Rows3,
-    desc: '일렬 동선 (입구→전시→출구)',
+    descKey: 'zoneTemplate.linear.desc',
     generate: (floorId) => [
       makeZone('Entrance', 'entrance', 50, 300, 120, 180, 30, 0.3, floorId, [{ type: 'entrance', x: 50, y: 390 }, { type: 'exit', x: 170, y: 390 }]),
       makeZone('Gallery 1', 'exhibition', 220, 280, 220, 220, 60, 0.8, floorId, [{ type: 'entrance', x: 220, y: 390 }, { type: 'exit', x: 440, y: 390 }]),
@@ -82,7 +83,7 @@ const TEMPLATES: ZoneTemplate[] = [
     id: 'hub_spoke',
     label: 'Hub & Spoke',
     icon: Circle,
-    desc: '중앙 홀 + 주변 전시실',
+    descKey: 'zoneTemplate.hub.desc',
     generate: (floorId) => [
       makeZone('Entrance', 'entrance', 50, 320, 100, 160, 30, 0.3, floorId, [{ type: 'entrance', x: 50, y: 400 }, { type: 'exit', x: 150, y: 400 }]),
       makeZone('Central Hub', 'exhibition', 250, 250, 250, 250, 80, 0.6, floorId, [
@@ -99,7 +100,7 @@ const TEMPLATES: ZoneTemplate[] = [
     id: 'grid',
     label: 'Grid',
     icon: LayoutGrid,
-    desc: '격자형 부스 배치',
+    descKey: 'zoneTemplate.grid.desc',
     generate: (floorId) => {
       const zones: ZoneConfig[] = [];
       zones.push(makeZone('Entrance', 'entrance', 50, 300, 100, 160, 30, 0.3, floorId, [{ type: 'entrance', x: 50, y: 380 }, { type: 'exit', x: 150, y: 380 }]));
@@ -121,7 +122,7 @@ const TEMPLATES: ZoneTemplate[] = [
     id: 'large_hall',
     label: 'Large Hall',
     icon: Maximize2,
-    desc: '대형 단일 전시 홀',
+    descKey: 'zoneTemplate.hall.desc',
     generate: (floorId) => [
       makeZone('Entrance', 'entrance', 50, 300, 100, 200, 40, 0.3, floorId, [{ type: 'entrance', x: 50, y: 400 }, { type: 'exit', x: 150, y: 400 }]),
       makeZone('Main Hall', 'exhibition', 200, 100, 600, 500, 200, 0.9, floorId, [
@@ -139,6 +140,7 @@ export function ZoneTemplates() {
   const scenario = useStore((s) => s.scenario);
   const phase = useStore((s) => s.phase);
   const resetSim = useStore((s) => s.resetSim);
+  const t = useT();
 
   const isLocked = phase !== 'idle';
 
@@ -168,7 +170,7 @@ export function ZoneTemplates() {
     <div>
       <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Zone Templates</p>
       <div className="grid grid-cols-2 gap-1">
-        {TEMPLATES.map(({ id, label, icon: Icon, desc }) => (
+        {TEMPLATES.map(({ id, label, icon: Icon, descKey }) => (
           <button
             key={id}
             onClick={() => applyTemplate(id)}
@@ -178,7 +180,7 @@ export function ZoneTemplates() {
             <Icon className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
             <div>
               <p className="text-[10px] font-medium">{label}</p>
-              <p className="text-[8px] text-muted-foreground leading-tight">{desc}</p>
+              <p className="text-[8px] text-muted-foreground leading-tight">{t(descKey)}</p>
             </div>
           </button>
         ))}

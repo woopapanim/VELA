@@ -2,6 +2,28 @@ import type { StateCreator } from 'zustand';
 
 export type ActivePanel = 'build' | 'simulation' | 'scenario';
 export type OverlayMode = 'none' | 'heatmap' | 'flow' | 'density';
+export type Language = 'en' | 'ko';
+
+const LANGUAGE_STORAGE_KEY = 'vela.language';
+
+function readStoredLanguage(): Language {
+  if (typeof window === 'undefined') return 'en';
+  try {
+    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return saved === 'ko' ? 'ko' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+function writeStoredLanguage(lang: Language) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
+  } catch {
+    // ignore (private mode, quota, etc.)
+  }
+}
 
 export interface CameraState {
   x: number;
@@ -23,6 +45,7 @@ export interface UiSlice {
   isPanelCollapsed: { left: boolean; right: boolean };
   polygonEditMode: boolean;
   mediaPolygonEditMode: boolean;
+  language: Language;
 
   // Actions
   selectZone: (zoneId: string | null) => void;
@@ -37,6 +60,7 @@ export interface UiSlice {
   togglePanel: (side: 'left' | 'right') => void;
   setPolygonEditMode: (on: boolean) => void;
   setMediaPolygonEditMode: (on: boolean) => void;
+  setLanguage: (lang: Language) => void;
 }
 
 export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
@@ -52,6 +76,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   isPanelCollapsed: { left: false, right: false },
   polygonEditMode: false,
   mediaPolygonEditMode: false,
+  language: readStoredLanguage(),
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId, selectedMediaId: null }),
   selectMedia: (mediaId) => set({ selectedMediaId: mediaId, selectedZoneId: null }),
@@ -64,6 +89,10 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   setCamera: (camera) => set((s) => ({ camera: { ...s.camera, ...camera } })),
   setPolygonEditMode: (on) => set({ polygonEditMode: on }),
   setMediaPolygonEditMode: (on) => set({ mediaPolygonEditMode: on }),
+  setLanguage: (lang) => {
+    writeStoredLanguage(lang);
+    set({ language: lang });
+  },
   togglePanel: (side) =>
     set((s) => ({
       isPanelCollapsed: {

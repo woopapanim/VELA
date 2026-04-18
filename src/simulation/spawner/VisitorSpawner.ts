@@ -155,10 +155,9 @@ export function generateSpawnBatch(
       remaining -= 1;
 
     } else if (cat === VISITOR_CATEGORY.SMALL_GROUP) {
-      // ── Small Group: 2-4 members ──
+      // ── Small Group: 2-4 members ── (group is a cohesive unit, ignore remaining cap)
       const [minSize, maxSize] = catCfg.groupSizeRange;
-      const groupSize = rng.nextInt(minSize, Math.min(maxSize, remaining));
-      if (groupSize < 2) { remaining -= 1; continue; } // fallback solo if not enough remaining
+      const groupSize = rng.nextInt(minSize, maxSize);
       const gid = genGroupId();
       const members: Visitor[] = [];
 
@@ -189,10 +188,9 @@ export function generateSpawnBatch(
       remaining -= groupSize;
 
     } else if (cat === VISITOR_CATEGORY.GUIDED_TOUR) {
-      // ── Guided Tour: 10-20 members ──
+      // ── Guided Tour: 10-20 members ── (cohesive unit, ignore remaining cap)
       const [minSize, maxSize] = catCfg.groupSizeRange;
-      const groupSize = rng.nextInt(minSize, Math.min(maxSize, remaining));
-      if (groupSize < 2) { remaining -= 1; continue; }
+      const groupSize = rng.nextInt(minSize, maxSize);
       const gid = genGroupId();
       const members: Visitor[] = [];
 

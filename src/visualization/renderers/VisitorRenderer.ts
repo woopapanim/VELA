@@ -23,6 +23,7 @@ const PROFILE_COLORS: Record<string, string> = {
 const ACTION_COLORS: Record<string, string> = {
   WATCHING: '#22c55e',
   WAITING: '#f59e0b',
+  RESTING: '#06b6d4',
   EXITING: '#ef4444',
 };
 

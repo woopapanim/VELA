@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
+import { useT } from '@/i18n';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -66,6 +67,7 @@ export function ZoneEditor() {
   const removeZone = useStore((s) => s.removeZone);
   const selectZone = useStore((s) => s.selectZone);
   const phase = useStore((s) => s.phase);
+  const t = useT();
 
   const zone = zones.find((z) => (z.id as string) === selectedZoneId);
   const isLocked = phase === 'running' || phase === 'paused';
@@ -139,7 +141,7 @@ export function ZoneEditor() {
   if (!zone) return null;
 
   return (
-    <div className="bento-box p-4">
+    <div data-editor="zone" className="bento-box p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: zone.color }} />
@@ -204,7 +206,7 @@ export function ZoneEditor() {
               onClick={handleCompletePolygon}
               className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
             >
-              ✓ 형태 완료
+              {t('editor.shape.done')}
             </button>
           )}
           {zone.shape === 'custom' && !polygonEditMode && (
@@ -213,7 +215,7 @@ export function ZoneEditor() {
               disabled={isLocked}
               className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-secondary hover:bg-accent text-foreground transition-colors disabled:opacity-40"
             >
-              Edit Shape
+              {t('editor.shape.edit')}
             </button>
           )}
         </div>
@@ -253,77 +255,8 @@ export function ZoneEditor() {
             </div>
           </div>
         )}
-        {/* Gates */}
-        <div className="pt-2 border-t border-border">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[9px] text-muted-foreground uppercase tracking-wider">Gates ({zone.gates.length})</span>
-            {!isLocked && (
-              <button
-                onClick={() => {
-                  if (!selectedZoneId) return;
-                  const newGate = {
-                    id: `g_new_${Date.now()}`,
-                    zoneId: zone.id,
-                    floorId: zone.gates[0]?.floorId ?? 'floor_1f',
-                    type: 'bidirectional',
-                    position: { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h },
-                    width: 40,
-                    connectedGateId: null,
-                    targetFloorId: null,
-                    targetGateId: null,
-                  };
-                  updateZone(selectedZoneId, { gates: [...zone.gates, newGate] } as any);
-                }}
-                className="text-[8px] text-primary hover:underline"
-              >
-                + Add
-              </button>
-            )}
-          </div>
-          <div className="space-y-1 max-h-24 overflow-y-auto">
-            {zone.gates.map((gate: any, i: number) => (
-              <div key={gate.id} className="flex items-center gap-1.5 text-[9px]">
-                <div className={`w-2 h-2 rounded-sm ${
-                  gate.type === 'entrance' ? 'bg-[var(--status-success)]' :
-                  gate.type === 'exit' ? 'bg-[var(--status-danger)]' :
-                  gate.type === 'portal' ? 'bg-purple-400' :
-                  'bg-primary'
-                }`} />
-                <select
-                  value={gate.type}
-                  onChange={(e) => {
-                    if (!selectedZoneId || isLocked) return;
-                    const updated = zone.gates.map((g: any, j: number) =>
-                      j === i ? { ...g, type: e.target.value } : g
-                    );
-                    updateZone(selectedZoneId, { gates: updated } as any);
-                  }}
-                  disabled={isLocked}
-                  className="flex-1 px-1 py-0.5 text-[8px] font-data rounded bg-secondary border border-border disabled:opacity-50"
-                >
-                  <option value="entrance">Entrance</option>
-                  <option value="exit">Exit</option>
-                  <option value="bidirectional">Bidirectional</option>
-                  <option value="portal">Portal</option>
-                </select>
-                <span className="text-[7px] font-data text-muted-foreground">
-                  {Math.round((gate.position as any).x)},{Math.round((gate.position as any).y)}
-                </span>
-                {!isLocked && zone.gates.length > 1 && (
-                  <button
-                    onClick={() => {
-                      if (!selectedZoneId) return;
-                      updateZone(selectedZoneId, { gates: zone.gates.filter((_: any, j: number) => j !== i) } as any);
-                    }}
-                    className="text-[8px] text-muted-foreground hover:text-[var(--status-danger)]"
-                  >×</button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
         <div className="text-[10px] text-muted-foreground font-data">
-          {zone.bounds.w}×{zone.bounds.h}px · {zone.shape} · {zone.mediaIds.length} media
+          {(zone.bounds.w / MEDIA_SCALE).toFixed(1)}×{(zone.bounds.h / MEDIA_SCALE).toFixed(1)}m · {zone.shape} · {media.filter(m => (m.zoneId as string) === (zone.id as string)).length} media
         </div>
       </div>
     </div>

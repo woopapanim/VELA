@@ -30,6 +30,7 @@ export const VISITOR_ACTION = {
   MOVING: 'MOVING',
   WATCHING: 'WATCHING',
   WAITING: 'WAITING',
+  RESTING: 'RESTING',
   EXITING: 'EXITING',
 } as const;
 

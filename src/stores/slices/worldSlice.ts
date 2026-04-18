@@ -3,7 +3,7 @@ import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph, 
 import { zonesOverlap } from '@/domain/zoneGeometry';
 
 const MEDIA_SCALE = 20;
-const MEDIA_GAP = 8;
+const MEDIA_GAP = 0;
 const CANVAS_PADDING = 100; // extra padding beyond zone edges
 const GATE_LINK_DIST = 80; // max distance for auto-linking gates (px)
 
@@ -95,7 +95,6 @@ function expandCanvasForZones(floors: FloorConfig[], zones: readonly ZoneConfig[
   );
 }
 
-/** Check if a media rect overlaps any other media in the same zone */
 /** Get half-extents of rotated media's AABB */
 function rotatedHalfExtents(w: number, h: number, orientationDeg: number): { hx: number; hy: number } {
   const rad = (orientationDeg * Math.PI) / 180;
@@ -103,16 +102,81 @@ function rotatedHalfExtents(w: number, h: number, orientationDeg: number): { hx:
   return { hx: (w * cos + h * sin) / 2, hy: (w * sin + h * cos) / 2 };
 }
 
+/** Get world-space boundary polygon vertices for a media (shape-aware). */
+function getMediaWorldVertices(m: MediaPlacement): { x: number; y: number }[] {
+  const shape = (m as any).shape;
+  const rad = (m.orientation * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const toWorld = (lx: number, ly: number) => ({
+    x: m.position.x + lx * cos - ly * sin,
+    y: m.position.y + lx * sin + ly * cos,
+  });
+  if (shape === 'custom' && m.polygon && m.polygon.length > 2) {
+    return m.polygon.map(p => toWorld(p.x, p.y));
+  }
+  if (shape === 'circle') {
+    const r = Math.max(m.size.width, m.size.height) * MEDIA_SCALE / 2;
+    const pts: { x: number; y: number }[] = [];
+    const segs = 16;
+    for (let i = 0; i < segs; i++) {
+      const t = (i / segs) * Math.PI * 2;
+      pts.push(toWorld(Math.cos(t) * r, Math.sin(t) * r));
+    }
+    return pts;
+  }
+  if (shape === 'ellipse') {
+    const a = m.size.width * MEDIA_SCALE / 2;
+    const b = m.size.height * MEDIA_SCALE / 2;
+    const pts: { x: number; y: number }[] = [];
+    const segs = 16;
+    for (let i = 0; i < segs; i++) {
+      const t = (i / segs) * Math.PI * 2;
+      pts.push(toWorld(Math.cos(t) * a, Math.sin(t) * b));
+    }
+    return pts;
+  }
+  // rect
+  const hw = m.size.width * MEDIA_SCALE / 2, hh = m.size.height * MEDIA_SCALE / 2;
+  return [toWorld(-hw, -hh), toWorld(hw, -hh), toWorld(hw, hh), toWorld(-hw, hh)];
+}
+
+/** SAT-based convex polygon overlap with gap buffer. Returns true if polys overlap (or within `gap`). */
+function polygonsOverlapWithGap(a: { x: number; y: number }[], b: { x: number; y: number }[], gap: number): boolean {
+  const tryAxes = (poly: { x: number; y: number }[]) => {
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+      // Outward normal of edge
+      const ex = p2.x - p1.x, ey = p2.y - p1.y;
+      const len = Math.hypot(ex, ey) || 1;
+      const nx = ey / len, ny = -ex / len;
+      let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
+      for (const p of a) {
+        const d = p.x * nx + p.y * ny;
+        if (d < minA) minA = d;
+        if (d > maxA) maxA = d;
+      }
+      for (const p of b) {
+        const d = p.x * nx + p.y * ny;
+        if (d < minB) minB = d;
+        if (d > maxB) maxB = d;
+      }
+      // Separated if there is a gap between projections
+      if (minA - maxB > gap || minB - maxA > gap) return true; // separating axis found
+    }
+    return false;
+  };
+  if (tryAxes(a)) return false;
+  if (tryAxes(b)) return false;
+  return true;
+}
+
 function mediaOverlapsOthers(m: MediaPlacement, allMedia: readonly MediaPlacement[], excludeId?: string): boolean {
-  const pw = m.size.width * MEDIA_SCALE, ph = m.size.height * MEDIA_SCALE;
-  const ax = m.position.x - pw / 2, ay = m.position.y - ph / 2;
+  const vertsA = getMediaWorldVertices(m);
   for (const other of allMedia) {
     if ((other.id as string) === (excludeId ?? m.id as string)) continue;
     if ((other.zoneId as string) !== (m.zoneId as string)) continue;
-    const ow = other.size.width * MEDIA_SCALE, oh = other.size.height * MEDIA_SCALE;
-    const bx = other.position.x - ow / 2, by = other.position.y - oh / 2;
-    if (ax < bx + ow + MEDIA_GAP && ax + pw + MEDIA_GAP > bx &&
-        ay < by + oh + MEDIA_GAP && ay + ph + MEDIA_GAP > by) return true;
+    const vertsB = getMediaWorldVertices(other);
+    if (polygonsOverlapWithGap(vertsA, vertsB, MEDIA_GAP)) return true;
   }
   return false;
 }

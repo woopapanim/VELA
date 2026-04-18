@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { CATEGORY_CONFIGS } from '@/domain';
+import { useT } from '@/i18n';
 
 // ── Numeric input field ──
 export function NumField({ label, value, onChange, disabled, step = 1 }: {
@@ -49,6 +50,7 @@ export function CategoryMix({ values, onChange, disabled }: {
   onChange: (v: Record<string, number>) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const keys = ['solo', 'small_group', 'guided_tour', 'vip_expert'];
   const total = keys.reduce((s, k) => s + (values[k] ?? 0), 0);
 
@@ -104,7 +106,7 @@ export function CategoryMix({ values, onChange, disabled }: {
         );
       })}
       {total !== 100 && (
-        <p className="text-[8px] text-[var(--status-warning)]">합계: {total}% (100% 필요)</p>
+        <p className="text-[8px] text-[var(--status-warning)]">{t('configFields.sumRequired', { total })}</p>
       )}
     </div>
   );
@@ -117,6 +119,7 @@ export function PercentMix({ keys, values, onChange, disabled }: {
   onChange: (v: Record<string, number>) => void;
   disabled: boolean;
 }) {
+  const t = useT();
   const total = keys.reduce((s, k) => s + (values[k] ?? 0), 0);
 
   const handleChange = (changedKey: string, newVal: number) => {
@@ -168,7 +171,7 @@ export function PercentMix({ keys, values, onChange, disabled }: {
         );
       })}
       {total !== 100 && (
-        <p className="text-[8px] text-[var(--status-warning)]">합계: {total}% (100% 필요)</p>
+        <p className="text-[8px] text-[var(--status-warning)]">{t('configFields.sumRequired', { total })}</p>
       )}
     </div>
   );

@@ -84,8 +84,11 @@ export function renderMedia(
     else bodyColor = isDark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.1)';
 
     const isCircle = (m as any).shape === 'circle';
+    const isEllipse = (m as any).shape === 'ellipse';
     const isCustom = (m as any).shape === 'custom' && m.polygon && m.polygon.length > 2;
     const circleR = Math.max(pw, ph) / 2;
+    const ellipseA = pw / 2; // x-radius
+    const ellipseB = ph / 2; // y-radius
 
     // Build polygon path helper (local coords, already in rotated space)
     const polyPath = () => {
@@ -103,6 +106,10 @@ export function renderMedia(
     } else if (isCircle) {
       ctx.beginPath();
       ctx.arc(0, 0, circleR, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (isEllipse) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ellipseA, ellipseB, 0, 0, Math.PI * 2);
       ctx.fill();
     } else {
       ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
@@ -123,6 +130,10 @@ export function renderMedia(
       ctx.beginPath();
       ctx.arc(0, 0, circleR, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (isEllipse) {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ellipseA, ellipseB, 0, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
       ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
     }
@@ -135,30 +146,15 @@ export function renderMedia(
       for (const p of m.polygon!) if (-p.y > maxNegY) maxNegY = -p.y;
       edgeDist = maxNegY || ph / 2;
     } else {
-      edgeDist = isCircle ? circleR : ph / 2;
+      edgeDist = isCircle ? circleR : ph / 2; // ellipse and rect both use ph/2 for top
     }
     // Front indicator: thick colored line on the front edge (category color)
-    // If omnidirectional: draw the entire perimeter thick (360° indicator)
     const frontColor = catColor ?? (isDark ? '#60a5fa' : '#3b82f6');
     const frontLineWidth = 3 * px;
-    const isOmni = (m as any).omnidirectional === true;
     ctx.strokeStyle = frontColor;
     ctx.lineWidth = frontLineWidth;
     ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    if (isOmni) {
-      // 360° — whole perimeter
-      if (isCustom) {
-        polyPath();
-        ctx.stroke();
-      } else if (isCircle) {
-        ctx.beginPath();
-        ctx.arc(0, 0, circleR, 0, Math.PI * 2);
-        ctx.stroke();
-      } else {
-        ctx.strokeRect(-pw / 2, -ph / 2, pw, ph);
-      }
-    } else if (isCustom) {
+    if (isCustom) {
       // Find edge whose midpoint has smallest Y (most forward)
       const poly = m.polygon!;
       let bestIdx = 0, bestMidY = Infinity;
@@ -177,6 +173,11 @@ export function renderMedia(
       ctx.beginPath();
       ctx.arc(0, 0, circleR, -Math.PI * 3 / 4, -Math.PI / 4);
       ctx.stroke();
+    } else if (isEllipse) {
+      // Top 90° arc of ellipse
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ellipseA, ellipseB, 0, -Math.PI * 3 / 4, -Math.PI / 4);
+      ctx.stroke();
     } else {
       // Rect: line on top edge
       ctx.beginPath();
@@ -185,7 +186,6 @@ export function renderMedia(
       ctx.stroke();
     }
     ctx.lineCap = 'butt';
-    ctx.lineJoin = 'miter';
 
     // Rotation handle (selected only) — line + green circle above the front edge
     if (isSelected) {
@@ -282,14 +282,29 @@ export function renderMedia(
           ctx.stroke();
         }
       } else {
-        // Corner resize handles for rect/circle (figma-style: white fill + blue stroke)
-        const localCorners = [
-          { lx: -pw/2, ly: -ph/2 },
-          { lx:  pw/2, ly: -ph/2 },
-          { lx:  pw/2, ly:  ph/2 },
-          { lx: -pw/2, ly:  ph/2 },
-        ];
-        for (const { lx, ly } of localCorners) {
+        // Resize handles (figma-style: white fill + blue stroke)
+        // Circle/Ellipse: cardinal N/E/S/W on perimeter. Rect: 4 corners.
+        const localHandles = isCircle
+          ? [
+              { lx: 0, ly: -circleR },
+              { lx: circleR, ly: 0 },
+              { lx: 0, ly: circleR },
+              { lx: -circleR, ly: 0 },
+            ]
+          : isEllipse
+          ? [
+              { lx: 0, ly: -ellipseB },
+              { lx: ellipseA, ly: 0 },
+              { lx: 0, ly: ellipseB },
+              { lx: -ellipseA, ly: 0 },
+            ]
+          : [
+              { lx: -pw/2, ly: -ph/2 },
+              { lx:  pw/2, ly: -ph/2 },
+              { lx:  pw/2, ly:  ph/2 },
+              { lx: -pw/2, ly:  ph/2 },
+            ];
+        for (const { lx, ly } of localHandles) {
           const rx = position.x + lx * cos - ly * sin;
           const ry = position.y + lx * sin + ly * cos;
           ctx.fillStyle = '#fff';

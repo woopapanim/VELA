@@ -3,6 +3,7 @@ import { Plus, FolderOpen, Trash2, ArrowRight, Upload } from 'lucide-react';
 import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import type { Scenario } from '@/domain';
+import { useT } from '@/i18n';
 
 const HISTORY_KEY = 'vela-project-history';
 
@@ -36,12 +37,13 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   const [isDragging, setIsDragging] = useState(false);
   const [, forceUpdate] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const t = useT();
 
   // ── JSON 파싱 공통 ──
   const loadScenarioFromText = useCallback((text: string, fileName?: string) => {
     const data = JSON.parse(text) as Scenario;
     if (!data.meta || !data.zones || !data.simulationConfig) {
-      setOpenError('유효하지 않은 파일입니다 (meta / zones / simulationConfig 누락)');
+      setOpenError(t('welcome.error.invalidFile'));
       return;
     }
     // 파일명으로 프로젝트 이름 설정
@@ -59,7 +61,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(-20)));
     } catch {}
     onEnter();
-  }, [setScenario, onEnter]);
+  }, [setScenario, onEnter, t]);
 
   // ── New blank project ──
   const handleNew = useCallback(() => {
@@ -141,9 +143,9 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       const text = await file.text();
       loadScenarioFromText(text, file.name);
     } catch (err) {
-      setOpenError(`파싱 오류: ${err instanceof Error ? err.message : String(err)}`);
+      setOpenError(t('welcome.error.parseError', { message: err instanceof Error ? err.message : String(err) }));
     }
-  }, [loadScenarioFromText]);
+  }, [loadScenarioFromText, t]);
 
   // ── 드래그앤드롭 ──
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -162,16 +164,16 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
     if (!file.name.endsWith('.json')) {
-      setOpenError('.json 파일만 지원합니다');
+      setOpenError(t('welcome.error.jsonOnly'));
       return;
     }
     try {
       const text = await file.text();
       loadScenarioFromText(text, file.name);
     } catch (err) {
-      setOpenError(`파싱 오류: ${err instanceof Error ? err.message : String(err)}`);
+      setOpenError(t('welcome.error.parseError', { message: err instanceof Error ? err.message : String(err) }));
     }
-  }, [loadScenarioFromText]);
+  }, [loadScenarioFromText, t]);
 
   // ── Load from history ──
   const handleLoad = useCallback((entry: ProjectEntry) => {
@@ -198,7 +200,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         <div className="fixed inset-0 z-[310] flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-none pointer-events-none">
           <div className="text-center">
             <Upload className="w-10 h-10 text-primary mx-auto mb-2" />
-            <p className="text-sm text-primary font-medium">JSON 파일을 여기에 놓으세요</p>
+            <p className="text-sm text-primary font-medium">{t('welcome.drop.hint')}</p>
           </div>
         </div>
       )}
@@ -232,7 +234,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
                   if (e.key === 'Enter') handleNew();
                   if (e.key === 'Escape') setShowNameInput(false);
                 }}
-                placeholder="Project name"
+                placeholder={t('welcome.projectName')}
                 className="flex-1 px-3 py-2.5 text-sm rounded-xl bg-secondary border border-border focus:border-primary focus:outline-none"
               />
               <button
@@ -266,7 +268,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           <FolderOpen className="w-4 h-4" /> Open File...
         </button>
         <p className="text-[10px] text-muted-foreground text-center mb-3">
-          또는 .json 파일을 화면에 드래그하여 열기
+          {t('welcome.drag.hint')}
         </p>
 
         {openError && (

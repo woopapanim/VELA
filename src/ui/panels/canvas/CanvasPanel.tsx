@@ -225,7 +225,7 @@ export function CanvasPanel() {
   const dragMediaId = useRef<string | null>(null);
   const dragWaypointId = useRef<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
-  const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se'>('se');
+  const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 'e' | 's' | 'w'>('se');
   const didDrag = useRef(false);
   const bgDragAnchor = useRef({ x: 0, y: 0 }); // for bg-resize: opposite corner
   const bgDragInitScale = useRef(1); // initial bgScale at drag start
@@ -673,16 +673,33 @@ export function CanvasPanel() {
       // Check selected media resize handles first (rotated coordinates, skip for custom polygon)
       if (store.selectedMediaId) {
         const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
-        if (selMedia && (selMedia as any).shape !== 'custom') {
+        const selShape = (selMedia as any)?.shape;
+        if (selMedia && selShape !== 'custom') {
           const pw = selMedia.size.width * MEDIA_SCALE_VAL, ph = selMedia.size.height * MEDIA_SCALE_VAL;
           const mRad = (selMedia.orientation * Math.PI) / 180;
           const mCos = Math.cos(mRad), mSin = Math.sin(mRad);
-          const localCorners = [
-            { corner: 'nw' as const, lx: -pw/2, ly: -ph/2 },
-            { corner: 'ne' as const, lx:  pw/2, ly: -ph/2 },
-            { corner: 'se' as const, lx:  pw/2, ly:  ph/2 },
-            { corner: 'sw' as const, lx: -pw/2, ly:  ph/2 },
-          ];
+          const r = Math.max(pw, ph) / 2;
+          const localCorners: { corner: 'nw'|'ne'|'sw'|'se'|'n'|'e'|'s'|'w'; lx: number; ly: number }[] =
+            selShape === 'circle'
+              ? [
+                  { corner: 'n', lx: 0,  ly: -r },
+                  { corner: 'e', lx: r,  ly: 0  },
+                  { corner: 's', lx: 0,  ly: r  },
+                  { corner: 'w', lx: -r, ly: 0  },
+                ]
+              : selShape === 'ellipse'
+              ? [
+                  { corner: 'n', lx: 0,     ly: -ph/2 },
+                  { corner: 'e', lx: pw/2,  ly: 0     },
+                  { corner: 's', lx: 0,     ly: ph/2  },
+                  { corner: 'w', lx: -pw/2, ly: 0     },
+                ]
+              : [
+                  { corner: 'nw', lx: -pw/2, ly: -ph/2 },
+                  { corner: 'ne', lx:  pw/2, ly: -ph/2 },
+                  { corner: 'se', lx:  pw/2, ly:  ph/2 },
+                  { corner: 'sw', lx: -pw/2, ly:  ph/2 },
+                ];
           for (const { corner, lx, ly } of localCorners) {
             const cx = selMedia.position.x + lx * mCos - ly * mSin;
             const cy = selMedia.position.y + lx * mSin + ly * mCos;
@@ -720,8 +737,19 @@ export function CanvasPanel() {
         if (selM) {
           const pw2 = selM.size.width * MEDIA_SCALE_VAL;
           const ph2 = selM.size.height * MEDIA_SCALE_VAL;
+          const mShape2 = (selM as any).shape;
+          let edgeDist2: number;
+          if (mShape2 === 'custom' && selM.polygon && selM.polygon.length > 2) {
+            let maxNegY = 0;
+            for (const p of selM.polygon) if (-p.y > maxNegY) maxNegY = -p.y;
+            edgeDist2 = maxNegY || ph2 / 2;
+          } else if (mShape2 === 'circle') {
+            edgeDist2 = Math.max(pw2, ph2) / 2;
+          } else {
+            edgeDist2 = ph2 / 2;
+          }
           const rad2 = (selM.orientation * Math.PI) / 180;
-          const handleDist2 = ph2 / 2 + 15;
+          const handleDist2 = edgeDist2 + 15;
           const hx = selM.position.x + Math.sin(rad2) * handleDist2;
           const hy = selM.position.y - Math.cos(rad2) * handleDist2;
           const hdx = world.x - hx, hdy = world.y - hy;
@@ -738,19 +766,35 @@ export function CanvasPanel() {
       // Check media click for move (before zone click)
       for (const m of store.media) {
         let mediaHit = false;
-        if ((m as any).shape === 'custom' && m.polygon && m.polygon.length > 2) {
+        const mShape = (m as any).shape;
+        if (mShape === 'custom' && m.polygon && m.polygon.length > 2) {
           // Transform world to local, then point-in-polygon
           const mRad = (m.orientation * Math.PI) / 180;
           const ddx = world.x - m.position.x, ddy = world.y - m.position.y;
           const lx = ddx * Math.cos(-mRad) - ddy * Math.sin(-mRad);
           const ly = ddx * Math.sin(-mRad) + ddy * Math.cos(-mRad);
           mediaHit = ptInPoly(m.polygon as {x:number;y:number}[], lx, ly);
+        } else if (mShape === 'circle') {
+          const r = Math.max(m.size.width, m.size.height) * MEDIA_SCALE_VAL / 2;
+          const ddx = world.x - m.position.x, ddy = world.y - m.position.y;
+          mediaHit = ddx * ddx + ddy * ddy <= r * r;
+        } else if (mShape === 'ellipse') {
+          const a = m.size.width * MEDIA_SCALE_VAL / 2;
+          const b = m.size.height * MEDIA_SCALE_VAL / 2;
+          const mRad = (m.orientation * Math.PI) / 180;
+          const ddx = world.x - m.position.x, ddy = world.y - m.position.y;
+          const lx = ddx * Math.cos(-mRad) - ddy * Math.sin(-mRad);
+          const ly = ddx * Math.sin(-mRad) + ddy * Math.cos(-mRad);
+          mediaHit = (lx * lx) / (a * a) + (ly * ly) / (b * b) <= 1;
         } else {
+          // Rect (respects orientation)
           const pw = m.size.width * MEDIA_SCALE_VAL;
           const ph = m.size.height * MEDIA_SCALE_VAL;
-          const mx = m.position.x - pw / 2;
-          const my = m.position.y - ph / 2;
-          mediaHit = world.x >= mx && world.x <= mx + pw && world.y >= my && world.y <= my + ph;
+          const mRad = (m.orientation * Math.PI) / 180;
+          const ddx = world.x - m.position.x, ddy = world.y - m.position.y;
+          const lx = ddx * Math.cos(-mRad) - ddy * Math.sin(-mRad);
+          const ly = ddx * Math.sin(-mRad) + ddy * Math.cos(-mRad);
+          mediaHit = Math.abs(lx) <= pw / 2 && Math.abs(ly) <= ph / 2;
         }
         if (mediaHit) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
@@ -1465,23 +1509,44 @@ export function CanvasPanel() {
         const localY = dx * sinR + dy * cosR;
         const halfW = m.size.width * MS / 2;
         const halfH = m.size.height * MS / 2;
-        let newW = m.size.width, newH = m.size.height;
-        if (c === 'se') {
-          newW = Math.max(minSize, (localX + halfW) / MS);
-          newH = Math.max(minSize, (localY + halfH) / MS);
-        } else if (c === 'nw') {
-          newW = Math.max(minSize, (halfW - localX) / MS);
-          newH = Math.max(minSize, (halfH - localY) / MS);
-        } else if (c === 'ne') {
-          newW = Math.max(minSize, (localX + halfW) / MS);
-          newH = Math.max(minSize, (halfH - localY) / MS);
-        } else if (c === 'sw') {
-          newW = Math.max(minSize, (halfW - localX) / MS);
-          newH = Math.max(minSize, (localY + halfH) / MS);
+        if (c === 'n' || c === 'e' || c === 's' || c === 'w') {
+          const shape = (m as any).shape;
+          if (shape === 'ellipse') {
+            // Ellipse: e/w → width, n/s → height (independent)
+            let newW = m.size.width, newH = m.size.height;
+            if (c === 'e' || c === 'w') {
+              newW = Math.max(minSize, Math.abs(localX) * 2 / MS);
+              newW = Math.round(newW * 2) / 2;
+            } else {
+              newH = Math.max(minSize, Math.abs(localY) * 2 / MS);
+              newH = Math.round(newH * 2) / 2;
+            }
+            updateMedia(dragMediaId.current, { size: { width: newW, height: newH } });
+          } else {
+            // Circle: radius = distance from center in local space
+            const newR = Math.max(minSize * MS / 2, Math.sqrt(localX * localX + localY * localY));
+            const newD = Math.round((newR * 2 / MS) * 2) / 2;
+            updateMedia(dragMediaId.current, { size: { width: newD, height: newD } });
+          }
+        } else {
+          let newW = m.size.width, newH = m.size.height;
+          if (c === 'se') {
+            newW = Math.max(minSize, (localX + halfW) / MS);
+            newH = Math.max(minSize, (localY + halfH) / MS);
+          } else if (c === 'nw') {
+            newW = Math.max(minSize, (halfW - localX) / MS);
+            newH = Math.max(minSize, (halfH - localY) / MS);
+          } else if (c === 'ne') {
+            newW = Math.max(minSize, (localX + halfW) / MS);
+            newH = Math.max(minSize, (halfH - localY) / MS);
+          } else if (c === 'sw') {
+            newW = Math.max(minSize, (halfW - localX) / MS);
+            newH = Math.max(minSize, (localY + halfH) / MS);
+          }
+          newW = Math.round(newW * 2) / 2;
+          newH = Math.round(newH * 2) / 2;
+          updateMedia(dragMediaId.current, { size: { width: newW, height: newH } });
         }
-        newW = Math.round(newW * 2) / 2;
-        newH = Math.round(newH * 2) / 2;
-        updateMedia(dragMediaId.current, { size: { width: newW, height: newH } });
       }
       didDrag.current = true;
     } else if (mode === 'media-move' && dragMediaId.current) {

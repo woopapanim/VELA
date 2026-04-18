@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState as __useState } from 'react';
 import { Trash2, X, Plus } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, ZoneType, MediaPlacement, MediaId } from '@/domain';
-import { MEDIA_PRESETS } from '@/domain';
+import type { WaypointType, ZoneType, MediaPlacement, MediaId, Vector2D } from '@/domain';
+import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { useToast } from '@/ui/components/Toast';
+import { useT } from '@/i18n';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -87,6 +88,7 @@ export function PropertyPopover({ popover, onClose }: {
   const selectEdge = useStore((s) => s.selectEdge);
   const selectZone = useStore((s) => s.selectZone);
   const selectMedia = useStore((s) => (s as any).selectMedia);
+  const t = useT();
 
   // Close on outside click
   useEffect(() => {
@@ -160,7 +162,7 @@ export function PropertyPopover({ popover, onClose }: {
 
         {/* Label */}
         <Row label="Label">
-          <input type="text" value={node.label} placeholder="이름"
+          <input type="text" value={node.label} placeholder={t('popover.waypoint.namePlaceholder')}
             onChange={e => updateWaypoint(popover.targetId!, { label: e.target.value })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
         </Row>
@@ -343,12 +345,19 @@ export function PropertyPopover({ popover, onClose }: {
     const m = media.find(m => (m.id as string) === popover.targetId);
     if (!m) return null;
 
+    const interactionType = (m as any).interactionType ?? 'passive';
+    const shape = (m as any).shape ?? 'rect';
+    const autoCapacity = Math.max(1, Math.floor(
+      (m.size.width * m.size.height) / MEDIA_SQMETER_PER_PERSON,
+    ));
+
     return (
-      <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
+      <div ref={ref} className="fixed z-50 w-60 max-h-[80vh] overflow-y-auto overscroll-contain glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
         style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
+        onWheel={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -368,26 +377,72 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
         </Row>
 
-        <Row label="Cap">
-          <input type="number" min={1} max={200} value={m.capacity}
-            onChange={e => updateMedia(popover.targetId!, { capacity: parseInt(e.target.value) || 1 })}
-            className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
-        </Row>
+        {/* Size (hidden for custom polygon) */}
+        {shape !== 'custom' && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] text-muted-foreground w-12 shrink-0">Size</span>
+            <input type="number" step="0.5" min="0.5" max="20" value={m.size.width}
+              onChange={e => updateMedia(popover.targetId!, { size: { ...m.size, width: parseFloat(e.target.value) || 1 } })}
+              className="w-12 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+            <span className="text-[9px] text-muted-foreground">×</span>
+            <input type="number" step="0.5" min="0.5" max="20" value={m.size.height}
+              onChange={e => updateMedia(popover.targetId!, { size: { ...m.size, height: parseFloat(e.target.value) || 1 } })}
+              className="w-12 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+            <span className="text-[9px] text-muted-foreground">m</span>
+          </div>
+        )}
 
-        <Row label={`Attr ${m.attractiveness.toFixed(2)}`}>
-          <input type="range" min={0} max={1} step={0.05} value={m.attractiveness}
-            onChange={e => updateMedia(popover.targetId!, { attractiveness: parseFloat(e.target.value) })}
+        <Row label={`Rot ${m.orientation}°`}>
+          <input type="range" min={0} max={315} step={45} value={m.orientation}
+            onChange={e => updateMedia(popover.targetId!, { orientation: parseInt(e.target.value) })}
             className="flex-1" />
         </Row>
 
-        <Row label={`Time ${(m.avgEngagementTimeMs / 1000).toFixed(0)}s`}>
-          <input type="range" min={5000} max={300000} step={5000} value={m.avgEngagementTimeMs}
-            onChange={e => updateMedia(popover.targetId!, { avgEngagementTimeMs: parseInt(e.target.value) })}
-            className="flex-1" />
+        <Row label="Shape">
+          <select value={shape} onChange={e => {
+            const newShape = e.target.value;
+            if (newShape === 'custom' && shape !== 'custom') {
+              const pw = m.size.width * MEDIA_SCALE;
+              const ph = m.size.height * MEDIA_SCALE;
+              const poly: Vector2D[] = [
+                { x: -pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y: -ph / 2 },
+                { x:  pw / 2, y:  ph / 2 },
+                { x: -pw / 2, y:  ph / 2 },
+              ];
+              updateMedia(popover.targetId!, { shape: 'custom', polygon: poly } as any);
+              useStore.getState().setMediaPolygonEditMode(true);
+            } else if (newShape !== 'custom' && shape === 'custom') {
+              const poly = (m as any).polygon;
+              if (poly && poly.length > 2) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                for (const p of poly) {
+                  if (p.x < minX) minX = p.x;
+                  if (p.y < minY) minY = p.y;
+                  if (p.x > maxX) maxX = p.x;
+                  if (p.y > maxY) maxY = p.y;
+                }
+                const w = Math.max(0.5, (maxX - minX) / MEDIA_SCALE);
+                const h = Math.max(0.5, (maxY - minY) / MEDIA_SCALE);
+                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } } as any);
+              } else {
+                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined } as any);
+              }
+              useStore.getState().setMediaPolygonEditMode(false);
+            } else {
+              updateMedia(popover.targetId!, { shape: newShape } as any);
+            }
+          }}
+            className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
+            <option value="rect">Rectangle</option>
+            <option value="circle">Circle</option>
+            <option value="ellipse">Ellipse</option>
+            <option value="custom">Polygon</option>
+          </select>
         </Row>
 
         <Row label="Mode">
-          <select value={(m as any).interactionType ?? 'passive'}
+          <select value={interactionType}
             onChange={e => updateMedia(popover.targetId!, { interactionType: e.target.value as any })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             <option value="passive">Passive</option>
@@ -395,6 +450,91 @@ export function PropertyPopover({ popover, onClose }: {
             <option value="staged">Staged</option>
             <option value="analog">Analog</option>
           </select>
+        </Row>
+
+        {/* Omnidirectional (analog only) */}
+        {interactionType === 'analog' && (
+          <Row label="Omni">
+            <button
+              onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
+              className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
+                (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+              }`}
+            >
+              {(m as any).omnidirectional ? '360°' : 'Front'}
+            </button>
+          </Row>
+        )}
+
+        {/* Stage Interval (staged only) */}
+        {interactionType === 'staged' && (
+          <Row label="Session">
+            <input type="number" step="10" min="10"
+              value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
+              onChange={e => updateMedia(popover.targetId!, { stageIntervalMs: (parseInt(e.target.value) || 60) * 1000 } as any)}
+              className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+            <span className="text-[9px] text-muted-foreground">s</span>
+          </Row>
+        )}
+
+        {/* Capacity (not for analog) */}
+        {interactionType !== 'analog' && (
+          <Row label="Cap">
+            <input type="number" min={1} max={200} value={m.capacity}
+              onChange={e => updateMedia(popover.targetId!, { capacity: parseInt(e.target.value) || 1 })}
+              className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+            <button
+              onClick={() => updateMedia(popover.targetId!, { capacity: autoCapacity })}
+              className="text-[8px] text-primary hover:underline"
+              title={t('popover.capacity.autoCalc', { count: autoCapacity })}
+            >Auto({autoCapacity})</button>
+          </Row>
+        )}
+
+        <Row label={`Engage ${(m.avgEngagementTimeMs / 1000).toFixed(0)}s`}>
+          <input type="range" min={5000} max={300000} step={5000} value={m.avgEngagementTimeMs}
+            onChange={e => updateMedia(popover.targetId!, { avgEngagementTimeMs: parseInt(e.target.value) })}
+            className="flex-1" />
+        </Row>
+
+        {/* View Distance (passive only) */}
+        {interactionType === 'passive' && (
+          <Row label={`View ${((m as any).viewDistance ?? 2.0).toFixed(1)}m`}>
+            <input type="range" min={0.5} max={10} step={0.5}
+              value={(m as any).viewDistance ?? 2.0}
+              onChange={e => updateMedia(popover.targetId!, { viewDistance: parseFloat(e.target.value) } as any)}
+              className="flex-1" />
+          </Row>
+        )}
+
+        <Row label={`Attr ${m.attractiveness.toFixed(2)}`}>
+          <input type="range" min={0} max={1} step={0.05} value={m.attractiveness}
+            onChange={e => updateMedia(popover.targetId!, { attractiveness: parseFloat(e.target.value) })}
+            className="flex-1" />
+        </Row>
+
+        {/* Queue (not for analog) */}
+        {interactionType !== 'analog' && (
+          <Row label="Queue">
+            <select value={(m as any).queueBehavior || 'none'}
+              onChange={e => updateMedia(popover.targetId!, { queueBehavior: e.target.value } as any)}
+              className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
+              <option value="none">None</option>
+              <option value="linear">Linear</option>
+              <option value="area">Area</option>
+            </select>
+          </Row>
+        )}
+
+        <Row label="Group">
+          <button
+            onClick={() => updateMedia(popover.targetId!, { groupFriendly: !(m as any).groupFriendly } as any)}
+            className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
+              (m as any).groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {(m as any).groupFriendly ? 'Yes' : 'No'}
+          </button>
         </Row>
 
         <div className="text-[8px] text-muted-foreground">
@@ -491,7 +631,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
     }
 
     if (!found) {
-      toast('error', '공간이 부족합니다. 존을 늘리거나 기존 미디어를 이동해주세요.');
+      toast('error', t('popover.media.outOfSpace'));
       return;
     }
 

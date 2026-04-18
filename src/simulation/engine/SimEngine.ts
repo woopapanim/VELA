@@ -49,6 +49,7 @@ import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration 
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 import { distance } from '../utils/math';
+import { recordSkipEvent, recordMediaApproach, resetSkipTracking } from '@/analytics/calculators';
 
 /* ═══════════════════════════════════════════════════════════════════
  *  SIM FEATURE FLAGS — 최소 파이프라인 디버깅용
@@ -118,6 +119,10 @@ export class SimulationEngine {
   // per-tick media viewer counter (prevents same-tick race condition)
   private _tickMediaViewers = new Map<string, number>();
 
+  // per-tick media targeter counter (viewers + en-route + waiting)
+  // used to hard-cap media selection so capacity is enforced at assignment time
+  private _tickMediaTargeters = new Map<string, number>();
+
   // media analytics
   private _mediaStats = new Map<string, {
     watchCount: number;      // total visitors who watched
@@ -180,6 +185,7 @@ export class SimulationEngine {
     }
 
     resetSpawnerIds();
+    resetSkipTracking();
 
     this.state = {
       visitors: new Map(),
@@ -290,10 +296,11 @@ export class SimulationEngine {
   }
 
   /** Record that a visitor skipped a media */
-  private recordSkip(mediaId: string, waitDurationMs: number) {
+  private recordSkip(mediaId: string, waitDurationMs: number, zoneId: string | null = null) {
     const stats = this.ensureMediaStats(mediaId);
     stats.skipCount++;
     stats.totalWaitMs += waitDurationMs;
+    recordSkipEvent(mediaId, zoneId);
   }
 
   /* ─── main loop ─── */
@@ -325,11 +332,16 @@ export class SimulationEngine {
     // rebuild spatial hash + media viewer counts + node crowd for this tick
     this.spatialHash.clear();
     this._tickMediaViewers.clear();
+    this._tickMediaTargeters.clear();
     this.nodeCrowd.clear();
     this.zoneOccupancy.clear();
     for (const [, v] of this.state.visitors) {
       if (!v.isActive) continue;
       this.spatialHash.insert(v.id, v.position);
+      if (v.targetMediaId) {
+        const mid = v.targetMediaId as string;
+        this._tickMediaTargeters.set(mid, (this._tickMediaTargeters.get(mid) ?? 0) + 1);
+      }
       if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId) {
         const mid = v.targetMediaId as string;
         this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
@@ -374,6 +386,7 @@ export class SimulationEngine {
       a = this.stepSteering(a, dtS);
       a = this.stepPhysics(a, dtS);
       a = this.stepFollowerSnap(a);
+      a = this.stepFollowerTether(a);
       a = this.stepCollision(a);
       a = this.stepFatigue(a, dt);
       // Count newly deactivated
@@ -587,7 +600,7 @@ export class SimulationEngine {
       const catSkipMod = getCategorySkipMod(v.category);
       if (shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
         // Record skip
-        if (v.targetMediaId) this.recordSkip(v.targetMediaId as string, waitMs);
+        if (v.targetMediaId) this.recordSkip(v.targetMediaId as string, waitMs, v.currentZoneId as string | null);
         // Mark skipped media as visited so it won't be picked again
         const skippedMediaIds = v.targetMediaId
           ? [...v.visitedMediaIds, v.targetMediaId]
@@ -730,7 +743,7 @@ export class SimulationEngine {
           const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
           const { skipThreshold } = this.world.config;
           if (shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
-            this.recordSkip(mid, waitMs);
+            this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
             return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
               visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, targetPosition: null, waitStartedAt: null });
           }
@@ -747,6 +760,7 @@ export class SimulationEngine {
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= softCap) {
             // Over soft cap — skip this media, pick next target
+            this.recordSkip(mid, 0, v.currentZoneId as string | null);
             return this.assignNextTarget({
               ...v,
               currentAction: VISITOR_ACTION.IDLE,
@@ -769,10 +783,16 @@ export class SimulationEngine {
         } else if (intType === 'passive') {
           // ── PASSIVE: arrive at targetPosition (= viewpoint) → watch at current position ──
           // targetPosition 불변 조건: 에이전트는 이미 정확한 viewpoint 에 도착해 있음.
-          // Soft capacity: if over capacity, try again next tick (don't mark visited)
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            return { ...v, currentAction: VISITOR_ACTION.IDLE, targetMediaId: null, targetPosition: null };
+            this.recordSkip(mid, 0, v.currentZoneId as string | null);
+            return this.assignNextTarget({
+              ...v,
+              currentAction: VISITOR_ACTION.IDLE,
+              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+              targetMediaId: null,
+              targetPosition: null,
+            });
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
@@ -785,7 +805,7 @@ export class SimulationEngine {
             velocity: { x: 0, y: 0 },
           };
         } else if (intType === 'active') {
-          // ── ACTIVE: group reserves slots together, or skip as group ──
+          // ── ACTIVE: group reserves slots together, or queue as group ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
 
           // Calculate how many slots this agent needs (self + group members)
@@ -796,18 +816,34 @@ export class SimulationEngine {
           }
 
           if (viewerCount + groupSize > media.capacity) {
-            // Not enough slots for the group → skip
-            return this.assignNextTarget({
-              ...v,
-              currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
-              targetMediaId: null,
-              targetPosition: null,
-            });
+            // Not enough slots — enter queue. Patience check runs next tick via WAITING handler (lines ~575-617).
+            if (!v.waitStartedAt) {
+              this.recordWaitStart(mid);
+              return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+            }
+            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
+            const { skipThreshold } = this.world.config;
+            const catSkipMod = getCategorySkipMod(v.category);
+            if (shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+              this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              return this.assignNextTarget({
+                ...v,
+                currentAction: VISITOR_ACTION.IDLE,
+                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+                targetMediaId: null,
+                targetPosition: null,
+                waitStartedAt: null,
+              });
+            }
+            return v; // keep waiting
           }
 
           // Reserve slot for leader
           this._tickMediaViewers.set(mid, viewerCount + 1);
+          if (v.waitStartedAt) {
+            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
+            this.ensureMediaStats(mid).totalWaitMs += waitMs;
+          }
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
           dur = this.applyGroupDwell(v, dur);
@@ -830,11 +866,11 @@ export class SimulationEngine {
             }
           }
 
-          // 이미 targetPosition (예약된 slot) 에 도착 — position 유지
           return {
             ...v,
             currentAction: VISITOR_ACTION.WATCHING,
             velocity: { x: 0, y: 0 },
+            waitStartedAt: null,
           };
         }
       }
@@ -913,8 +949,30 @@ export class SimulationEngine {
     return (m as any).shape === 'circle';
   }
 
+  private isMediaEllipse(m: MediaPlacement): boolean {
+    return (m as any).shape === 'ellipse';
+  }
+
   private isMediaPolygon(m: MediaPlacement): boolean {
     return (m as any).shape === 'custom' && m.polygon != null && m.polygon.length > 2;
+  }
+
+  /** Generate polygon vertices (world coords) for ellipse media — for walls/rasterization */
+  private getMediaEllipseWorldPolygon(m: MediaPlacement, segments = 16): Vector2D[] {
+    const a = m.size.width * MEDIA_SCALE / 2;
+    const b = m.size.height * MEDIA_SCALE / 2;
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const pts: Vector2D[] = [];
+    for (let i = 0; i < segments; i++) {
+      const t = (i / segments) * Math.PI * 2;
+      const lx = Math.cos(t) * a, ly = Math.sin(t) * b;
+      pts.push({
+        x: m.position.x + lx * cos - ly * sin,
+        y: m.position.y + lx * sin + ly * cos,
+      });
+    }
+    return pts;
   }
 
   /** Transform polygon from center-relative local coords to world coords */
@@ -950,6 +1008,17 @@ export class SimulationEngine {
       const r = this.getMediaRadius(m);
       return { x: m.position.x - r, y: m.position.y - r, w: r * 2, h: r * 2 };
     }
+    if (this.isMediaEllipse(m)) {
+      const wp = this.getMediaEllipseWorldPolygon(m);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of wp) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
     return { x: m.position.x - pw / 2, y: m.position.y - ph / 2, w: pw, h: ph };
@@ -980,6 +1049,30 @@ export class SimulationEngine {
     return o !== 0 && o !== 180;
   }
 
+  /** Effective capacity for hard-cap selection filtering.
+   *  Matches the cap used at WATCHING entry in stepBehavior:
+   *  - analog: soft cap derived from perimeter (fallback to declared capacity)
+   *  - passive/active/staged: declared capacity
+   */
+  private effectiveMediaCapacity(m: MediaPlacement): number {
+    const intType = (m as any).interactionType ?? 'passive';
+    if (intType === 'analog') {
+      const pwM = m.size.width, phM = m.size.height;
+      const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
+      return Math.max(m.capacity || 0, autoCap);
+    }
+    return Math.max(1, m.capacity || 1);
+  }
+
+  /** Filter media candidates to those with free capacity (viewers + en-route targeters). */
+  private filterAvailableMedia(zMedia: readonly MediaPlacement[]): MediaPlacement[] {
+    return zMedia.filter(m => {
+      const mid = m.id as string;
+      const occ = this._tickMediaTargeters.get(mid) ?? 0;
+      return occ < this.effectiveMediaCapacity(m);
+    });
+  }
+
   /** Get wall segments for obstacle avoidance (rect=4 walls, circle=8 segment polygon, custom=polygon edges) */
   private getMediaWalls(m: MediaPlacement): { a: Vector2D; b: Vector2D }[] {
     if (this.isMediaPolygon(m)) {
@@ -1002,6 +1095,14 @@ export class SimulationEngine {
           a: { x: cx + Math.cos(a1) * r, y: cy + Math.sin(a1) * r },
           b: { x: cx + Math.cos(a2) * r, y: cy + Math.sin(a2) * r },
         });
+      }
+      return walls;
+    }
+    if (this.isMediaEllipse(m)) {
+      const wp = this.getMediaEllipseWorldPolygon(m);
+      const walls: { a: Vector2D; b: Vector2D }[] = [];
+      for (let i = 0; i < wp.length; i++) {
+        walls.push({ a: wp[i], b: wp[(i + 1) % wp.length] });
       }
       return walls;
     }
@@ -1034,6 +1135,15 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       return dx * dx + dy * dy < r * r;
     }
+    if (this.isMediaEllipse(m)) {
+      const a = m.size.width * MEDIA_SCALE / 2;
+      const b = m.size.height * MEDIA_SCALE / 2;
+      const rad = (m.orientation * Math.PI) / 180;
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      const lx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+      const ly = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+      return (lx * lx) / (a * a) + (ly * ly) / (b * b) < 1;
+    }
     if (this.isRectRotated(m)) {
       return isPointInPolygon(pos, this.getMediaRectCorners(m));
     }
@@ -1052,6 +1162,23 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       return { x: m.position.x + (dx / dist) * (r + 1), y: m.position.y + (dy / dist) * (r + 1) };
+    }
+    if (this.isMediaEllipse(m)) {
+      const a = m.size.width * MEDIA_SCALE / 2;
+      const b = m.size.height * MEDIA_SCALE / 2;
+      const rad = (m.orientation * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      const lx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+      const ly = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+      const k = Math.sqrt((lx * lx) / (a * a) + (ly * ly) / (b * b)) || 1;
+      const r = Math.sqrt(lx * lx + ly * ly) || 1;
+      const scale = (r / k + 1) / r;
+      const outLx = lx * scale, outLy = ly * scale;
+      return {
+        x: m.position.x + outLx * cos - outLy * sin,
+        y: m.position.y + outLx * sin + outLy * cos,
+      };
     }
     if (this.isRectRotated(m)) {
       return pushOutsidePolygon(pos, this.getMediaRectCorners(m), m.position);
@@ -1175,10 +1302,75 @@ export class SimulationEngine {
    */
   private computeMediaTargetPos(m: MediaPlacement): Vector2D | null {
     const intType = (m as any).interactionType ?? 'passive';
-    if (intType === 'passive') return this.getMediaViewPoint(m);
+    if (intType === 'passive') return this.pickPassiveSlot(m);
     if (intType === 'analog') return this.pickAnalogSlot(m);
     if (intType === 'active' || intType === 'staged') return this.pickMediaSlot(m);
     return null;
+  }
+
+  /**
+   * Passive 미디어 관람 slot 을 분산 배치하여 반환.
+   * 미디어 앞쪽에 viewDistance 만큼 떨어진 지점을 기준으로
+   * width 를 따라 여러 slot 을 만들고, 과밀 시 뒤쪽으로도 행 확장.
+   * 다른 MOVING/WATCHING 에이전트가 예약한 slot 과 겹치지 않는 첫 free slot 반환.
+   */
+  private pickPassiveSlot(m: MediaPlacement): Vector2D {
+    const mid = m.id as string;
+    const cap = Math.max(1, this.effectiveMediaCapacity(m));
+
+    // Collect occupied positions
+    const occupied: Vector2D[] = [];
+    for (const [, other] of this.state.visitors) {
+      if (!other.isActive) continue;
+      if ((other.targetMediaId as string) !== mid) continue;
+      if (other.currentAction === VISITOR_ACTION.WATCHING) {
+        occupied.push(other.position);
+      } else if (other.targetPosition) {
+        occupied.push(other.targetPosition);
+      }
+    }
+
+    const MIN_DIST_SQ = 14 * 14;
+    for (let i = 0; i < cap; i++) {
+      const slotPos = this.getPassiveSlotPosition(m, i, cap);
+      let free = true;
+      for (const op of occupied) {
+        const dx = slotPos.x - op.x, dy = slotPos.y - op.y;
+        if (dx * dx + dy * dy < MIN_DIST_SQ) { free = false; break; }
+      }
+      if (free) return slotPos;
+    }
+    return this.getPassiveSlotPosition(m, 0, cap);
+  }
+
+  /** Passive slot 위치 — 미디어 앞 width 방향으로 분산, 과밀 시 뒤쪽으로 행 추가. */
+  private getPassiveSlotPosition(m: MediaPlacement, slotIndex: number, cap: number): Vector2D {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const halfDepth = ph / 2;
+    const viewDistPx = (m as any).viewDistance != null
+      ? (m as any).viewDistance * MEDIA_SCALE
+      : 5;
+
+    // 1m = 20px 기준, slot 간 최소 간격 14px(=0.7m)
+    const SPACING = 14;
+    const usableWidth = Math.max(SPACING, pw - SPACING);
+    const cols = Math.max(1, Math.min(cap, Math.floor(usableWidth / SPACING) + 1));
+    const rows = Math.ceil(cap / cols);
+    const col = slotIndex % cols;
+    const row = Math.floor(slotIndex / cols);
+
+    // Local offset: X spread across width, Y = front depth + row offset behind
+    const localX = cols === 1 ? 0 : (col / (cols - 1) - 0.5) * usableWidth;
+    const localY = -(halfDepth + viewDistPx + row * SPACING);
+
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const pt = {
+      x: m.position.x + localX * cos - localY * sin,
+      y: m.position.y + localX * sin + localY * cos,
+    };
+    return this.clampToMediaZone(m, pt);
   }
 
   /**
@@ -1440,16 +1632,21 @@ export class SimulationEngine {
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
 
       if (unvisited.length > 0) {
+        // Hard-cap: exclude media already at capacity (viewers + en-route targeters)
+        const available = this.filterAvailableMedia(unvisited);
+        const pickPool = available.length > 0 ? available : unvisited;
         const pick = curZone.flowType === 'guided'
-          ? [...unvisited].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
-          : this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
-        if (pick) {
+          ? [...pickPool].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
+          : this.world.media.find(m => m.id === selectNextMedia(v, pickPool, this.rng));
+        if (pick && available.length > 0) {
+          recordMediaApproach(pick.id as string);
           return {
             ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
             currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
           };
         }
+        // All zone media over capacity → fall through to zone/exit transition below
       }
 
       // In last zone + media all done → exit
@@ -1582,16 +1779,21 @@ export class SimulationEngine {
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
 
       if (unvisited.length > 0) {
-        const pick = curZone.flowType === 'guided'
-          ? [...unvisited].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
-          : this.world.media.find(m => m.id === selectNextMedia(v, this.mediaByZone.get(curZone.id as string) ?? [], this.rng));
-        if (pick) {
-          return {
-            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
-            currentAction: VISITOR_ACTION.MOVING,
-            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
-          };
+        const available = this.filterAvailableMedia(unvisited);
+        if (available.length > 0) {
+          const pick = curZone.flowType === 'guided'
+            ? [...available].sort((a, b) => a.position.x - b.position.x || a.position.y - b.position.y)[0]
+            : this.world.media.find(m => m.id === selectNextMedia(v, available, this.rng));
+          if (pick) {
+            recordMediaApproach(pick.id as string);
+            return {
+              ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+              currentAction: VISITOR_ACTION.MOVING,
+              steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+            };
+          }
         }
+        // All zone media over capacity → fall through to zone/exit transition
       }
 
       // In exit zone + media done → walk off-canvas
@@ -1656,11 +1858,13 @@ export class SimulationEngine {
    *  GRAPH-POINT MODE — score-based node navigation
    * ═══════════════════════════════════════════════ */
 
-  private assignNextTargetGraph(v: Visitor): Visitor {
-    if (!this.waypointNav || !v.currentNodeId) return v;
+  private assignNextTargetGraph(input: Visitor): Visitor {
+    if (!this.waypointNav || !input.currentNodeId) return input;
 
-    const curNode = this.waypointNav.getNode(v.currentNodeId);
-    if (!curNode) return v;
+    const curNode = this.waypointNav.getNode(input.currentNodeId);
+    if (!curNode) return input;
+
+    let v = input;
 
     // 1. EXIT 노드 도착 → 퇴장 시퀀스
     if (curNode.type === 'exit') {
@@ -1680,6 +1884,7 @@ export class SimulationEngine {
         if (!visited.has(curNode.mediaId as string)) {
           const media = this.world.media.find(m => m.id === curNode.mediaId);
           if (media) {
+            recordMediaApproach(media.id as string);
             return {
               ...v,
               targetMediaId: media.id,
@@ -1697,17 +1902,27 @@ export class SimulationEngine {
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
       const unvisited = zMedia.filter(m => !visited.has(m.id as string));
       if (unvisited.length > 0) {
-        const pick = this.world.media.find(m => m.id === selectNextMedia(v, zMedia, this.rng));
-        if (pick) {
-          return {
-            ...v,
-            targetMediaId: pick.id,
-            targetPosition: this.computeMediaTargetPos(pick),
-            targetNodeId: null,
-            currentAction: VISITOR_ACTION.MOVING,
-            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
-          };
+        const available = this.filterAvailableMedia(unvisited);
+        if (available.length > 0) {
+          const pick = this.world.media.find(m => m.id === selectNextMedia(v, available, this.rng));
+          if (pick) {
+            recordMediaApproach(pick.id as string);
+            return {
+              ...v,
+              targetMediaId: pick.id,
+              targetPosition: this.computeMediaTargetPos(pick),
+              targetNodeId: null,
+              currentAction: VISITOR_ACTION.MOVING,
+              steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+            };
+          }
         }
+        // No media picked (all over capacity or selection failed) → skip unvisited + fall through
+        for (const m of unvisited) {
+          recordMediaApproach(m.id as string);
+          this.recordSkip(m.id as string, 0, curNode.zoneId as string | null);
+        }
+        v = { ...v, visitedMediaIds: [...v.visitedMediaIds, ...unvisited.map(m => m.id)] };
       }
     }
 
@@ -1720,11 +1935,9 @@ export class SimulationEngine {
       if (isFirstVisit && lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
         const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
         if (elapsed < curNode.dwellTimeMs) {
-          // 체류 중 — IDLE 상태로 대기 (WATCHING 아님: 미디어 시청과 구분)
-          // currentSteering 을 0으로 초기화해서 잔여 힘으로 움직이지 않게 함
           return {
             ...v,
-            currentAction: VISITOR_ACTION.IDLE,
+            currentAction: VISITOR_ACTION.RESTING,
             velocity: { x: 0, y: 0 },
             steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
           };
@@ -1755,7 +1968,7 @@ export class SimulationEngine {
       targetPosition: null,
       targetZoneId: null,
       pathLog: updatedPathLog,
-      currentAction: VISITOR_ACTION.MOVING,
+      currentAction: nextNode.type === 'exit' ? VISITOR_ACTION.EXITING : VISITOR_ACTION.MOVING,
       steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
     };
   }
@@ -1764,10 +1977,9 @@ export class SimulationEngine {
   private beginExitGraph(v: Visitor, exitNode: WaypointNode): Visitor {
     const xid = exitNode.id as string;
     this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
-    // position 덮어쓰기 제거 — 에이전트가 실제로 도달한 위치에서 사라지도록.
-    // snap 거리 자체는 기존 유지 (군중 정체로 인한 stuck 방지).
     return {
       ...v,
+      currentAction: VISITOR_ACTION.EXITING,
       velocity: { x: 0, y: 0 },
       isActive: false,
     };
@@ -2202,6 +2414,48 @@ export class SimulationEngine {
       ...v,
       velocity: { x: tnx * speed, y: tny * speed },
     };
+  }
+
+  /* ═══════════════════════════════════════════════
+   *  FOLLOWER TETHER — warp follower near leader
+   *  when distance exceeds tether threshold (pushed out of crowd etc.)
+   * ═══════════════════════════════════════════════ */
+
+  private stepFollowerTether(v: Visitor): Visitor {
+    if (!v.groupId || v.isGroupLeader) return v;
+    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
+
+    const group = this.state.groups.get(v.groupId as string);
+    if (!group) return v;
+    const leader = this.state.visitors.get(group.leaderId as string);
+    if (!leader?.isActive) return v;
+
+    const dx = leader.position.x - v.position.x;
+    const dy = leader.position.y - v.position.y;
+    const distSq = dx * dx + dy * dy;
+
+    // Bounding radius per group type:
+    //  - guided: effectiveCollisionRadius (visible outline)
+    //  - pair/small: maxSpread (invisible bubble)
+    const boundR = group.type === 'guided'
+      ? (group.effectiveCollisionRadius ?? 60) * 0.9
+      : Math.max(30, group.maxSpread ?? 40);
+
+    if (distSq <= boundR * boundR) return v;
+
+    const dist = Math.sqrt(distSq);
+    const nx = dx / dist, ny = dy / dist; // v → leader unit vector
+    const newPos = {
+      x: leader.position.x - nx * boundR,
+      y: leader.position.y - ny * boundR,
+    };
+    // Remove outward velocity component so follower doesn't keep escaping
+    const outX = -nx, outY = -ny;
+    const vOut = v.velocity.x * outX + v.velocity.y * outY;
+    const newVel = vOut > 0
+      ? { x: v.velocity.x - vOut * outX, y: v.velocity.y - vOut * outY }
+      : v.velocity;
+    return { ...v, position: newPos, velocity: newVel };
   }
 
   /* ═══════════════════════════════════════════════
