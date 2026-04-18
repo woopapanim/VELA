@@ -281,4 +281,8 @@ export const en: Dict = {
     'Queue behavior when capacity is reached. None = skip the media and move on. Linear = form a single waiting line. Area = wait within a designated zone near the media.',
   'tooltip.media.groupFriendly':
     'Whether visitor groups can experience this media together. When enabled, group members share engagement time and enter or exit as a unit.',
+
+  // Visitor config — skip threshold
+  'tooltip.skipFormula':
+    'Defines the condition under which a visitor gives up waiting for a media and moves on. When the actual wait time exceeds Patience × Attractiveness × Skip Multiplier × Max Wait, the visitor skips and heads to the next destination. Larger values make visitors more tolerant of queues; smaller values cause earlier skipping.',
 };

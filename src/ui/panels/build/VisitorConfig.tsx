@@ -4,11 +4,14 @@ import { DEFAULT_CATEGORY_WEIGHTS } from '@/domain';
 import type { VisitorCategory } from '@/domain';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField, PercentMix, CategoryMix } from '@/ui/components/ConfigFields';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 export function VisitorConfig() {
   const scenario = useStore((s) => s.scenario);
   const setScenario = useStore((s) => s.setScenario);
   const phase = useStore((s) => s.phase);
+  const t = useT();
 
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
@@ -79,6 +82,9 @@ export function VisitorConfig() {
       </CollapsibleSection>
 
       <CollapsibleSection id="visitor-skip" title="Skip Threshold">
+        <div className="flex items-center justify-end mb-1">
+          <InfoTooltip text={t('tooltip.skipFormula')} />
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <NumField
             label="Max Wait (s)"
@@ -95,9 +101,6 @@ export function VisitorConfig() {
             step={0.1}
           />
         </div>
-        <p className="text-[8px] text-muted-foreground mt-1">
-          Skip if wait {'>'} patience × attractiveness × multiplier × maxWait
-        </p>
       </CollapsibleSection>
     </div>
   );

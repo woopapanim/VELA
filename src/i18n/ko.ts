@@ -256,4 +256,8 @@ export const ko: Dict = {
     '수용 인원이 가득 찼을 때의 대기 방식입니다. None은 해당 미디어를 건너뛰고 다음 목적지로 이동, Linear는 단일 줄로 대기, Area는 미디어 주변 지정 영역 안에서 대기하는 방식입니다.',
   'tooltip.media.groupFriendly':
     '방문객 그룹이 함께 미디어를 체험할 수 있는지 여부입니다. 활성화하면 그룹 구성원이 관람 시간을 공유하며 하나의 단위로 함께 입장·퇴장합니다.',
+
+  // Visitor config — skip threshold
+  'tooltip.skipFormula':
+    '방문객이 대기 중인 미디어를 포기하고 다른 목적지로 이동하는 조건을 정의합니다. 실제 대기 시간이 Patience × Attractiveness × Skip Multiplier × Max Wait를 초과하면 방문객이 해당 미디어를 건너뛰고 이동합니다. 값이 클수록 방문객의 대기 인내 한도가 커지고, 값이 작을수록 더 일찍 포기합니다.',
 };
