@@ -55,7 +55,7 @@ export interface MediaPreset {
 }
 
 export type MediaInteractionType = 'passive' | 'active' | 'staged' | 'analog';
-export type MediaShape = 'rect' | 'circle' | 'custom';
+export type MediaShape = 'rect' | 'circle' | 'ellipse' | 'custom';
 
 export interface MediaPlacement {
   readonly id: MediaId;

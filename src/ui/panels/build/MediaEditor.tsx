@@ -161,6 +161,7 @@ export function MediaEditor() {
         >
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
+          <option value="ellipse">Ellipse</option>
           <option value="custom">Polygon</option>
         </select>
       </div>
@@ -306,23 +307,6 @@ export function MediaEditor() {
         <input type="range" min="0" max="1" step="0.1"
           value={m.attractiveness}
           onChange={(e) => handleUpdate('attractiveness', parseFloat(e.target.value))}
-          disabled={isLocked}
-          className="w-full h-1"
-        />
-      </div>
-
-      {/* Attraction Radius */}
-      <div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attraction Radius (m)</label>
-            <InfoTooltip text="Distance (meters) from which visitors can detect and be drawn to this media." />
-          </div>
-          <span className="text-[9px] font-data">{((m as any).attractionRadius ?? 3).toFixed(1)}</span>
-        </div>
-        <input type="range" min="1" max="15" step="0.5"
-          value={(m as any).attractionRadius ?? 3}
-          onChange={(e) => handleUpdate('attractionRadius', parseFloat(e.target.value))}
           disabled={isLocked}
           className="w-full h-1"
         />
