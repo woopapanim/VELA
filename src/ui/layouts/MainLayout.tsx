@@ -1,4 +1,5 @@
 import { ThemeToggle } from '../components/ThemeToggle';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
@@ -11,7 +12,6 @@ import { SpawnConfig } from '../panels/build/SpawnConfig';
 import { FloorTabs } from '../panels/build/FloorTabs';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
-import { MediaStatsPanel } from '../panels/analytics/MediaStatsPanel';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
@@ -62,6 +62,7 @@ export function MainLayout() {
             </div>
           )}
           <HelpButton />
+          <LanguageToggle />
           <ThemeToggle />
         </div>
       </header>
@@ -124,7 +125,6 @@ export function MainLayout() {
 
         {/* Right Panel — Analytics / Insight */}
         <aside className="w-80 border-l border-border bg-[var(--surface)] overflow-y-auto">
-          <MediaStatsPanel />
           <AnalyticsPanel />
         </aside>
       </div>
