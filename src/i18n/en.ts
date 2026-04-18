@@ -236,15 +236,15 @@ export const en: Dict = {
 
   // Analytics panel — title tooltips
   'tooltip.summary':
-    'Real-time KPIs. Active = visitors in venue now. Spawned/Exited = cumulative. Thru/min = exit throughput per minute.',
+    'A snapshot of the simulation right now — how many visitors are inside, how many have entered/left in total, average tiredness, how fast people are exiting, elapsed time, and the most crowded zone.',
   'tooltip.agentDistribution':
-    'Live breakdown of what agents are doing right now: MOVING, WATCHING, WAITING, RESTING, EXITING.',
+    'What visitors are doing this moment. The longer the bar, the more people in that action: moving between zones, watching exhibits, waiting in line, resting, or heading for the exit.',
   'tooltip.insights':
-    'Actionable recommendations from live simulation data. Red = critical, amber = warning. Click action buttons to jump to the affected zone or media.',
+    'Automatic suggestions based on live data. Red = needs attention now, amber = worth watching. Click the action button to jump straight to the zone or media to fix.',
   'tooltip.liveDashboard':
-    'Live flow metrics updated each tick: throughput, density, congestion indicators.',
+    'Four live metrics with a small history chart each — people inside (Active), people watching exhibits (Watching), how full the busiest zone is (Peak Util), and average tiredness (Fatigue).',
   'tooltip.zoneRanking':
-    'Zones ranked by occupancy and activity. Higher bar = busier zone relative to capacity.',
+    'Zones compared side-by-side. Occ = people inside vs. capacity, Util% = how full the zone is, m²/p = space per person. Click a column title to sort by it.',
   'tooltip.nodeTraffic':
-    'Visitor count per waypoint node. Entry nodes = spawns, Exit nodes = departures, others = pass-through counts.',
+    'How many visitors passed through each waypoint. Entry = where they spawn, Exit = where they leave, others = pass-through. Bar length shows relative traffic.',
 };

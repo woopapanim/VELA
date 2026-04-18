@@ -211,15 +211,15 @@ export const ko: Dict = {
 
   // Analytics panel — title tooltips
   'tooltip.summary':
-    '실시간 KPI. Active = 현재 관내 방문객, Spawned/Exited = 누적 입장/퇴장, Thru/min = 분당 퇴장 처리량.',
+    '시뮬레이션 현재 상황 요약 — 관내 인원, 누적 입장·퇴장, 평균 피로도, 분당 퇴장 속도, 경과 시간, 가장 혼잡한 존을 한눈에 보여줘요.',
   'tooltip.agentDistribution':
-    '현재 에이전트 행동 분포: 이동(MOVING), 관람(WATCHING), 대기(WAITING), 휴식(RESTING), 퇴장(EXITING).',
+    '지금 방문객들이 뭘 하고 있는지 비율로 보여줘요. 막대가 길수록 그 행동을 하는 사람이 많아요: 이동 중, 관람 중, 대기열, 휴식, 퇴장 중.',
   'tooltip.insights':
-    '시뮬레이션 데이터 기반 권장 액션. 빨강 = 긴급, 주황 = 주의. 액션 버튼 클릭 시 해당 존/미디어로 이동.',
+    '실시간 데이터를 보고 자동으로 뽑은 개선 제안. 빨강은 바로 조치 필요, 주황은 주의. 액션 버튼을 누르면 문제 지점으로 바로 이동해요.',
   'tooltip.liveDashboard':
-    '틱별 실시간 흐름 지표: 처리량, 밀도, 혼잡 지표.',
+    '추이 미니그래프가 붙은 실시간 핵심 지표 4개 — 관내 인원(Active), 관람 중 인원(Watching), 가장 붐비는 존의 혼잡도(Peak Util), 평균 피로도(Fatigue).',
   'tooltip.zoneRanking':
-    '점유율 및 활동 기준 존 랭킹. 막대가 길수록 용량 대비 혼잡.',
+    '존별 상태를 나란히 비교하는 표. Occ = 현재 인원/정원, Util% = 수용률, m²/p = 1인당 면적. 컬럼 제목을 누르면 그 기준으로 정렬돼요.',
   'tooltip.nodeTraffic':
-    '웨이포인트별 방문자 수. Entry = 생성, Exit = 퇴장, 그 외 = 통과 카운트.',
+    '각 웨이포인트를 지나간 방문객 수. Entry는 생성 지점, Exit은 퇴장 지점, 나머지는 통과 지점. 막대 길이가 상대적인 통행량을 보여줘요.',
 };
