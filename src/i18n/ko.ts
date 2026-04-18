@@ -30,4 +30,196 @@ export const ko: Dict = {
 
   // Completion Report
   'report.perPerson': '인',
+
+  // Simulation — validation toasts
+  'sim.toast.entryNeeded': 'ENTRY 노드가 필요합니다',
+  'sim.toast.exitNeeded': 'EXIT 노드가 필요합니다',
+  'sim.toast.edgeNeeded': 'Edge가 최소 1개 필요합니다',
+  'sim.toast.nodesAndEdgesNeeded': 'Node와 Edge를 배치하세요',
+
+  // Simulation — stop dialog
+  'sim.stop.title': '시뮬레이션 중지',
+  'sim.stop.body':
+    '모든 에이전트, 미디어 통계, KPI 이력, 리플레이 프레임이 초기화됩니다.\n되돌릴 수 없습니다.',
+  'sim.stop.cancel': '취소',
+  'sim.stop.confirm': '초기화',
+
+  // Build — waypoint node descriptions (tooltips)
+  'build.node.entry.desc': '스폰 지점',
+  'build.node.exit.desc': '퇴장 지점',
+  'build.node.zone.desc': '전시 거점',
+  'build.node.attractor.desc': '고인력 타겟',
+  'build.node.hub.desc': '교차로/분기점',
+  'build.node.rest.desc': '휴게/버퍼',
+
+  // Build — hints
+  'build.hint.placeNode': '캔버스 클릭하여 노드 배치',
+  'build.hint.edgeMode.title': 'Edge 연결 모드',
+  'build.hint.edgeMode.body': '첫 노드 클릭 → 두 번째 노드 클릭으로 연결',
+  'build.hint.zoneArea': 'Zone = 미디어 배치 영역. 동선은 Node/Edge로.',
+
+  // Zone / Media editor — polygon shape
+  'editor.shape.done': '✓ 형태 완료',
+  'editor.shape.edit': '형태 편집',
+
+  // Waypoint inspector
+  'waypoint.namePlaceholder': '노드 이름',
+
+  // Project manager
+  'project.toast.saved': '"{name}" v{version} 저장됨',
+  'project.toast.invalid': '유효하지 않은 프로젝트 파일',
+  'project.toast.opened': '"{name}" 열림',
+  'project.toast.parseError': '파일 파싱 오류',
+  'project.openTitle': 'JSON 파일 열기',
+
+  // Zone templates
+  'zoneTemplate.linear.desc': '일렬 동선 (입구→전시→출구)',
+  'zoneTemplate.hub.desc': '중앙 홀 + 주변 전시실',
+  'zoneTemplate.grid.desc': '격자형 부스 배치',
+  'zoneTemplate.hall.desc': '대형 단일 전시 홀',
+
+  // Scenario compare
+  'scenario.compare.recommend': '추천',
+  'scenario.compare.scenarioPrefix': '시나리오',
+  'scenario.compare.equal': '동일',
+
+  // Config fields
+  'configFields.sumRequired': '합계: {total}% (100% 필요)',
+
+  // Welcome screen
+  'welcome.error.invalidFile':
+    '유효하지 않은 파일입니다 (meta / zones / simulationConfig 누락)',
+  'welcome.error.parseError': '파싱 오류: {message}',
+  'welcome.error.jsonOnly': '.json 파일만 지원합니다',
+  'welcome.drop.hint': 'JSON 파일을 여기에 놓으세요',
+  'welcome.drag.hint': '또는 .json 파일을 화면에 드래그하여 열기',
+  'welcome.projectName': '프로젝트 이름',
+
+  // Property popover
+  'popover.waypoint.namePlaceholder': '이름',
+  'popover.capacity.autoCalc': '면적 기반 자동 계산: {count}명',
+  'popover.media.outOfSpace': '공간이 부족합니다. 존을 늘리거나 기존 미디어를 이동해주세요.',
+
+  // Visitor popover
+  'visitor.state.idle': '대기',
+  'visitor.state.moving': '이동',
+  'visitor.state.watching': '관람',
+  'visitor.state.waiting': '대기열',
+  'visitor.state.exiting': '퇴장',
+
+  // Context menu
+  'context.delete': '삭제',
+  'context.duplicate': '복제',
+  'context.edit': '편집',
+
+  // Main layout — zone list
+  'mainLayout.dragHandle': '드래그하여 순서 변경',
+
+  // Sensitivity panel — dynamic recommendations
+  'sensitivity.rec.expandEntrance':
+    '수용 인원을 {capacity}으로 확대 시 병목 {percent}% 감소 예상',
+  'sensitivity.rec.reduceInflow':
+    '유입률을 {rate}/s로 감소 시 전체 밀도 30% 개선 예상',
+  'sensitivity.rec.addExhibitionZone':
+    '전시 존 1개 추가 시 과밀 존 {before}개 → {after}개로 감소 예상',
+  'sensitivity.rec.expandRest':
+    '휴식 공간 50% 확장 시 평균 피로도 {before}% → {after}% 감소 예상',
+  'sensitivity.rec.widenGate':
+    '병목 존 게이트 폭 2배 확장 시 유출률 40% 향상 예상',
+
+  // Insight engine — congestion
+  'insight.congestion.critical.problem': '{zone}: 즉시 입장 제한 필요',
+  'insight.congestion.critical.cause': '현재 {occupancy}명 / 적정 {capacity}명 ({pct}%)',
+  'insight.congestion.critical.rec': '→ 게이트 추가 또는 존 면적 확장',
+  'insight.congestion.warning.problem': '{zone}: 동선 분산 권장',
+  'insight.congestion.warning.cause': '수용률 {pct}% — 여유 공간 부족',
+  'insight.congestion.warning.rec': '→ 인접 존으로 관심 요소 재배치',
+
+  // Insight engine — bottleneck
+  'insight.bottleneck.group.problem': '{zone}: 단체 동선 분리 검토',
+  'insight.bottleneck.critical.problem': '{zone}: 출구 게이트 확장 시급',
+  'insight.bottleneck.warning.problem': '{zone}: 출구 흐름 개선 필요',
+  'insight.bottleneck.cause':
+    '유입 {flowIn}/s > 유출 {flowOut}/s — 병목 지수 {score}',
+  'insight.bottleneck.group.rec': '→ 게이트 폭 확장 또는 투어 시간대 분산',
+  'insight.bottleneck.nonGroup.rec': '→ 출구 게이트 추가 또는 미디어 배치 분산',
+
+  // Insight engine — density
+  'insight.density.problem': '{zone}: 면적 확장 또는 수용 상한 설정',
+  'insight.density.cause':
+    '밀도 {areaPerPerson}m²/인 < 기준 {standard}m²/인 ({occupancy}명 / {area}m²)',
+  'insight.density.rec': '→ 상한 {safeCap}명 설정 또는 {expandM2}m² 확장',
+
+  // Insight engine — skip
+  'insight.skip.problem': '인기 미디어 복제 배치 검토',
+  'insight.skip.cause': '전체 스킵률 {pct}% — 대기 시간 초과로 관람 포기',
+  'insight.skip.rec.withHighSkip': '→ 고스킵 미디어 {count}개 다중 배치 또는 대기열 관리',
+  'insight.skip.rec.default': '→ 복제 배치 또는 대기열 관리 시스템 도입',
+
+  // Insight engine — fatigue
+  'insight.fatigue.problem': '휴식 존 추가 필요',
+  'insight.fatigue.cause': '방문객 P90 피로도 {pct}% 초과 — 휴식 공간 부족',
+  'insight.fatigue.rec': '→ 중간 지점 휴식 존 배치 또는 동선 단축',
+
+  // Insight engine — flow efficiency
+  'insight.flow.problem': '핵심 전시물 재배치 권장',
+  'insight.flow.cause': '완주율 {pct}% — 절반 이상 조기 이탈',
+  'insight.flow.rec': '→ 초반 동선에 주요 콘텐츠 배치로 관람 동기 유지',
+
+  // Insight engine — space ROI
+  'insight.spaceRoi.low.problem': '{names}: 축소 또는 교체 검토',
+  'insight.spaceRoi.low.cause': '공간 효율 평균의 {pct}% — 면적 대비 관람 시간 저조',
+  'insight.spaceRoi.low.rec': '→ 크기 축소, 위치 변경, 또는 매력 콘텐츠로 교체',
+  'insight.spaceRoi.high.problem': '{name}: 유사 콘텐츠 확대 배치',
+  'insight.spaceRoi.high.cause': '공간 효율 평균의 {pct}% — 최고 관람 밀도 ({count}명)',
+  'insight.spaceRoi.high.rec': '→ 접근성 강화 + 유사 콘텐츠 증설',
+
+  // Insight engine — content mix
+  'insight.contentMix.capacity.problem': '{category}: 수용량 증설 필요',
+  'insight.contentMix.layout.problem': '{category}: 배치 구조 개선 필요',
+  'insight.contentMix.cause':
+    '스킵률 {pct}% ({count}개 / {skipCount}회 스킵, 평균 관람 {avgSec}초)',
+  'insight.contentMix.capacity.rec': '→ 복제 배치 또는 동일 유형 추가',
+  'insight.contentMix.layout.rec': '→ 간격 조정 또는 타 카테고리와 교차 배치',
+
+  // Insight engine — category labels (content mix)
+  'insight.category.analog': '아날로그',
+  'insight.category.passive_media': '패시브 미디어',
+  'insight.category.active': '액티브',
+  'insight.category.immersive': '이머시브',
+
+  // Insight engine — group impact
+  'insight.groupImpact.tour.problem': '도슨트 전용 동선 검토',
+  'insight.groupImpact.tour.cause':
+    '투어 {tourPct}% 인원이 병목 {impactPct}% 유발 ({groupCount}개 그룹 / {tourCount}명)',
+  'insight.groupImpact.tour.rec': '→ 투어 시간대 분산 또는 우회 경로 제공',
+  'insight.groupImpact.fatigue.problem': '그룹 동선 휴식 존 추가',
+  'insight.groupImpact.fatigue.cause':
+    '그룹 피로도 {groupPct}% vs 솔로 {soloPct}% ({count}명 체류 배율 높음)',
+  'insight.groupImpact.fatigue.rec': '→ 그룹 동선 중간 휴식 존 또는 콘텐츠 수 축소',
+
+  // Insight engine — content fatigue
+  'insight.contentFatigue.problem': '{category}: 타 카테고리와 교차 배치',
+  'insight.contentFatigue.cause': '{count}개 연속 배치 — 스킵률 {pct}% (피로 누적)',
+  'insight.contentFatigue.rec': '→ 사이에 다른 유형 콘텐츠 삽입으로 관람 리듬 변화',
+
+  // Insight engine — fatigue category labels
+  'insight.fatigueCategory.analog': '아날로그 전시물',
+  'insight.fatigueCategory.screen': '스크린 미디어',
+  'insight.fatigueCategory.interactive': '인터랙션 체험',
+  'insight.fatigueCategory.immersive': '이머시브 체험',
+
+  // Analytics panel — title tooltips
+  'tooltip.summary':
+    '실시간 KPI. Active = 현재 관내 방문객, Spawned/Exited = 누적 입장/퇴장, Thru/min = 분당 퇴장 처리량.',
+  'tooltip.agentDistribution':
+    '현재 에이전트 행동 분포: 이동(MOVING), 관람(WATCHING), 대기(WAITING), 휴식(RESTING), 퇴장(EXITING).',
+  'tooltip.insights':
+    '시뮬레이션 데이터 기반 권장 액션. 빨강 = 긴급, 주황 = 주의. 액션 버튼 클릭 시 해당 존/미디어로 이동.',
+  'tooltip.liveDashboard':
+    '틱별 실시간 흐름 지표: 처리량, 밀도, 혼잡 지표.',
+  'tooltip.zoneRanking':
+    '점유율 및 활동 기준 존 랭킹. 막대가 길수록 용량 대비 혼잡.',
+  'tooltip.nodeTraffic':
+    '웨이포인트별 방문자 수. Entry = 생성, Exit = 퇴장, 그 외 = 통과 카운트.',
 };

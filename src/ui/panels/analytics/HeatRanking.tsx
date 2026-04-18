@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { ArrowUpDown } from 'lucide-react';
 import { useStore } from '@/stores';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 type SortKey = 'name' | 'occupancy' | 'utilization' | 'density';
 
@@ -10,6 +12,7 @@ export function HeatRanking() {
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const [sortBy, setSortBy] = useState<SortKey>('utilization');
   const [sortAsc, setSortAsc] = useState(false);
+  const t = useT();
 
   const rows = useMemo(() => {
     if (!latestSnapshot) return [];
@@ -55,8 +58,9 @@ export function HeatRanking() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
         Zone Ranking
+        <InfoTooltip text={t('tooltip.zoneRanking')} />
       </h2>
       <table className="w-full text-[9px]">
         <thead>

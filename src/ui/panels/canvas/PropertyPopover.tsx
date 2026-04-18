@@ -6,6 +6,7 @@ import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { useToast } from '@/ui/components/Toast';
+import { useT } from '@/i18n';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -87,6 +88,7 @@ export function PropertyPopover({ popover, onClose }: {
   const selectEdge = useStore((s) => s.selectEdge);
   const selectZone = useStore((s) => s.selectZone);
   const selectMedia = useStore((s) => (s as any).selectMedia);
+  const t = useT();
 
   // Close on outside click
   useEffect(() => {
@@ -160,7 +162,7 @@ export function PropertyPopover({ popover, onClose }: {
 
         {/* Label */}
         <Row label="Label">
-          <input type="text" value={node.label} placeholder="이름"
+          <input type="text" value={node.label} placeholder={t('popover.waypoint.namePlaceholder')}
             onChange={e => updateWaypoint(popover.targetId!, { label: e.target.value })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
         </Row>
@@ -484,7 +486,7 @@ export function PropertyPopover({ popover, onClose }: {
             <button
               onClick={() => updateMedia(popover.targetId!, { capacity: autoCapacity })}
               className="text-[8px] text-primary hover:underline"
-              title={`면적 기반 자동 계산: ${autoCapacity}명`}
+              title={t('popover.capacity.autoCalc', { count: autoCapacity })}
             >Auto({autoCapacity})</button>
           </Row>
         )}
@@ -629,7 +631,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
     }
 
     if (!found) {
-      toast('error', '공간이 부족합니다. 존을 늘리거나 기존 미디어를 이동해주세요.');
+      toast('error', t('popover.media.outOfSpace'));
       return;
     }
 

@@ -70,7 +70,7 @@ export function CompletionReport() {
 
     const mediaStats = useStore.getState().mediaStats;
     const groups = useStore.getState().groups;
-    const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups);
+    const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t);
 
     const experienceAnalysis = media.map((m) => {
       const stats = mediaStats.get(m.id as string);
@@ -94,7 +94,7 @@ export function CompletionReport() {
       experienceAnalysis,
       insights,
     };
-  }, [visitors, zones, media, scenario, timeState, latestSnapshot]);
+  }, [visitors, zones, media, scenario, timeState, latestSnapshot, t]);
 
   const handleExportJson = useCallback(() => {
     if (!report) return;

@@ -1,5 +1,5 @@
-import { useRef, useCallback } from 'react';
-import { Play, Pause, Square, Thermometer, Camera, SkipForward, Maximize } from 'lucide-react';
+import { useRef, useCallback, useState } from 'react';
+import { Play, Pause, Square, Thermometer, AlertTriangle } from 'lucide-react';
 import { useStore } from '@/stores';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
@@ -7,12 +7,15 @@ import { assembleKpiSnapshot } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import type { OverlayMode } from '@/stores';
+import { useT } from '@/i18n';
 
 export function SimulationControls() {
+  const t = useT();
   const loopRef = useRef<SimulationLoop | null>(null);
   const engineRef = useRef<SimulationEngine | null>(null);
   const { toast } = useToast();
   const milestonesHit = useRef(new Set<number>());
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
@@ -25,6 +28,7 @@ export function SimulationControls() {
   const pushSnapshot = useStore((s) => s.pushSnapshot);
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
+  const clearHistory = useStore((s) => s.clearHistory);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
 
@@ -41,12 +45,12 @@ export function SimulationControls() {
       // Graph mode: need at least 1 ENTRY and 1 EXIT node
       const entries = store.waypointGraph!.nodes.filter(n => n.type === 'entry');
       const exits = store.waypointGraph!.nodes.filter(n => n.type === 'exit');
-      if (entries.length === 0) { toast('warning', 'ENTRY 노드가 필요합니다'); return; }
-      if (exits.length === 0) { toast('warning', 'EXIT 노드가 필요합니다'); return; }
+      if (entries.length === 0) { toast('warning', t('sim.toast.entryNeeded')); return; }
+      if (exits.length === 0) { toast('warning', t('sim.toast.exitNeeded')); return; }
       // Check edges exist
-      if (store.waypointGraph!.edges.length === 0) { toast('warning', 'Edge가 최소 1개 필요합니다'); return; }
+      if (store.waypointGraph!.edges.length === 0) { toast('warning', t('sim.toast.edgeNeeded')); return; }
     } else {
-      toast('warning', 'Node와 Edge를 배치하세요'); return;
+      toast('warning', t('sim.toast.nodesAndEdgesNeeded')); return;
     }
 
     const flowMode = store.scenario.globalFlowMode ?? 'free';
@@ -174,14 +178,26 @@ export function SimulationControls() {
     setPhase(SIMULATION_PHASE.RUNNING);
   }, [setPhase]);
 
-  const handleStop = useCallback(() => {
+  const requestStop = useCallback(() => {
+    setShowStopConfirm(true);
+  }, []);
+
+  const cancelStop = useCallback(() => {
+    setShowStopConfirm(false);
+  }, []);
+
+  const confirmStop = useCallback(() => {
     if (loopRef.current) {
       loopRef.current.destroy();
       loopRef.current = null;
     }
     resetSim();
+    clearHistory();
+    clearReplay();
+    milestonesHit.current.clear();
+    setShowStopConfirm(false);
     setTimeout(() => setPhase('idle' as any), 50);
-  }, [resetSim, setPhase]);
+  }, [resetSim, clearHistory, clearReplay, setPhase]);
 
   const toggleHeatmap = useCallback(() => {
     const next: OverlayMode = overlayMode === 'heatmap' ? 'none' : 'heatmap';
@@ -222,7 +238,7 @@ export function SimulationControls() {
         )}
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
           <button
-            onClick={handleStop}
+            onClick={requestStop}
             className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90"
           >
             <Square className="w-3.5 h-3.5" /> Stop
@@ -276,6 +292,36 @@ export function SimulationControls() {
           <span className="font-data font-medium">{timeState.tickCount}</span>
         </div>
       </div>
+
+      {showStopConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={cancelStop}>
+          <div className="glass rounded-2xl border border-border shadow-2xl w-80 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-[var(--status-danger)]/10 p-5 text-center">
+              <div className="w-10 h-10 rounded-2xl bg-[var(--status-danger)]/20 flex items-center justify-center mx-auto mb-3">
+                <AlertTriangle className="w-5 h-5 text-[var(--status-danger)]" />
+              </div>
+              <h2 className="text-sm font-semibold">{t('sim.stop.title')}</h2>
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-line">
+                {t('sim.stop.body')}
+              </p>
+            </div>
+            <div className="p-4 flex gap-2">
+              <button
+                onClick={cancelStop}
+                className="flex-1 px-3 py-2 text-xs font-medium rounded-xl bg-secondary text-secondary-foreground hover:bg-accent"
+              >
+                {t('sim.stop.cancel')}
+              </button>
+              <button
+                onClick={confirmStop}
+                className="flex-1 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90"
+              >
+                {t('sim.stop.confirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

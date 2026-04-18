@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '@/stores';
 import { generateInsights } from '@/analytics';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import {
   AlertTriangle,
   Info,
@@ -68,7 +69,7 @@ export function AnalyticsPanel() {
   const seconds = Math.floor((elapsed % 60000) / 1000);
 
   const liveInsights = latestSnapshot
-    ? generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups)
+    ? generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t)
     : [];
 
   const avgFatigue = latestSnapshot?.fatigueDistribution.mean ?? 0;
@@ -84,8 +85,9 @@ export function AnalyticsPanel() {
     <div className="p-3 space-y-3">
       {/* ─── PERSISTENT TOP ─── */}
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
           Summary
+          <InfoTooltip text={t('tooltip.summary')} />
         </h2>
         <div className="grid grid-cols-3 gap-1.5">
           <KpiTile label="Active" value={activeCount} />
@@ -113,8 +115,9 @@ export function AnalyticsPanel() {
       </div>
 
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
           Agent Distribution
+          <InfoTooltip text={t('tooltip.agentDistribution')} />
         </h2>
         <div className="space-y-1">
           {(['MOVING', 'WATCHING', 'WAITING', 'RESTING', 'EXITING'] as const).map((action) => {
@@ -215,8 +218,9 @@ export function AnalyticsPanel() {
       {tab === 'action' && (
         <div className="space-y-3">
           <div className="bento-box p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
               Insights
+              <InfoTooltip text={t('tooltip.insights')} />
             </h2>
             {phase === 'idle' && staticInsights.length > 0 && (
               <div className="space-y-2 mb-3">

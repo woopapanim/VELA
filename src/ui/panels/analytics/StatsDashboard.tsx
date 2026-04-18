@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { useStore } from '@/stores';
 import { Sparkline } from '@/ui/components/Sparkline';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 export function StatsDashboard() {
   const kpiHistory = useStore((s) => s.kpiHistory);
   const visitors = useStore((s) => s.visitors);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const t = useT();
 
   const stats = useMemo(() => {
     if (!latestSnapshot || kpiHistory.length < 2) return null;
@@ -52,8 +55,9 @@ export function StatsDashboard() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
         Live Dashboard
+        <InfoTooltip text={t('tooltip.liveDashboard')} />
       </h2>
       <div className="grid grid-cols-2 gap-2">
         <DashItem

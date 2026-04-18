@@ -5,6 +5,7 @@ import { scenarioManager, type SavedScenario } from '@/scenario';
 import { compareSnapshots } from '@/comparison';
 import { ScenarioImportExport } from './ScenarioImportExport';
 import type { ScenarioComparison, DeltaMetric, ScenarioId } from '@/domain';
+import { useT } from '@/i18n';
 
 export function ScenarioPanel() {
   const scenario = useStore((s) => s.scenario);
@@ -12,6 +13,7 @@ export function ScenarioPanel() {
   const setScenario = useStore((s) => s.setScenario);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const zones = useStore((s) => s.zones);
+  const t = useT();
 
   const [savedList, setSavedList] = useState<SavedScenario[]>(() => scenarioManager.getAll());
   const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
@@ -154,12 +156,12 @@ export function ScenarioPanel() {
 
           <div className="pt-2 border-t border-border">
             <p className="text-xs font-medium">
-              추천: <span className={
+              {t('scenario.compare.recommend')}: <span className={
                 comparison.deltaKpis.recommendation === 'B' ? 'text-[var(--status-success)]' :
                 comparison.deltaKpis.recommendation === 'A' ? 'text-primary' :
                 'text-muted-foreground'
               }>
-                시나리오 {comparison.deltaKpis.recommendation === 'neutral' ? '동일' : comparison.deltaKpis.recommendation}
+                {t('scenario.compare.scenarioPrefix')} {comparison.deltaKpis.recommendation === 'neutral' ? t('scenario.compare.equal') : comparison.deltaKpis.recommendation}
               </span>
             </p>
             <p className="text-[10px] text-muted-foreground mt-1">{comparison.deltaKpis.summary}</p>

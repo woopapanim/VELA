@@ -3,6 +3,7 @@ import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
+import { useT } from '@/i18n';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -66,6 +67,7 @@ export function ZoneEditor() {
   const removeZone = useStore((s) => s.removeZone);
   const selectZone = useStore((s) => s.selectZone);
   const phase = useStore((s) => s.phase);
+  const t = useT();
 
   const zone = zones.find((z) => (z.id as string) === selectedZoneId);
   const isLocked = phase === 'running' || phase === 'paused';
@@ -204,7 +206,7 @@ export function ZoneEditor() {
               onClick={handleCompletePolygon}
               className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
             >
-              ✓ 형태 완료
+              {t('editor.shape.done')}
             </button>
           )}
           {zone.shape === 'custom' && !polygonEditMode && (
@@ -213,7 +215,7 @@ export function ZoneEditor() {
               disabled={isLocked}
               className="w-full mt-1.5 px-3 py-1.5 text-[10px] font-medium rounded-lg bg-secondary hover:bg-accent text-foreground transition-colors disabled:opacity-40"
             >
-              Edit Shape
+              {t('editor.shape.edit')}
             </button>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '@/stores';
+import { useT } from '@/i18n';
 
 interface SensitivityFactor {
   name: string;
@@ -15,6 +16,7 @@ export function SensitivityPanel() {
   const visitors = useStore((s) => s.visitors);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const scenario = useStore((s) => s.scenario);
+  const t = useT();
 
   const analysis = useMemo<SensitivityFactor[]>(() => {
     if (!latestSnapshot || !scenario) return [];
@@ -34,7 +36,10 @@ export function SensitivityPanel() {
           currentValue: entranceZone.capacity,
           unit: 'visitors',
           impact: ratio > 0.9 ? 'high' : 'medium',
-          recommendation: `수용 인원을 ${Math.ceil(entranceZone.capacity * 1.5)}으로 확대 시 병목 ${Math.round((1 - 0.7 / ratio) * 100)}% 감소 예상`,
+          recommendation: t('sensitivity.rec.expandEntrance', {
+            capacity: Math.ceil(entranceZone.capacity * 1.5),
+            percent: Math.round((1 - 0.7 / ratio) * 100),
+          }),
         });
       }
     }
@@ -48,7 +53,7 @@ export function SensitivityPanel() {
         currentValue: spawnRate,
         unit: '/s',
         impact: 'medium',
-        recommendation: `유입률을 ${(spawnRate * 0.7).toFixed(1)}/s로 감소 시 전체 밀도 30% 개선 예상`,
+        recommendation: t('sensitivity.rec.reduceInflow', { rate: (spawnRate * 0.7).toFixed(1) }),
       });
     }
 
@@ -61,7 +66,10 @@ export function SensitivityPanel() {
         currentValue: zones.filter((z) => z.type === 'exhibition').length,
         unit: 'zones',
         impact: 'high',
-        recommendation: `전시 존 1개 추가 시 과밀 존 ${overloadedZones.length}개 → ${Math.max(0, overloadedZones.length - 2)}개로 감소 예상`,
+        recommendation: t('sensitivity.rec.addExhibitionZone', {
+          before: overloadedZones.length,
+          after: Math.max(0, overloadedZones.length - 2),
+        }),
       });
     }
 
@@ -74,7 +82,10 @@ export function SensitivityPanel() {
         currentValue: zones.filter((z) => z.type === 'rest').reduce((s, z) => s + z.capacity, 0),
         unit: 'seats',
         impact: avgFatigue > 0.8 ? 'high' : 'medium',
-        recommendation: `휴식 공간 50% 확장 시 평균 피로도 ${Math.round(avgFatigue * 100)}% → ${Math.round(avgFatigue * 70)}% 감소 예상`,
+        recommendation: t('sensitivity.rec.expandRest', {
+          before: Math.round(avgFatigue * 100),
+          after: Math.round(avgFatigue * 70),
+        }),
       });
     }
 
@@ -87,12 +98,12 @@ export function SensitivityPanel() {
         currentValue: 40,
         unit: 'px',
         impact: 'medium',
-        recommendation: `병목 존 게이트 폭 2배 확장 시 유출률 40% 향상 예상`,
+        recommendation: t('sensitivity.rec.widenGate'),
       });
     }
 
     return factors;
-  }, [zones, visitors, latestSnapshot, scenario]);
+  }, [zones, visitors, latestSnapshot, scenario, t]);
 
   if (analysis.length === 0) return null;
 

@@ -17,6 +17,7 @@ import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
 import { useStore } from '@/stores';
 import { useRef, useState } from 'react';
+import { useT } from '@/i18n';
 
 export function MainLayout() {
   const visitors = useStore((s) => s.visitors);
@@ -26,6 +27,7 @@ export function MainLayout() {
   const zones = useStore((s) => s.zones);
   const scenario = useStore((s) => s.scenario);
   const simProgress = scenario ? Math.min(1, timeState.elapsed / scenario.simulationConfig.duration) : 0;
+  const t = useT();
 
   const activeCount = visitors.filter((v) => v.isActive).length;
   const elapsed = timeState.elapsed;
@@ -167,6 +169,7 @@ function ZoneListDragDrop() {
   const selectedZoneId = useStore((s) => s.selectedZoneId);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const t = useT();
 
   // Entrance = first, Exit = last — only middle zones are draggable
   const isDraggable = (idx: number) => {
@@ -255,7 +258,7 @@ function ZoneListDragDrop() {
             >
               {/* Drag handle */}
               {canDrag ? (
-                <span className="text-muted-foreground text-[10px] select-none" title="드래그하여 순서 변경">⠿</span>
+                <span className="text-muted-foreground text-[10px] select-none" title={t('mainLayout.dragHandle')}>⠿</span>
               ) : (
                 <span className="w-3" />
               )}

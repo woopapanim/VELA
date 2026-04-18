@@ -3,6 +3,7 @@ import { Plus, Monitor, MousePointer2, Circle, GitBranch } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import { useT } from '@/i18n';
 import { BackgroundUpload } from './BackgroundUpload';
 
 const ZONE_TYPES = [
@@ -50,6 +51,7 @@ export function BuildTools() {
   const activeFloorId = useStore((s) => s.activeFloorId);
   const phase = useStore((s) => s.phase);
   const pendingWaypointType = useStore((s) => s.pendingWaypointType);
+  const t = useT();
 
   const isSimRunning = phase === 'running'; // paused = editable
 
@@ -224,35 +226,35 @@ export function BuildTools() {
           <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Add Node</p>
           <div className="grid grid-cols-2 gap-1">
             {([
-              { type: 'entry' as WaypointType, label: 'Entry', color: '#22c55e', desc: '스폰 지점' },
-              { type: 'exit' as WaypointType, label: 'Exit', color: '#ef4444', desc: '퇴장 지점' },
-              { type: 'zone' as WaypointType, label: 'Zone', color: '#3b82f6', desc: '전시 거점' },
-              { type: 'attractor' as WaypointType, label: 'Attractor', color: '#f59e0b', desc: '고인력 타겟' },
-              { type: 'hub' as WaypointType, label: 'Hub', color: '#8b5cf6', desc: '교차로/분기점' },
-              { type: 'rest' as WaypointType, label: 'Rest', color: '#9ca3af', desc: '휴게/버퍼' },
-            ]).map(({ type, label, color, desc }) => (
+              { type: 'entry' as WaypointType, label: 'Entry', color: '#22c55e', descKey: 'build.node.entry.desc' },
+              { type: 'exit' as WaypointType, label: 'Exit', color: '#ef4444', descKey: 'build.node.exit.desc' },
+              { type: 'zone' as WaypointType, label: 'Zone', color: '#3b82f6', descKey: 'build.node.zone.desc' },
+              { type: 'attractor' as WaypointType, label: 'Attractor', color: '#f59e0b', descKey: 'build.node.attractor.desc' },
+              { type: 'hub' as WaypointType, label: 'Hub', color: '#8b5cf6', descKey: 'build.node.hub.desc' },
+              { type: 'rest' as WaypointType, label: 'Rest', color: '#9ca3af', descKey: 'build.node.rest.desc' },
+            ]).map(({ type, label, color, descKey }) => (
               <button
                 key={type}
                 onClick={() => useStore.getState().setPendingWaypointType(type)}
                 className={`flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg transition-colors ${
                   pendingWaypointType === type ? 'bg-primary/20 ring-1 ring-primary' : 'bg-secondary hover:bg-accent'
                 }`}
-                title={desc}
+                title={t(descKey)}
               >
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                 {label}
               </button>
             ))}
           </div>
-          <p className="text-[9px] text-muted-foreground mt-1">캔버스 클릭하여 노드 배치</p>
+          <p className="text-[9px] text-muted-foreground mt-1">{t('build.hint.placeNode')}</p>
         </div>
       )}
 
       {/* Edge Connection Guide */}
       {editorMode === 'connect-waypoint' && !isSimRunning && (
         <div className="px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px]">
-          <p className="font-medium text-indigo-400 mb-1">Edge 연결 모드</p>
-          <p className="text-muted-foreground">첫 노드 클릭 → 두 번째 노드 클릭으로 연결</p>
+          <p className="font-medium text-indigo-400 mb-1">{t('build.hint.edgeMode.title')}</p>
+          <p className="text-muted-foreground">{t('build.hint.edgeMode.body')}</p>
         </div>
       )}
 
@@ -272,7 +274,7 @@ export function BuildTools() {
               </button>
             ))}
           </div>
-          <p className="text-[9px] text-muted-foreground mt-1">Zone = 미디어 배치 영역. 동선은 Node/Edge로.</p>
+          <p className="text-[9px] text-muted-foreground mt-1">{t('build.hint.zoneArea')}</p>
         </div>
       )}
 

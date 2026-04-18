@@ -4,6 +4,7 @@ import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import type { Vector2D } from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   analog: { label: 'Analog', color: '#a78bfa' },
@@ -20,6 +21,7 @@ export function MediaEditor() {
   const phase = useStore((s) => s.phase);
   const mediaPolygonEditMode = useStore((s) => s.mediaPolygonEditMode);
   const setMediaPolygonEditMode = useStore((s) => s.setMediaPolygonEditMode);
+  const t = useT();
 
   const m = media.find((m) => (m.id as string) === selectedMediaId);
   const isLocked = phase === 'running' || phase === 'paused';
@@ -176,7 +178,7 @@ export function MediaEditor() {
               : 'bg-secondary border-border text-muted-foreground hover:text-foreground'
           }`}
         >
-          {mediaPolygonEditMode ? '✓ 형태 완료' : '형태 편집'}
+          {mediaPolygonEditMode ? t('editor.shape.done') : t('editor.shape.edit')}
         </button>
       )}
 

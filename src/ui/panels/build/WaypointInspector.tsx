@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { WaypointType } from '@/domain';
+import { useT } from '@/i18n';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -27,6 +28,7 @@ export function WaypointInspector() {
   const removeEdge = useStore((s) => s.removeEdge);
   const selectWaypoint = useStore((s) => s.selectWaypoint);
   const selectEdge = useStore((s) => s.selectEdge);
+  const t = useT();
 
   if (!graph) return null;
 
@@ -68,7 +70,7 @@ export function WaypointInspector() {
             value={node.label}
             onChange={(e) => updateWaypoint(selectedWaypointId, { label: e.target.value })}
             className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
-            placeholder="노드 이름"
+            placeholder={t('waypoint.namePlaceholder')}
           />
         </Field>
 
