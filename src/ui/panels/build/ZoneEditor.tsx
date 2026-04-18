@@ -139,7 +139,7 @@ export function ZoneEditor() {
   if (!zone) return null;
 
   return (
-    <div className="bento-box p-4">
+    <div data-editor="zone" className="bento-box p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: zone.color }} />

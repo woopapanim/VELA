@@ -40,7 +40,7 @@ export function MediaEditor() {
   ));
 
   return (
-    <div className="bento-box p-3 space-y-2">
+    <div data-editor="media" className="bento-box p-3 space-y-2">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold flex items-center gap-1.5">
           {(() => {
