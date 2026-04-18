@@ -105,7 +105,7 @@ export function MediaEditor() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
-            <InfoTooltip text="Front-facing direction of the media. 0°=up, 90°=right, 180°=down, 270°=left. Determines where viewers stand." />
+            <InfoTooltip text={t('tooltip.media.orientation')} />
           </div>
           <span className="text-[9px] font-data">{m.orientation}°</span>
         </div>
@@ -186,7 +186,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center gap-1">
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
-          <InfoTooltip text={"Passive: viewers watch from a distance (e.g. video wall)\nActive: viewers enter the media box (e.g. kiosk)\nStaged: session-based entry at intervals (e.g. VR)\nAnalog: physical exhibit, viewers stand close outside the box"} />
+          <InfoTooltip text={t('tooltip.media.interaction')} />
         </div>
         <select
           value={interactionType}
@@ -206,7 +206,7 @@ export function MediaEditor() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Omnidirectional</label>
-            <InfoTooltip text="If enabled, viewers can approach from any direction (360°). Best for center-placed exhibits like artifacts or sculptures. Otherwise, viewers stand in front based on orientation." />
+            <InfoTooltip text={t('tooltip.media.omnidirectional')} />
           </div>
           <button
             onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
@@ -225,7 +225,7 @@ export function MediaEditor() {
         <div>
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
-            <InfoTooltip text="Time between sessions. Viewers wait for the next session to start, then enter as a group." />
+            <InfoTooltip text={t('tooltip.media.stageInterval')} />
           </div>
           <input type="number" step="10" min="10"
             value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
@@ -242,7 +242,7 @@ export function MediaEditor() {
         <div>
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
-            <InfoTooltip text="Max simultaneous viewers. Active/Staged enforce hard cap with slots. Passive uses soft cap." />
+            <InfoTooltip text={t('tooltip.media.capacity')} />
           </div>
           <input type="number" min="1" max="200"
             value={m.capacity}
@@ -268,7 +268,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center gap-1">
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
-          <InfoTooltip text="Average time a viewer spends at this media. Actual time varies by visitor profile and fatigue level." />
+          <InfoTooltip text={t('tooltip.media.engagement')} />
         </div>
         <input type="number" step="5" min="1"
           value={Math.round(m.avgEngagementTimeMs / 1000)}
@@ -284,7 +284,7 @@ export function MediaEditor() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">View Distance (m)</label>
-            <InfoTooltip text="How far from the media viewers stand to watch. Larger = viewers watch from further away (e.g. media wall). Smaller = viewers stand close." />
+            <InfoTooltip text={t('tooltip.media.viewDistance')} />
           </div>
           <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
         </div>
@@ -302,7 +302,7 @@ export function MediaEditor() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
-            <InfoTooltip text="How likely visitors are to choose this media (0-1). Higher value = more visitors attracted." />
+            <InfoTooltip text={t('tooltip.media.attractiveness')} />
           </div>
           <span className="text-[9px] font-data">{m.attractiveness.toFixed(1)}</span>
         </div>
@@ -319,7 +319,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center gap-1">
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
-          <InfoTooltip text={"None: skip if full\nLinear: form a queue line\nArea: wait in a designated area"} />
+          <InfoTooltip text={t('tooltip.media.queueBehavior')} />
         </div>
         <select
           value={(m as any).queueBehavior || 'none'}
@@ -338,7 +338,7 @@ export function MediaEditor() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
           <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
-          <InfoTooltip text="Whether groups can experience this media together. If yes, group members share engagement time." />
+          <InfoTooltip text={t('tooltip.media.groupFriendly')} />
         </div>
         <button
           onClick={() => handleUpdate('groupFriendly', !(m as any).groupFriendly)}

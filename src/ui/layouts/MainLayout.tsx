@@ -15,6 +15,7 @@ import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
+import { InfoTooltip } from '../components/InfoTooltip';
 import { useStore } from '@/stores';
 import { useRef, useState } from 'react';
 import { useT } from '@/i18n';
@@ -75,15 +76,17 @@ export function MainLayout() {
         <aside className="w-72 border-r border-border bg-[var(--surface)] overflow-y-auto">
           <div className="p-3 space-y-3">
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Project
+                <InfoTooltip text={t('tooltip.project')} />
               </h2>
               <ProjectManager />
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Simulation
+                <InfoTooltip text={t('tooltip.simulation')} />
               </h2>
               <SimulationControls />
             </div>
@@ -101,15 +104,17 @@ export function MainLayout() {
             <ZoneListDragDrop />
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Spawn
+                <InfoTooltip text={t('tooltip.spawn')} />
               </h2>
               <SpawnConfig />
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                 Visitors
+                <InfoTooltip text={t('tooltip.visitors')} />
               </h2>
               <VisitorConfig />
             </div>
@@ -228,8 +233,9 @@ function ZoneListDragDrop() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
         Zones ({zones.length})
+        <InfoTooltip text={t('tooltip.zones')} />
       </h2>
       <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
         {zones.map((zone, idx) => {

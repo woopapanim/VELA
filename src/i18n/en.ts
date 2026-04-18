@@ -247,4 +247,38 @@ export const en: Dict = {
     'Sortable table comparing congestion and density across zones. Occ shows current/capacity, Util% is utilization (100% = full), and m²/p is floor area per person — values below the international guideline of 2.5 m² are flagged in red. Click any column header to sort ascending or descending by that metric.',
   'tooltip.nodeTraffic':
     'Traffic panel showing how many visitors traversed each node in the waypoint graph. Entry nodes count spawns, Exit nodes count departures, and other nodes count pass-throughs along the route. Bar length shows traffic relative to the busiest node.',
+
+  // Left panel — section tooltips
+  'tooltip.project':
+    'Project management panel. Creates a new scenario, saves the current project to a JSON file with version metadata, or opens an existing project file. The list below shows recently used projects for quick access.',
+  'tooltip.simulation':
+    'Simulation control panel. Starts, pauses, and stops the agent-based simulation and toggles the heatmap overlay. During a run, the current Phase and Elapsed time are displayed alongside the active agent count.',
+  'tooltip.spawn':
+    'Visitor spawn configuration. Defines time slots, per-second spawn rates, and the mix of visitor profiles entering the venue over the simulation duration.',
+  'tooltip.visitors':
+    'Visitor profile configuration. Adjusts demographic proportions, engagement levels, group size distribution, and behavioral parameters such as patience and walking speed for the simulated population.',
+  'tooltip.zones':
+    'List of exhibition zones in flow order. Entrance is always first and Exit is always last. Middle zones can be dragged to reorder, and clicking a zone selects it for editing. The number in parentheses is the total zone count.',
+
+  // Media editor — field tooltips
+  'tooltip.media.orientation':
+    'Front-facing direction of the media (0°=up, 90°=right, 180°=down, 270°=left). Determines the viewing area where visitors gather to watch.',
+  'tooltip.media.interaction':
+    'Interaction type. Passive = visitors watch from a distance (e.g. media wall). Active = visitors enter the media box (e.g. kiosk). Staged = session-based group entry at fixed intervals (e.g. VR). Analog = physical exhibit with visitors standing close outside the box.',
+  'tooltip.media.omnidirectional':
+    'When enabled, visitors may approach from any direction (360°), which suits centrally placed exhibits such as artifacts or sculptures. When disabled, visitors gather in front of the media based on the Orientation setting.',
+  'tooltip.media.stageInterval':
+    'Interval between sessions for Staged media. Visitors wait at the entry point and enter as a group when the next session begins.',
+  'tooltip.media.capacity':
+    'Maximum simultaneous viewers. Active and Staged types enforce a hard cap through slot allocation, while Passive type applies a soft cap that allows slight overflow.',
+  'tooltip.media.engagement':
+    'Average time a visitor spends engaging with this media. Actual duration varies with the visitor profile, engagement level, and current fatigue.',
+  'tooltip.media.viewDistance':
+    'Distance from the media at which visitors stand to watch. Larger values place viewers farther away (e.g. media wall), while smaller values keep them close to the exhibit.',
+  'tooltip.media.attractiveness':
+    'Likelihood that visitors choose this media (0–1 scale). Higher values attract more visitors and shift overall flow patterns toward this media.',
+  'tooltip.media.queueBehavior':
+    'Queue behavior when capacity is reached. None = skip the media and move on. Linear = form a single waiting line. Area = wait within a designated zone near the media.',
+  'tooltip.media.groupFriendly':
+    'Whether visitor groups can experience this media together. When enabled, group members share engagement time and enter or exit as a unit.',
 };
