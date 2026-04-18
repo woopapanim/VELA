@@ -161,6 +161,7 @@ export function MediaEditor() {
         >
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
+          <option value="ellipse">Ellipse</option>
           <option value="custom">Polygon</option>
         </select>
       </div>

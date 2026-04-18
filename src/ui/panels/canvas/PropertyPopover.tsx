@@ -434,6 +434,7 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             <option value="rect">Rectangle</option>
             <option value="circle">Circle</option>
+            <option value="ellipse">Ellipse</option>
             <option value="custom">Polygon</option>
           </select>
         </Row>
@@ -488,7 +489,7 @@ export function PropertyPopover({ popover, onClose }: {
           </Row>
         )}
 
-        <Row label={`Time ${(m.avgEngagementTimeMs / 1000).toFixed(0)}s`}>
+        <Row label={`Engage ${(m.avgEngagementTimeMs / 1000).toFixed(0)}s`}>
           <input type="range" min={5000} max={300000} step={5000} value={m.avgEngagementTimeMs}
             onChange={e => updateMedia(popover.targetId!, { avgEngagementTimeMs: parseInt(e.target.value) })}
             className="flex-1" />

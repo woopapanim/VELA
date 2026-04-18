@@ -923,8 +923,30 @@ export class SimulationEngine {
     return (m as any).shape === 'circle';
   }
 
+  private isMediaEllipse(m: MediaPlacement): boolean {
+    return (m as any).shape === 'ellipse';
+  }
+
   private isMediaPolygon(m: MediaPlacement): boolean {
     return (m as any).shape === 'custom' && m.polygon != null && m.polygon.length > 2;
+  }
+
+  /** Generate polygon vertices (world coords) for ellipse media — for walls/rasterization */
+  private getMediaEllipseWorldPolygon(m: MediaPlacement, segments = 16): Vector2D[] {
+    const a = m.size.width * MEDIA_SCALE / 2;
+    const b = m.size.height * MEDIA_SCALE / 2;
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const pts: Vector2D[] = [];
+    for (let i = 0; i < segments; i++) {
+      const t = (i / segments) * Math.PI * 2;
+      const lx = Math.cos(t) * a, ly = Math.sin(t) * b;
+      pts.push({
+        x: m.position.x + lx * cos - ly * sin,
+        y: m.position.y + lx * sin + ly * cos,
+      });
+    }
+    return pts;
   }
 
   /** Transform polygon from center-relative local coords to world coords */
@@ -959,6 +981,17 @@ export class SimulationEngine {
     if (this.isMediaCircle(m)) {
       const r = this.getMediaRadius(m);
       return { x: m.position.x - r, y: m.position.y - r, w: r * 2, h: r * 2 };
+    }
+    if (this.isMediaEllipse(m)) {
+      const wp = this.getMediaEllipseWorldPolygon(m);
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of wp) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
@@ -1039,6 +1072,14 @@ export class SimulationEngine {
       }
       return walls;
     }
+    if (this.isMediaEllipse(m)) {
+      const wp = this.getMediaEllipseWorldPolygon(m);
+      const walls: { a: Vector2D; b: Vector2D }[] = [];
+      for (let i = 0; i < wp.length; i++) {
+        walls.push({ a: wp[i], b: wp[(i + 1) % wp.length] });
+      }
+      return walls;
+    }
     if (this.isRectRotated(m)) {
       const c = this.getMediaRectCorners(m);
       return [
@@ -1068,6 +1109,15 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       return dx * dx + dy * dy < r * r;
     }
+    if (this.isMediaEllipse(m)) {
+      const a = m.size.width * MEDIA_SCALE / 2;
+      const b = m.size.height * MEDIA_SCALE / 2;
+      const rad = (m.orientation * Math.PI) / 180;
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      const lx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+      const ly = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+      return (lx * lx) / (a * a) + (ly * ly) / (b * b) < 1;
+    }
     if (this.isRectRotated(m)) {
       return isPointInPolygon(pos, this.getMediaRectCorners(m));
     }
@@ -1086,6 +1136,23 @@ export class SimulationEngine {
       const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       return { x: m.position.x + (dx / dist) * (r + 1), y: m.position.y + (dy / dist) * (r + 1) };
+    }
+    if (this.isMediaEllipse(m)) {
+      const a = m.size.width * MEDIA_SCALE / 2;
+      const b = m.size.height * MEDIA_SCALE / 2;
+      const rad = (m.orientation * Math.PI) / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const dx = pos.x - m.position.x, dy = pos.y - m.position.y;
+      const lx = dx * Math.cos(-rad) - dy * Math.sin(-rad);
+      const ly = dx * Math.sin(-rad) + dy * Math.cos(-rad);
+      const k = Math.sqrt((lx * lx) / (a * a) + (ly * ly) / (b * b)) || 1;
+      const r = Math.sqrt(lx * lx + ly * ly) || 1;
+      const scale = (r / k + 1) / r;
+      const outLx = lx * scale, outLy = ly * scale;
+      return {
+        x: m.position.x + outLx * cos - outLy * sin,
+        y: m.position.y + outLx * sin + outLy * cos,
+      };
     }
     if (this.isRectRotated(m)) {
       return pushOutsidePolygon(pos, this.getMediaRectCorners(m), m.position);
