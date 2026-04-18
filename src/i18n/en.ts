@@ -236,15 +236,15 @@ export const en: Dict = {
 
   // Analytics panel — title tooltips
   'tooltip.summary':
-    'A snapshot of the simulation right now — how many visitors are inside, how many have entered/left in total, average tiredness, how fast people are exiting, elapsed time, and the most crowded zone.',
+    'Core KPI panel summarizing the current simulation state. Active is the number of visitors still in the venue; Spawned and Exited are the cumulative entries and departures since start; Fatigue is the mean fatigue across all visitors; Thru/min is the exit rate over the last minute; Elapsed is total simulation time; Peak Zone shows the zone with the highest utilization.',
   'tooltip.agentDistribution':
-    'What visitors are doing this moment. The longer the bar, the more people in that action: moving between zones, watching exhibits, waiting in line, resting, or heading for the exit.',
+    'Proportional bar chart of what active visitors are currently doing. Five states are tracked — MOVING (between zones), WATCHING (viewing media), WAITING (in queue), RESTING (on break), and EXITING (heading out) — with bar length reflecting each action\'s share of the active population.',
   'tooltip.insights':
-    'Automatic suggestions based on live data. Red = needs attention now, amber = worth watching. Click the action button to jump straight to the zone or media to fix.',
+    'Auto-generated recommendations derived from live simulation data. Severity is categorized into critical (red, immediate action), warning (amber, review advised), and info (blue, informational). Each card\'s action button jumps directly to the editor for the affected zone or media.',
   'tooltip.liveDashboard':
-    'Four live metrics with a small history chart each — people inside (Active), people watching exhibits (Watching), how full the busiest zone is (Peak Util), and average tiredness (Fatigue).',
+    'Four live metrics paired with recent-history sparklines. Active counts visitors inside the venue, Watching counts those currently viewing media, Peak Util shows the utilization of the busiest zone, and Fatigue is the population-average fatigue level.',
   'tooltip.zoneRanking':
-    'Zones compared side-by-side. Occ = people inside vs. capacity, Util% = how full the zone is, m²/p = space per person. Click a column title to sort by it.',
+    'Sortable table comparing congestion and density across zones. Occ shows current/capacity, Util% is utilization (100% = full), and m²/p is floor area per person — values below the international guideline of 2.5 m² are flagged in red. Click any column header to sort ascending or descending by that metric.',
   'tooltip.nodeTraffic':
-    'How many visitors passed through each waypoint. Entry = where they spawn, Exit = where they leave, others = pass-through. Bar length shows relative traffic.',
+    'Traffic panel showing how many visitors traversed each node in the waypoint graph. Entry nodes count spawns, Exit nodes count departures, and other nodes count pass-throughs along the route. Bar length shows traffic relative to the busiest node.',
 };
