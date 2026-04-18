@@ -131,6 +131,23 @@ export const en: Dict = {
   'sensitivity.rec.widenGate':
     'Doubling bottleneck-zone gate width projected to improve outflow by 40%',
 
+  // Sensitivity panel — UI labels
+  'sensitivity.title': 'Sensitivity Analysis',
+  'sensitivity.current': 'Current',
+  'sensitivity.impact.high': 'HIGH',
+  'sensitivity.impact.medium': 'MEDIUM',
+  'sensitivity.impact.low': 'LOW',
+  'sensitivity.factor.entranceCapacity': 'Entrance Capacity',
+  'sensitivity.factor.spawnRate': 'Spawn Rate',
+  'sensitivity.factor.exhibitionArea': 'Exhibition Area',
+  'sensitivity.factor.restCapacity': 'Rest Area Capacity',
+  'sensitivity.factor.gateWidth': 'Gate Width',
+  'sensitivity.unit.visitors': 'visitors',
+  'sensitivity.unit.perSec': '/s',
+  'sensitivity.unit.zones': 'zones',
+  'sensitivity.unit.seats': 'seats',
+  'sensitivity.unit.px': 'px',
+
   // Insight engine — congestion
   'insight.congestion.critical.problem': '{zone}: Immediate entry restriction needed',
   'insight.congestion.critical.cause':

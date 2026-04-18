@@ -127,6 +127,23 @@ export const ko: Dict = {
   'sensitivity.rec.widenGate':
     '병목 존 게이트 폭 2배 확장 시 유출률 40% 향상 예상',
 
+  // Sensitivity panel — UI labels
+  'sensitivity.title': '민감도 분석',
+  'sensitivity.current': '현재',
+  'sensitivity.impact.high': 'HIGH',
+  'sensitivity.impact.medium': 'MEDIUM',
+  'sensitivity.impact.low': 'LOW',
+  'sensitivity.factor.entranceCapacity': '입구 수용 인원',
+  'sensitivity.factor.spawnRate': '유입률',
+  'sensitivity.factor.exhibitionArea': '전시 공간',
+  'sensitivity.factor.restCapacity': '휴식 공간 수용 인원',
+  'sensitivity.factor.gateWidth': '게이트 폭',
+  'sensitivity.unit.visitors': '명',
+  'sensitivity.unit.perSec': '/초',
+  'sensitivity.unit.zones': '개',
+  'sensitivity.unit.seats': '석',
+  'sensitivity.unit.px': 'px',
+
   // Insight engine — congestion
   'insight.congestion.critical.problem': '{zone}: 즉시 입장 제한 필요',
   'insight.congestion.critical.cause': '현재 {occupancy}명 / 적정 {capacity}명 ({pct}%)',
