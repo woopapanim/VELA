@@ -53,7 +53,7 @@ export function RegionsPanel() {
           return (
             <div
               key={id}
-              onClick={() => setActiveFloor(id)}
+              onClick={() => setActiveFloor(isActive ? null : id)}
               className={`group flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all ${
                 isActive
                   ? 'bg-primary/10 ring-1 ring-primary/30'
@@ -98,7 +98,7 @@ export function RegionsPanel() {
                   <span className={`flex-1 truncate ${isActive ? 'font-medium' : ''}`}>
                     {floor.name}
                   </span>
-                  <span className="text-muted-foreground font-data text-[9px]">
+                  <span className="text-muted-foreground font-data text-[9px] w-14 text-right shrink-0 tabular-nums">
                     {zoneCount} {zoneCount === 1 ? 'zone' : 'zones'}
                   </span>
 
@@ -114,28 +114,30 @@ export function RegionsPanel() {
                     {isHidden ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                   </button>
 
-                  {/* Move up */}
-                  {!isSimRunning && !isTop && (
+                  {/* Move up — always reserve space (invisible when isTop) for column alignment */}
+                  {!isSimRunning && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        moveFloorLevel(id, 'up');
+                        if (!isTop) moveFloorLevel(id, 'up');
                       }}
-                      className="opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity text-muted-foreground"
+                      disabled={isTop}
+                      className={`${isTop ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100'} transition-opacity text-muted-foreground`}
                       title="Move level up"
                     >
                       <ChevronUp className="w-3 h-3" />
                     </button>
                   )}
 
-                  {/* Move down */}
-                  {!isSimRunning && !isBottom && (
+                  {/* Move down — always reserve space (invisible when isBottom) for column alignment */}
+                  {!isSimRunning && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        moveFloorLevel(id, 'down');
+                        if (!isBottom) moveFloorLevel(id, 'down');
                       }}
-                      className="opacity-0 group-hover:opacity-70 hover:!opacity-100 transition-opacity text-muted-foreground"
+                      disabled={isBottom}
+                      className={`${isBottom ? 'invisible pointer-events-none' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100'} transition-opacity text-muted-foreground`}
                       title="Move level down"
                     >
                       <ChevronDown className="w-3 h-3" />

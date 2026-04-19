@@ -46,6 +46,7 @@ export interface RenderState {
   // Ghost node preview (place-waypoint mode)
   ghostNode?: { position: { x: number; y: number }; type: string } | null;
   floors?: readonly FloorConfig[];
+  activeFloorId?: string | null;
   shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>;
 }
 
@@ -184,7 +185,8 @@ export class CanvasManager {
 
     // 2b. Floor frames (below zones, visual grouping for multi-floor/multi-building)
     if (visibleFloors && visibleFloors.length > 1) {
-      renderFloorFrames(ctx, visibleFloors, visibleZones, isDark, this.camera.zoom);
+      const showHandles = state.simPhase !== 'running';
+      renderFloorFrames(ctx, visibleFloors, visibleZones, isDark, this.camera.zoom, showHandles, state.activeFloorId ?? null);
     }
 
     // 3. Zones (with occupancy overlay)

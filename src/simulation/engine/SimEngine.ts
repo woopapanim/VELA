@@ -1965,8 +1965,9 @@ export class SimulationEngine {
             && prevNode.type === 'portal'
             && (prevNode.shaftId as string | undefined) === (curNode.shaftId as string);
           if (!justTeleported) {
-            // 목적지 선택: 에이전트의 currentTargetNode/targetZone이 있으면 그 층의 노드, 없으면 첫 번째
-            let dest = candidates[0];
+            // 목적지 선택: 방문 안한 포털 우선 → 여러 층 순환 이동 (3F+ 도달 가능)
+            const visitedNodeIds = new Set(v.pathLog.map(e => e.nodeId as string));
+            let dest = candidates.find(c => !visitedNodeIds.has(c.id as string)) ?? candidates[0];
             const targetFloor = v.targetFloorId as string | null;
             if (targetFloor) {
               const onTarget = candidates.find(c => (c.floorId as string) === targetFloor);

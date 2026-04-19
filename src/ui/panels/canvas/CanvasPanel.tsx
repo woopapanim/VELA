@@ -198,6 +198,7 @@ export function CanvasPanel() {
               ? { position: mouseWorldPos.current, type: store.pendingWaypointType }
               : null,
             floors: store.floors,
+            activeFloorId: store.activeFloorId,
             shaftQueues: store.shaftQueues,
           });
         }
@@ -221,7 +222,7 @@ export function CanvasPanel() {
   // Mouse world position for ghost node preview
   const mouseWorldPos = useRef<{ x: number; y: number } | null>(null);
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move' | 'floor-drag';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move' | 'floor-drag' | 'floor-resize';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
@@ -229,6 +230,8 @@ export function CanvasPanel() {
   const dragWaypointId = useRef<string | null>(null);
   const dragFloorId = useRef<string | null>(null);
   const floorDragLast = useRef({ x: 0, y: 0 });
+  const floorResizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se' | null>(null);
+  const floorResizeAnchor = useRef({ x: 0, y: 0 }); // opposite corner, held fixed
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 'e' | 's' | 'w'>('se');
   const didDrag = useRef(false);
@@ -281,7 +284,36 @@ export function CanvasPanel() {
     return null;
   }
 
-  function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number }; shape?: string }): 'nw' | 'ne' | 'sw' | 'se' | null {
+  // Hit-test corner resize handle on the selected active floor's frame.
+  function hitTestFloorCorner(
+    world: { x: number; y: number },
+    floors: readonly FloorConfig[],
+    zones: readonly ZoneConfig[],
+    activeFloorId: string | null,
+  ): { floor: FloorConfig; corner: 'nw' | 'ne' | 'sw' | 'se'; frame: { x: number; y: number; w: number; h: number } } | null {
+    if (floors.length <= 1 || !activeFloorId) return null;
+    const floor = floors.find(f => (f.id as string) === activeFloorId);
+    if (!floor) return null;
+    const frame = getFloorFrameBounds(floor, zones);
+    if (!frame) return null;
+    const zoom = Math.max(managerRef.current?.camera.zoom ?? 1, 0.1);
+    const r = 12 / zoom;
+    const { x, y, w, h } = frame;
+    const corners: Array<{ corner: 'nw' | 'ne' | 'sw' | 'se'; cx: number; cy: number }> = [
+      { corner: 'nw', cx: x, cy: y },
+      { corner: 'ne', cx: x + w, cy: y },
+      { corner: 'sw', cx: x, cy: y + h },
+      { corner: 'se', cx: x + w, cy: y + h },
+    ];
+    for (const { corner, cx, cy } of corners) {
+      if (Math.abs(world.x - cx) < r && Math.abs(world.y - cy) < r) {
+        return { floor, corner, frame };
+      }
+    }
+    return null;
+  }
+
+function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number }; shape?: string }): 'nw' | 'ne' | 'sw' | 'se' | null {
     const b = zone.bounds;
     // Hit radius in world units — scales with inverse zoom so it's ~14 screen px at any zoom.
     const zoom = Math.max(managerRef.current?.camera.zoom ?? 1, 0.1);
@@ -373,17 +405,35 @@ export function CanvasPanel() {
       return;
     }
 
-    // Floor label drag (top-left badge) — move entire floor + children on shared canvas.
+    // Floor corner resize (selected floor only) OR label drag — sim not running.
     if (e.button === 0 && world) {
       const storeInit = useStore.getState();
       if (storeInit.phase !== 'running') {
+        // Corners take priority over label (both are outside zone hit areas).
+        const hitCorner = hitTestFloorCorner(world, storeInit.floors, storeInit.zones, storeInit.activeFloorId);
+        if (hitCorner) {
+          const b = hitCorner.frame;
+          const opp =
+            hitCorner.corner === 'nw' ? { x: b.x + b.w, y: b.y + b.h }
+            : hitCorner.corner === 'ne' ? { x: b.x, y: b.y + b.h }
+            : hitCorner.corner === 'sw' ? { x: b.x + b.w, y: b.y }
+            : { x: b.x, y: b.y };
+          storeInit.pushUndo(storeInit.zones, storeInit.media, storeInit.waypointGraph);
+          dragMode.current = 'floor-resize';
+          dragFloorId.current = hitCorner.floor.id as string;
+          floorResizeCorner.current = hitCorner.corner;
+          floorResizeAnchor.current = opp;
+          e.preventDefault();
+          return;
+        }
         const hitFloor = hitTestFloorLabel(world, storeInit.floors, storeInit.zones);
         if (hitFloor) {
+          // Selection is handled by the click handler (so a pure click toggles cleanly);
+          // mousedown only arms floor-drag in case the user drags.
           storeInit.pushUndo(storeInit.zones, storeInit.media, storeInit.waypointGraph);
           dragMode.current = 'floor-drag';
           dragFloorId.current = hitFloor.id as string;
           floorDragLast.current = { x: world.x, y: world.y };
-          storeInit.setActiveFloor(hitFloor.id as string);
           e.preventDefault();
           return;
         }
@@ -993,6 +1043,19 @@ export function CanvasPanel() {
             }
           }
         }
+        // Floor frame interior click — arms drag for the floor under the cursor.
+        // Selection is handled by the click handler (so pure clicks still toggle cleanly).
+        if (store.phase !== 'running' && store.floors.length > 1) {
+          const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
+          if (hitFloor) {
+            store.pushUndo(store.zones, store.media, store.waypointGraph);
+            dragMode.current = 'floor-drag';
+            dragFloorId.current = hitFloor.id as string;
+            floorDragLast.current = { x: world.x, y: world.y };
+            e.preventDefault();
+            return;
+          }
+        }
         selectZone(null);
       }
     }
@@ -1059,12 +1122,33 @@ export function CanvasPanel() {
     const anyZone = hitZone();
     const hitNothing = !anyNode && !anyEdge && !anyMedia && !anyZone;
 
+    // Floor label click → toggle active floor (without deselecting zones/media/nodes)
+    const hitFloorLabel = store.phase !== 'running'
+      ? hitTestFloorLabel(world, store.floors, store.zones)
+      : null;
+    if (hitFloorLabel) {
+      const fid = hitFloorLabel.id as string;
+      store.setActiveFloor(store.activeFloorId === fid ? null : fid);
+      return;
+    }
+
+    // Click inside a floor's frame (empty area, nothing else hit) — select that floor.
+    if (hitNothing && store.floors.length > 1 && store.phase !== 'running') {
+      const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
+      if (hitFloor) {
+        const fid = hitFloor.id as string;
+        if (store.activeFloorId !== fid) store.setActiveFloor(fid);
+        return;
+      }
+    }
+
     // 빈 공간 클릭 → 전체 선택 해제 + Select 모드
     if (hitNothing) {
       selectZone(null);
       store.selectWaypoint(null);
       (store as any).selectMedia?.(null);
       store.setPendingEdgeSource(null);
+      store.setActiveFloor(null);
       if (mode !== 'select') store.setEditorMode('select');
       return;
     }
@@ -1127,7 +1211,24 @@ export function CanvasPanel() {
       return;
     }
 
-    // Waypoint node dragging
+    // Floor frame resizing — anchor opposite corner, drag live corner to cursor
+    if (mode === 'floor-resize' && dragFloorId.current && floorResizeCorner.current) {
+      const world = getWorldPos(e);
+      if (world) {
+        const anchor = floorResizeAnchor.current;
+        const minX = Math.min(anchor.x, world.x);
+        const minY = Math.min(anchor.y, world.y);
+        const maxX = Math.max(anchor.x, world.x);
+        const maxY = Math.max(anchor.y, world.y);
+        useStore.getState().resizeFloor(dragFloorId.current, {
+          x: minX, y: minY, w: maxX - minX, h: maxY - minY,
+        });
+        didDrag.current = true;
+      }
+      return;
+    }
+
+// Waypoint node dragging
     if (mode === 'waypoint-move' && dragWaypointId.current) {
       const world = getWorldPos(e);
       if (world) {
@@ -1174,6 +1275,14 @@ export function CanvasPanel() {
     if (mode === 'none' && world && containerRef.current) {
       const store = useStore.getState();
       const el = containerRef.current;
+      // Floor corner hover (selected floor only) — resize cursor
+      if (!spacePressed.current && store.phase !== 'running') {
+        const hitCorner = hitTestFloorCorner(world, store.floors, store.zones, store.activeFloorId);
+        if (hitCorner) {
+          el.style.cursor = hitCorner.corner === 'nw' || hitCorner.corner === 'se' ? 'nwse-resize' : 'nesw-resize';
+          return;
+        }
+      }
       // Floor label hover takes priority (visible only when >1 floors)
       if (!spacePressed.current && store.phase !== 'running' && hitTestFloorLabel(world, store.floors, store.zones)) {
         el.style.cursor = 'move';
@@ -1388,21 +1497,41 @@ export function CanvasPanel() {
         if ((m.zoneId as string) !== dragZoneId.current) return m;
         return { ...m, position: { x: m.position.x + dx, y: m.position.y + dy } };
       });
-      useStore.setState((s) => ({
-        zones: s.zones.map(z => (z.id as string) !== dragZoneId.current ? z : {
+      useStore.setState((s) => {
+        const updatedZones = s.zones.map(z => (z.id as string) !== dragZoneId.current ? z : {
           ...z, bounds: newBounds, gates: movedGates,
           ...(movedPolygon ? { polygon: movedPolygon } : {}),
-        }),
-        media: movedMedia,
-        scenario: s.scenario ? {
-          ...s.scenario,
-          zones: s.zones.map(z => (z.id as string) !== dragZoneId.current ? z : {
-            ...z, bounds: newBounds, gates: movedGates,
-            ...(movedPolygon ? { polygon: movedPolygon } : {}),
-          }),
+        });
+        // Reassign floor membership if zone center crossed into another floor's frame
+        const center = { x: newBounds.x + newBounds.w / 2, y: newBounds.y + newBounds.h / 2 };
+        const hitFloor = findFloorAtPoint(center, s.floors, updatedZones);
+        let updatedFloors = s.floors;
+        if (hitFloor) {
+          const currentHolder = s.floors.find(f => f.zoneIds.some(id => (id as string) === dragZoneId.current));
+          if (currentHolder && (currentHolder.id as string) !== (hitFloor.id as string)) {
+            updatedFloors = s.floors.map(f => {
+              if ((f.id as string) === (currentHolder.id as string)) {
+                return { ...f, zoneIds: f.zoneIds.filter(id => (id as string) !== dragZoneId.current) };
+              }
+              if ((f.id as string) === (hitFloor.id as string)) {
+                return { ...f, zoneIds: [...f.zoneIds, dragZoneId.current as any] };
+              }
+              return f;
+            });
+          }
+        }
+        return {
+          zones: updatedZones,
           media: movedMedia,
-        } : s.scenario,
-      }));
+          floors: updatedFloors,
+          scenario: s.scenario ? {
+            ...s.scenario,
+            zones: updatedZones,
+            media: movedMedia,
+            floors: updatedFloors,
+          } : s.scenario,
+        };
+      });
       didDrag.current = true;
     } else if (mode === 'resize' && zone) {
       const ob = zone.bounds; // old bounds
@@ -1724,6 +1853,7 @@ export function CanvasPanel() {
     dragMediaId.current = null;
     dragWaypointId.current = null;
     dragFloorId.current = null;
+    floorResizeCorner.current = null;
     dragVertexIdx.current = null;
     vertexOriginal.current = null;
   }, []);

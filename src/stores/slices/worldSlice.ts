@@ -7,6 +7,7 @@ import {
   computeNewFloorOrigin,
   computeFloorContentBbox,
   shiftFloorChildren,
+  findFloorAtPoint,
 } from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
@@ -201,11 +202,12 @@ export interface WorldSlice {
   // Actions
   setScenario: (scenario: Scenario) => void;
   updateScenarioMeta: (updates: Partial<Scenario['meta']>) => void;
-  setActiveFloor: (floorId: string) => void;
+  setActiveFloor: (floorId: string | null) => void;
   addFloor: () => void;
   removeFloor: (floorId: string) => void;
   renameFloor: (floorId: string, name: string) => void;
   shiftFloor: (floorId: string, dx: number, dy: number) => void;
+  resizeFloor: (floorId: string, bounds: { x: number; y: number; w: number; h: number }) => void;
   setFloorHidden: (floorId: string, hidden: boolean) => void;
   moveFloorLevel: (floorId: string, direction: 'up' | 'down') => void;
   addZone: (zone: ZoneConfig) => void;
@@ -449,6 +451,23 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     };
   }),
 
+  resizeFloor: (floorId, bounds) => set((s) => {
+    const MIN_W = 200, MIN_H = 150;
+    const clamped = {
+      x: bounds.x,
+      y: bounds.y,
+      w: Math.max(MIN_W, bounds.w),
+      h: Math.max(MIN_H, bounds.h),
+    };
+    const newFloors = s.floors.map(f =>
+      (f.id as string) === floorId ? { ...f, bounds: clamped } : f,
+    );
+    return {
+      floors: newFloors,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
   addZone: (zone) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
@@ -463,12 +482,14 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       if (s.zones.some(z => (z.id as string) === (zone.id as string))) return {};
       const rawZones = [...s.zones, zoneToAdd];
       const newZones = autoLinkGates(rawZones);
+      // Fallback to first floor when no active floor (user may have deselected)
+      const targetFloorId = s.activeFloorId ?? (s.floors[0]?.id as string | undefined) ?? null;
       let newFloors = s.floors.map((f) =>
-        (f.id as string) === s.activeFloorId
+        (f.id as string) === targetFloorId
           ? { ...f, zoneIds: [...f.zoneIds, zone.id] }
           : f,
       );
-      newFloors = expandCanvasForZones(newFloors, newZones, s.activeFloorId);
+      newFloors = expandCanvasForZones(newFloors, newZones, targetFloorId);
       return {
         zones: newZones,
         floors: newFloors,
@@ -533,7 +554,27 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
           },
         };
       }) : s.media;
-      const expandedFloors = expandCanvasForZones(s.floors, newZones, s.activeFloorId);
+      // Reassign floor membership when a zone's center crosses into another floor's frame.
+      let reassignedFloors = s.floors;
+      if (newBounds) {
+        const center = { x: newBounds.x + newBounds.w / 2, y: newBounds.y + newBounds.h / 2 };
+        const hitFloor = findFloorAtPoint(center, s.floors, newZones);
+        if (hitFloor) {
+          const currentHolder = s.floors.find(f => f.zoneIds.some(id => (id as string) === zoneId));
+          if (currentHolder && (currentHolder.id as string) !== (hitFloor.id as string)) {
+            reassignedFloors = s.floors.map(f => {
+              if ((f.id as string) === (currentHolder.id as string)) {
+                return { ...f, zoneIds: f.zoneIds.filter(id => (id as string) !== zoneId) };
+              }
+              if ((f.id as string) === (hitFloor.id as string)) {
+                return { ...f, zoneIds: [...f.zoneIds, zoneId as any] };
+              }
+              return f;
+            });
+          }
+        }
+      }
+      const expandedFloors = expandCanvasForZones(reassignedFloors, newZones, s.activeFloorId);
       return {
         zones: newZones,
         media: newMedia,

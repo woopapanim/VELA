@@ -78,14 +78,30 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
 
 /**
  * Visual frame bounds for a floor on the shared canvas.
- * Uses explicit `floor.bounds` when set, else derives from member zones' bbox + padding.
- * Mirrors the frame drawn by FloorFrameRenderer so hit-testing matches what users see.
+ * Returns the union of `floor.bounds` (user-set) and zones' bbox + padding (content).
+ * So the frame always contains both the user's chosen area and any zones assigned to the floor —
+ * dragging a zone outside the user bounds auto-expands the frame rather than orphaning it.
  */
 export function getFloorFrameBounds(
   floor: FloorConfig,
   zones: readonly ZoneConfig[],
 ): Rect | null {
-  if (floor.bounds) return floor.bounds;
+  const derived = deriveZoneBounds(floor, zones);
+  const explicit = floor.bounds ?? null;
+  if (!derived && !explicit) return null;
+  if (!explicit) return derived;
+  if (!derived) return explicit;
+  const minX = Math.min(explicit.x, derived.x);
+  const minY = Math.min(explicit.y, derived.y);
+  const maxX = Math.max(explicit.x + explicit.w, derived.x + derived.w);
+  const maxY = Math.max(explicit.y + explicit.h, derived.y + derived.h);
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+function deriveZoneBounds(
+  floor: FloorConfig,
+  zones: readonly ZoneConfig[],
+): Rect | null {
   const memberSet = zoneIdsFor(floor);
   const floorZones = zones.filter(z => memberSet.has(z.id as string));
   if (floorZones.length === 0) return null;

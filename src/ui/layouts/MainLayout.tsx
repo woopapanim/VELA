@@ -50,7 +50,7 @@ export function MainLayout() {
             VELA
           </h1>
           {scenario && (
-            <span className="text-xs text-muted-foreground font-data truncate max-w-48">
+            <span className="text-xs text-muted-foreground italic truncate max-w-48">
               {scenario.meta.name}
             </span>
           )}
