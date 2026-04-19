@@ -1937,7 +1937,7 @@ export class SimulationEngine {
         if (elapsed < curNode.dwellTimeMs) {
           return {
             ...v,
-            currentAction: VISITOR_ACTION.RESTING,
+            currentAction: curNode.type === 'rest' ? VISITOR_ACTION.RESTING : VISITOR_ACTION.WATCHING,
             velocity: { x: 0, y: 0 },
             steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
           };

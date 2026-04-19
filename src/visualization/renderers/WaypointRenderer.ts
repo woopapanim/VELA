@@ -12,7 +12,7 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
   zone:      { fill: '#3b82f6', stroke: '#2563eb', label: 'Z' },    // 파랑
   attractor: { fill: '#f59e0b', stroke: '#d97706', label: 'A' },    // 노랑
   hub:       { fill: '#8b5cf6', stroke: '#7c3aed', label: 'H' },    // 보라
-  rest:      { fill: '#9ca3af', stroke: '#6b7280', label: 'R' },    // 회색
+  rest:      { fill: '#f59e0b', stroke: '#d97706', label: 'R' },    // 앰버 (rest zone 컬러와 일치)
   bend:      { fill: '#64748b', stroke: '#475569', label: '·' },    // slate (작은 점)
 };
 
