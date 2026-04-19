@@ -1,4 +1,5 @@
 import type { WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
+import type { ShaftQueueSnapshot } from '@/stores';
 
 const NODE_RADIUS = 10;
 const NODE_RADIUS_SELECTED = 14;
@@ -35,7 +36,28 @@ export function renderWaypoints(
   ghostNode: { position: { x: number; y: number }; type: string } | null = null,
   zoom: number = 1,
   showLabels: boolean = true,
+  shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>,
 ) {
+  // Build a per-portal lookup { count, maxProgress } so each portal can render its
+  // own badge + progress arc regardless of which shaft it belongs to.
+  const portalStats = new Map<string, { total: number; maxProgress: number; boarding: number }>();
+  if (shaftQueues) {
+    for (const { boarding, queued } of shaftQueues.values()) {
+      for (const b of boarding) {
+        const s = portalStats.get(b.nodeId) ?? { total: 0, maxProgress: 0, boarding: 0 };
+        s.total++;
+        s.boarding++;
+        if (b.progress > s.maxProgress) s.maxProgress = b.progress;
+        portalStats.set(b.nodeId, s);
+      }
+      for (const q of queued) {
+        const s = portalStats.get(q.nodeId) ?? { total: 0, maxProgress: 0, boarding: 0 };
+        s.total++;
+        portalStats.set(q.nodeId, s);
+      }
+    }
+  }
+
   const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
   // Keep strokes at constant screen-pixel width regardless of zoom
   const px = 1 / Math.max(zoom, 0.3);
@@ -116,6 +138,38 @@ export function renderWaypoints(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(colors.label, x, y);
+
+    // ── Shaft queue overlay (portal only) ──
+    if (node.type === 'portal') {
+      const stats = portalStats.get(node.id as string);
+      if (stats && stats.total > 0) {
+        // Travel progress arc (only when someone is boarding)
+        if (stats.boarding > 0 && stats.maxProgress > 0) {
+          const arcR = r + 4 * px;
+          ctx.beginPath();
+          ctx.arc(x, y, arcR, -Math.PI / 2, -Math.PI / 2 + stats.maxProgress * Math.PI * 2);
+          ctx.strokeStyle = '#22d3ee'; // cyan-400
+          ctx.lineWidth = 2 * px;
+          ctx.stroke();
+        }
+        // Queue count badge (top-right)
+        const badgeR = 7 * px;
+        const bx = x + r * 0.75;
+        const by = y - r * 0.75;
+        ctx.beginPath();
+        ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+        ctx.fillStyle = '#0891b2'; // cyan-600
+        ctx.fill();
+        ctx.strokeStyle = isDark ? '#0e7490' : '#ffffff';
+        ctx.lineWidth = 1.25 * px;
+        ctx.stroke();
+        ctx.font = `bold ${fs(9)}px sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(stats.total), bx, by);
+      }
+    }
 
     // Label above (hidden when labels are toggled off)
     if (showLabels && node.label) {

@@ -71,7 +71,13 @@
       "Bash(lsof -iTCP:5174 -sTCP:LISTEN)",
       "Bash(ps -p 14550 -o pid,command)",
       "Bash(ps -p 19522 -o pid,command)",
-      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(kill 14550)",
+      "Bash(xargs -0 perl -i -pe ' *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }

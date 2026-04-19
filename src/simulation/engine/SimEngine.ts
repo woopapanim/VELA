@@ -150,6 +150,11 @@ export class SimulationEngine {
     viewersInSession: number;       // how many entered this session
   }>();
 
+  // Shaft boarding state: shaftId → { visitorId → { startMs, endMs } }.
+  // Agents past the portal capacity queue up (WATCHING without a boarding slot);
+  // a slot opens when a boarding agent teleports out.
+  private shaftBoarding = new Map<string, Map<string, { startMs: number; endMs: number }>>();
+
   constructor(world: SimulationWorld) {
     this.world = world;
     this.rng = createSeededRandom(world.config.seed);
@@ -223,6 +228,49 @@ export class SimulationEngine {
   getExitByNode(): ReadonlyMap<string, number> { return this._exitByNode; }
   getMediaStats(): Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }> { return this._mediaStats; }
 
+  /**
+   * Per-shaft snapshot of boarding agents + queued agents at any of the shaft's portals.
+   * Boarding = inside the elevator, counting down to teleport (has progress).
+   * Queued = waiting for a boarding slot (no progress yet).
+   */
+  getShaftQueueState(): Map<string, {
+    boarding: { visitorId: string; nodeId: string; progress: number }[];
+    queued: { visitorId: string; nodeId: string }[];
+  }> {
+    const result = new Map<string, {
+      boarding: { visitorId: string; nodeId: string; progress: number }[];
+      queued: { visitorId: string; nodeId: string }[];
+    }>();
+    const now = this.state.timeState.elapsed;
+
+    for (const shaft of this.world.shafts ?? []) {
+      result.set(shaft.id as string, { boarding: [], queued: [] });
+    }
+
+    for (const v of this.state.visitors.values()) {
+      if (!v.isActive) continue;
+      if (v.currentAction !== VISITOR_ACTION.WATCHING) continue;
+      if (!v.currentNodeId) continue;
+      const node = this.nodeMap.get(v.currentNodeId as string);
+      if (!node || node.type !== 'portal' || !node.shaftId) continue;
+
+      const shaftId = node.shaftId as string;
+      const bucket = result.get(shaftId);
+      if (!bucket) continue;
+
+      const slot = this.shaftBoarding.get(shaftId)?.get(v.id as string);
+      if (slot) {
+        const span = Math.max(1, slot.endMs - slot.startMs);
+        const progress = Math.max(0, Math.min(1, (now - slot.startMs) / span));
+        bucket.boarding.push({ visitorId: v.id as string, nodeId: v.currentNodeId as string, progress });
+      } else {
+        bucket.queued.push({ visitorId: v.id as string, nodeId: v.currentNodeId as string });
+      }
+    }
+
+    return result;
+  }
+
   private ensureMediaStats(mediaId: string) {
     if (!this._mediaStats.has(mediaId)) {
       this._mediaStats.set(mediaId, { watchCount: 0, skipCount: 0, waitCount: 0, totalWatchMs: 0, totalWaitMs: 0, peakViewers: 0 });
@@ -260,6 +308,24 @@ export class SimulationEngine {
           state.phase = 'waiting';
           state.nextSessionMs = elapsed + interval;
           state.viewersInSession = 0;
+        }
+      }
+    }
+  }
+
+  /**
+   * Drop boarding-pool entries for visitors no longer sitting at a shaft portal.
+   * Keeps capacity accounting honest even if an agent gets rerouted out of a portal
+   * without hitting the normal teleport-and-delete path.
+   */
+  private tickShaftBoardingJanitor() {
+    for (const [shaftId, pool] of this.shaftBoarding) {
+      for (const vid of Array.from(pool.keys())) {
+        const v = this.state.visitors.get(vid);
+        if (!v || !v.isActive) { pool.delete(vid); continue; }
+        const node = v.currentNodeId ? this.nodeMap.get(v.currentNodeId as string) : null;
+        if (!node || node.type !== 'portal' || (node.shaftId as string | undefined) !== shaftId) {
+          pool.delete(vid);
         }
       }
     }
@@ -330,6 +396,7 @@ export class SimulationEngine {
     const dtS = dt / 1000;
     this.spawnTick(dt);
     this.tickStaged();
+    this.tickShaftBoardingJanitor();
 
     // rebuild spatial hash + media viewer counts + node crowd for this tick
     this.spatialHash.clear();
@@ -1910,19 +1977,27 @@ export class SimulationEngine {
               - (this.world.floors.find(f => (f.id as string) === (curNode.floorId as string))?.level ?? 0)
             );
             const totalWaitMs = shaft.waitTimeMs + floorSpan * shaft.travelTimePerFloorMs;
-            const lastLog = v.pathLog[v.pathLog.length - 1];
-            if (lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
-              const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
-              if (elapsed < totalWaitMs) {
-                return {
-                  ...v,
-                  currentAction: VISITOR_ACTION.WATCHING,
-                  velocity: { x: 0, y: 0 },
-                  steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
-                };
-              }
+            const vid = v.id as string;
+            const shaftId = curNode.shaftId as string;
+            const pool = this.shaftBoarding.get(shaftId) ?? new Map<string, { startMs: number; endMs: number }>();
+            // Promote from queue to boarding if a slot is open
+            if (!pool.has(vid) && pool.size < shaft.capacity) {
+              const start = this.state.timeState.elapsed;
+              pool.set(vid, { startMs: start, endMs: start + totalWaitMs });
+              this.shaftBoarding.set(shaftId, pool);
             }
-            // Teleport
+            const slot = pool.get(vid);
+            if (!slot || this.state.timeState.elapsed < slot.endMs) {
+              // Queued (no slot) or boarding in progress → WATCHING
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.WATCHING,
+                velocity: { x: 0, y: 0 },
+                steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+              };
+            }
+            // Slot complete → teleport and free the boarding slot for the next queued agent
+            pool.delete(vid);
             const closedLog = this.closePathLogEntry(v.pathLog, curNode.id, this.state.timeState.elapsed);
             const newPathLog: PathLogEntry[] = [...closedLog, {
               nodeId: dest.id,

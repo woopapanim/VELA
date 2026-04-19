@@ -6,6 +6,7 @@ import {
   layoutFloorsHorizontally,
   computeNewFloorOrigin,
   computeFloorContentBbox,
+  shiftFloorChildren,
 } from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
@@ -204,6 +205,9 @@ export interface WorldSlice {
   addFloor: () => void;
   removeFloor: (floorId: string) => void;
   renameFloor: (floorId: string, name: string) => void;
+  shiftFloor: (floorId: string, dx: number, dy: number) => void;
+  setFloorHidden: (floorId: string, hidden: boolean) => void;
+  moveFloorLevel: (floorId: string, direction: 'up' | 'down') => void;
   addZone: (zone: ZoneConfig) => void;
   updateZone: (zoneId: string, updates: Partial<ZoneConfig>) => void;
   removeZone: (zoneId: string) => void;
@@ -392,6 +396,56 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     return {
       floors: newFloors,
       scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  setFloorHidden: (floorId, hidden) => set((s) => {
+    const newFloors = s.floors.map(f =>
+      (f.id as string) === floorId ? { ...f, hidden } : f
+    );
+    return {
+      floors: newFloors,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  moveFloorLevel: (floorId, direction) => set((s) => {
+    const ordered = [...s.floors].sort((a, b) => a.level - b.level);
+    const idx = ordered.findIndex(f => (f.id as string) === floorId);
+    if (idx < 0) return {};
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= ordered.length) return {};
+    const a = ordered[idx], b = ordered[swapIdx];
+    const newFloors = s.floors.map(f => {
+      if ((f.id as string) === (a.id as string)) return { ...f, level: b.level };
+      if ((f.id as string) === (b.id as string)) return { ...f, level: a.level };
+      return f;
+    });
+    return {
+      floors: newFloors,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  shiftFloor: (floorId, dx, dy) => set((s) => {
+    if (dx === 0 && dy === 0) return {};
+    const floor = s.floors.find(f => (f.id as string) === floorId);
+    if (!floor) return {};
+    const shifted = shiftFloorChildren(floor, dx, dy, s.zones, s.media, s.waypointGraph);
+    const baseBounds = floor.bounds ?? { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height };
+    const newFloors = s.floors.map(f =>
+      (f.id as string) === floorId
+        ? { ...f, bounds: { ...baseBounds, x: baseBounds.x + dx, y: baseBounds.y + dy } }
+        : f,
+    );
+    return {
+      floors: newFloors,
+      zones: shifted.zones,
+      media: shifted.media,
+      waypointGraph: shifted.waypointGraph,
+      scenario: s.scenario
+        ? { ...s.scenario, floors: newFloors, zones: shifted.zones, media: shifted.media, waypointGraph: shifted.waypointGraph ?? undefined }
+        : s.scenario,
     };
   }),
 

@@ -9,7 +9,7 @@ import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
 import { SpawnConfig } from '../panels/build/SpawnConfig';
-import { FloorTabs } from '../panels/build/FloorTabs';
+import { RegionsPanel } from '../panels/build/RegionsPanel';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
 import { ProgressRing } from '../components/ProgressRing';
@@ -97,6 +97,8 @@ export function MainLayout() {
               <BuildTools />
             </div>
 
+            <RegionsPanel />
+
             <ZoneEditor />
             <WaypointInspector />
             <MediaEditor />
@@ -124,7 +126,6 @@ export function MainLayout() {
 
         {/* Center Panel — Canvas */}
         <main className="flex-1 bg-background overflow-hidden relative flex flex-col">
-          <FloorTabs />
           <div className="flex-1 relative">
             <CanvasPanel />
           </div>

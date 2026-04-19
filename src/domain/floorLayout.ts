@@ -159,7 +159,7 @@ export function floorsNeedRelayout(
 }
 
 /** Shift all children of a floor by (dx, dy) in world coordinates. */
-function shiftFloorChildren(
+export function shiftFloorChildren(
   floor: FloorConfig,
   dx: number,
   dy: number,

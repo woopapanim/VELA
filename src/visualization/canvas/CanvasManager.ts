@@ -1,5 +1,5 @@
 import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig } from '@/domain';
-import type { OverlayMode } from '@/stores';
+import type { OverlayMode, ShaftQueueSnapshot } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
 import { renderZones } from '../renderers/ZoneRenderer';
@@ -46,6 +46,7 @@ export interface RenderState {
   // Ghost node preview (place-waypoint mode)
   ghostNode?: { position: { x: number; y: number }; type: string } | null;
   floors?: readonly FloorConfig[];
+  shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>;
 }
 
 export class CanvasManager {
@@ -151,41 +152,71 @@ export class CanvasManager {
       this.heatmapRenderer.render(ctx, isDark);
     }
 
+    // Determine hidden floors (editor-only view filter — sim still ticks them).
+    const hiddenFloorIds = new Set<string>();
+    const hiddenZoneIds = new Set<string>();
+    if (state.floors) {
+      for (const f of state.floors) {
+        if (f.hidden) {
+          hiddenFloorIds.add(f.id as string);
+          for (const zid of f.zoneIds) hiddenZoneIds.add(zid as string);
+        }
+      }
+    }
+    const visibleFloors = state.floors?.filter(f => !f.hidden);
+    const visibleZones = hiddenZoneIds.size === 0
+      ? state.zones
+      : state.zones.filter(z => !hiddenZoneIds.has(z.id as string));
+    const visibleMedia = hiddenZoneIds.size === 0
+      ? state.media
+      : state.media.filter(m => !hiddenZoneIds.has(m.zoneId as string));
+    const visibleGraph = (hiddenFloorIds.size === 0 || !state.waypointGraph)
+      ? state.waypointGraph
+      : {
+          ...state.waypointGraph,
+          nodes: state.waypointGraph.nodes.filter(n => !hiddenFloorIds.has(n.floorId as string)),
+          edges: state.waypointGraph.edges.filter(e => {
+            const from = state.waypointGraph!.nodes.find(n => n.id === e.fromId);
+            const to = state.waypointGraph!.nodes.find(n => n.id === e.toId);
+            return from && to && !hiddenFloorIds.has(from.floorId as string) && !hiddenFloorIds.has(to.floorId as string);
+          }),
+        };
+
     // 2b. Floor frames (below zones, visual grouping for multi-floor/multi-building)
-    if (state.floors && state.floors.length > 1) {
-      renderFloorFrames(ctx, state.floors, state.zones, isDark, this.camera.zoom);
+    if (visibleFloors && visibleFloors.length > 1) {
+      renderFloorFrames(ctx, visibleFloors, visibleZones, isDark, this.camera.zoom);
     }
 
     // 3. Zones (with occupancy overlay)
-    renderZones(ctx, state.zones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
+    renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
 
     // 4. Gates (rendered relative to zone bounds for wall alignment)
     if (state.showGates) {
-      renderGates(ctx, state.zones, isDark);
+      renderGates(ctx, visibleZones, isDark);
     }
 
     // 3b. Flow direction arrows (guided/one-way zones)
-    renderFlowArrows(ctx, state.zones, isDark);
+    renderFlowArrows(ctx, visibleZones, isDark);
 
     // 4b. Gate connections (subtle dashed lines between linked gates)
     if (state.showGates) {
-      renderGateConnections(ctx, state.zones, isDark);
+      renderGateConnections(ctx, visibleZones, isDark);
     }
 
     // 4c. Waypoint graph (nodes + edges + ghost preview)
-    if (state.waypointGraph && state.waypointGraph.nodes.length > 0) {
-      renderWaypoints(ctx, state.waypointGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels);
+    if (visibleGraph && visibleGraph.nodes.length > 0) {
+      renderWaypoints(ctx, visibleGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels, state.shaftQueues);
     } else if (state.ghostNode) {
       renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
     }
 
     // 5. Flow lines (between zones)
     if (state.overlayMode === 'flow' || state.visitors.length > 0) {
-      renderFlowLines(ctx, state.zones, state.visitors, isDark);
+      renderFlowLines(ctx, visibleZones, state.visitors, isDark);
     }
 
     // 6. Media (with queue visualization)
-    renderMedia(ctx, state.media, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom, state.showLabels);
+    renderMedia(ctx, visibleMedia, state.selectedMediaId, isDark, state.visitors, false, this.camera.zoom, state.showLabels);
 
     // 7. Path trails (subtle traces behind visitors)
     if (state.visitors.length > 0) {

@@ -10,7 +10,8 @@ import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
 import { zonesOverlap, getZoneVertices } from '@/domain/zoneGeometry';
-import { findFloorAtPoint } from '@/domain/floorLayout';
+import { findFloorAtPoint, getFloorFrameBounds } from '@/domain/floorLayout';
+import type { FloorConfig, ZoneConfig } from '@/domain';
 
 // Get edge segments for a zone shape (rx, ry = L bend ratios, default 0.5)
 function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): Array<[{x:number;y:number},{x:number;y:number}]> {
@@ -197,6 +198,7 @@ export function CanvasPanel() {
               ? { position: mouseWorldPos.current, type: store.pendingWaypointType }
               : null,
             floors: store.floors,
+            shaftQueues: store.shaftQueues,
           });
         }
       }
@@ -219,12 +221,14 @@ export function CanvasPanel() {
   // Mouse world position for ghost node preview
   const mouseWorldPos = useRef<{ x: number; y: number } | null>(null);
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move' | 'floor-drag';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
   const dragMediaId = useRef<string | null>(null);
   const dragWaypointId = useRef<string | null>(null);
+  const dragFloorId = useRef<string | null>(null);
+  const floorDragLast = useRef({ x: 0, y: 0 });
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 'e' | 's' | 'w'>('se');
   const didDrag = useRef(false);
@@ -248,6 +252,33 @@ export function CanvasPanel() {
     return managerRef.current.camera.screenToWorld(
       e.clientX - rect.left, e.clientY - rect.top, w, h,
     );
+  }
+
+  // Hit-test floor label badge (top-left of frame) — matches FloorFrameRenderer layout.
+  function hitTestFloorLabel(
+    world: { x: number; y: number },
+    floors: readonly FloorConfig[],
+    zones: readonly ZoneConfig[],
+  ): FloorConfig | null {
+    if (floors.length <= 1) return null;
+    const zoom = Math.max(managerRef.current?.camera.zoom ?? 1, 0.3);
+    const px = 1 / zoom;
+    const fs = (basePx: number) => Math.max(6, basePx / zoom);
+    const LABEL_OFFSET_PX = 12;
+    for (const floor of floors) {
+      const frame = getFloorFrameBounds(floor, zones);
+      if (!frame) continue;
+      const labelH = fs(18);
+      const approxW = Math.max(6, floor.name.length) * fs(13) * 0.6 + 16 * px;
+      const pad = 4 * px;
+      const labelX = frame.x - pad;
+      const labelY = frame.y - labelH - LABEL_OFFSET_PX * px - pad;
+      if (world.x >= labelX && world.x <= labelX + approxW + pad * 2 &&
+          world.y >= labelY && world.y <= labelY + labelH + pad * 2) {
+        return floor;
+      }
+    }
+    return null;
   }
 
   function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number }; shape?: string }): 'nw' | 'ne' | 'sw' | 'se' | null {
@@ -340,6 +371,23 @@ export function CanvasPanel() {
       lastMouse.current = { x: e.clientX, y: e.clientY };
       e.preventDefault();
       return;
+    }
+
+    // Floor label drag (top-left badge) — move entire floor + children on shared canvas.
+    if (e.button === 0 && world) {
+      const storeInit = useStore.getState();
+      if (storeInit.phase !== 'running') {
+        const hitFloor = hitTestFloorLabel(world, storeInit.floors, storeInit.zones);
+        if (hitFloor) {
+          storeInit.pushUndo(storeInit.zones, storeInit.media, storeInit.waypointGraph);
+          dragMode.current = 'floor-drag';
+          dragFloorId.current = hitFloor.id as string;
+          floorDragLast.current = { x: world.x, y: world.y };
+          storeInit.setActiveFloor(hitFloor.id as string);
+          e.preventDefault();
+          return;
+        }
+      }
     }
 
     // Gate connection mode: click near a gate to select first, then click second to link
@@ -1064,6 +1112,21 @@ export function CanvasPanel() {
       return;
     }
 
+    // Floor frame dragging — shift entire floor + children by incremental delta
+    if (mode === 'floor-drag' && dragFloorId.current) {
+      const world = getWorldPos(e);
+      if (world) {
+        const dx = world.x - floorDragLast.current.x;
+        const dy = world.y - floorDragLast.current.y;
+        if (dx !== 0 || dy !== 0) {
+          useStore.getState().shiftFloor(dragFloorId.current, dx, dy);
+          floorDragLast.current = { x: world.x, y: world.y };
+          didDrag.current = true;
+        }
+      }
+      return;
+    }
+
     // Waypoint node dragging
     if (mode === 'waypoint-move' && dragWaypointId.current) {
       const world = getWorldPos(e);
@@ -1111,6 +1174,11 @@ export function CanvasPanel() {
     if (mode === 'none' && world && containerRef.current) {
       const store = useStore.getState();
       const el = containerRef.current;
+      // Floor label hover takes priority (visible only when >1 floors)
+      if (!spacePressed.current && store.phase !== 'running' && hitTestFloorLabel(world, store.floors, store.zones)) {
+        el.style.cursor = 'move';
+        return;
+      }
       if (spacePressed.current) {
         el.style.cursor = 'grab';
       } else if (store.selectedZoneId) {
@@ -1655,6 +1723,7 @@ export function CanvasPanel() {
     dragGateId.current = null;
     dragMediaId.current = null;
     dragWaypointId.current = null;
+    dragFloorId.current = null;
     dragVertexIdx.current = null;
     vertexOriginal.current = null;
   }, []);

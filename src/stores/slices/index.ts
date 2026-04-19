@@ -1,5 +1,5 @@
 export { createWorldSlice, type WorldSlice } from './worldSlice';
-export { createSimSlice, type SimSlice } from './simSlice';
+export { createSimSlice, type SimSlice, type ShaftQueueSnapshot } from './simSlice';
 export { createUiSlice, type UiSlice, type CameraState, type ActivePanel, type OverlayMode } from './uiSlice';
 export { createAnalyticsSlice, type AnalyticsSlice } from './analyticsSlice';
 export { createEditorSlice, type EditorSlice, type EditorMode, type DragAction } from './editorSlice';
