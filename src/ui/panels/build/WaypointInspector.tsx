@@ -2,6 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { WaypointType } from '@/domain';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'entry', label: 'Entry' },
@@ -17,6 +18,23 @@ const EDGE_DIR_OPTIONS = [
   { value: 'directed', label: 'Directed →' },
   { value: 'bidirectional', label: 'Bidirectional ↔' },
 ];
+
+// Field visibility per node type (see CLAUDE.md for semantics):
+// - attraction/capacity: used by Score formula, irrelevant for entry/exit/bend
+// - dwell: first-visit pause, only rest/attractor trigger it in SimEngine
+// - spawnWeight: entry only
+const SHOW_ATTRACTION: Record<WaypointType, boolean> = {
+  entry: false, exit: false, bend: false,
+  zone: true, attractor: true, hub: true, rest: true,
+};
+const SHOW_DWELL: Record<WaypointType, boolean> = {
+  entry: false, exit: false, bend: false, zone: false, hub: false,
+  attractor: true, rest: true,
+};
+const SHOW_CAPACITY: Record<WaypointType, boolean> = {
+  entry: false, exit: false, bend: false,
+  zone: true, attractor: true, hub: true, rest: true,
+};
 
 export function WaypointInspector() {
   const selectedWaypointId = useStore((s) => s.selectedWaypointId);
@@ -74,42 +92,48 @@ export function WaypointInspector() {
           />
         </Field>
 
-        {/* Attraction */}
-        <Field label={`Attraction: ${node.attraction.toFixed(2)}`}>
-          <input
-            type="range"
-            min={0} max={1} step={0.05}
-            value={node.attraction}
-            onChange={(e) => updateWaypoint(selectedWaypointId, { attraction: parseFloat(e.target.value) })}
-            className="w-full"
-          />
-        </Field>
+        {/* Attraction (Score formula weight — not shown for entry/exit/bend) */}
+        {SHOW_ATTRACTION[node.type] && (
+          <Field label={`Attraction: ${node.attraction.toFixed(2)}`} tooltip={t('tooltip.node.attraction')}>
+            <input
+              type="range"
+              min={0} max={1} step={0.05}
+              value={node.attraction}
+              onChange={(e) => updateWaypoint(selectedWaypointId, { attraction: parseFloat(e.target.value) })}
+              className="w-full"
+            />
+          </Field>
+        )}
 
-        {/* Dwell Time */}
-        <Field label={`Dwell: ${(node.dwellTimeMs / 1000).toFixed(0)}s`}>
-          <input
-            type="range"
-            min={0} max={120000} step={1000}
-            value={node.dwellTimeMs}
-            onChange={(e) => updateWaypoint(selectedWaypointId, { dwellTimeMs: parseInt(e.target.value) })}
-            className="w-full"
-          />
-        </Field>
+        {/* Dwell Time (rest/attractor only) */}
+        {SHOW_DWELL[node.type] && (
+          <Field label={`Dwell: ${(node.dwellTimeMs / 1000).toFixed(0)}s`} tooltip={t('tooltip.node.dwell')}>
+            <input
+              type="range"
+              min={0} max={120000} step={1000}
+              value={node.dwellTimeMs}
+              onChange={(e) => updateWaypoint(selectedWaypointId, { dwellTimeMs: parseInt(e.target.value) })}
+              className="w-full"
+            />
+          </Field>
+        )}
 
-        {/* Capacity */}
-        <Field label={`Capacity: ${node.capacity}`}>
-          <input
-            type="number"
-            min={1} max={500}
-            value={node.capacity}
-            onChange={(e) => updateWaypoint(selectedWaypointId, { capacity: parseInt(e.target.value) || 1 })}
-            className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
-          />
-        </Field>
+        {/* Capacity — POI crowd cap, distinct from zone spatial capacity */}
+        {SHOW_CAPACITY[node.type] && (
+          <Field label={`POI Capacity: ${node.capacity}`} tooltip={t('tooltip.node.capacity')}>
+            <input
+              type="number"
+              min={1} max={500}
+              value={node.capacity}
+              onChange={(e) => updateWaypoint(selectedWaypointId, { capacity: parseInt(e.target.value) || 1 })}
+              className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+            />
+          </Field>
+        )}
 
         {/* Spawn Weight (ENTRY only) */}
         {node.type === 'entry' && (
-          <Field label={`Spawn Weight: ${node.spawnWeight.toFixed(1)}`}>
+          <Field label={`Spawn Weight: ${node.spawnWeight.toFixed(1)}`} tooltip={t('tooltip.node.spawnWeight')}>
             <input
               type="range"
               min={0} max={5} step={0.1}
@@ -196,10 +220,13 @@ export function WaypointInspector() {
   return null;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children, tooltip }: { label: string; children: React.ReactNode; tooltip?: string }) {
   return (
     <div>
-      <label className="panel-label block mb-0.5">{label}</label>
+      <div className="flex items-center gap-1 mb-0.5">
+        <label className="panel-label">{label}</label>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
       {children}
     </div>
   );

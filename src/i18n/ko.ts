@@ -277,4 +277,18 @@ export const ko: Dict = {
   // Visitor config — skip threshold
   'tooltip.skipFormula':
     '방문객이 대기 중인 미디어를 포기하고 다른 목적지로 이동하는 조건을 정의합니다. 실제 대기 시간이 Patience × Attractiveness × Skip Multiplier × Max Wait를 초과하면 방문객이 해당 미디어를 건너뛰고 이동합니다. 값이 클수록 방문객의 대기 인내 한도가 커지고, 값이 작을수록 더 일찍 포기합니다.',
+
+  // Zone editor — capacity semantics
+  'tooltip.zone.capacity':
+    '존 전체가 수용 가능한 공간적 인원수입니다. 면적과 국제 밀도 기준(2.5 m²/인)으로 자동 계산되며, 이 값을 초과하면 해당 존으로 향하는 경로가 감점되어 방문객이 덜 몰립니다.',
+
+  // Node (waypoint) inspector — field tooltips
+  'tooltip.node.attraction':
+    '경로 선택 Score 공식의 가중치입니다(0~1). 값이 높을수록 이 노드로 더 많은 방문객이 유입되며, attractor/rest 같은 거점의 인기도를 조절할 때 사용합니다.',
+  'tooltip.node.dwell':
+    '이 노드에서 최초 방문 시 머무르는 시간입니다. rest/attractor 타입에만 적용되며, 동선 상의 잠깐 쉬어가는 지점이나 대표 전시물의 체류 시간을 조절합니다.',
+  'tooltip.node.capacity':
+    'POI 혼잡도 한도입니다(이 한 지점에 동시에 몰리는 방문객 수 기준). 존의 공간 수용량과 달리 Score 공식의 군집 페널티 계산에 쓰이며, 작을수록 이 노드가 빨리 "혼잡" 판정을 받아 다른 후보로 분산됩니다.',
+  'tooltip.node.spawnWeight':
+    '여러 Entry 노드 중 이 지점에서 방문객이 스폰될 확률 가중치입니다. 값이 클수록 전체 인구가 이 입구에서 더 많이 나타납니다.',
 };

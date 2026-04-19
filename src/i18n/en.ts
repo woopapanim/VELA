@@ -302,4 +302,18 @@ export const en: Dict = {
   // Visitor config — skip threshold
   'tooltip.skipFormula':
     'Defines the condition under which a visitor gives up waiting for a media and moves on. When the actual wait time exceeds Patience × Attractiveness × Skip Multiplier × Max Wait, the visitor skips and heads to the next destination. Larger values make visitors more tolerant of queues; smaller values cause earlier skipping.',
+
+  // Zone editor — capacity semantics
+  'tooltip.zone.capacity':
+    'Spatial headcount capacity for the entire zone. Auto-derived from area using the international density standard (2.5 m²/person); exceeding this value penalizes routes into the zone so fewer visitors funnel in.',
+
+  // Node (waypoint) inspector — field tooltips
+  'tooltip.node.attraction':
+    'Weight in the route-selection Score formula (0–1). Higher values pull more visitors toward this node; used to tune the relative pull of attractor or rest waypoints.',
+  'tooltip.node.dwell':
+    'Time a visitor stays on first visit to this node. Applies only to rest and attractor types — tune it for brief pauses along the path or for headline exhibits.',
+  'tooltip.node.capacity':
+    'POI crowding threshold (how many visitors can cluster at this single point). Unlike zone spatial capacity, this drives the crowd-density penalty in the Score formula — smaller values flag the node as "crowded" sooner and redirect visitors elsewhere.',
+  'tooltip.node.spawnWeight':
+    'Relative spawn probability across multiple Entry nodes. Higher values cause a larger share of the total population to appear at this entrance.',
 };

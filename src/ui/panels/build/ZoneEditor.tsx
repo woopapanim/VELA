@@ -4,6 +4,7 @@ import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -160,7 +161,7 @@ export function ZoneEditor() {
       <div className="space-y-2">
         <Field label="Name" value={zone.name} onChange={(v) => handleUpdate('name', v)} disabled={isLocked} />
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} />
+          <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} tooltip={t('tooltip.zone.capacity')} />
           <div>
             <Field label="Area (m²)" value={String(zone.area)} type="number" onChange={(v) => handleUpdate('area', parseFloat(v) || 0)} disabled={isLocked} />
             {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">Auto-calc (net)</button>}
@@ -263,12 +264,15 @@ export function ZoneEditor() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', disabled }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean;
+function Field({ label, value, onChange, type = 'text', disabled, tooltip }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean; tooltip?: string;
 }) {
   return (
     <div>
-      <label className="panel-label">{label}</label>
+      <div className="flex items-center gap-1">
+        <label className="panel-label">{label}</label>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
         className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50" />
     </div>
