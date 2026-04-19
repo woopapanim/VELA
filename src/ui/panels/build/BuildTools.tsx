@@ -1,10 +1,11 @@
-import { useCallback } from 'react';
-import { Plus, Monitor, MousePointer2, Circle, GitBranch } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import { Plus, Monitor, MousePointer2, Circle, GitBranch, Sparkles } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
 import { BackgroundUpload } from './BackgroundUpload';
+import { AnalyzeFloorPlan } from './AnalyzeFloorPlan';
 
 const ZONE_TYPES = [
   { type: 'lobby', label: 'Lobby', color: '#14b8a6' },
@@ -52,6 +53,7 @@ export function BuildTools() {
   const phase = useStore((s) => s.phase);
   const pendingWaypointType = useStore((s) => s.pendingWaypointType);
   const t = useT();
+  const [showAnalyzer, setShowAnalyzer] = useState(false);
 
   const isSimRunning = phase === 'running'; // paused = editable
 
@@ -320,8 +322,29 @@ export function BuildTools() {
         </p>
       )}
 
+      {/* AI Auto-Setup */}
+      {!isSimRunning && (
+        <div>
+          <p className="panel-label mb-1.5">AI Auto-Setup</p>
+          <button
+            onClick={() => setShowAnalyzer(true)}
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded-xl bg-primary/15 hover:bg-primary/25 text-primary transition-colors ring-1 ring-primary/30"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Analyze Floor Plan (AI)
+          </button>
+        </div>
+      )}
+
       {/* Background Upload */}
       {!isSimRunning && <BackgroundUpload />}
+
+      {showAnalyzer && (
+        <AnalyzeFloorPlan
+          onClose={() => setShowAnalyzer(false)}
+          onLoaded={() => setShowAnalyzer(false)}
+        />
+      )}
     </div>
   );
 }

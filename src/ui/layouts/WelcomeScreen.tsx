@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import { Plus, FolderOpen, Trash2, ArrowRight, Upload } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, ArrowRight, Upload, Sparkles } from 'lucide-react';
 import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import type { Scenario } from '@/domain';
 import { useT } from '@/i18n';
+import { AnalyzeFloorPlan } from '@/ui/panels/build/AnalyzeFloorPlan';
 
 const HISTORY_KEY = 'vela-project-history';
 
@@ -35,6 +36,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   const [projectName, setProjectName] = useState('');
   const [openError, setOpenError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [showAnalyzer, setShowAnalyzer] = useState(false);
   const [, forceUpdate] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useT();
@@ -271,6 +273,13 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           {t('welcome.drag.hint')}
         </p>
 
+        <button
+          onClick={() => setShowAnalyzer(true)}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-2xl bg-secondary text-secondary-foreground hover:bg-accent transition-colors mb-3 cursor-pointer"
+        >
+          <Sparkles className="w-4 h-4" /> Analyze Floor Plan (AI)
+        </button>
+
         {openError && (
           <p className="text-[11px] text-red-400 text-center mb-3 px-2">{openError}</p>
         )}
@@ -305,6 +314,13 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         )}
 
       </div>
+
+      {showAnalyzer && (
+        <AnalyzeFloorPlan
+          onClose={() => setShowAnalyzer(false)}
+          onLoaded={() => { setShowAnalyzer(false); onEnter(); }}
+        />
+      )}
     </div>
   );
 }
