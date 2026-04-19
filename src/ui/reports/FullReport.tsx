@@ -13,10 +13,11 @@ import {
   type ChartOptions,
 } from 'chart.js';
 import { useStore } from '@/stores';
-import { generateInsights } from '@/analytics';
+import { generateInsights, extractKeyMoments } from '@/analytics';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
 import { exportElementToPdf } from './pdfExport';
+import { FloorDensityGrid } from './FloorDensityGrid';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler, Legend);
 
@@ -25,6 +26,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
   const scenario = useStore((s) => s.scenario);
   const visitors = useStore((s) => s.visitors);
   const zones = useStore((s) => s.zones);
+  const floors = useStore((s) => s.floors);
   const media = useStore((s) => s.media);
   const timeState = useStore((s) => s.timeState);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
@@ -253,6 +255,9 @@ export function FullReport({ onClose }: { onClose: () => void }) {
     const totalBottlenecks = everBottlenecked.size;
     const groupInducedBottlenecks = everGroupInduced.size;
 
+    // Key narrative moments for spatial heatmap section.
+    const keyMoments = extractKeyMoments(kpiHistory);
+
     return {
       totalVisitors: visitors.length,
       activeVisitors: active.length,
@@ -291,6 +296,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       warningInsights,
       histogram,
       histMax,
+      keyMoments,
     };
   }, [scenario, visitors, zones, media, timeState, latestSnapshot, kpiHistory, mediaStats, groups, totalExited, t]);
 
@@ -482,26 +488,49 @@ export function FullReport({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
-        {/* ===== Section 2 — Heatmap ===== */}
+        {/* ===== Section 2 — Spatial Density ===== */}
         <section className="px-14 py-12 border-t border-slate-200">
-          <SectionHeader no="02" label="Spatial Heatmap" title="공간 점유 히트맵" />
+          <SectionHeader no="02" label="Spatial Density" title="핵심 순간별 층 밀도" />
           <p className="text-sm text-slate-500 mt-4 mb-6">
-            시뮬레이션 종료 시점의 관람객 누적 밀도 분포. 붉은·밝은 영역일수록 체류 및 관람이 집중된 지점입니다.
+            시뮬레이션 진행 중 의미 있는 시점({data.keyMoments.length}개)을 자동 추출해, 각 시점의 층별 존 밀도를 비교합니다.
+            각 셀은 정원 대비 점유율(%)이며, 색이 붉을수록 과밀입니다.
           </p>
-          {heatmapImage ? (
-            <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-              <img src={heatmapImage} alt="Heatmap snapshot" className="w-full h-auto block" />
+          {data.keyMoments.length > 0 ? (
+            <div className="space-y-8">
+              {data.keyMoments.map((m) => (
+                <div key={`${m.kind}-${m.entryIndex}`}>
+                  <div className="flex items-baseline gap-3 mb-3">
+                    <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-blue-600">{m.label}</span>
+                    <span className="text-xs text-slate-500 tabular-nums">{formatTimeMs(m.timestampMs)}</span>
+                    <span className="text-xs text-slate-700 flex-1">{m.caption}</span>
+                  </div>
+                  <FloorDensityGrid
+                    floors={floors}
+                    zones={zones}
+                    snapshot={kpiHistory[m.entryIndex].snapshot}
+                  />
+                </div>
+              ))}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-12 text-center">
-              <p className="text-sm text-slate-500">히트맵을 캡처할 수 없습니다. 시뮬레이션 중 히트맵 오버레이가 활성화된 상태에서 다시 시도해주세요.</p>
+              <p className="text-sm text-slate-500">시계열 데이터가 충분하지 않습니다.</p>
             </div>
           )}
-          <div className="mt-4 flex items-center gap-6 text-[11px] text-slate-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-500/70" /> 고밀도</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-amber-400/70" /> 중밀도</span>
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-200" /> 저밀도</span>
-            <span className="ml-auto">캡처 시점: {durationMin}m {durationSec}s</span>
+          {heatmapImage && (
+            <div className="mt-8">
+              <SubHeader>참고: 종료 시점 누적 히트맵</SubHeader>
+              <div className="mt-3 rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                <img src={heatmapImage} alt="Heatmap snapshot" className="w-full h-auto block" />
+              </div>
+            </div>
+          )}
+          <div className="mt-6 flex items-center gap-4 text-[11px] text-slate-500 flex-wrap">
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(96,165,250,0.30)' }} /> &lt;30%</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(250,204,21,0.45)' }} /> 30–60%</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(251,146,60,0.55)' }} /> 60–85%</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(248,113,113,0.65)' }} /> 85–100%</span>
+            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ backgroundColor: 'rgba(220,38,38,0.80)' }} /> 정원 초과</span>
           </div>
         </section>
 
@@ -1274,6 +1303,13 @@ function ZoneDonut({ data }: { data: { id: string; name: string; color: string; 
       </div>
     </div>
   );
+}
+
+function formatTimeMs(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 function categoryLabel(cat: string): string {
