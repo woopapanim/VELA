@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import {
@@ -991,19 +991,38 @@ export function FullReport({ onClose }: { onClose: () => void }) {
         </section>
 
         {/* ===== Section 7 — Key Insight ===== */}
-        <section className="px-14 py-14 border-t border-slate-200">
-          <div className="rounded-2xl p-10 border border-blue-200 bg-blue-50">
-            <p className="text-[10px] uppercase tracking-[0.24em] text-blue-600 font-semibold mb-4">Key Insight</p>
-            <h2 className="text-3xl font-bold leading-tight mb-5 text-slate-900">
-              "사람 분산이 아니라 체험 분산이 해답입니다."
-            </h2>
-            <p className="text-sm leading-relaxed text-slate-700 max-w-2xl">
-              본 시뮬레이션은 단순 관람객 수용 능력을 넘어, 각 존과 콘텐츠가 얼마나 균형 있게 활용되는지를 측정합니다.
-              피크 <b className="text-slate-900">{Math.round(data.peakUtilRatio * 100)}%</b> · 미디어 활성률 <b className="text-slate-900">{media.length > 0 ? Math.round((data.mediaEngagedCount / media.length) * 100) : 0}%</b> · Skip <b className="text-slate-900">{Math.round(data.globalSkipRate * 100)}%</b>의 지표가 말해주는 것은,
-              공간의 문제는 <b className="text-blue-600">정원 초과가 아니라 콘텐츠 편중</b>이라는 점입니다.
-            </p>
-          </div>
-        </section>
+        {(() => {
+          const verdict = deriveVerdict({
+            peakUtilRatio: data.peakUtilRatio,
+            peakZoneName: data.peakZoneName,
+            globalSkipRate: data.globalSkipRate,
+            p90Fatigue: data.p90Fatigue,
+            completionRate: data.completionRate,
+            bottleneckCount: data.bottleneckCount,
+            groupInducedBottlenecks: data.groupInducedBottlenecks,
+            mediaActivationRate: media.length > 0 ? data.mediaEngagedCount / media.length : 0,
+            totalVisitors: data.totalVisitors,
+            exitedVisitors: data.exitedVisitors,
+          });
+          const palette = verdict.tone === 'critical'
+            ? { border: 'border-red-200', bg: 'bg-red-50', label: 'text-red-600' }
+            : verdict.tone === 'warning'
+            ? { border: 'border-amber-200', bg: 'bg-amber-50', label: 'text-amber-600' }
+            : { border: 'border-emerald-200', bg: 'bg-emerald-50', label: 'text-emerald-700' };
+          return (
+            <section className="px-14 py-14 border-t border-slate-200">
+              <div className={`rounded-2xl p-10 border ${palette.border} ${palette.bg}`}>
+                <p className={`text-[10px] uppercase tracking-[0.24em] ${palette.label} font-semibold mb-4`}>Key Verdict</p>
+                <h2 className="text-3xl font-bold leading-tight mb-5 text-slate-900">
+                  {verdict.headline}
+                </h2>
+                <p className="text-sm leading-relaxed text-slate-700 max-w-2xl">
+                  {verdict.body}
+                </p>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* ===== Appendix ===== */}
         <section className="px-14 py-10 border-t border-slate-200">
@@ -1328,6 +1347,120 @@ function categoryLabel(cat: string): string {
     content_mix: '콘텐츠 믹스', group_impact: '그룹 동선 분리', content_fatigue: '체험 피로 완화',
   };
   return map[cat] ?? cat;
+}
+
+interface VerdictInput {
+  peakUtilRatio: number;
+  peakZoneName: string;
+  globalSkipRate: number;
+  p90Fatigue: number;
+  completionRate: number;
+  bottleneckCount: number;
+  groupInducedBottlenecks: number;
+  mediaActivationRate: number;
+  totalVisitors: number;
+  exitedVisitors: number;
+}
+
+interface Verdict {
+  tone: 'critical' | 'warning' | 'healthy';
+  headline: string;
+  body: ReactNode;
+}
+
+function deriveVerdict(d: VerdictInput): Verdict {
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  // Pick the most pressing signal. Order matters — first match wins.
+  if (d.peakUtilRatio > 1) {
+    return {
+      tone: 'critical',
+      headline: `"${d.peakZoneName}이(가) 정원의 ${pct(d.peakUtilRatio)}까지 차올랐습니다."`,
+      body: (
+        <>
+          최대 혼잡도 <b className="text-slate-900">{pct(d.peakUtilRatio)}</b>는 설계 정원을 초과한 상태로,
+          물리적 안전 한계를 넘어선 구간이 발생했음을 뜻합니다. 동시 수용량을 늘리거나 진입 페이스를 분산하는 처방이 즉시 필요합니다.
+        </>
+      ),
+    };
+  }
+
+  if (d.bottleneckCount > 0 && d.groupInducedBottlenecks > 0 && d.groupInducedBottlenecks / d.bottleneckCount >= 0.5) {
+    return {
+      tone: 'warning',
+      headline: `"병목 ${d.bottleneckCount}곳 중 ${d.groupInducedBottlenecks}곳이 그룹 동선에서 발생했습니다."`,
+      body: (
+        <>
+          그룹 유발 병목 비중 <b className="text-slate-900">{pct(d.groupInducedBottlenecks / d.bottleneckCount)}</b>은
+          단체 입장과 개인 동선이 같은 게이트를 공유할 때 나타나는 신호입니다. 그룹 진입 시간대 분리 또는 별도 진출입 경로 검토가 효과적입니다.
+        </>
+      ),
+    };
+  }
+
+  if (d.globalSkipRate > 0.4) {
+    return {
+      tone: 'warning',
+      headline: `"관람객 ${pct(d.globalSkipRate)}가 콘텐츠를 건너뛰었습니다."`,
+      body: (
+        <>
+          Skip 비율 <b className="text-slate-900">{pct(d.globalSkipRate)}</b>는 콘텐츠가 노출은 되었지만 관람으로 이어지지 못했음을 의미합니다.
+          동선 상의 노출 순서, 미디어 길이, 그리고 진입 직전 피로도가 주된 원인입니다.
+        </>
+      ),
+    };
+  }
+
+  if (d.p90Fatigue > 0.7) {
+    return {
+      tone: 'warning',
+      headline: `"상위 10% 관람객 피로도가 ${pct(d.p90Fatigue)}에 이르렀습니다."`,
+      body: (
+        <>
+          P90 피로도 <b className="text-slate-900">{pct(d.p90Fatigue)}</b>는 동선 후반부에서 체험 품질이 급격히 떨어진다는 의미입니다.
+          중간 휴식 존을 의무 경유로 만들거나 무거운 콘텐츠를 동선 전반부로 재배치하는 처방이 필요합니다.
+        </>
+      ),
+    };
+  }
+
+  if (d.completionRate < 0.3 && d.exitedVisitors >= 10) {
+    return {
+      tone: 'warning',
+      headline: `"3개 이상 존을 방문한 관람객은 ${pct(d.completionRate)}에 그쳤습니다."`,
+      body: (
+        <>
+          동선 완주율 <b className="text-slate-900">{pct(d.completionRate)}</b>는 핵심 콘텐츠 도달 전 이탈이 광범위하게 발생했음을 나타냅니다.
+          초반 게이트의 분기 구조와 안내 동선의 명료성을 우선 점검하세요.
+        </>
+      ),
+    };
+  }
+
+  if (d.mediaActivationRate < 0.5) {
+    return {
+      tone: 'warning',
+      headline: `"전체 미디어의 ${pct(d.mediaActivationRate)}만 실제로 사용되었습니다."`,
+      body: (
+        <>
+          미디어 활성률 <b className="text-slate-900">{pct(d.mediaActivationRate)}</b>는 절반 이상의 콘텐츠가 동선의 사각지대에 위치했음을 의미합니다.
+          미사용 콘텐츠의 위치, 노출 각도, 진입 동선과의 거리를 재검토하세요.
+        </>
+      ),
+    };
+  }
+
+  // Healthy fallback — describe what is actually balanced rather than a generic platitude.
+  return {
+    tone: 'healthy',
+    headline: `"피크 ${pct(d.peakUtilRatio)} · 미디어 활성률 ${pct(d.mediaActivationRate)} · Skip ${pct(d.globalSkipRate)} — 균형 구간."`,
+    body: (
+      <>
+        주요 지표가 모두 임계치 안에 머물렀습니다. 현재 공간 설정과 동선 구조를 유지하되,
+        피크 시점의 병목 {d.bottleneckCount}곳을 추적해 다음 단계 최적화의 출발점으로 활용하세요.
+      </>
+    ),
+  };
 }
 
 function categoryLabelKo(cat: string): string {
