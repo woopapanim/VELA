@@ -117,12 +117,14 @@ export function renderMedia(
 
     // Border — category-colored
     const catColor = CATEGORY_BORDER_COLORS[(m as any).category] ?? null;
+    const isOmni = !!(m as any).omnidirectional;
     ctx.strokeStyle = isSelected
       ? (isDark ? '#60a5fa' : '#3b82f6')
       : catColor
-        ? (isDark ? catColor + '80' : catColor + '60')
+        ? (isDark ? catColor + (isOmni ? 'cc' : '80') : catColor + (isOmni ? 'aa' : '60'))
         : (isDark ? 'rgba(148,163,184,0.4)' : 'rgba(100,116,139,0.3)');
-    ctx.lineWidth = (isSelected ? 1.25 : catColor ? 0.75 : 0.5) * px;
+    const baseBorder = isSelected ? 1.25 : catColor ? 0.75 : 0.5;
+    ctx.lineWidth = baseBorder * (isOmni ? 3 : 1) * px;
     if (isCustom) {
       polyPath();
       ctx.stroke();
@@ -149,12 +151,15 @@ export function renderMedia(
       edgeDist = isCircle ? circleR : ph / 2; // ellipse and rect both use ph/2 for top
     }
     // Front indicator: thick colored line on the front edge (category color)
+    // Skip entirely for omnidirectional media — outline itself is bolded instead.
     const frontColor = catColor ?? (isDark ? '#60a5fa' : '#3b82f6');
     const frontLineWidth = 3 * px;
     ctx.strokeStyle = frontColor;
     ctx.lineWidth = frontLineWidth;
     ctx.lineCap = 'round';
-    if (isCustom) {
+    if (isOmni) {
+      // no front edge for 360° media
+    } else if (isCustom) {
       // Find edge whose midpoint has smallest Y (most forward)
       const poly = m.polygon!;
       let bestIdx = 0, bestMidY = Infinity;
