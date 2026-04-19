@@ -258,6 +258,9 @@ function renderCohesionLines(
 
     for (const member of members) {
       if (member === leader) continue;
+      // Skip cross-floor cohesion lines — they span the inter-floor gap on the
+      // shared canvas and look like noise during portal transitions.
+      if ((member.currentFloorId as string | null) !== (leader.currentFloorId as string | null)) continue;
       ctx.beginPath();
       ctx.moveTo(leader.position.x, leader.position.y);
       ctx.lineTo(member.position.x, member.position.y);

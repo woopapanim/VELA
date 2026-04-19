@@ -71,7 +71,7 @@ export function BuildTools() {
       y: (0) / camera.zoom + camera.y + ch / 2,
     };
 
-    const zoneW = 150, zoneH = 120;
+    const zoneW = 320, zoneH = 260;
     let x = Math.round(center.x - zoneW / 2);
     let y = Math.round(center.y - zoneH / 2);
     // 겹침 회피: 중앙에 놓을 수 없으면 주변 탐색
@@ -172,7 +172,7 @@ export function BuildTools() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Build</h2>
+      <h2 className="panel-section">Build</h2>
 
       {/* Editor Mode — hierarchical layout */}
       <div className="space-y-1">
@@ -223,7 +223,7 @@ export function BuildTools() {
       {/* Waypoint Node Placement */}
       {editorMode === 'place-waypoint' && !isSimRunning && (
         <div>
-          <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Add Node</p>
+          <p className="panel-label mb-1.5">Add Node</p>
           <div className="grid grid-cols-2 gap-1">
             {([
               { type: 'entry' as WaypointType, label: 'Entry', color: '#22c55e', descKey: 'build.node.entry.desc' },
@@ -232,6 +232,7 @@ export function BuildTools() {
               { type: 'attractor' as WaypointType, label: 'Attractor', color: '#f59e0b', descKey: 'build.node.attractor.desc' },
               { type: 'hub' as WaypointType, label: 'Hub', color: '#8b5cf6', descKey: 'build.node.hub.desc' },
               { type: 'rest' as WaypointType, label: 'Rest', color: '#9ca3af', descKey: 'build.node.rest.desc' },
+              { type: 'portal' as WaypointType, label: 'Portal', color: '#06b6d4', descKey: 'build.node.portal.desc' },
             ]).map(({ type, label, color, descKey }) => (
               <button
                 key={type}
@@ -261,7 +262,7 @@ export function BuildTools() {
       {/* Zone Creation — 미디어 배치 영역 */}
       {editorMode === 'create-zone' && !isSimRunning && (
         <div>
-          <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Add Zone</p>
+          <p className="panel-label mb-1.5">Add Zone</p>
           <div className="grid grid-cols-2 gap-1">
             {ZONE_TYPES.map(({ type, label, color }) => (
               <button
@@ -281,14 +282,14 @@ export function BuildTools() {
       {/* Media Placement — categorized */}
       {editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
         <div className="space-y-2">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+          <p className="panel-label">
             Add Media to Selected Zone
           </p>
           {MEDIA_QUICK_CATEGORIES.map(({ label, color, items }) => (
             <div key={label}>
               <div className="flex items-center gap-1 mb-1">
                 <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</span>
+                <span className="panel-label">{label}</span>
               </div>
               <div className="grid grid-cols-2 gap-1">
                 {items.map((type) => (

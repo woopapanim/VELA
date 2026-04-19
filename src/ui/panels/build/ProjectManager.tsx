@@ -105,25 +105,25 @@ export function ProjectManager() {
     const s = store.scenario;
     if (!s) return;
 
-    const updated: Scenario = {
+    const buildScenario = (name: string): Scenario => ({
       ...s,
       zones: store.zones,
       media: store.media,
       floors: store.floors,
+      shafts: store.shafts,
       waypointGraph: store.waypointGraph ?? undefined,
-      meta: { ...s.meta, updatedAt: Date.now(), version: s.meta.version + 1 },
-    };
-    setScenario(updated);
+      meta: { ...s.meta, name, updatedAt: Date.now(), version: s.meta.version + 1 },
+    });
 
-    const json = JSON.stringify(updated, null, 2);
-    const fileName = `${updated.meta.name.replace(/\s+/g, '-')}.json`;
+    const initialName = s.meta.name;
+    const suggestedFileName = `${initialName.replace(/\s+/g, '-')}.json`;
 
     // localStorage 저장 헬퍼 (파일 저장 성공 후 호출)
-    const commitToHistory = () => {
+    const commitToHistory = (scn: Scenario) => {
       const entry: ProjectEntry = {
-        id: updated.meta.id as string,
-        name: updated.meta.name,
-        scenario: updated,
+        id: scn.meta.id as string,
+        name: scn.meta.name,
+        scenario: scn,
         savedAt: Date.now(),
       };
       const existing = loadHistory();
@@ -139,18 +139,26 @@ export function ProjectManager() {
       try {
         // Reuse previous file handle if available (same file, no dialog)
         let fileHandle = _lastFileHandle;
+        let pickedNewHandle = false;
         if (!fileHandle) {
           fileHandle = await (window as any).showSaveFilePicker({
-            suggestedName: fileName,
+            suggestedName: suggestedFileName,
             types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
           });
           _lastFileHandle = fileHandle;
+          pickedNewHandle = true;
         }
+        // When user picked a new file, adopt its filename as the project name.
+        const finalName = pickedNewHandle
+          ? (fileHandle.name as string).replace(/\.json$/i, '') || initialName
+          : initialName;
+        const finalScenario = buildScenario(finalName);
+        setScenario(finalScenario);
         const writable = await fileHandle.createWritable();
-        await writable.write(json);
+        await writable.write(JSON.stringify(finalScenario, null, 2));
         await writable.close();
-        commitToHistory();
-        toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
+        commitToHistory(finalScenario);
+        toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
         return;
       } catch (err: any) {
         if (err?.name === 'AbortError') return;
@@ -158,15 +166,18 @@ export function ProjectManager() {
         _lastFileHandle = null;
         try {
           const fileHandle = await (window as any).showSaveFilePicker({
-            suggestedName: fileName,
+            suggestedName: suggestedFileName,
             types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
           });
           _lastFileHandle = fileHandle;
+          const finalName = (fileHandle.name as string).replace(/\.json$/i, '') || initialName;
+          const finalScenario = buildScenario(finalName);
+          setScenario(finalScenario);
           const writable = await fileHandle.createWritable();
-          await writable.write(json);
+          await writable.write(JSON.stringify(finalScenario, null, 2));
           await writable.close();
-          commitToHistory();
-          toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
+          commitToHistory(finalScenario);
+          toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
           return;
         } catch (e2: any) {
           if (e2?.name === 'AbortError') return;
@@ -175,15 +186,17 @@ export function ProjectManager() {
     }
 
     // ── Fallback: 다운로드 (Safari 등) ──
-    const blob = new Blob([json], { type: 'application/json' });
+    const finalScenario = buildScenario(initialName);
+    setScenario(finalScenario);
+    const blob = new Blob([JSON.stringify(finalScenario, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileName;
+    a.download = suggestedFileName;
     a.click();
     URL.revokeObjectURL(url);
-    commitToHistory();
-    toast('success', t('project.toast.saved', { name: updated.meta.name, version: updated.meta.version }));
+    commitToHistory(finalScenario);
+    toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
   }, [scenario, setScenario, toast, t]);
 
   // Open JSON file
@@ -328,7 +341,7 @@ export function ProjectManager() {
       {/* History */}
       {history.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <p className="panel-label mb-1.5 flex items-center gap-1">
             <Clock className="w-3 h-3" /> Recent
           </p>
           <div className="space-y-1 max-h-28 overflow-y-auto">

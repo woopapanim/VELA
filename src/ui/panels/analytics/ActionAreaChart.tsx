@@ -39,9 +39,13 @@ export function ActionAreaChart() {
       Math.round(e.snapshot.fatigueDistribution.p90 * 100),
     );
 
-    const bottleneckZones = sampled.map((e) =>
+    // Scale bottleneck count by 10 for visibility on the shared 0-120 axis
+    // (raw count is typically 0-5, which would be invisible). Tooltip shows original.
+    const BOTTLENECK_DISPLAY_SCALE = 10;
+    const bottleneckZonesRaw = sampled.map((e) =>
       e.snapshot.bottlenecks.filter((b) => b.score > 0.5).length,
     );
+    const bottleneckZones = bottleneckZonesRaw.map((n) => n * BOTTLENECK_DISPLAY_SCALE);
 
     return {
       labels,
@@ -96,6 +100,15 @@ export function ActionAreaChart() {
         borderWidth: 1,
         padding: 8,
         bodyFont: { family: "'JetBrains Mono', monospace", size: 10 },
+        callbacks: {
+          label: (ctx: any) => {
+            const raw = ctx.parsed.y;
+            if (ctx.dataset.label === 'Bottleneck Zones') {
+              return `Bottleneck Zones: ${Math.round(raw / 10)}`;
+            }
+            return `${ctx.dataset.label}: ${raw}`;
+          },
+        },
       },
     },
     scales: {
@@ -122,7 +135,7 @@ export function ActionAreaChart() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="panel-section mb-3">
         Simulation Timeline
       </h2>
       <div className="h-32">

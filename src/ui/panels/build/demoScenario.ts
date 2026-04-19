@@ -42,8 +42,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 50, y: 400 },
           width: 40,
           connectedGateId: null,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_entrance_out' as GateId,
@@ -53,8 +51,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 170, y: 400 },
           width: 40,
           connectedGateId: 'g_halla_in' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: [],
@@ -81,8 +77,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 200, y: 275 },
           width: 40,
           connectedGateId: 'g_entrance_out' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_halla_to_b' as GateId,
@@ -92,8 +86,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 500, y: 275 },
           width: 50,
           connectedGateId: 'g_hallb_from_a' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_halla_to_interactive' as GateId,
@@ -103,8 +95,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 350, y: 400 },
           width: 40,
           connectedGateId: 'g_interactive_from_a' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: ['m_led1' as MediaId, 'm_info1' as MediaId, 'm_product1' as MediaId],
@@ -131,8 +121,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 530, y: 275 },
           width: 50,
           connectedGateId: 'g_halla_to_b' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_hallb_to_stage' as GateId,
@@ -142,8 +130,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 810, y: 275 },
           width: 40,
           connectedGateId: 'g_stage_from_b' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: ['m_vr1' as MediaId, 'm_kiosk1' as MediaId],
@@ -170,8 +156,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 350, y: 430 },
           width: 40,
           connectedGateId: 'g_halla_to_interactive' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_interactive_to_rest' as GateId,
@@ -181,8 +165,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 530, y: 530 },
           width: 40,
           connectedGateId: 'g_rest_from_interactive' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: ['m_ar1' as MediaId, 'm_table1' as MediaId],
@@ -209,8 +191,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 840, y: 300 },
           width: 40,
           connectedGateId: 'g_hallb_to_stage' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_stage_to_exit' as GateId,
@@ -220,8 +200,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 965, y: 450 },
           width: 40,
           connectedGateId: 'g_exit_from_stage' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: ['m_podium1' as MediaId],
@@ -248,8 +226,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 560, y: 555 },
           width: 40,
           connectedGateId: 'g_interactive_to_rest' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_rest_to_exit' as GateId,
@@ -259,8 +235,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 760, y: 555 },
           width: 40,
           connectedGateId: 'g_exit_from_rest' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: ['m_seating1' as MediaId],
@@ -287,8 +261,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 900, y: 530 },
           width: 40,
           connectedGateId: 'g_stage_to_exit' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
         {
           id: 'g_exit_from_rest' as GateId,
@@ -298,8 +270,6 @@ export function createDemoScenario(): Scenario {
           position: { x: 900, y: 600 },
           width: 40,
           connectedGateId: 'g_rest_to_exit' as GateId,
-          targetFloorId: null,
-          targetGateId: null,
         },
       ],
       mediaIds: [],
@@ -321,29 +291,14 @@ export function createDemoScenario(): Scenario {
     metadata: {},
   };
 
-  // Add portal gate to 1F Stage (connects to 2F Lobby)
-  const stageZone = zones.find((z) => (z.id as string) === 'z_stage');
-  if (stageZone) {
-    (stageZone.gates as any).push({
-      id: 'g_stage_portal_up' as GateId,
-      zoneId: 'z_stage' as ZoneId,
-      floorId,
-      type: 'portal',
-      position: { x: 1000, y: 200 },
-      width: 30,
-      connectedGateId: null,
-      targetFloorId: floor2Id,
-      targetGateId: 'g_2f_lobby_portal_down' as GateId,
-    });
-  }
+  // (Cross-floor transit is handled by ElevatorShaft — add via UI after loading the scenario.)
 
   const zones2F: ZoneConfig[] = [
     {
       id: 'z_2f_lobby' as ZoneId, name: '2F Lobby', type: 'exhibition', shape: 'rect',
       bounds: { x: 200, y: 300, w: 200, h: 200 }, polygon: null, area: 100, capacity: 40, flowType: 'free',
       gates: [
-        { id: 'g_2f_lobby_portal_down' as GateId, zoneId: 'z_2f_lobby' as ZoneId, floorId: floor2Id, type: 'portal', position: { x: 200, y: 400 }, width: 30, connectedGateId: null, targetFloorId: floorId, targetGateId: 'g_stage_portal_up' as GateId },
-        { id: 'g_2f_lobby_to_premium' as GateId, zoneId: 'z_2f_lobby' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 400, y: 400 }, width: 40, connectedGateId: 'g_2f_premium_from_lobby' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_2f_lobby_to_premium' as GateId, zoneId: 'z_2f_lobby' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 400, y: 400 }, width: 40, connectedGateId: 'g_2f_premium_from_lobby' as GateId },
       ],
       mediaIds: ['m_2f_signage' as MediaId], color: '#06b6d4', attractiveness: 0.6, metadata: {},
     },
@@ -351,8 +306,8 @@ export function createDemoScenario(): Scenario {
       id: 'z_2f_premium' as ZoneId, name: 'Premium Gallery', type: 'exhibition', shape: 'rect',
       bounds: { x: 450, y: 200, w: 350, h: 300 }, polygon: null, area: 262, capacity: 60, flowType: 'guided',
       gates: [
-        { id: 'g_2f_premium_from_lobby' as GateId, zoneId: 'z_2f_premium' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 450, y: 350 }, width: 40, connectedGateId: 'g_2f_lobby_to_premium' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_2f_premium_to_vip' as GateId, zoneId: 'z_2f_premium' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 800, y: 350 }, width: 40, connectedGateId: 'g_2f_vip_from_premium' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_2f_premium_from_lobby' as GateId, zoneId: 'z_2f_premium' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 450, y: 350 }, width: 40, connectedGateId: 'g_2f_lobby_to_premium' as GateId },
+        { id: 'g_2f_premium_to_vip' as GateId, zoneId: 'z_2f_premium' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 800, y: 350 }, width: 40, connectedGateId: 'g_2f_vip_from_premium' as GateId },
       ],
       mediaIds: ['m_2f_showcase' as MediaId, 'm_2f_display' as MediaId], color: '#8b5cf6', attractiveness: 0.95, metadata: {},
     },
@@ -360,8 +315,8 @@ export function createDemoScenario(): Scenario {
       id: 'z_2f_vip' as ZoneId, name: 'VIP Lounge', type: 'rest', shape: 'rect',
       bounds: { x: 850, y: 250, w: 200, h: 200 }, polygon: null, area: 100, capacity: 20, flowType: 'free',
       gates: [
-        { id: 'g_2f_vip_from_premium' as GateId, zoneId: 'z_2f_vip' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 850, y: 350 }, width: 40, connectedGateId: 'g_2f_premium_to_vip' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_2f_vip_to_exit' as GateId, zoneId: 'z_2f_vip' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 950, y: 450 }, width: 40, connectedGateId: 'g_2f_exit_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_2f_vip_from_premium' as GateId, zoneId: 'z_2f_vip' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 850, y: 350 }, width: 40, connectedGateId: 'g_2f_premium_to_vip' as GateId },
+        { id: 'g_2f_vip_to_exit' as GateId, zoneId: 'z_2f_vip' as ZoneId, floorId: floor2Id, type: 'exit', position: { x: 950, y: 450 }, width: 40, connectedGateId: 'g_2f_exit_in' as GateId },
       ],
       mediaIds: ['m_2f_seating' as MediaId], color: '#f59e0b', attractiveness: 0.5, metadata: {},
     },
@@ -369,7 +324,7 @@ export function createDemoScenario(): Scenario {
       id: 'z_2f_exit' as ZoneId, name: '2F Exit', type: 'exit', shape: 'rect',
       bounds: { x: 900, y: 480, w: 150, h: 150 }, polygon: null, area: 56, capacity: 30, flowType: 'free',
       gates: [
-        { id: 'g_2f_exit_in' as GateId, zoneId: 'z_2f_exit' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 950, y: 480 }, width: 40, connectedGateId: 'g_2f_vip_to_exit' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_2f_exit_in' as GateId, zoneId: 'z_2f_exit' as ZoneId, floorId: floor2Id, type: 'entrance', position: { x: 950, y: 480 }, width: 40, connectedGateId: 'g_2f_vip_to_exit' as GateId },
       ],
       mediaIds: [], color: '#ef4444', attractiveness: 0.1, metadata: {},
     },

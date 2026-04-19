@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 import { VISITOR_ACTION } from '@/domain';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 type ZoneRow = {
   id: string;
@@ -130,9 +131,12 @@ export function ZoneMediaPerformance() {
   if (phase === 'idle' || rows.length === 0) {
     return (
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-          Zone Media Performance
-        </h2>
+        <div className="flex items-center gap-1 mb-2">
+          <h2 className="panel-section">
+            Zone Media Performance
+          </h2>
+          <InfoTooltip text={t('tooltip.experience.zoneMedia')} />
+        </div>
         <p className="text-[10px] text-muted-foreground">
           Zone-level media performance will appear once the simulation runs.
         </p>
@@ -151,9 +155,12 @@ export function ZoneMediaPerformance() {
 
   return (
     <div className="bento-box p-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-        Zone Media Performance
-      </h2>
+      <div className="flex items-center gap-1 mb-2">
+        <h2 className="panel-section">
+          Zone Media Performance
+        </h2>
+        <InfoTooltip text={t('tooltip.experience.zoneMedia')} />
+      </div>
       <div className="space-y-1.5">
         {rows.map((r) => {
           const isOpen = expanded.has(r.id);

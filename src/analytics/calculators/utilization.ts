@@ -17,12 +17,23 @@ export function calculateZoneUtilization(
   const watchingMap = new Map<string, number>();
   const waitingMap = new Map<string, number>();
 
-  for (const v of visitors) {
-    if (!v.isActive || !v.currentZoneId) continue;
-    const key = v.currentZoneId as string;
-    occupancyMap.set(key, (occupancyMap.get(key) ?? 0) + 1);
-    if (v.currentAction === 'WATCHING') watchingMap.set(key, (watchingMap.get(key) ?? 0) + 1);
-    if (v.currentAction === 'WAITING') waitingMap.set(key, (waitingMap.get(key) ?? 0) + 1);
+  // Position-based occupancy — matches ZoneRenderer canvas display.
+  // currentZoneId only updates on node arrival, so it misses in-transit agents
+  // physically inside a zone. We count by bounds instead for UI consistency.
+  for (const zone of zones) {
+    const b = zone.bounds;
+    const zid = zone.id as string;
+    for (const v of visitors) {
+      if (!v.isActive) continue;
+      if (
+        v.position.x >= b.x && v.position.x <= b.x + b.w &&
+        v.position.y >= b.y && v.position.y <= b.y + b.h
+      ) {
+        occupancyMap.set(zid, (occupancyMap.get(zid) ?? 0) + 1);
+        if (v.currentAction === 'WATCHING') watchingMap.set(zid, (watchingMap.get(zid) ?? 0) + 1);
+        if (v.currentAction === 'WAITING') waitingMap.set(zid, (waitingMap.get(zid) ?? 0) + 1);
+      }
+    }
   }
 
   return zones.map((zone) => {

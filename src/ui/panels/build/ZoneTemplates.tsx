@@ -56,8 +56,6 @@ function makeZone(
       position: { x: g.x, y: g.y },
       width: 40,
       connectedGateId: null,
-      targetFloorId: null,
-      targetGateId: null,
     })),
     mediaIds: [],
     color: ZONE_COLORS[type] ?? '#3b82f6',
@@ -168,7 +166,7 @@ export function ZoneTemplates() {
 
   return (
     <div>
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Zone Templates</p>
+      <p className="panel-label mb-1.5">Zone Templates</p>
       <div className="grid grid-cols-2 gap-1">
         {TEMPLATES.map(({ id, label, icon: Icon, descKey }) => (
           <button

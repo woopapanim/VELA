@@ -13,6 +13,7 @@ export type ComparisonId = Brand<string, 'ComparisonId'>;
 export type PinId = Brand<string, 'PinId'>;
 export type WaypointId = Brand<string, 'WaypointId'>;
 export type WaypointEdgeId = Brand<string, 'WaypointEdgeId'>;
+export type ShaftId = Brand<string, 'ShaftId'>;
 
 // ID factory helpers (zero-cost runtime, compile-time brand)
 export const ZoneId = (id: string) => id as ZoneId;
@@ -26,6 +27,7 @@ export const ComparisonId = (id: string) => id as ComparisonId;
 export const PinId = (id: string) => id as PinId;
 export const WaypointId = (id: string) => id as WaypointId;
 export const WaypointEdgeId = (id: string) => id as WaypointEdgeId;
+export const ShaftId = (id: string) => id as ShaftId;
 
 // ---- Geometric primitives ----
 export interface Vector2D {

@@ -85,7 +85,7 @@ export function AnalyticsPanel() {
     <div className="p-3 space-y-3">
       {/* ─── PERSISTENT TOP ─── */}
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+        <h2 className="panel-section mb-2 flex items-center gap-1.5">
           Summary
           <InfoTooltip text={t('tooltip.summary')} />
         </h2>
@@ -115,7 +115,7 @@ export function AnalyticsPanel() {
       </div>
 
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+        <h2 className="panel-section mb-2 flex items-center gap-1.5">
           Agent Distribution
           <InfoTooltip text={t('tooltip.agentDistribution')} />
         </h2>
@@ -180,7 +180,7 @@ export function AnalyticsPanel() {
               title={t.label}
             >
               <Icon className="w-3.5 h-3.5" />
-              <span className="text-[9px] font-medium uppercase tracking-wider">{t.label}</span>
+              <span className="text-[11px] font-medium">{t.label}</span>
             </button>
           );
         })}
@@ -218,7 +218,7 @@ export function AnalyticsPanel() {
       {tab === 'action' && (
         <div className="space-y-3">
           <div className="bento-box p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+            <h2 className="panel-section mb-2 flex items-center gap-1.5">
               Insights
               <InfoTooltip text={t('tooltip.insights')} />
             </h2>
@@ -278,7 +278,7 @@ export function AnalyticsPanel() {
           <EventLog />
           <AgentJourney />
           <div className="bento-box p-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+            <h2 className="panel-section mb-2">
               Heatmap
             </h2>
             <div className="h-2 rounded-full" style={{

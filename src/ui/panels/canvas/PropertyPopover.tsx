@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState as __useState } from 'react';
 import { Trash2, X, Plus } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, ZoneType, MediaPlacement, MediaId, Vector2D } from '@/domain';
+import type { WaypointType, WaypointNode, ZoneType, MediaPlacement, MediaId, Vector2D, FloorId, ShaftId, ElevatorShaft } from '@/domain';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
+import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { useToast } from '@/ui/components/Toast';
@@ -16,11 +17,23 @@ const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'hub', label: 'Hub' },
   { value: 'rest', label: 'Rest' },
   { value: 'bend', label: 'Bend' },
+  { value: 'portal', label: 'Portal' },
 ];
 
 const NODE_COLORS: Record<string, string> = {
-  entry: '#22c55e', exit: '#ef4444', zone: '#3b82f6', attractor: '#f59e0b', hub: '#8b5cf6', rest: '#9ca3af',
+  entry: '#22c55e', exit: '#ef4444', zone: '#3b82f6', attractor: '#f59e0b', hub: '#8b5cf6', rest: '#9ca3af', portal: '#06b6d4',
 };
+
+let _popoverShaftCounter = 1;
+function nextPopoverShaftId(existing: readonly ElevatorShaft[]): ShaftId {
+  let maxN = 0;
+  for (const sh of existing) {
+    const m = (sh.id as string).match(/^shaft_(\d+)$/);
+    if (m) maxN = Math.max(maxN, parseInt(m[1]));
+  }
+  _popoverShaftCounter = Math.max(_popoverShaftCounter, maxN + 1);
+  return `shaft_${_popoverShaftCounter++}` as ShaftId;
+}
 
 const ZONE_TYPE_OPTIONS: { value: string; label: string }[] = [
   { value: 'lobby', label: 'Lobby' },
@@ -76,8 +89,12 @@ export function PropertyPopover({ popover, onClose }: {
   const graph = useStore((s) => s.waypointGraph);
   const zones = useStore((s) => s.zones);
   const media = useStore((s) => s.media);
+  const floors = useStore((s) => s.floors);
   const updateWaypoint = useStore((s) => s.updateWaypoint);
   const removeWaypoint = useStore((s) => s.removeWaypoint);
+  const shafts = useStore((s) => s.shafts);
+  const addShaft = useStore((s) => s.addShaft);
+  const updateShaft = useStore((s) => s.updateShaft);
   const updateEdge = useStore((s) => s.updateEdge);
   const removeEdge = useStore((s) => s.removeEdge);
   const updateZone = useStore((s) => s.updateZone);
@@ -132,18 +149,39 @@ export function PropertyPopover({ popover, onClose }: {
     const node = graph.nodes.find(n => (n.id as string) === popover.targetId);
     if (!node) return null;
 
+    // Legacy migration: nodes saved with type='elevator' rewrite to 'portal'.
+    const effectiveType: WaypointType = ((node.type as string) === 'elevator' ? 'portal' : node.type) as WaypointType;
+    if ((node.type as string) === 'elevator') {
+      queueMicrotask(() => updateWaypoint(popover.targetId!, { type: 'portal' }));
+    }
+
+    const isPortal = effectiveType === 'portal';
+    const currentShaftId = (node.shaftId as string | null | undefined) ?? null;
+    const currentShaft = shafts.find(sh => (sh.id as string) === currentShaftId);
+
+    // Which floors does each shaft serve? Derived from the set of portals pointing at it.
+    const shaftFloorsLabel = (sh: ElevatorShaft) => {
+      const fids = getShaftFloorIds(sh.id, graph);
+      if (!fids.length) return '—';
+      const names = fids
+        .map(fid => floors.find(f => (f.id as string) === (fid as string))?.name)
+        .filter((n): n is string => !!n);
+      return names.length ? names.join('+') : `${fids.length}F`;
+    };
+
     return (
-      <div ref={ref} className="fixed z-50 w-56 glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
+      <div ref={ref} className="fixed z-50 w-56 max-h-[80vh] overflow-y-auto overscroll-contain glass rounded-xl border border-border shadow-2xl p-3 space-y-2"
         style={popoverStyle()}
         onContextMenu={e => e.preventDefault()}
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
+        onWheel={e => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS[node.type] ?? '#888' }} />
-            <span className="text-[11px] font-medium">{node.type.toUpperCase()}</span>
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLORS[effectiveType] ?? '#888' }} />
+            <span className="text-[11px] font-medium">{effectiveType.toUpperCase()}</span>
           </div>
           <div className="flex gap-1">
             <button onClick={() => { removeWaypoint(popover.targetId!); selectWaypoint(null); onClose(); }}
@@ -154,7 +192,19 @@ export function PropertyPopover({ popover, onClose }: {
 
         {/* Type */}
         <Row label="Type">
-          <select value={node.type} onChange={e => updateWaypoint(popover.targetId!, { type: e.target.value as WaypointType })}
+          <select value={effectiveType} onChange={e => {
+            const newType = e.target.value as WaypointType;
+            const patch: Partial<WaypointNode> = { type: newType };
+            // If the label is still the auto-generated "<Type> <n>" form, re-generate it
+            // for the new type so the displayed name doesn't lie.
+            const autoPattern = /^(Entry|Exit|Zone|Attractor|Hub|Rest|Bend|Portal)\s+\d+$/;
+            if (autoPattern.test(node.label ?? '')) {
+              const sameTypeCount = graph!.nodes.filter(n => n.type === newType && (n.id as string) !== (node.id as string)).length;
+              const typeLabel = newType.charAt(0).toUpperCase() + newType.slice(1);
+              patch.label = `${typeLabel} ${sameTypeCount + 1}`;
+            }
+            updateWaypoint(popover.targetId!, patch);
+          }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             {NODE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -167,22 +217,31 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
         </Row>
 
-        {/* Attraction */}
-        <Row label={`Attr ${node.attraction.toFixed(2)}`}>
-          <input type="range" min={0} max={1} step={0.05} value={node.attraction}
-            onChange={e => updateWaypoint(popover.targetId!, { attraction: parseFloat(e.target.value) })}
-            className="flex-1" />
-        </Row>
+        {/* Non-portal: Attr, Cap, Dwell */}
+        {!isPortal && (
+          <>
+            <Row label={`Attr ${node.attraction.toFixed(2)}`}>
+              <input type="range" min={0} max={1} step={0.05} value={node.attraction}
+                onChange={e => updateWaypoint(popover.targetId!, { attraction: parseFloat(e.target.value) })}
+                className="flex-1" />
+            </Row>
 
-        {/* Capacity */}
-        <Row label="Cap">
-          <input type="number" min={1} max={500} value={node.capacity}
-            onChange={e => updateWaypoint(popover.targetId!, { capacity: parseInt(e.target.value) || 1 })}
-            className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
-        </Row>
+            <Row label="Cap">
+              <input type="number" min={1} max={500} value={node.capacity}
+                onChange={e => updateWaypoint(popover.targetId!, { capacity: parseInt(e.target.value) || 1 })}
+                className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+            </Row>
+
+            <Row label={`Dwell ${(node.dwellTimeMs/1000).toFixed(0)}s`}>
+              <input type="range" min={0} max={120000} step={1000} value={node.dwellTimeMs}
+                onChange={e => updateWaypoint(popover.targetId!, { dwellTimeMs: parseInt(e.target.value) })}
+                className="flex-1" />
+            </Row>
+          </>
+        )}
 
         {/* Spawn Weight (ENTRY) */}
-        {node.type === 'entry' && (
+        {effectiveType === 'entry' && (
           <Row label={`Weight ${node.spawnWeight.toFixed(1)}`}>
             <input type="range" min={0} max={5} step={0.1} value={node.spawnWeight}
               onChange={e => updateWaypoint(popover.targetId!, { spawnWeight: parseFloat(e.target.value) })}
@@ -190,12 +249,80 @@ export function PropertyPopover({ popover, onClose }: {
           </Row>
         )}
 
-        {/* Dwell */}
-        <Row label={`Dwell ${(node.dwellTimeMs/1000).toFixed(0)}s`}>
-          <input type="range" min={0} max={120000} step={1000} value={node.dwellTimeMs}
-            onChange={e => updateWaypoint(popover.targetId!, { dwellTimeMs: parseInt(e.target.value) })}
-            className="flex-1" />
-        </Row>
+        {/* Portal: Shaft selector + shaft params */}
+        {isPortal && (
+          <>
+            <Row label="Shaft">
+              <select
+                value={currentShaftId ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '__new__') {
+                    // Reuse an existing orphan shaft (no portal members) before minting a new one
+                    // so repeatedly clicking "+ New shaft" doesn't accumulate empties.
+                    const graph = useStore.getState().waypointGraph;
+                    const usedShaftIds = new Set(
+                      (graph?.nodes ?? [])
+                        .filter((n) => n.type === 'portal' && n.shaftId)
+                        .map((n) => n.shaftId as string),
+                    );
+                    const orphan = shafts.find((sh) => !usedShaftIds.has(sh.id as string));
+                    if (orphan) {
+                      updateWaypoint(popover.targetId!, { shaftId: orphan.id });
+                      return;
+                    }
+                    const id = nextPopoverShaftId(shafts);
+                    addShaft({
+                      id,
+                      name: `Shaft ${(id as string).replace('shaft_', '')}`,
+                      capacity: 8,
+                      waitTimeMs: 5000,
+                      travelTimePerFloorMs: 3000,
+                    });
+                    updateWaypoint(popover.targetId!, { shaftId: id });
+                    return;
+                  }
+                  updateWaypoint(popover.targetId!, { shaftId: (val || null) as any });
+                }}
+                className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
+                <option value="">— None —</option>
+                {shafts.map(sh => (
+                  <option key={sh.id as string} value={sh.id as string}>
+                    {sh.name} · {shaftFloorsLabel(sh)}
+                  </option>
+                ))}
+                <option value="__new__">+ New shaft</option>
+              </select>
+            </Row>
+            {currentShaft && (
+              <>
+                <Row label="Name">
+                  <input type="text" value={currentShaft.name}
+                    onChange={(e) => updateShaft(currentShaft.id as string, { name: e.target.value })}
+                    className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
+                </Row>
+                <Row label={`Cap ${currentShaft.capacity}`}>
+                  <input type="range" min={1} max={30} step={1} value={currentShaft.capacity}
+                    onChange={(e) => updateShaft(currentShaft.id as string, { capacity: parseInt(e.target.value) })}
+                    className="flex-1" />
+                </Row>
+                <Row label={`Wait ${(currentShaft.waitTimeMs/1000).toFixed(0)}s`}>
+                  <input type="range" min={0} max={30000} step={1000} value={currentShaft.waitTimeMs}
+                    onChange={(e) => updateShaft(currentShaft.id as string, { waitTimeMs: parseInt(e.target.value) })}
+                    className="flex-1" />
+                </Row>
+                <Row label={`Travel ${(currentShaft.travelTimePerFloorMs/1000).toFixed(0)}s/F`}>
+                  <input type="range" min={500} max={15000} step={500} value={currentShaft.travelTimePerFloorMs}
+                    onChange={(e) => updateShaft(currentShaft.id as string, { travelTimePerFloorMs: parseInt(e.target.value) })}
+                    className="flex-1" />
+                </Row>
+              </>
+            )}
+            {!currentShaft && (
+              <div className="text-[8px] text-amber-500">⚠ Assign a shaft to enable teleport.</div>
+            )}
+          </>
+        )}
 
         <div className="text-[8px] text-muted-foreground">
           ({Math.round(node.position.x)}, {Math.round(node.position.y)})
@@ -452,19 +579,17 @@ export function PropertyPopover({ popover, onClose }: {
           </select>
         </Row>
 
-        {/* Omnidirectional (analog only) */}
-        {interactionType === 'analog' && (
-          <Row label="Omni">
-            <button
-              onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
-              className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
-                (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
-              }`}
-            >
-              {(m as any).omnidirectional ? '360°' : 'Front'}
-            </button>
-          </Row>
-        )}
+        {/* Omnidirectional */}
+        <Row label="Omni">
+          <button
+            onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
+            className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
+              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {(m as any).omnidirectional ? '360°' : 'Front'}
+          </button>
+        </Row>
 
         {/* Stage Interval (staged only) */}
         {interactionType === 'staged' && (
@@ -677,7 +802,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
             <div key={key}>
               <div className="flex items-center gap-1 mb-0.5">
                 <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="text-[8px] text-muted-foreground uppercase tracking-wider">{label}</span>
+                <span className="panel-label">{label}</span>
               </div>
               <div className="grid grid-cols-2 gap-0.5">
                 {items.map(type => (

@@ -51,6 +51,7 @@ export const ko: Dict = {
   'build.node.attractor.desc': '고인력 타겟',
   'build.node.hub.desc': '교차로/분기점',
   'build.node.rest.desc': '휴게/버퍼',
+  'build.node.portal.desc': '층/동 간 이동 허브 (shaft로 그룹화)',
 
   // Build — hints
   'build.hint.placeNode': '캔버스 클릭하여 노드 배치',
@@ -277,4 +278,34 @@ export const ko: Dict = {
   // Visitor config — skip threshold
   'tooltip.skipFormula':
     '방문객이 대기 중인 미디어를 포기하고 다른 목적지로 이동하는 조건을 정의합니다. 실제 대기 시간이 Patience × Attractiveness × Skip Multiplier × Max Wait를 초과하면 방문객이 해당 미디어를 건너뛰고 이동합니다. 값이 클수록 방문객의 대기 인내 한도가 커지고, 값이 작을수록 더 일찍 포기합니다.',
+
+  // Zone editor — capacity semantics
+  'tooltip.zone.capacity':
+    '존 전체가 수용 가능한 공간적 인원수입니다. 면적과 국제 밀도 기준(2.5 m²/인)으로 자동 계산되며, 이 값을 초과하면 해당 존으로 향하는 경로가 감점되어 방문객이 덜 몰립니다.',
+
+  // Node (waypoint) inspector — field tooltips
+  'tooltip.node.attraction':
+    '경로 선택 Score 공식의 가중치입니다(0~1). 값이 높을수록 이 노드로 더 많은 방문객이 유입되며, attractor/rest 같은 거점의 인기도를 조절할 때 사용합니다.',
+  'tooltip.node.dwell':
+    '이 노드에서 최초 방문 시 머무르는 시간입니다. rest/attractor 타입에만 적용되며, 동선 상의 잠깐 쉬어가는 지점이나 대표 전시물의 체류 시간을 조절합니다.',
+  'tooltip.node.capacity':
+    'POI 혼잡도 한도입니다(이 한 지점에 동시에 몰리는 방문객 수 기준). 존의 공간 수용량과 달리 Score 공식의 군집 페널티 계산에 쓰이며, 작을수록 이 노드가 빨리 "혼잡" 판정을 받아 다른 후보로 분산됩니다.',
+  'tooltip.node.spawnWeight':
+    '여러 Entry 노드 중 이 지점에서 방문객이 스폰될 확률 가중치입니다. 값이 클수록 전체 인구가 이 입구에서 더 많이 나타납니다.',
+
+  // Experience tab — panel tooltips
+  'tooltip.experience.timeSpent':
+    '방문객이 전시관에 머문 시간(입장부터 퇴장까지, 분 단위)의 분포를 보여줍니다. 초록 막대는 이미 퇴장한 방문객의 최종 체류 시간이고, 파란 막대는 아직 관내에 있는 방문객의 현재까지 경과 시간입니다. 막대 구간 너비는 관측된 최장 체류 시간에 맞춰 자동으로 조정됩니다.',
+  'tooltip.experience.quality':
+    '현재 관내 방문객의 체험 품질을 나타냅니다. Depth는 한 명이 관람한 미디어 수를 0개/1–2개/3–5개/6개 이상으로 분포 표시하고, Avg Fatigue는 평균 피로도(60% 초과 빨강, 40% 초과 주황)를, High Fatigue는 피로도 70%를 넘는 방문객 비율을 보여줍니다. 피로도가 높으면 과잉 자극이나 과도한 체류를 의심해야 합니다.',
+  'tooltip.experience.zoneMedia':
+    '존별 미디어 성과 패널입니다. 각 행은 해당 존에 속한 미디어들의 집계치(관람 수 w, 스킵률 %, 평균 관람 시간, 피크 관람 인원/총 수용량)를 보여줍니다. 행을 펼치면 개별 미디어 단위로 확인할 수 있고, 오른쪽에는 실시간 상태 표시(● 관람 중, ↻ 대기 중)가 나타납니다.',
+  'tooltip.experience.flowVsExperience':
+    '존별로 관람 밀도와 체험 깊이의 균형을 보여줍니다. Pop은 현재 체류 인원, Depth는 평균 관람 미디어 수(관람/전체) — 0.5 미만이면 빨간색 경고, Fatigue는 해당 존 방문객의 평균 피로도입니다. 방문객이 관람 없이 통과하는 경우 ⟿ 아이콘으로 rush-through 존을 표시합니다.',
+
+  // Experience tab — Time Spent chart labels
+  'experience.timeSpent.title': '체류 시간 분포',
+  'experience.timeSpent.exited': '퇴장',
+  'experience.timeSpent.ongoing': '체류 중',
+  'experience.timeSpent.avg': '평균',
 };

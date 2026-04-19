@@ -142,7 +142,7 @@ export function TrendChart() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="panel-section mb-3">
         Trend
       </h2>
       <div className="h-36">

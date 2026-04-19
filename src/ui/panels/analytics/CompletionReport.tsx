@@ -32,7 +32,7 @@ export function CompletionReport() {
 
     const totalTime = timeState.elapsed;
     const avgDwell = exited.length > 0
-      ? exited.reduce((s, v) => s + (totalTime - v.enteredAt), 0) / exited.length
+      ? exited.reduce((s, v) => s + ((v.exitedAt ?? totalTime) - v.enteredAt), 0) / exited.length
       : 0;
 
     const summary: ReportSummary = {
@@ -177,7 +177,7 @@ export function CompletionReport() {
   if (!report) {
     return (
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2">
+        <h2 className="panel-section flex items-center gap-1.5 mb-2">
           <FileText className="w-3.5 h-3.5" /> Report
         </h2>
         <p className="text-[10px] text-muted-foreground">
@@ -194,7 +194,7 @@ export function CompletionReport() {
 
   return (
     <div className="bento-box p-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
+      <h2 className="panel-section flex items-center gap-1.5 mb-3">
         <FileText className="w-3.5 h-3.5" /> Report
       </h2>
 
@@ -225,7 +225,7 @@ export function CompletionReport() {
       </div>
 
       {/* Space Comfort */}
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1.5">Space Comfort</p>
+      <p className="panel-label mb-1.5">Space Comfort</p>
       <div className="space-y-1 mb-3">
         {spaceAnalysis.map((sa) => {
           const style = GRADE_STYLE[sa.comfortGrade];
@@ -253,7 +253,7 @@ export function CompletionReport() {
       {/* Key Findings */}
       {insights.length > 0 && (
         <>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1.5">
+          <p className="panel-label mb-1.5">
             Key Findings ({insights.length})
           </p>
           <div className="space-y-1">

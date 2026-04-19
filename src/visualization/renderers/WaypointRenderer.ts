@@ -1,4 +1,5 @@
 import type { WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
+import type { ShaftQueueSnapshot } from '@/stores';
 
 const NODE_RADIUS = 10;
 const NODE_RADIUS_SELECTED = 14;
@@ -12,8 +13,9 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
   zone:      { fill: '#3b82f6', stroke: '#2563eb', label: 'Z' },    // 파랑
   attractor: { fill: '#f59e0b', stroke: '#d97706', label: 'A' },    // 노랑
   hub:       { fill: '#8b5cf6', stroke: '#7c3aed', label: 'H' },    // 보라
-  rest:      { fill: '#9ca3af', stroke: '#6b7280', label: 'R' },    // 회색
+  rest:      { fill: '#f59e0b', stroke: '#d97706', label: 'R' },    // 앰버 (rest zone 컬러와 일치)
   bend:      { fill: '#64748b', stroke: '#475569', label: '·' },    // slate (작은 점)
+  portal:    { fill: '#06b6d4', stroke: '#0891b2', label: '↕' },    // cyan (층/동 간 이동)
 };
 
 const EDGE_COLOR_DARK = 'rgba(148, 163, 184, 0.6)';  // slate-400 (dark bg)
@@ -34,7 +36,28 @@ export function renderWaypoints(
   ghostNode: { position: { x: number; y: number }; type: string } | null = null,
   zoom: number = 1,
   showLabels: boolean = true,
+  shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>,
 ) {
+  // Build a per-portal lookup { count, maxProgress } so each portal can render its
+  // own badge + progress arc regardless of which shaft it belongs to.
+  const portalStats = new Map<string, { total: number; maxProgress: number; boarding: number }>();
+  if (shaftQueues) {
+    for (const { boarding, queued } of shaftQueues.values()) {
+      for (const b of boarding) {
+        const s = portalStats.get(b.nodeId) ?? { total: 0, maxProgress: 0, boarding: 0 };
+        s.total++;
+        s.boarding++;
+        if (b.progress > s.maxProgress) s.maxProgress = b.progress;
+        portalStats.set(b.nodeId, s);
+      }
+      for (const q of queued) {
+        const s = portalStats.get(q.nodeId) ?? { total: 0, maxProgress: 0, boarding: 0 };
+        s.total++;
+        portalStats.set(q.nodeId, s);
+      }
+    }
+  }
+
   const fs = (basePx: number) => Math.max(4, basePx / Math.max(zoom, 0.3));
   // Keep strokes at constant screen-pixel width regardless of zoom
   const px = 1 / Math.max(zoom, 0.3);
@@ -100,8 +123,10 @@ export function renderWaypoints(
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = colors.fill;
     ctx.fill();
-    ctx.strokeStyle = isSelected ? '#ffffff' : colors.stroke;
-    ctx.lineWidth = (isSelected ? 2 : 1.25) * px;
+    // Unshafted portal: warning orange stroke
+    const unshaftedPortal = node.type === 'portal' && !node.shaftId;
+    ctx.strokeStyle = isSelected ? '#ffffff' : (unshaftedPortal ? '#f97316' : colors.stroke);
+    ctx.lineWidth = (isSelected ? 2 : unshaftedPortal ? 2 : 1.25) * px;
     ctx.stroke();
 
     ctx.shadowColor = 'transparent';
@@ -113,6 +138,38 @@ export function renderWaypoints(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(colors.label, x, y);
+
+    // ── Shaft queue overlay (portal only) ──
+    if (node.type === 'portal') {
+      const stats = portalStats.get(node.id as string);
+      if (stats && stats.total > 0) {
+        // Travel progress arc (only when someone is boarding)
+        if (stats.boarding > 0 && stats.maxProgress > 0) {
+          const arcR = r + 4 * px;
+          ctx.beginPath();
+          ctx.arc(x, y, arcR, -Math.PI / 2, -Math.PI / 2 + stats.maxProgress * Math.PI * 2);
+          ctx.strokeStyle = '#22d3ee'; // cyan-400
+          ctx.lineWidth = 2 * px;
+          ctx.stroke();
+        }
+        // Queue count badge (top-right)
+        const badgeR = 7 * px;
+        const bx = x + r * 0.75;
+        const by = y - r * 0.75;
+        ctx.beginPath();
+        ctx.arc(bx, by, badgeR, 0, Math.PI * 2);
+        ctx.fillStyle = '#0891b2'; // cyan-600
+        ctx.fill();
+        ctx.strokeStyle = isDark ? '#0e7490' : '#ffffff';
+        ctx.lineWidth = 1.25 * px;
+        ctx.stroke();
+        ctx.font = `bold ${fs(9)}px sans-serif`;
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(stats.total), bx, by);
+      }
+    }
 
     // Label above (hidden when labels are toggled off)
     if (showLabels && node.label) {

@@ -34,6 +34,7 @@ import type {
   WaypointNode,
   WaypointId,
   PathLogEntry,
+  ElevatorShaft,
 } from '@/domain';
 import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_INTERACTION_OFFSET } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
@@ -84,6 +85,7 @@ export interface SimulationWorld {
   globalFlowMode?: string;
   guidedUntilIndex?: number;
   waypointGraph?: WaypointGraph;
+  shafts?: readonly ElevatorShaft[];
   totalVisitors?: number;  // 누적 입장 상한 (default: Infinity)
 }
 
@@ -147,6 +149,11 @@ export class SimulationEngine {
     nextSessionMs: number;          // when next session begins
     viewersInSession: number;       // how many entered this session
   }>();
+
+  // Shaft boarding state: shaftId → { visitorId → { startMs, endMs } }.
+  // Agents past the portal capacity queue up (WATCHING without a boarding slot);
+  // a slot opens when a boarding agent teleports out.
+  private shaftBoarding = new Map<string, Map<string, { startMs: number; endMs: number }>>();
 
   constructor(world: SimulationWorld) {
     this.world = world;
@@ -221,6 +228,49 @@ export class SimulationEngine {
   getExitByNode(): ReadonlyMap<string, number> { return this._exitByNode; }
   getMediaStats(): Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }> { return this._mediaStats; }
 
+  /**
+   * Per-shaft snapshot of boarding agents + queued agents at any of the shaft's portals.
+   * Boarding = inside the elevator, counting down to teleport (has progress).
+   * Queued = waiting for a boarding slot (no progress yet).
+   */
+  getShaftQueueState(): Map<string, {
+    boarding: { visitorId: string; nodeId: string; progress: number }[];
+    queued: { visitorId: string; nodeId: string }[];
+  }> {
+    const result = new Map<string, {
+      boarding: { visitorId: string; nodeId: string; progress: number }[];
+      queued: { visitorId: string; nodeId: string }[];
+    }>();
+    const now = this.state.timeState.elapsed;
+
+    for (const shaft of this.world.shafts ?? []) {
+      result.set(shaft.id as string, { boarding: [], queued: [] });
+    }
+
+    for (const v of this.state.visitors.values()) {
+      if (!v.isActive) continue;
+      if (v.currentAction !== VISITOR_ACTION.WATCHING) continue;
+      if (!v.currentNodeId) continue;
+      const node = this.nodeMap.get(v.currentNodeId as string);
+      if (!node || node.type !== 'portal' || !node.shaftId) continue;
+
+      const shaftId = node.shaftId as string;
+      const bucket = result.get(shaftId);
+      if (!bucket) continue;
+
+      const slot = this.shaftBoarding.get(shaftId)?.get(v.id as string);
+      if (slot) {
+        const span = Math.max(1, slot.endMs - slot.startMs);
+        const progress = Math.max(0, Math.min(1, (now - slot.startMs) / span));
+        bucket.boarding.push({ visitorId: v.id as string, nodeId: v.currentNodeId as string, progress });
+      } else {
+        bucket.queued.push({ visitorId: v.id as string, nodeId: v.currentNodeId as string });
+      }
+    }
+
+    return result;
+  }
+
   private ensureMediaStats(mediaId: string) {
     if (!this._mediaStats.has(mediaId)) {
       this._mediaStats.set(mediaId, { watchCount: 0, skipCount: 0, waitCount: 0, totalWatchMs: 0, totalWaitMs: 0, peakViewers: 0 });
@@ -258,6 +308,24 @@ export class SimulationEngine {
           state.phase = 'waiting';
           state.nextSessionMs = elapsed + interval;
           state.viewersInSession = 0;
+        }
+      }
+    }
+  }
+
+  /**
+   * Drop boarding-pool entries for visitors no longer sitting at a shaft portal.
+   * Keeps capacity accounting honest even if an agent gets rerouted out of a portal
+   * without hitting the normal teleport-and-delete path.
+   */
+  private tickShaftBoardingJanitor() {
+    for (const [shaftId, pool] of this.shaftBoarding) {
+      for (const vid of Array.from(pool.keys())) {
+        const v = this.state.visitors.get(vid);
+        if (!v || !v.isActive) { pool.delete(vid); continue; }
+        const node = v.currentNodeId ? this.nodeMap.get(v.currentNodeId as string) : null;
+        if (!node || node.type !== 'portal' || (node.shaftId as string | undefined) !== shaftId) {
+          pool.delete(vid);
         }
       }
     }
@@ -328,6 +396,7 @@ export class SimulationEngine {
     const dtS = dt / 1000;
     this.spawnTick(dt);
     this.tickStaged();
+    this.tickShaftBoardingJanitor();
 
     // rebuild spatial hash + media viewer counts + node crowd for this tick
     this.spatialHash.clear();
@@ -346,8 +415,15 @@ export class SimulationEngine {
         const mid = v.targetMediaId as string;
         this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
       }
-      // Track crowd at waypoint nodes
-      if (v.currentNodeId) {
+      // Track crowd at waypoint nodes — only count agents actually staying
+      // (RESTING/WATCHING/WAITING), not those in transit to next node.
+      // Including in-transit agents would inflate crowd density and repel new arrivals
+      // even when the node is functionally empty.
+      if (v.currentNodeId && (
+        v.currentAction === VISITOR_ACTION.RESTING ||
+        v.currentAction === VISITOR_ACTION.WATCHING ||
+        v.currentAction === VISITOR_ACTION.WAITING
+      )) {
         const nid = v.currentNodeId as string;
         this.nodeCrowd.set(nid, (this.nodeCrowd.get(nid) ?? 0) + 1);
       }
@@ -680,7 +756,7 @@ export class SimulationEngine {
 
     // ── 2. Exiting: reached exit gate → deactivate ──
     if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
-      return { ...v, isActive: false };
+      return { ...v, isActive: false, exitedAt: this.state.timeState.elapsed };
     }
 
     // ── 3. Media arrival ──
@@ -1871,6 +1947,85 @@ export class SimulationEngine {
       return this.beginExitGraph(v, curNode);
     }
 
+    // 1b. ELEVATOR 노드 도착 → wait + travel 후 같은 shaft의 다른 층 노드로 텔레포트
+    if (curNode.type === 'portal' && curNode.shaftId) {
+      const shaft = this.world.shafts?.find(sh => (sh.id as string) === (curNode.shaftId as string));
+      if (shaft) {
+        // 같은 shaft에 속한 다른 floor의 엘리베이터 노드 후보
+        const members = this.waypointNav.getNodesByShaft(curNode.shaftId);
+        const candidates = members.filter(m =>
+          (m.id as string) !== (curNode.id as string) &&
+          (m.floorId as string) !== (curNode.floorId as string),
+        );
+        if (candidates.length > 0) {
+          // Just-teleported guard: 직전 로그가 같은 shaft의 다른 노드면 이미 도착 → 다음 노드 선택으로 진행
+          const prevLog = v.pathLog[v.pathLog.length - 2];
+          const prevNode = prevLog ? this.waypointNav.getNode(prevLog.nodeId as any) : null;
+          const justTeleported = prevNode
+            && prevNode.type === 'portal'
+            && (prevNode.shaftId as string | undefined) === (curNode.shaftId as string);
+          if (!justTeleported) {
+            // 목적지 선택: 방문 안한 포털 우선 → 여러 층 순환 이동 (3F+ 도달 가능)
+            const visitedNodeIds = new Set(v.pathLog.map(e => e.nodeId as string));
+            let dest = candidates.find(c => !visitedNodeIds.has(c.id as string)) ?? candidates[0];
+            const targetFloor = v.targetFloorId as string | null;
+            if (targetFloor) {
+              const onTarget = candidates.find(c => (c.floorId as string) === targetFloor);
+              if (onTarget) dest = onTarget;
+            }
+            const floorSpan = Math.abs(
+              (this.world.floors.find(f => (f.id as string) === (dest.floorId as string))?.level ?? 0)
+              - (this.world.floors.find(f => (f.id as string) === (curNode.floorId as string))?.level ?? 0)
+            );
+            const totalWaitMs = shaft.waitTimeMs + floorSpan * shaft.travelTimePerFloorMs;
+            const vid = v.id as string;
+            const shaftId = curNode.shaftId as string;
+            const pool = this.shaftBoarding.get(shaftId) ?? new Map<string, { startMs: number; endMs: number }>();
+            // Promote from queue to boarding if a slot is open
+            if (!pool.has(vid) && pool.size < shaft.capacity) {
+              const start = this.state.timeState.elapsed;
+              pool.set(vid, { startMs: start, endMs: start + totalWaitMs });
+              this.shaftBoarding.set(shaftId, pool);
+            }
+            const slot = pool.get(vid);
+            if (!slot || this.state.timeState.elapsed < slot.endMs) {
+              // Queued (no slot) or boarding in progress → WATCHING
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.WATCHING,
+                velocity: { x: 0, y: 0 },
+                steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+              };
+            }
+            // Slot complete → teleport and free the boarding slot for the next queued agent
+            pool.delete(vid);
+            const closedLog = this.closePathLogEntry(v.pathLog, curNode.id, this.state.timeState.elapsed);
+            const newPathLog: PathLogEntry[] = [...closedLog, {
+              nodeId: dest.id,
+              entryTime: this.state.timeState.elapsed,
+              exitTime: 0,
+              duration: 0,
+            }];
+            return {
+              ...v,
+              position: { x: dest.position.x, y: dest.position.y },
+              currentFloorId: dest.floorId,
+              // Reset to destination portal's zone (or null if portal is outside any zone).
+              // Keeping the old floor's zoneId here causes stepCollision to clamp the
+              // agent back into the previous floor's polygon on the next tick.
+              currentZoneId: (dest.zoneId as any) ?? null,
+              currentNodeId: dest.id,
+              pathLog: newPathLog,
+              velocity: { x: 0, y: 0 },
+              currentAction: VISITOR_ACTION.IDLE,
+              steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+            };
+          }
+          // justTeleported: fall through to next-node selection
+        }
+      }
+    }
+
     // 2. HUB/BEND 노드 → 체류/미디어 없이 바로 다음 노드 선택
     if (curNode.type === 'hub' || curNode.type === 'bend') {
       // 바로 step 4 (다음 노드 선택)으로
@@ -1937,7 +2092,7 @@ export class SimulationEngine {
         if (elapsed < curNode.dwellTimeMs) {
           return {
             ...v,
-            currentAction: VISITOR_ACTION.RESTING,
+            currentAction: curNode.type === 'rest' ? VISITOR_ACTION.RESTING : VISITOR_ACTION.WATCHING,
             velocity: { x: 0, y: 0 },
             steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
           };
@@ -1982,6 +2137,7 @@ export class SimulationEngine {
       currentAction: VISITOR_ACTION.EXITING,
       velocity: { x: 0, y: 0 },
       isActive: false,
+      exitedAt: this.state.timeState.elapsed,
     };
   }
 
@@ -2609,12 +2765,18 @@ export class SimulationEngine {
       }
     }
 
-    // Floor bounds — skip for EXITING agents and exit-node seekers so they reach exit
+    // Floor bounds — skip for EXITING agents and exit-node seekers so they reach exit.
+    // Shared-canvas model: clamp to floor.bounds (world-space frame) rather than
+    // floor.canvas (intrinsic size starting at 0,0), otherwise agents on non-first
+    // floors get dragged back to the origin on every tick after teleporting.
     const targetingExit = !!v.targetNodeId && this.waypointNav
       && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
     if (ENABLE_FLOOR_CLAMP && v.currentAction !== VISITOR_ACTION.EXITING && !targetingExit) {
       const floor = this.world.floors.find(f => f.id === v.currentFloorId);
-      if (floor) pos = clampToRect(pos, { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height });
+      if (floor) {
+        const frame = floor.bounds ?? { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height };
+        pos = clampToRect(pos, frame);
+      }
     }
 
     if (pos === v.position) return v;

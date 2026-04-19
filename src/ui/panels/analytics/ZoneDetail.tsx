@@ -76,7 +76,7 @@ export function ZoneDetail() {
 
       {zoneVisitors.length > 0 && (
         <div className="mb-3">
-          <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Agents in Zone</p>
+          <p className="panel-label mb-1.5">Agents in Zone</p>
           <div className="flex gap-2 text-[10px] font-data">
             {Object.entries(actionCounts).map(([action, count]) =>
               count > 0 ? (
@@ -91,7 +91,7 @@ export function ZoneDetail() {
 
       {zoneMedia.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground mb-1.5 uppercase tracking-wider">Media ({zoneMedia.length})</p>
+          <p className="panel-label mb-1.5">Media ({zoneMedia.length})</p>
           <div className="space-y-1">
             {zoneMedia.map((m) => (
               <div key={m.id as string} className="flex items-center justify-between text-[10px]">

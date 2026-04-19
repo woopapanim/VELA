@@ -4,6 +4,7 @@ import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
@@ -145,7 +146,7 @@ export function ZoneEditor() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: zone.color }} />
-          <h2 className="text-xs font-semibold">Edit Zone</h2>
+          <h2 className="panel-title">Edit Zone</h2>
         </div>
         {!isLocked && (
           <button
@@ -160,7 +161,7 @@ export function ZoneEditor() {
       <div className="space-y-2">
         <Field label="Name" value={zone.name} onChange={(v) => handleUpdate('name', v)} disabled={isLocked} />
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} />
+          <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} tooltip={t('tooltip.zone.capacity')} />
           <div>
             <Field label="Area (m²)" value={String(zone.area)} type="number" onChange={(v) => handleUpdate('area', parseFloat(v) || 0)} disabled={isLocked} />
             {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">Auto-calc (net)</button>}
@@ -168,9 +169,9 @@ export function ZoneEditor() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Type</label>
+            <label className="panel-label">Type</label>
             <select value={zone.type} onChange={(e) => handleUpdate('type', e.target.value)} disabled={isLocked}
-              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50">
+              className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
               <option value="entrance">Entrance</option>
               <option value="exhibition">Exhibition</option>
               <option value="rest">Rest</option>
@@ -179,9 +180,9 @@ export function ZoneEditor() {
             </select>
           </div>
           <div>
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Flow</label>
+            <label className="panel-label">Flow</label>
             <select value={zone.flowType} onChange={(e) => handleUpdate('flowType', e.target.value)} disabled={isLocked}
-              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50">
+              className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
               <option value="free">Free</option>
               <option value="guided">Guided</option>
               <option value="one_way">One-Way</option>
@@ -189,9 +190,9 @@ export function ZoneEditor() {
           </div>
         </div>
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Shape</label>
+          <label className="panel-label">Shape</label>
           <select value={zone.shape} onChange={(e) => handleUpdate('shape', e.target.value)} disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50">
+            className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
             <option value="rect">Rectangle</option>
             <option value="circle">Circle</option>
             <option value="l_top_left">L (Top-Left)</option>
@@ -220,7 +221,7 @@ export function ZoneEditor() {
           )}
         </div>
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+          <label className="panel-label">Attractiveness</label>
           <input type="range" min="0" max="1" step="0.05" value={zone.attractiveness}
             onChange={(e) => handleUpdate('attractiveness', parseFloat(e.target.value))} disabled={isLocked}
             className="w-full mt-0.5" />
@@ -233,7 +234,7 @@ export function ZoneEditor() {
         {/* Gateway Mode Toggle */}
         {zone.type === 'gateway' && (
           <div className="pt-2 border-t border-border">
-            <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-1">Gateway Direction</span>
+            <span className="panel-label block mb-1">Gateway Direction</span>
             <div className="flex gap-1">
               {(['spawn', 'both', 'exit'] as const).map(mode => (
                 <button
@@ -263,14 +264,17 @@ export function ZoneEditor() {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', disabled }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean;
+function Field({ label, value, onChange, type = 'text', disabled, tooltip }: {
+  label: string; value: string; onChange: (v: string) => void; type?: string; disabled?: boolean; tooltip?: string;
 }) {
   return (
     <div>
-      <label className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</label>
+      <div className="flex items-center gap-1">
+        <label className="panel-label">{label}</label>
+        {tooltip && <InfoTooltip text={tooltip} />}
+      </div>
       <input type={type} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
-        className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50" />
+        className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50" />
     </div>
   );
 }

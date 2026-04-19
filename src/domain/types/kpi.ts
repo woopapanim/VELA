@@ -1,4 +1,4 @@
-import type { ZoneId, FloorId, GateId, MediaId, GroupId, UnixMs } from './common';
+import type { ZoneId, FloorId, MediaId, GroupId, UnixMs, ShaftId } from './common';
 import type { GroupType } from './visitor';
 
 // ---- Static Insight (pre-simulation) ----
@@ -115,7 +115,7 @@ export interface KpiSnapshot {
 export interface InterFloorFlowEntry {
   readonly fromFloorId: FloorId;
   readonly toFloorId: FloorId;
-  readonly portalGateId: GateId;
+  readonly shaftId: ShaftId;
   readonly visitorCount: number;
   readonly avgTransitTimeMs: number;
 }

@@ -87,21 +87,21 @@ export function TimeSlotEditor() {
                 <input type="number" value={startMin}
                   onChange={(e) => updateSlot(i, { startTimeMs: (parseInt(e.target.value) || 0) * 60000 })}
                   disabled={isLocked}
-                  className="w-full px-1 py-0.5 text-[9px] font-data rounded bg-secondary border border-border disabled:opacity-50" />
+                  className="w-full px-1 py-0.5 text-[11px] rounded bg-secondary border border-border disabled:opacity-50" />
               </div>
               <div>
                 <label className="text-[7px] text-muted-foreground">End (m)</label>
                 <input type="number" value={endMin}
                   onChange={(e) => updateSlot(i, { endTimeMs: (parseInt(e.target.value) || 0) * 60000 })}
                   disabled={isLocked}
-                  className="w-full px-1 py-0.5 text-[9px] font-data rounded bg-secondary border border-border disabled:opacity-50" />
+                  className="w-full px-1 py-0.5 text-[11px] rounded bg-secondary border border-border disabled:opacity-50" />
               </div>
               <div>
                 <label className="text-[7px] text-muted-foreground">Rate /s</label>
                 <input type="number" step="0.5" value={slot.spawnRatePerSecond}
                   onChange={(e) => updateSlot(i, { spawnRatePerSecond: parseFloat(e.target.value) || 0 })}
                   disabled={isLocked}
-                  className="w-full px-1 py-0.5 text-[9px] font-data rounded bg-secondary border border-border disabled:opacity-50" />
+                  className="w-full px-1 py-0.5 text-[11px] rounded bg-secondary border border-border disabled:opacity-50" />
               </div>
             </div>
           </div>

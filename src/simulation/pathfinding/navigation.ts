@@ -1,7 +1,8 @@
-import type { ZoneId, GateId, FloorId, Gate, ZoneConfig, Vector2D } from '@/domain';
+import type { ZoneId, GateId, Gate, ZoneConfig, Vector2D } from '@/domain';
 import { distance } from '../utils/math';
 
-// ---- Zone Graph: adjacency via gates ----
+// ---- Zone Graph: adjacency via gates (same-floor only) ----
+// Cross-floor transit lives in the waypoint graph via ElevatorShaft, not here.
 export interface ZoneNode {
   readonly zoneId: ZoneId;
   readonly gates: readonly Gate[];
@@ -13,8 +14,6 @@ export interface ZoneEdge {
   readonly toZoneId: ZoneId;
   readonly fromGateId: GateId;
   readonly toGateId: GateId;
-  readonly isPortal: boolean; // inter-floor
-  readonly targetFloorId: FloorId | null;
   readonly cost: number;
 }
 
@@ -46,16 +45,7 @@ export class ZoneGraph {
       const edgesForZone: ZoneEdge[] = [];
 
       for (const gate of zone.gates) {
-        if (gate.type === 'portal' && gate.targetFloorId && gate.targetGateId) {
-          const targetZoneId = this.gateToZone.get(gate.targetGateId as string);
-          if (targetZoneId) {
-            edgesForZone.push({
-              fromZoneId: zone.id, toZoneId: targetZoneId,
-              fromGateId: gate.id, toGateId: gate.targetGateId,
-              isPortal: true, targetFloorId: gate.targetFloorId, cost: 50,
-            });
-          }
-        } else if (gate.connectedGateId) {
+        if (gate.connectedGateId) {
           const targetZoneId = this.gateToZone.get(gate.connectedGateId as string);
           if (targetZoneId) {
             const targetNode = this.nodes.get(targetZoneId as string);
@@ -64,7 +54,7 @@ export class ZoneGraph {
             edgesForZone.push({
               fromZoneId: zone.id, toZoneId: targetZoneId,
               fromGateId: gate.id, toGateId: gate.connectedGateId,
-              isPortal: false, targetFloorId: null, cost,
+              cost,
             });
           }
         }
@@ -78,7 +68,6 @@ export class ZoneGraph {
     // This handles bidirectional gates that only have one-way connectedGateId.
     for (const [zoneIdStr, edges] of this.edges) {
       for (const edge of edges) {
-        if (edge.isPortal) continue;
         const reverseEdges = this.edges.get(edge.toZoneId as string) ?? [];
         const hasReverse = reverseEdges.some((e) => (e.toZoneId as string) === zoneIdStr);
         if (!hasReverse) {
@@ -91,7 +80,7 @@ export class ZoneGraph {
             reverseEdges.push({
               fromZoneId: edge.toZoneId, toZoneId: zoneIdStr as any,
               fromGateId: fromGate.id, toGateId: edge.fromGateId,
-              isPortal: false, targetFloorId: null, cost: edge.cost,
+              cost: edge.cost,
             });
             this.edges.set(edge.toZoneId as string, reverseEdges);
           }

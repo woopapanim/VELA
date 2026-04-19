@@ -66,7 +66,7 @@ export function CompletionModal() {
 
           {/* Zone summary */}
           <div className="pt-3 border-t border-border">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Zone Performance</p>
+            <p className="panel-label mb-2">Zone Performance</p>
             <div className="space-y-1 max-h-32 overflow-y-auto">
               {zones.map((z) => {
                 const util = latestSnapshot?.zoneUtilizations.find((u) => u.zoneId === z.id);

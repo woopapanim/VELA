@@ -21,6 +21,7 @@ export function SimulationControls() {
   const timeState = useStore((s) => s.timeState);
   const visitors = useStore((s) => s.visitors);
   const updateSimState = useStore((s) => s.updateSimState);
+  const setShaftQueues = useStore((s) => s.setShaftQueues);
   const setPhase = useStore((s) => s.setPhase);
   const resetSim = useStore((s) => s.resetSim);
   const overlayMode = useStore((s) => s.overlayMode);
@@ -65,6 +66,7 @@ export function SimulationControls() {
       globalFlowMode: flowMode,
       guidedUntilIndex: guidedIdx,
       waypointGraph: store.waypointGraph ?? undefined,
+      shafts: store.shafts,
       totalVisitors: store.scenario.visitorDistribution.totalCount,
       categoryWeights: store.scenario.visitorDistribution.categoryWeights,
     };
@@ -98,6 +100,7 @@ export function SimulationControls() {
         eng.getSpawnByNode(),
         eng.getExitByNode(),
       );
+      setShaftQueues(eng.getShaftQueueState());
 
       // Completion detection
       if (state.phase === 'completed' || state.phase !== 'running') {

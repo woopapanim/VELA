@@ -90,29 +90,18 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const applySnapshot = (snapshot: any) => {
               if (!snapshot || !store.scenario) return;
-              // Rebuild floor zoneIds from snapshot zones
-              const snapshotZoneIds = snapshot.zones.map((z: any) => z.id);
-              const fixedFloors = store.scenario.floors.map((f: any) => ({
-                ...f,
-                zoneIds: snapshotZoneIds.filter((zid: any) =>
-                  snapshot.zones.some((z: any) => (z.id as string) === (zid as string))
-                ),
-              }));
-              // If zones were added that aren't in any floor, add them to active floor
-              const allFloorZoneIds = new Set(fixedFloors.flatMap((f: any) => f.zoneIds.map((id: any) => id as string)));
-              const activeFloor = fixedFloors.find((f: any) => (f.id as string) === store.activeFloorId);
-              if (activeFloor) {
-                for (const z of snapshot.zones) {
-                  if (!allFloorZoneIds.has(z.id as string)) {
-                    activeFloor.zoneIds = [...activeFloor.zoneIds, z.id];
-                  }
-                }
-              }
+              // Snapshot carries floors/shafts too — restore them as-is so
+              // floor↔zone and shaft↔portal links stay consistent after undo.
+              const snapFloors = snapshot.floors && snapshot.floors.length > 0
+                ? snapshot.floors
+                : store.scenario.floors;
+              const snapShafts = snapshot.shafts ?? store.scenario.shafts ?? [];
               store.setScenario({
                 ...store.scenario,
                 zones: snapshot.zones,
                 media: snapshot.media,
-                floors: fixedFloors,
+                floors: snapFloors,
+                shafts: snapShafts,
                 waypointGraph: snapshot.waypointGraph ?? undefined,
               });
             };

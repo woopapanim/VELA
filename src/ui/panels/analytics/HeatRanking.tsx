@@ -58,7 +58,7 @@ export function HeatRanking() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+      <h2 className="panel-section mb-3 flex items-center gap-1.5">
         Zone Ranking
         <InfoTooltip text={t('tooltip.zoneRanking')} />
       </h2>

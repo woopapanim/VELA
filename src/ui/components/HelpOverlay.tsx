@@ -46,7 +46,7 @@ export function HelpButton() {
               {SHORTCUTS.map(({ key, desc }) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">{desc}</span>
-                  <kbd className="px-2 py-0.5 text-[10px] font-data rounded bg-secondary border border-border">{key}</kbd>
+                  <kbd className="px-2 py-0.5 text-[11px] rounded bg-secondary border border-border">{key}</kbd>
                 </div>
               ))}
             </div>

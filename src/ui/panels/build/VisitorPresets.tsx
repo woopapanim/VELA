@@ -119,7 +119,7 @@ export function VisitorPresets() {
 
   return (
     <div>
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Quick Presets</p>
+      <p className="panel-label mb-1.5">Quick Presets</p>
       <div className="grid grid-cols-2 gap-1">
         {PRESETS.map(({ id, label, icon: Icon, desc }) => (
           <button

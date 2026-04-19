@@ -278,7 +278,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         {/* Recent Projects */}
         {history.length > 0 && (
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Recent Projects</p>
+            <p className="panel-label mb-3">Recent Projects</p>
             <div className="space-y-2">
               {history.map((entry) => (
                 <div

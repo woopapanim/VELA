@@ -1,9 +1,12 @@
 import { useMemo } from 'react';
 import { useStore } from '@/stores';
+import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 export function ExperienceQuality() {
   const visitors = useStore((s) => s.visitors);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const t = useT();
 
   const metrics = useMemo(() => {
     const active = visitors.filter((v) => v.isActive);
@@ -36,9 +39,12 @@ export function ExperienceQuality() {
   if (!metrics) {
     return (
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-          Experience Quality
-        </h2>
+        <div className="flex items-center gap-1 mb-2">
+          <h2 className="panel-section">
+            Experience Quality
+          </h2>
+          <InfoTooltip text={t('tooltip.experience.quality')} />
+        </div>
         <p className="text-[10px] text-muted-foreground">
           No active visitors.
         </p>
@@ -56,7 +62,7 @@ export function ExperienceQuality() {
 
   return (
     <div className="bento-box p-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+      <h2 className="panel-section mb-2">
         Experience Quality
       </h2>
 
