@@ -52,6 +52,7 @@ export interface MediaPreset {
   readonly queueBehavior: QueueBehavior; // none=skip if full, linear=queue, area=spread wait
   readonly groupFriendly: boolean;    // can groups engage simultaneously?
   readonly fatigueCategory: string;   // fatigue group key — same category in sequence → skip↑
+  readonly omnidirectional?: boolean; // default 360° viewing flag (analog center exhibits)
 }
 
 export type MediaInteractionType = 'passive' | 'active' | 'staged' | 'analog';

@@ -47,6 +47,7 @@ export function renderMedia(
     const watchCount = watchCounts.get(m.id as string) ?? 0;
     const queueCount = queueCounts.get(m.id as string) ?? 0;
     const isActive = (m as any).interactionType === 'active';
+    const isCustom = (m as any).shape === 'custom' && m.polygon && m.polygon.length > 2;
 
     ctx.save();
     ctx.translate(position.x, position.y);
@@ -85,7 +86,6 @@ export function renderMedia(
 
     const isCircle = (m as any).shape === 'circle';
     const isEllipse = (m as any).shape === 'ellipse';
-    const isCustom = (m as any).shape === 'custom' && m.polygon && m.polygon.length > 2;
     const circleR = Math.max(pw, ph) / 2;
     const ellipseA = pw / 2; // x-radius
     const ellipseB = ph / 2; // y-radius

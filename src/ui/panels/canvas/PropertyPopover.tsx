@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState as __useState } from 'react';
 import { Trash2, X, Plus } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, WaypointNode, ZoneType, MediaPlacement, MediaId, Vector2D, FloorId, ShaftId, ElevatorShaft } from '@/domain';
+import type { WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft } from '@/domain';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import { getShaftFloorIds } from '@/domain/shaftMembership';
-import { getZoneVertices } from '@/domain/zoneGeometry';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { useToast } from '@/ui/components/Toast';
 import { useT } from '@/i18n';
@@ -104,7 +103,6 @@ export function PropertyPopover({ popover, onClose }: {
   const selectWaypoint = useStore((s) => s.selectWaypoint);
   const selectEdge = useStore((s) => s.selectEdge);
   const selectZone = useStore((s) => s.selectZone);
-  const selectMedia = useStore((s) => (s as any).selectMedia);
   const t = useT();
 
   // Close on outside click
@@ -194,14 +192,14 @@ export function PropertyPopover({ popover, onClose }: {
         <Row label="Type">
           <select value={effectiveType} onChange={e => {
             const newType = e.target.value as WaypointType;
-            const patch: Partial<WaypointNode> = { type: newType };
+            let patch: Partial<WaypointNode> = { type: newType };
             // If the label is still the auto-generated "<Type> <n>" form, re-generate it
             // for the new type so the displayed name doesn't lie.
             const autoPattern = /^(Entry|Exit|Zone|Attractor|Hub|Rest|Bend|Portal)\s+\d+$/;
             if (autoPattern.test(node.label ?? '')) {
               const sameTypeCount = graph!.nodes.filter(n => n.type === newType && (n.id as string) !== (node.id as string)).length;
               const typeLabel = newType.charAt(0).toUpperCase() + newType.slice(1);
-              patch.label = `${typeLabel} ${sameTypeCount + 1}`;
+              patch = { ...patch, label: `${typeLabel} ${sameTypeCount + 1}` };
             }
             updateWaypoint(popover.targetId!, patch);
           }}
@@ -418,7 +416,7 @@ export function PropertyPopover({ popover, onClose }: {
         <Row label="Type">
           <select value={zone.type} onChange={e => {
             const newType = e.target.value;
-            updateZone(popover.targetId!, { type: newType as any, color: ZONE_COLORS[newType] ?? zone.color });
+            updateZone(popover.targetId!, { type: newType as any, color: (ZONE_COLORS[newType] ?? zone.color) as `#${string}` });
           }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             {ZONE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -699,6 +697,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
   const [open, setOpen] = __useState(false);
   const addMedia = useStore((s) => s.addMedia);
   const { toast } = useToast();
+  const t = useT();
 
   const handleAdd = (mediaType: string) => {
     ensurePopoverCounter();

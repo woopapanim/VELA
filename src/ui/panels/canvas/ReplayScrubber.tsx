@@ -19,7 +19,8 @@ export function ReplayScrubber() {
     if (index < 0 || index >= frameCount) return;
     const frame = replayFrames[index];
     setReplayIndex(index);
-    updateSimState(frame.visitors, frame.groups, frame.timeState, 'paused');
+    const s = useStore.getState();
+    updateSimState(frame.visitors, frame.groups, frame.timeState, 'paused', s.totalSpawned, s.totalExited, s.mediaStats, s.spawnByNode, s.exitByNode);
   }, [replayFrames, frameCount, setReplayIndex, updateSimState]);
 
   const startAutoPlay = useCallback(() => {
@@ -35,7 +36,7 @@ export function ReplayScrubber() {
       }
       const frame = store.replayFrames[next];
       store.setReplayIndex(next);
-      store.updateSimState(frame.visitors, frame.groups, frame.timeState, 'paused');
+      store.updateSimState(frame.visitors, frame.groups, frame.timeState, 'paused', store.totalSpawned, store.totalExited, store.mediaStats, store.spawnByNode, store.exitByNode);
     }, 200); // 5 fps playback
   }, []);
 

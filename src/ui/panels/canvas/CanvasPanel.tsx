@@ -993,7 +993,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       } else {
         // Nothing clicked — check background image for drag/resize
         const manager = managerRef.current;
-        if (manager && store.showBackground && store.phase !== 'running') {
+        if (manager && store.showBackground) {
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
           if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
             const bgBounds = manager.getBgImageBounds(
@@ -1045,7 +1045,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         }
         // Floor frame interior click — arms drag for the floor under the cursor.
         // Selection is handled by the click handler (so pure clicks still toggle cleanly).
-        if (store.phase !== 'running' && store.floors.length > 1) {
+        if (store.floors.length > 1) {
           const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
           if (hitFloor) {
             store.pushUndo(store.zones, store.media, store.waypointGraph);
@@ -1574,7 +1574,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       const mediaArea = zMedia.reduce((s, m) => s + m.size.width * m.size.height, 0);
       const effectiveArea = Math.max(1, newArea - mediaArea);
       const newCap = Math.max(1, Math.floor(effectiveArea / 2.5));
-      updateZone(dragZoneId.current, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap } as any);
+      updateZone(dragZoneId.current!, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap } as any);
       didDrag.current = true;
     } else if (mode === 'gate' && dragGateId.current && dragZoneId.current && zone) {
       const b = zone.bounds;

@@ -3,7 +3,7 @@ import type {
   VisitorGroup,
   VisitorCategory,
 } from '@/domain';
-import { VISITOR_ACTION, VISITOR_CATEGORY, STEERING_BEHAVIOR } from '@/domain';
+import { VISITOR_ACTION, STEERING_BEHAVIOR } from '@/domain';
 import { CATEGORY_CONFIGS } from '@/domain';
 
 /**

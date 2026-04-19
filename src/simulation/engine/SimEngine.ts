@@ -30,18 +30,19 @@ import type {
   Vector2D,
   Gate,
   GateId,
+  ZoneId,
   WaypointGraph,
   WaypointNode,
   WaypointId,
   PathLogEntry,
   ElevatorShaft,
 } from '@/domain';
-import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_INTERACTION_OFFSET } from '@/domain';
+import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
 import { resolveAgentOverlap, clampToRect, clampToPolygon, isPointInPolygon, pushOutsidePolygon } from '../collision/resolution';
-import { arrival, separation, wander, obstacleAvoidance, followLeader, groupCohesion } from '../steering/behaviors';
+import { separation, wander, obstacleAvoidance, followLeader, groupCohesion } from '../steering/behaviors';
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
 import { ZoneGraph } from '../pathfinding/navigation';
@@ -57,7 +58,6 @@ import { recordSkipEvent, recordMediaApproach, resetSkipTracking } from '@/analy
  *  기본: 모두 OFF. "walk → watch → exit" 기본 흐름 확인 후 하나씩 ON.
  *  정리 시: grep "ENABLE_" 로 모든 사용처 찾아 false 블록 제거.
  * ═══════════════════════════════════════════════════════════════════ */
-const ENABLE_ARRIVAL_DECEL      = false; // slowRadius 감속 (false = arrivalRadius 도달까지 full speed)
 const ENABLE_OBSTACLE_AVOIDANCE = false; // zone 벽 / 미디어 벽 회피력
 const ENABLE_SEPARATION         = false; // 에이전트 간 분리력 (steering)
 const ENABLE_GROUP_STEERING     = false; // followLeader / groupCohesion
@@ -585,7 +585,6 @@ export class SimulationEngine {
           if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
             const media = this.world.media.find(m => m.id === leader.targetMediaId);
             if (media) {
-              const intType = (media as any).interactionType ?? 'passive';
               // Already watching same media → keep
               if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
                 return v;
@@ -2031,8 +2030,8 @@ export class SimulationEngine {
       // 바로 step 4 (다음 노드 선택)으로
     }
 
-    // 3. 현재 노드에 zone이 있으면 미디어 체크 (HUB 제외)
-    else if (curNode.zoneId && curNode.type !== 'entry' && curNode.type !== 'hub') {
+    // 3. 현재 노드에 zone이 있으면 미디어 체크 (HUB/BEND는 위에서 처리됨)
+    else if (curNode.zoneId && curNode.type !== 'entry') {
       // ATTRACTOR: 직접 바인딩된 미디어 우선
       if (curNode.type === 'attractor' && curNode.mediaId) {
         const visited = new Set(v.visitedMediaIds.map(m => m as string));
@@ -2104,7 +2103,7 @@ export class SimulationEngine {
     // Build zone capacity map for zone overcrowding penalty
     const zoneCapacity = new Map<string, number>();
     for (const z of this.world.zones) zoneCapacity.set(z.id as string, z.capacity);
-    const nextNode = this.waypointNav.selectNextNode(v, v.currentNodeId, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity);
+    const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity);
     if (!nextNode) {
       // 막다른 길: wander
       return {
@@ -2114,7 +2113,7 @@ export class SimulationEngine {
     }
 
     // pathLog 현재 노드 종료 기록
-    const updatedPathLog = this.closePathLogEntry(v.pathLog, v.currentNodeId, this.state.timeState.elapsed);
+    const updatedPathLog = this.closePathLogEntry(v.pathLog, curNode.id, this.state.timeState.elapsed);
 
     return {
       ...v,
@@ -2671,7 +2670,25 @@ export class SimulationEngine {
     if (!ENABLE_ZONE_CLAMP) {
       // Zone 경계 체크 완전 생략 (최소 파이프라인 디버깅)
     } else if (isGraphTransit) {
-      // Skip zone wall collision entirely — agent follows edge freely between nodes
+      // Transit: agent traverses gap corridors between graph nodes.
+      // Previously skipped ALL zone walls → tunnel bug (waypoint straight-line
+      // cut through unrelated zones). Now push out of any zone on this floor
+      // that is NOT the source or destination zone, so corridors stay valid
+      // but walls of unrelated zones block passage.
+      const srcNode = v.currentNodeId ? this.waypointNav?.getNode(v.currentNodeId) : null;
+      const dstNode = v.targetNodeId ? this.waypointNav?.getNode(v.targetNodeId) : null;
+      const srcZoneId = (srcNode?.zoneId as string | null) ?? null;
+      const dstZoneId = (dstNode?.zoneId as string | null) ?? null;
+      for (const zone of this.world.zones) {
+        if (zone.floorId !== v.currentFloorId) continue;
+        const zid = zone.id as string;
+        if (zid === srcZoneId || zid === dstZoneId) continue;
+        const poly = getZonePolygon(zone);
+        if (isPointInPolygon(pos, poly)) {
+          const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+          pos = pushOutsidePolygon(pos, poly, center);
+        }
+      }
     } else if (isGraphAgent && v.currentZoneId) {
       // Graph agent at rest — clamp to current zone
       const zone = this.zoneMap.get(v.currentZoneId as string);

@@ -6,7 +6,7 @@ import type { WaypointGraph } from './types/waypoint';
 export const REGION_PADDING = 40;
 export const REGION_GAP = 200;
 
-export interface Rect {
+interface Rect {
   x: number;
   y: number;
   w: number;

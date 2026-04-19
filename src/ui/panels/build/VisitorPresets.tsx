@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
 import { Zap, Clock, Crown, Users, MapPin } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { VisitorCategory } from '@/domain';
+import type { VisitorCategory, VisitorProfileType, EngagementLevel } from '@/domain';
 
 interface PresetConfig {
   spawnRatePerSecond: number;
-  profileWeights: Record<string, number>;
-  engagementWeights: Record<string, number>;
+  profileWeights: Record<VisitorProfileType, number>;
+  engagementWeights: Record<EngagementLevel, number>;
   groupRatio: number;
   categoryWeights: Record<VisitorCategory, number>;
 }

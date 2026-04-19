@@ -41,15 +41,15 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
 
   // ── JSON 파싱 공통 ──
   const loadScenarioFromText = useCallback((text: string, fileName?: string) => {
-    const data = JSON.parse(text) as Scenario;
-    if (!data.meta || !data.zones || !data.simulationConfig) {
+    const parsed = JSON.parse(text) as Scenario;
+    if (!parsed.meta || !parsed.zones || !parsed.simulationConfig) {
       setOpenError(t('welcome.error.invalidFile'));
       return;
     }
     // 파일명으로 프로젝트 이름 설정
-    if (fileName) {
-      data.meta = { ...data.meta, name: fileName.replace(/\.json$/i, '') };
-    }
+    const data: Scenario = fileName
+      ? { ...parsed, meta: { ...parsed.meta, name: fileName.replace(/\.json$/i, '') } }
+      : parsed;
     setScenario(data);
     // Recent에 추가
     try {
@@ -79,7 +79,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       },
       floors: [{
         id: 'floor_1f' as any, name: '1F', level: 0,
-        canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025 },
+        canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
         zoneIds: [], metadata: {},
       }],
       zones: [],

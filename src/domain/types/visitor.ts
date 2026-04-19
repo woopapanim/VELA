@@ -1,4 +1,4 @@
-import type { VisitorId, GroupId, ZoneId, MediaId, FloorId, GateId, Vector2D, WaypointId } from './common';
+import type { VisitorId, GroupId, ZoneId, MediaId, FloorId, Vector2D, WaypointId } from './common';
 import type { SteeringState } from './physics';
 import type { PathLogEntry } from './waypoint';
 

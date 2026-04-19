@@ -74,7 +74,6 @@ export function SimulationControls() {
     engineRef.current = engine;
     (engine as any).world.globalFlowMode = flowMode;
     (engine as any).world.guidedUntilIndex = guidedIdx;
-    console.log('[SIM START] mode=' + flowMode + ' guidedIdx=' + guidedIdx);
 
     // ── Simulation loop — onTick handles UI updates only ──
     let lastSnapshotTime = 0;

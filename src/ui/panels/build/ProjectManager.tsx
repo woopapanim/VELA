@@ -65,7 +65,7 @@ export function ProjectManager() {
         id: 'floor_1f' as any,
         name: '1F',
         level: 0,
-        canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025 },
+        canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
         zoneIds: [],
         metadata: {},
       }],
@@ -203,14 +203,14 @@ export function ProjectManager() {
   const handleOpen = useCallback(async () => {
     const loadFile = async (file: File) => {
       const text = await file.text();
-      const data = JSON.parse(text) as Scenario;
-      if (!data.meta || !data.zones || !data.simulationConfig) {
+      const parsed = JSON.parse(text) as Scenario;
+      if (!parsed.meta || !parsed.zones || !parsed.simulationConfig) {
         toast('error', t('project.toast.invalid'));
         return;
       }
       // 파일명에서 프로젝트 이름 설정
       const nameFromFile = file.name.replace(/\.json$/i, '');
-      data.meta = { ...data.meta, name: nameFromFile };
+      const data: Scenario = { ...parsed, meta: { ...parsed.meta, name: nameFromFile } };
       resetSim(); clearHistory(); clearReplay();
       setScenario(data);
       // Recent에 추가
