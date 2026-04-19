@@ -109,7 +109,7 @@ export function SensitivityPanel() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="panel-section mb-3">
         {t('sensitivity.title')}
       </h2>
       <div className="space-y-2">

@@ -677,7 +677,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
             <div key={key}>
               <div className="flex items-center gap-1 mb-0.5">
                 <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="text-[8px] text-muted-foreground uppercase tracking-wider">{label}</span>
+                <span className="panel-label">{label}</span>
               </div>
               <div className="grid grid-cols-2 gap-0.5">
                 {items.map(type => (

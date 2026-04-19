@@ -45,12 +45,12 @@ export function ProfileLegend() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="panel-section mb-3">
         Visitor Profiles
       </h2>
 
       {/* Category breakdown (primary) */}
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Category</p>
+      <p className="panel-label mb-1">Category</p>
       <div className="flex gap-1 mb-3">
         {Object.entries(CATEGORY_INFO).map(([key, { color, label }]) => {
           const count = categoryCounts.get(key) ?? 0;
@@ -73,7 +73,7 @@ export function ProfileLegend() {
       </div>
 
       {/* Profile type breakdown */}
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Profile</p>
+      <p className="panel-label mb-1">Profile</p>
       <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
         {Object.entries(PROFILE_COLORS).map(([key, { color, label }]) => {
           const count = profileCounts.get(key) ?? 0;
@@ -89,7 +89,7 @@ export function ProfileLegend() {
       </div>
 
       {/* Engagement level breakdown */}
-      <p className="text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Engagement</p>
+      <p className="panel-label mb-1">Engagement</p>
       <div className="flex gap-1 mb-2">
         {Object.entries(ENGAGEMENT_COLORS).map(([key, { color, label }]) => {
           const count = engagementCounts.get(key) ?? 0;

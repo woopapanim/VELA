@@ -76,7 +76,7 @@ export function MainLayout() {
         <aside className="w-72 border-r border-border bg-[var(--surface)] overflow-y-auto">
           <div className="p-3 space-y-3">
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Project
                 <InfoTooltip text={t('tooltip.project')} />
               </h2>
@@ -84,7 +84,7 @@ export function MainLayout() {
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Simulation
                 <InfoTooltip text={t('tooltip.simulation')} />
               </h2>
@@ -104,7 +104,7 @@ export function MainLayout() {
             <ZoneListDragDrop />
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Spawn
                 <InfoTooltip text={t('tooltip.spawn')} />
               </h2>
@@ -112,7 +112,7 @@ export function MainLayout() {
             </div>
 
             <div className="bento-box p-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Visitors
                 <InfoTooltip text={t('tooltip.visitors')} />
               </h2>
@@ -233,7 +233,7 @@ function ZoneListDragDrop() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+      <h2 className="panel-section mb-3 flex items-center gap-1.5">
         Zones ({zones.length})
         <InfoTooltip text={t('tooltip.zones')} />
       </h2>

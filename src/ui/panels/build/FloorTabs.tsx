@@ -18,7 +18,7 @@ export function FloorTabs() {
             <button
               key={floor.id as string}
               onClick={() => setActiveFloor(floor.id as string)}
-              className={`px-3 py-1 text-[10px] font-data rounded-lg transition-all ${
+              className={`px-3 py-1 text-[11px] font-medium rounded-lg transition-all ${
                 isActive
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-secondary text-muted-foreground hover:text-foreground hover:bg-accent'

@@ -16,7 +16,7 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
 
   return (
     <div>
-      <label className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</label>
+      <label className="panel-label">{label}</label>
       <input
         type="number"
         value={raw}
@@ -31,7 +31,7 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
           if (isNaN(n) || raw === '') setRaw(String(value));
         }}
         disabled={disabled}
-        className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+        className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
       />
     </div>
   );

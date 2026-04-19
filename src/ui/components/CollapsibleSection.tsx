@@ -55,7 +55,7 @@ export function CollapsibleSection({ id, title, defaultOpen = false, icon, count
           className={`w-3 h-3 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`}
         />
         {icon}
-        <span className="flex-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span className="flex-1 panel-section">
           {title}
         </span>
         {count !== undefined && count !== null && (

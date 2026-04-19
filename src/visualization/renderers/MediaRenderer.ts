@@ -210,7 +210,7 @@ export function renderMedia(
     if (showLabels) {
       const name = (m as any).name || m.type.replace(/_/g, ' ');
       const fontSize = fs(Math.max(7, Math.min(10, pw * 0.15)));
-      ctx.font = `${fontSize}px "JetBrains Mono", monospace`;
+      ctx.font = `500 ${fontSize}px Inter, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)';

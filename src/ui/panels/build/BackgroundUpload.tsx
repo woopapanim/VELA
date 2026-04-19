@@ -55,7 +55,7 @@ export function BackgroundUpload() {
 
   return (
     <div>
-      <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5">Floor Plan Overlay</p>
+      <p className="panel-label mb-1.5">Floor Plan Overlay</p>
       {!hasImage ? (
         <button
           onClick={() => inputRef.current?.click()}

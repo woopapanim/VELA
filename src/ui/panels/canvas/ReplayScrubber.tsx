@@ -73,12 +73,12 @@ export function ReplayScrubber() {
   return (
     <div className="bento-box p-3">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <h2 className="panel-section">
           Replay ({frameCount} frames)
         </h2>
         <button
           onClick={handleToggleReplay}
-          className={`px-2 py-0.5 text-[9px] font-data rounded-lg transition-all ${
+          className={`px-2 py-0.5 text-[11px] font-medium rounded-lg transition-all ${
             isReplaying
               ? 'bg-[var(--status-warning)] text-white'
               : 'bg-secondary text-secondary-foreground hover:bg-accent'

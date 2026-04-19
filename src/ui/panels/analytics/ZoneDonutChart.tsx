@@ -50,7 +50,7 @@ export function ZoneDonutChart() {
 
   return (
     <div className="bento-box p-4">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+      <h2 className="panel-section mb-3">
         Zone Distribution
       </h2>
       <div className="flex items-center gap-4">

@@ -40,7 +40,7 @@ export function WaypointInspector() {
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="panel-section">
             Node Inspector
           </h3>
           <button
@@ -140,7 +140,7 @@ export function WaypointInspector() {
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="panel-section">
             Edge Inspector
           </h3>
           <button
@@ -199,7 +199,7 @@ export function WaypointInspector() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="text-[9px] text-muted-foreground block mb-0.5">{label}</label>
+      <label className="panel-label block mb-0.5">{label}</label>
       {children}
     </div>
   );

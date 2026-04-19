@@ -249,7 +249,7 @@ export function CanvasContextMenu({ menu, onClose }: {
       )}
       {!zone && isIdle && (
         <>
-          <div className="px-3 py-1 text-[9px] text-muted-foreground/60 uppercase tracking-wider">Add</div>
+          <div className="px-3 py-1 text-[11px] font-medium text-muted-foreground/60">Add</div>
 
           {/* Zone — submenu: creates zone at click position */}
           <SubMenuItem
@@ -289,7 +289,7 @@ export function CanvasContextMenu({ menu, onClose }: {
             ) : (
               MEDIA_CATEGORIES.map(({ label, color, items }) => (
                 <div key={label}>
-                  <div className="px-3 py-1 text-[8px] text-muted-foreground/60 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground/60 flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
                     {label}
                   </div>

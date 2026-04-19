@@ -67,12 +67,12 @@ export function MediaEditor() {
 
       {/* Name */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Name</label>
+        <label className="panel-label">Name</label>
         <input
           value={(m as any).name || m.type.replace(/_/g, ' ')}
           onChange={(e) => handleUpdate('name', e.target.value)}
           disabled={isLocked}
-          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         />
       </div>
 
@@ -80,21 +80,21 @@ export function MediaEditor() {
       {(m as any).shape !== 'custom' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Width (m)</label>
+            <label className="panel-label">Width (m)</label>
             <input type="number" step="0.5" min="0.5" max="20"
               value={m.size.width}
               onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
               disabled={isLocked}
-              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+              className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
             />
           </div>
           <div>
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Height (m)</label>
+            <label className="panel-label">Height (m)</label>
             <input type="number" step="0.5" min="0.5" max="20"
               value={m.size.height}
               onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
               disabled={isLocked}
-              className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+              className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
             />
           </div>
         </div>
@@ -104,7 +104,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Orientation</label>
+            <label className="panel-label">Orientation</label>
             <InfoTooltip text={t('tooltip.media.orientation')} />
           </div>
           <span className="text-[9px] font-data">{m.orientation}°</span>
@@ -119,7 +119,7 @@ export function MediaEditor() {
 
       {/* Shape */}
       <div>
-        <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Shape</label>
+        <label className="panel-label">Shape</label>
         <select
           value={(m as any).shape || 'rect'}
           onChange={(e) => {
@@ -159,7 +159,7 @@ export function MediaEditor() {
             }
           }}
           disabled={isLocked}
-          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
           <option value="rect">Rectangle</option>
           <option value="circle">Circle</option>
@@ -185,14 +185,14 @@ export function MediaEditor() {
       {/* Interaction Type */}
       <div>
         <div className="flex items-center gap-1">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Interaction</label>
+          <label className="panel-label">Interaction</label>
           <InfoTooltip text={t('tooltip.media.interaction')} />
         </div>
         <select
           value={interactionType}
           onChange={(e) => handleUpdate('interactionType', e.target.value)}
           disabled={isLocked}
-          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
           <option value="passive">Passive</option>
           <option value="active">Active</option>
@@ -205,7 +205,7 @@ export function MediaEditor() {
       {interactionType === 'analog' && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Omnidirectional</label>
+            <label className="panel-label">Omnidirectional</label>
             <InfoTooltip text={t('tooltip.media.omnidirectional')} />
           </div>
           <button
@@ -224,14 +224,14 @@ export function MediaEditor() {
       {interactionType === 'staged' && (
         <div>
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Session Interval (s)</label>
+            <label className="panel-label">Session Interval (s)</label>
             <InfoTooltip text={t('tooltip.media.stageInterval')} />
           </div>
           <input type="number" step="10" min="10"
             value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
             onChange={(e) => handleUpdate('stageIntervalMs', (parseInt(e.target.value) || 60) * 1000)}
             disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
           />
         </div>
       )}
@@ -241,18 +241,18 @@ export function MediaEditor() {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Capacity</label>
+            <label className="panel-label">Capacity</label>
             <InfoTooltip text={t('tooltip.media.capacity')} />
           </div>
           <input type="number" min="1" max="200"
             value={m.capacity}
             onChange={(e) => handleUpdate('capacity', parseInt(e.target.value) || 1)}
             disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+            className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
           />
         </div>
         <div>
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Auto Cap</label>
+          <label className="panel-label">Auto Cap</label>
           <div className="flex items-center gap-1 mt-0.5">
             <span className="text-[10px] font-data text-muted-foreground">{autoCapacity}</span>
             {!isLocked && (
@@ -267,14 +267,14 @@ export function MediaEditor() {
       {/* Engagement Time */}
       <div>
         <div className="flex items-center gap-1">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Engagement (s)</label>
+          <label className="panel-label">Engagement (s)</label>
           <InfoTooltip text={t('tooltip.media.engagement')} />
         </div>
         <input type="number" step="5" min="1"
           value={Math.round(m.avgEngagementTimeMs / 1000)}
           onChange={(e) => handleUpdate('avgEngagementTimeMs', (parseInt(e.target.value) || 10) * 1000)}
           disabled={isLocked}
-          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         />
       </div>
 
@@ -283,7 +283,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">View Distance (m)</label>
+            <label className="panel-label">View Distance (m)</label>
             <InfoTooltip text={t('tooltip.media.viewDistance')} />
           </div>
           <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
@@ -301,7 +301,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Attractiveness</label>
+            <label className="panel-label">Attractiveness</label>
             <InfoTooltip text={t('tooltip.media.attractiveness')} />
           </div>
           <span className="text-[9px] font-data">{m.attractiveness.toFixed(1)}</span>
@@ -318,14 +318,14 @@ export function MediaEditor() {
       {interactionType !== 'analog' && (
       <div>
         <div className="flex items-center gap-1">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Queue Behavior</label>
+          <label className="panel-label">Queue Behavior</label>
           <InfoTooltip text={t('tooltip.media.queueBehavior')} />
         </div>
         <select
           value={(m as any).queueBehavior || 'none'}
           onChange={(e) => handleUpdate('queueBehavior', e.target.value)}
           disabled={isLocked}
-          className="w-full mt-0.5 px-2 py-1 text-[10px] font-data rounded-lg bg-secondary border border-border disabled:opacity-50"
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
           <option value="none">None</option>
           <option value="linear">Linear</option>
@@ -337,7 +337,7 @@ export function MediaEditor() {
       {/* Group Friendly */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <label className="text-[9px] text-muted-foreground uppercase tracking-wider">Group Friendly</label>
+          <label className="panel-label">Group Friendly</label>
           <InfoTooltip text={t('tooltip.media.groupFriendly')} />
         </div>
         <button

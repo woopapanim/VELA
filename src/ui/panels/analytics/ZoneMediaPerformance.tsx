@@ -130,7 +130,7 @@ export function ZoneMediaPerformance() {
   if (phase === 'idle' || rows.length === 0) {
     return (
       <div className="bento-box p-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        <h2 className="panel-section mb-2">
           Zone Media Performance
         </h2>
         <p className="text-[10px] text-muted-foreground">
@@ -151,7 +151,7 @@ export function ZoneMediaPerformance() {
 
   return (
     <div className="bento-box p-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+      <h2 className="panel-section mb-2">
         Zone Media Performance
       </h2>
       <div className="space-y-1.5">

@@ -92,7 +92,7 @@ export function ScenarioPanel() {
       {/* Saved Scenarios */}
       {savedList.length > 0 && (
         <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <p className="panel-section">
             Saved ({savedList.length})
           </p>
           {savedList.map(({ scenario: s, savedAt }) => (
@@ -139,7 +139,7 @@ export function ScenarioPanel() {
       {/* Comparison Result */}
       {comparison && (
         <div className="bento-box-elevated p-3 space-y-2">
-          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <p className="panel-section">
             A/B Comparison
           </p>
           <div className="flex items-center gap-2 text-xs mb-2">

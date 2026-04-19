@@ -328,7 +328,7 @@ export function ProjectManager() {
       {/* History */}
       {history.length > 0 && (
         <div>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <p className="panel-label mb-1.5 flex items-center gap-1">
             <Clock className="w-3 h-3" /> Recent
           </p>
           <div className="space-y-1 max-h-28 overflow-y-auto">
