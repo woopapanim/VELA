@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType } from '@/domain';
+import type { WaypointType, ShaftId, FloorId, ElevatorShaft } from '@/domain';
+import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
@@ -12,6 +13,7 @@ const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'hub', label: 'Hub' },
   { value: 'rest', label: 'Rest' },
   { value: 'bend', label: 'Bend' },
+  { value: 'portal', label: 'Portal' },
 ];
 
 const EDGE_DIR_OPTIONS = [
@@ -24,22 +26,36 @@ const EDGE_DIR_OPTIONS = [
 // - dwell: first-visit pause, only rest/attractor trigger it in SimEngine
 // - spawnWeight: entry only
 const SHOW_ATTRACTION: Record<WaypointType, boolean> = {
-  entry: false, exit: false, bend: false,
+  entry: false, exit: false, bend: false, portal: false,
   zone: true, attractor: true, hub: true, rest: true,
 };
 const SHOW_DWELL: Record<WaypointType, boolean> = {
-  entry: false, exit: false, bend: false, zone: false, hub: false,
+  entry: false, exit: false, bend: false, zone: false, hub: false, portal: false,
   attractor: true, rest: true,
 };
 const SHOW_CAPACITY: Record<WaypointType, boolean> = {
-  entry: false, exit: false, bend: false,
+  entry: false, exit: false, bend: false, portal: false,
   zone: true, attractor: true, hub: true, rest: true,
 };
+
+let _shaftCounter = 1;
+function nextShaftId(existing: readonly ElevatorShaft[]): ShaftId {
+  let maxN = 0;
+  for (const sh of existing) {
+    const m = (sh.id as string).match(/^shaft_(\d+)$/);
+    if (m) maxN = Math.max(maxN, parseInt(m[1]));
+  }
+  _shaftCounter = Math.max(_shaftCounter, maxN + 1);
+  return `shaft_${_shaftCounter++}` as ShaftId;
+}
 
 export function WaypointInspector() {
   const selectedWaypointId = useStore((s) => s.selectedWaypointId);
   const selectedEdgeId = useStore((s) => s.selectedEdgeId);
   const graph = useStore((s) => s.waypointGraph);
+  const shafts = useStore((s) => s.shafts);
+  const addShaft = useStore((s) => s.addShaft);
+  const updateShaft = useStore((s) => s.updateShaft);
   const updateWaypoint = useStore((s) => s.updateWaypoint);
   const removeWaypoint = useStore((s) => s.removeWaypoint);
   const updateEdge = useStore((s) => s.updateEdge);
@@ -130,6 +146,88 @@ export function WaypointInspector() {
             />
           </Field>
         )}
+
+        {/* Portal Shaft + timing (PORTAL only) */}
+        {node.type === 'portal' && (() => {
+          const currentShaftId = (node.shaftId as string | null | undefined) ?? null;
+          const currentShaft = shafts.find(sh => (sh.id as string) === currentShaftId);
+          return (
+            <>
+              <Field label="Shaft" tooltip="Portal shaft group. All nodes sharing a shaft connect to each other across floors/buildings. Agents wait + travel before teleporting.">
+                <select
+                  value={currentShaftId ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__new__') {
+                      const id = nextShaftId(shafts);
+                      addShaft({
+                        id,
+                        name: `Shaft ${(id as string).replace('shaft_', '')}`,
+                        capacity: 8,
+                        waitTimeMs: 5000,
+                        travelTimePerFloorMs: 3000,
+                      });
+                      updateWaypoint(selectedWaypointId, { shaftId: id });
+                      return;
+                    }
+                    updateWaypoint(selectedWaypointId, { shaftId: (val || null) as any });
+                  }}
+                  className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+                >
+                  <option value="">— None —</option>
+                  {shafts.map(sh => {
+                    const fids = getShaftFloorIds(sh.id, graph);
+                    return (
+                      <option key={sh.id as string} value={sh.id as string}>
+                        {sh.name} · {fids.length ? fids.length + 'F' : '—'}
+                      </option>
+                    );
+                  })}
+                  <option value="__new__">+ New shaft</option>
+                </select>
+              </Field>
+              {currentShaft && (
+                <>
+                  <Field label="Shaft name">
+                    <input
+                      type="text"
+                      value={currentShaft.name}
+                      onChange={(e) => updateShaft(currentShaft.id as string, { name: e.target.value })}
+                      className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+                    />
+                  </Field>
+                  <Field label={`Capacity: ${currentShaft.capacity}`} tooltip="Max agents inside the cabin per trip.">
+                    <input
+                      type="range"
+                      min={1} max={30} step={1}
+                      value={currentShaft.capacity}
+                      onChange={(e) => updateShaft(currentShaft.id as string, { capacity: parseInt(e.target.value) })}
+                      className="w-full"
+                    />
+                  </Field>
+                  <Field label={`Wait: ${(currentShaft.waitTimeMs / 1000).toFixed(0)}s`} tooltip="Time spent waiting for the cabin to arrive + board.">
+                    <input
+                      type="range"
+                      min={0} max={30000} step={1000}
+                      value={currentShaft.waitTimeMs}
+                      onChange={(e) => updateShaft(currentShaft.id as string, { waitTimeMs: parseInt(e.target.value) })}
+                      className="w-full"
+                    />
+                  </Field>
+                  <Field label={`Travel / floor: ${(currentShaft.travelTimePerFloorMs / 1000).toFixed(0)}s`} tooltip="Per-floor travel time. Total = wait + |floors| × this.">
+                    <input
+                      type="range"
+                      min={500} max={15000} step={500}
+                      value={currentShaft.travelTimePerFloorMs}
+                      onChange={(e) => updateShaft(currentShaft.id as string, { travelTimePerFloorMs: parseInt(e.target.value) })}
+                      className="w-full"
+                    />
+                  </Field>
+                </>
+              )}
+            </>
+          );
+        })()}
 
         {/* Spawn Weight (ENTRY only) */}
         {node.type === 'entry' && (

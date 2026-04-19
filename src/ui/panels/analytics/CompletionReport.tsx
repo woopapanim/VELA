@@ -32,7 +32,7 @@ export function CompletionReport() {
 
     const totalTime = timeState.elapsed;
     const avgDwell = exited.length > 0
-      ? exited.reduce((s, v) => s + (totalTime - v.enteredAt), 0) / exited.length
+      ? exited.reduce((s, v) => s + ((v.exitedAt ?? totalTime) - v.enteredAt), 0) / exited.length
       : 0;
 
     const summary: ReportSummary = {

@@ -19,4 +19,7 @@ export interface FloorConfig {
   readonly canvas: CanvasData;
   readonly zoneIds: readonly ZoneId[];
   readonly metadata: Readonly<Record<string, unknown>>;
+  // World-space frame for this floor — visual grouping rectangle on the shared canvas.
+  // If unset, derive from bounding box of contained zones at render time.
+  readonly bounds?: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
 }

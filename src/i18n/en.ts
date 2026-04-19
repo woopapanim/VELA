@@ -52,6 +52,7 @@ export const en: Dict = {
   'build.node.attractor.desc': 'High-attraction target',
   'build.node.hub.desc': 'Junction / branch',
   'build.node.rest.desc': 'Rest / buffer',
+  'build.node.portal.desc': 'Cross-floor/building transit hub (grouped by shaft)',
 
   // Build — hints
   'build.hint.placeNode': 'Click canvas to place node',
@@ -316,4 +317,20 @@ export const en: Dict = {
     'POI crowding threshold (how many visitors can cluster at this single point). Unlike zone spatial capacity, this drives the crowd-density penalty in the Score formula — smaller values flag the node as "crowded" sooner and redirect visitors elsewhere.',
   'tooltip.node.spawnWeight':
     'Relative spawn probability across multiple Entry nodes. Higher values cause a larger share of the total population to appear at this entrance.',
+
+  // Experience tab — panel tooltips
+  'tooltip.experience.timeSpent':
+    'Distribution of how long visitors stayed in the venue (from entry to exit, in minutes). Green bars are visitors who have already left (final stay duration); blue bars are visitors still inside (time elapsed so far). Bucket width scales with the longest stay observed.',
+  'tooltip.experience.quality':
+    'Overall experience quality for active visitors. Depth is how many media each visitor has seen (distribution by 0, 1–2, 3–5, 6+ buckets); Avg Fatigue is the mean fatigue level (>60% is red, >40% is amber); High Fatigue shows the share of visitors above 70% fatigue — a signal of over-stimulation or excessive dwell.',
+  'tooltip.experience.zoneMedia':
+    'Per-zone media performance. Each row aggregates its zone\'s media: watch count (w), skip rate (%), average watch time, and peak viewers vs. total capacity. Expand a row to inspect individual media. Live indicators — ● watching, ↻ waiting — appear on the right when visitors are engaged.',
+  'tooltip.experience.flowVsExperience':
+    'Trade-off between traffic volume and experience depth per zone. Pop is the current occupancy; Depth is average media watched (watched/total) — red when below 0.5; Fatigue is the zone\'s mean visitor fatigue. A ⟿ icon flags rush-through zones where visitors traverse without engaging.',
+
+  // Experience tab — Time Spent chart labels
+  'experience.timeSpent.title': 'Time Spent Distribution',
+  'experience.timeSpent.exited': 'Exited',
+  'experience.timeSpent.ongoing': 'Ongoing',
+  'experience.timeSpent.avg': 'avg',
 };

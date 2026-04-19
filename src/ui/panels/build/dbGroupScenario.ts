@@ -25,73 +25,71 @@ export function createDBGroupScenario(): Scenario {
     { id: 'db_entrance' as ZoneId, name: 'DB Welcome', type: 'entrance', shape: 'rect',
       bounds: { x: 50, y: 320, w: 150, h: 200 }, polygon: null, area: 66, capacity: 40, flowType: 'free',
       gates: [
-        { id: 'g_db_ent_in' as GateId, zoneId: 'db_entrance' as ZoneId, floorId: f1, type: 'entrance', position: { x: 50, y: 420 }, width: 60, connectedGateId: null, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_ent_out' as GateId, zoneId: 'db_entrance' as ZoneId, floorId: f1, type: 'exit', position: { x: 200, y: 420 }, width: 50, connectedGateId: 'g_db_main_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_ent_in' as GateId, zoneId: 'db_entrance' as ZoneId, floorId: f1, type: 'entrance', position: { x: 50, y: 420 }, width: 60, connectedGateId: null },
+        { id: 'g_db_ent_out' as GateId, zoneId: 'db_entrance' as ZoneId, floorId: f1, type: 'exit', position: { x: 200, y: 420 }, width: 50, connectedGateId: 'g_db_main_in' as GateId },
       ], mediaIds: ['m_db_welcome_led' as MediaId], color: '#22c55e', attractiveness: 0.3, metadata: {} },
 
     { id: 'db_main_hall' as ZoneId, name: 'DB Innovation Hall', type: 'exhibition', shape: 'rect',
       bounds: { x: 230, y: 200, w: 350, h: 350 }, polygon: null, area: 270, capacity: 100, flowType: 'free',
       gates: [
-        { id: 'g_db_main_in' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'entrance', position: { x: 230, y: 375 }, width: 50, connectedGateId: 'g_db_ent_out' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_main_to_fin' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 580, y: 300 }, width: 50, connectedGateId: 'g_db_fin_in' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_main_to_ins' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 580, y: 450 }, width: 50, connectedGateId: 'g_db_ins_in' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_main_portal' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'portal', position: { x: 405, y: 200 }, width: 30, connectedGateId: null, targetFloorId: f2, targetGateId: 'g_db_2f_tech_portal' as GateId },
+        { id: 'g_db_main_in' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'entrance', position: { x: 230, y: 375 }, width: 50, connectedGateId: 'g_db_ent_out' as GateId },
+        { id: 'g_db_main_to_fin' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 580, y: 300 }, width: 50, connectedGateId: 'g_db_fin_in' as GateId },
+        { id: 'g_db_main_to_ins' as GateId, zoneId: 'db_main_hall' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 580, y: 450 }, width: 50, connectedGateId: 'g_db_ins_in' as GateId },
       ], mediaIds: ['m_db_main_led' as MediaId, 'm_db_timeline' as MediaId, 'm_db_kiosk1' as MediaId], color: '#3b82f6', attractiveness: 0.8, metadata: {} },
 
     { id: 'db_fintech' as ZoneId, name: 'Fintech Zone', type: 'exhibition', shape: 'rect',
       bounds: { x: 620, y: 180, w: 280, h: 200 }, polygon: null, area: 135, capacity: 50, flowType: 'guided',
       gates: [
-        { id: 'g_db_fin_in' as GateId, zoneId: 'db_fintech' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 620, y: 280 }, width: 50, connectedGateId: 'g_db_main_to_fin' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_fin_to_lounge' as GateId, zoneId: 'db_fintech' as ZoneId, floorId: f1, type: 'exit', position: { x: 900, y: 280 }, width: 40, connectedGateId: 'g_db_lounge_in1' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_fin_in' as GateId, zoneId: 'db_fintech' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 620, y: 280 }, width: 50, connectedGateId: 'g_db_main_to_fin' as GateId },
+        { id: 'g_db_fin_to_lounge' as GateId, zoneId: 'db_fintech' as ZoneId, floorId: f1, type: 'exit', position: { x: 900, y: 280 }, width: 40, connectedGateId: 'g_db_lounge_in1' as GateId },
       ], mediaIds: ['m_db_fintech_ar' as MediaId, 'm_db_fintech_table' as MediaId], color: '#06b6d4', attractiveness: 0.9, metadata: {} },
 
     { id: 'db_insurance' as ZoneId, name: 'Insurance Experience', type: 'exhibition', shape: 'rect',
       bounds: { x: 620, y: 420, w: 280, h: 200 }, polygon: null, area: 135, capacity: 50, flowType: 'free',
       gates: [
-        { id: 'g_db_ins_in' as GateId, zoneId: 'db_insurance' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 620, y: 520 }, width: 50, connectedGateId: 'g_db_main_to_ins' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_ins_to_lounge' as GateId, zoneId: 'db_insurance' as ZoneId, floorId: f1, type: 'exit', position: { x: 900, y: 520 }, width: 40, connectedGateId: 'g_db_lounge_in2' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_ins_in' as GateId, zoneId: 'db_insurance' as ZoneId, floorId: f1, type: 'bidirectional', position: { x: 620, y: 520 }, width: 50, connectedGateId: 'g_db_main_to_ins' as GateId },
+        { id: 'g_db_ins_to_lounge' as GateId, zoneId: 'db_insurance' as ZoneId, floorId: f1, type: 'exit', position: { x: 900, y: 520 }, width: 40, connectedGateId: 'g_db_lounge_in2' as GateId },
       ], mediaIds: ['m_db_ins_sim' as MediaId, 'm_db_ins_vr' as MediaId], color: '#8b5cf6', attractiveness: 0.85, metadata: {} },
 
     { id: 'db_lounge' as ZoneId, name: 'DB Lounge', type: 'rest', shape: 'rect',
       bounds: { x: 940, y: 300, w: 200, h: 250 }, polygon: null, area: 110, capacity: 35, flowType: 'free',
       gates: [
-        { id: 'g_db_lounge_in1' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'entrance', position: { x: 940, y: 370 }, width: 40, connectedGateId: 'g_db_fin_to_lounge' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_lounge_in2' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'entrance', position: { x: 940, y: 470 }, width: 40, connectedGateId: 'g_db_ins_to_lounge' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_lounge_exit' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'exit', position: { x: 1140, y: 425 }, width: 50, connectedGateId: 'g_db_exit_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_lounge_in1' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'entrance', position: { x: 940, y: 370 }, width: 40, connectedGateId: 'g_db_fin_to_lounge' as GateId },
+        { id: 'g_db_lounge_in2' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'entrance', position: { x: 940, y: 470 }, width: 40, connectedGateId: 'g_db_ins_to_lounge' as GateId },
+        { id: 'g_db_lounge_exit' as GateId, zoneId: 'db_lounge' as ZoneId, floorId: f1, type: 'exit', position: { x: 1140, y: 425 }, width: 50, connectedGateId: 'g_db_exit_in' as GateId },
       ], mediaIds: ['m_db_lounge_seat' as MediaId], color: '#f59e0b', attractiveness: 0.4, metadata: {} },
 
     { id: 'db_exit' as ZoneId, name: 'Exit', type: 'exit', shape: 'rect',
       bounds: { x: 1150, y: 320, w: 120, h: 200 }, polygon: null, area: 60, capacity: 50, flowType: 'free',
       gates: [
-        { id: 'g_db_exit_in' as GateId, zoneId: 'db_exit' as ZoneId, floorId: f1, type: 'entrance', position: { x: 1150, y: 420 }, width: 50, connectedGateId: 'g_db_lounge_exit' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_exit_in' as GateId, zoneId: 'db_exit' as ZoneId, floorId: f1, type: 'entrance', position: { x: 1150, y: 420 }, width: 50, connectedGateId: 'g_db_lounge_exit' as GateId },
       ], mediaIds: [], color: '#ef4444', attractiveness: 0.1, metadata: {} },
 
     // 2F
     { id: 'db_2f_tech' as ZoneId, name: 'Tech Lab', type: 'exhibition', shape: 'rect',
       bounds: { x: 200, y: 250, w: 300, h: 250 }, polygon: null, area: 165, capacity: 40, flowType: 'guided',
       gates: [
-        { id: 'g_db_2f_tech_portal' as GateId, zoneId: 'db_2f_tech' as ZoneId, floorId: f2, type: 'portal', position: { x: 350, y: 250 }, width: 30, connectedGateId: null, targetFloorId: f1, targetGateId: 'g_db_main_portal' as GateId },
-        { id: 'g_db_2f_tech_to_art' as GateId, zoneId: 'db_2f_tech' as ZoneId, floorId: f2, type: 'exit', position: { x: 500, y: 375 }, width: 40, connectedGateId: 'g_db_2f_art_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_2f_tech_to_art' as GateId, zoneId: 'db_2f_tech' as ZoneId, floorId: f2, type: 'exit', position: { x: 500, y: 375 }, width: 40, connectedGateId: 'g_db_2f_art_in' as GateId },
       ], mediaIds: ['m_db_2f_ai' as MediaId, 'm_db_2f_robot' as MediaId], color: '#10b981', attractiveness: 0.95, metadata: {} },
 
     { id: 'db_2f_art' as ZoneId, name: 'Digital Art Gallery', type: 'exhibition', shape: 'rect',
       bounds: { x: 550, y: 250, w: 250, h: 250 }, polygon: null, area: 137, capacity: 45, flowType: 'free',
       gates: [
-        { id: 'g_db_2f_art_in' as GateId, zoneId: 'db_2f_art' as ZoneId, floorId: f2, type: 'entrance', position: { x: 550, y: 375 }, width: 40, connectedGateId: 'g_db_2f_tech_to_art' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_2f_art_to_vip' as GateId, zoneId: 'db_2f_art' as ZoneId, floorId: f2, type: 'exit', position: { x: 800, y: 375 }, width: 40, connectedGateId: 'g_db_2f_vip_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_2f_art_in' as GateId, zoneId: 'db_2f_art' as ZoneId, floorId: f2, type: 'entrance', position: { x: 550, y: 375 }, width: 40, connectedGateId: 'g_db_2f_tech_to_art' as GateId },
+        { id: 'g_db_2f_art_to_vip' as GateId, zoneId: 'db_2f_art' as ZoneId, floorId: f2, type: 'exit', position: { x: 800, y: 375 }, width: 40, connectedGateId: 'g_db_2f_vip_in' as GateId },
       ], mediaIds: ['m_db_2f_immersive' as MediaId, 'm_db_2f_nft' as MediaId], color: '#ec4899', attractiveness: 0.9, metadata: {} },
 
     { id: 'db_2f_vip' as ZoneId, name: 'VIP Suite', type: 'rest', shape: 'rect',
       bounds: { x: 850, y: 280, w: 200, h: 200 }, polygon: null, area: 88, capacity: 15, flowType: 'free',
       gates: [
-        { id: 'g_db_2f_vip_in' as GateId, zoneId: 'db_2f_vip' as ZoneId, floorId: f2, type: 'entrance', position: { x: 850, y: 380 }, width: 40, connectedGateId: 'g_db_2f_art_to_vip' as GateId, targetFloorId: null, targetGateId: null },
-        { id: 'g_db_2f_vip_exit' as GateId, zoneId: 'db_2f_vip' as ZoneId, floorId: f2, type: 'exit', position: { x: 950, y: 480 }, width: 40, connectedGateId: 'g_db_2f_exit_in' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_2f_vip_in' as GateId, zoneId: 'db_2f_vip' as ZoneId, floorId: f2, type: 'entrance', position: { x: 850, y: 380 }, width: 40, connectedGateId: 'g_db_2f_art_to_vip' as GateId },
+        { id: 'g_db_2f_vip_exit' as GateId, zoneId: 'db_2f_vip' as ZoneId, floorId: f2, type: 'exit', position: { x: 950, y: 480 }, width: 40, connectedGateId: 'g_db_2f_exit_in' as GateId },
       ], mediaIds: ['m_db_2f_vip_seat' as MediaId], color: '#fbbf24', attractiveness: 0.5, metadata: {} },
 
     { id: 'db_2f_exit' as ZoneId, name: '2F Exit', type: 'exit', shape: 'rect',
       bounds: { x: 900, y: 500, w: 150, h: 150 }, polygon: null, area: 50, capacity: 30, flowType: 'free',
       gates: [
-        { id: 'g_db_2f_exit_in' as GateId, zoneId: 'db_2f_exit' as ZoneId, floorId: f2, type: 'entrance', position: { x: 950, y: 500 }, width: 40, connectedGateId: 'g_db_2f_vip_exit' as GateId, targetFloorId: null, targetGateId: null },
+        { id: 'g_db_2f_exit_in' as GateId, zoneId: 'db_2f_exit' as ZoneId, floorId: f2, type: 'entrance', position: { x: 950, y: 500 }, width: 40, connectedGateId: 'g_db_2f_vip_exit' as GateId },
       ], mediaIds: [], color: '#ef4444', attractiveness: 0.1, metadata: {} },
   ];
 

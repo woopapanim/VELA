@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
+import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 export function FlowVsExperience() {
   const visitors = useStore((s) => s.visitors);
@@ -54,9 +55,12 @@ export function FlowVsExperience() {
 
   return (
     <div className="bento-box p-3">
-      <h2 className="panel-section mb-2">
-        Flow vs Experience
-      </h2>
+      <div className="flex items-center gap-1 mb-2">
+        <h2 className="panel-section">
+          Flow vs Experience
+        </h2>
+        <InfoTooltip text={t('tooltip.experience.flowVsExperience')} />
+      </div>
       <div className="flex items-center gap-2 pb-1.5 mb-1.5 border-b border-border panel-label">
         <span className="flex-1">Zone</span>
         <span className="w-8 text-right">Pop</span>

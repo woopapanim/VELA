@@ -1,8 +1,9 @@
-import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph } from '@/domain';
+import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig } from '@/domain';
 import type { OverlayMode } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
 import { renderZones } from '../renderers/ZoneRenderer';
+import { renderFloorFrames } from '../renderers/FloorFrameRenderer';
 import { renderGates } from '../renderers/GateRenderer';
 import { renderMedia } from '../renderers/MediaRenderer';
 import { renderVisitors } from '../renderers/VisitorRenderer';
@@ -44,6 +45,7 @@ export interface RenderState {
   selectedEdgeId?: string | null;
   // Ghost node preview (place-waypoint mode)
   ghostNode?: { position: { x: number; y: number }; type: string } | null;
+  floors?: readonly FloorConfig[];
 }
 
 export class CanvasManager {
@@ -147,6 +149,11 @@ export class CanvasManager {
     if (state.overlayMode === 'heatmap') {
       this.heatmapRenderer.update(state.visitors, isDark);
       this.heatmapRenderer.render(ctx, isDark);
+    }
+
+    // 2b. Floor frames (below zones, visual grouping for multi-floor/multi-building)
+    if (state.floors && state.floors.length > 1) {
+      renderFloorFrames(ctx, state.floors, state.zones, isDark, this.camera.zoom);
     }
 
     // 3. Zones (with occupancy overlay)

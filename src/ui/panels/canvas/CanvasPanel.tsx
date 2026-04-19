@@ -10,6 +10,7 @@ import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
 import { zonesOverlap, getZoneVertices } from '@/domain/zoneGeometry';
+import { findFloorAtPoint } from '@/domain/floorLayout';
 
 // Get edge segments for a zone shape (rx, ry = L bend ratios, default 0.5)
 function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): Array<[{x:number;y:number},{x:number;y:number}]> {
@@ -160,16 +161,15 @@ export function CanvasPanel() {
         lastCanvasRect.current = { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
         if (rect.width > 0 && rect.height > 0) {
           const store = useStore.getState();
+          // Shared-canvas mode: all floors render together on one world plane.
+          // activeFloorId is kept only as a UX hint (which region tools currently target).
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
           const gridSz = fl?.canvas.gridSize ?? 40;
-          const floorZoneIds = fl && fl.zoneIds.length > 0
-            ? new Set(fl.zoneIds.map((z: any) => z as string))
-            : null;
 
           manager.render({
-            zones: floorZoneIds ? store.zones.filter((z: any) => floorZoneIds.has(z.id as string)) : store.zones,
-            media: floorZoneIds ? store.media.filter((m: any) => floorZoneIds.has(m.zoneId as string)) : store.media,
-            visitors: floorZoneIds ? store.visitors.filter((v: any) => (v.currentFloorId as string) === store.activeFloorId) : store.visitors,
+            zones: store.zones,
+            media: store.media,
+            visitors: store.visitors,
             groups: store.groups,
             selectedZoneId: store.selectedZoneId,
             selectedMediaId: store.selectedMediaId,
@@ -196,6 +196,7 @@ export function CanvasPanel() {
             ghostNode: store.editorMode === 'place-waypoint' && store.pendingWaypointType && mouseWorldPos.current
               ? { position: mouseWorldPos.current, type: store.pendingWaypointType }
               : null,
+            floors: store.floors,
           });
         }
       }
@@ -251,7 +252,9 @@ export function CanvasPanel() {
 
   function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: number; y: number; w: number; h: number }; shape?: string }): 'nw' | 'ne' | 'sw' | 'se' | null {
     const b = zone.bounds;
-    const r = 12; // hit radius
+    // Hit radius in world units — scales with inverse zoom so it's ~14 screen px at any zoom.
+    const zoom = Math.max(managerRef.current?.camera.zoom ?? 1, 0.1);
+    const r = 14 / zoom;
 
     // Circle: cardinal handles on circle edge
     if (zone.shape === 'circle' || zone.shape === 'o_ring') {
@@ -412,24 +415,65 @@ export function CanvasPanel() {
       }
 
       const id = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      const floorId = store.activeFloorId ?? '';
+      // On the shared canvas, the click can land inside any floor's frame —
+      // derive floorId from the point, falling back to activeFloor only when
+      // no frame contains it (e.g. fresh scenario with no content yet).
+      const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
+      const floorId = (hitFloor?.id as string | undefined) ?? store.activeFloorId ?? '';
       // Auto-label: count existing nodes of same type → "Hub 1", "Entry 2", etc.
       const sameTypeCount = graph ? graph.nodes.filter(n => n.type === wpType).length : 0;
       const typeLabel = wpType.charAt(0).toUpperCase() + wpType.slice(1);
       const autoLabel = `${typeLabel} ${sameTypeCount + 1}`;
+
+      // Auto-assign portal to a shaft: first shaft with no portal on this floor yet,
+      // else create a new shaft. Shaft membership is purely derived from portal.shaftId
+      // — the shaft object no longer stores floorIds.
+      let portalShaftId: string | null = null;
+      if (wpType === 'portal') {
+        const shafts = store.shafts;
+        const targetShaft = shafts.find(sh =>
+          !graph?.nodes.some(n =>
+            n.type === 'portal'
+            && (n.shaftId as string | null | undefined) === (sh.id as string)
+            && (n.floorId as string) === floorId,
+          ),
+        );
+        if (targetShaft) {
+          portalShaftId = targetShaft.id as string;
+        } else {
+          let maxN = 0;
+          for (const sh of shafts) {
+            const m = (sh.id as string).match(/^shaft_(\d+)$/);
+            if (m) maxN = Math.max(maxN, parseInt(m[1]));
+          }
+          const newId = `shaft_${maxN + 1}`;
+          store.addShaft({
+            id: newId as any,
+            name: `Shaft ${maxN + 1}`,
+            capacity: 8,
+            waitTimeMs: 5000,
+            travelTimePerFloorMs: 3000,
+          });
+          portalShaftId = newId;
+        }
+      }
+
       store.addWaypoint({
         id: id as any,
         type: wpType,
         position: { x: world.x, y: world.y },
         floorId: floorId as any,
         label: autoLabel,
-        attraction: wpType === 'attractor' ? 0.9 : 0.5,
+        attraction: wpType === 'attractor' ? 0.9 : wpType === 'rest' ? 0.2 : 0.5,
         dwellTimeMs: wpType === 'rest' ? 30000 : 0,
         capacity: 20,
         spawnWeight: wpType === 'entry' ? 1.0 : 0,
         lookAt: 0,
         zoneId: hitZoneId as any ?? null,
         mediaId: null,
+        ...(wpType === 'portal'
+          ? { shaftId: portalShaftId as any }
+          : {}),
       });
       store.selectWaypoint(id);
       return;
@@ -1036,7 +1080,11 @@ export function CanvasPanel() {
             break;
           }
         }
-        store.updateWaypoint(dragWaypointId.current, { zoneId: hitZoneId as any ?? null });
+        // Reassign floorId when the node crosses into another floor's frame.
+        const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
+        const patch: any = { zoneId: hitZoneId as any ?? null };
+        if (hitFloor) patch.floorId = hitFloor.id;
+        store.updateWaypoint(dragWaypointId.current, patch);
       }
       return;
     }

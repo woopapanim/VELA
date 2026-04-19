@@ -8,7 +8,7 @@
  *             - (crowdDensity × w4) - (visitedPenalty × w5)
  */
 
-import type { WaypointNode, WaypointEdge, WaypointGraph, WaypointId, PathLogEntry } from '@/domain';
+import type { WaypointNode, WaypointEdge, WaypointGraph, WaypointId, PathLogEntry, ShaftId } from '@/domain';
 import type { Visitor } from '@/domain';
 import type { SeededRandom } from '../utils/random';
 
@@ -34,7 +34,8 @@ export class WaypointNavigator {
   private nodeMap = new Map<string, WaypointNode>();
   private entryNodes: WaypointNode[] = [];
   private exitNodes: WaypointNode[] = [];
-  private essentialCount = 0; // ZONE + ATTRACTOR 노드 수
+  private essentialCount = 0; // ZONE + ATTRACTOR 노드 수 + shaft 수 (shaft 1개 = 필수 1개)
+  private essentialShaftIds: Set<string> = new Set();
 
   buildFromGraph(graph: WaypointGraph): void {
     this.adjacency.clear();
@@ -42,6 +43,7 @@ export class WaypointNavigator {
     this.entryNodes = [];
     this.exitNodes = [];
     this.essentialCount = 0;
+    this.essentialShaftIds = new Set();
 
     for (const node of graph.nodes) {
       this.nodeMap.set(node.id as string, node);
@@ -49,7 +51,11 @@ export class WaypointNavigator {
       if (node.type === 'entry') this.entryNodes.push(node);
       if (node.type === 'exit') this.exitNodes.push(node);
       if (node.type === 'zone' || node.type === 'attractor') this.essentialCount++;
+      if (node.type === 'portal' && node.shaftId) {
+        this.essentialShaftIds.add(node.shaftId as string);
+      }
     }
+    this.essentialCount += this.essentialShaftIds.size;
 
     for (const edge of graph.edges) {
       const fromNode = this.nodeMap.get(edge.fromId as string);
@@ -83,6 +89,20 @@ export class WaypointNavigator {
   }
 
   /**
+   * 특정 shaft에 속한 모든 elevator 노드 반환 (층 간 텔레포트 대상 탐색용)
+   */
+  getNodesByShaft(shaftId: ShaftId): WaypointNode[] {
+    const out: WaypointNode[] = [];
+    const target = shaftId as string;
+    for (const node of this.nodeMap.values()) {
+      if (node.type === 'portal' && (node.shaftId as string | null | undefined) === target) {
+        out.push(node);
+      }
+    }
+    return out;
+  }
+
+  /**
    * Score 기반 다음 노드 선택
    *
    * @param visitor      현재 에이전트
@@ -104,6 +124,11 @@ export class WaypointNavigator {
     if (neighbors.length === 0) return null;
 
     const visitedNodeIds = new Set(visitor.pathLog.map(e => e.nodeId as string));
+    const visitedShaftIds = new Set<string>();
+    for (const entry of visitor.pathLog) {
+      const n = this.nodeMap.get(entry.nodeId as string);
+      if (n?.type === 'portal' && n.shaftId) visitedShaftIds.add(n.shaftId as string);
+    }
     const visitedCount = this.countVisitedEssential(visitor.pathLog);
 
     // Stuck 감지: 같은 노드에 너무 오래 체류 또는 전체 체류 시간 초과
@@ -162,6 +187,12 @@ export class WaypointNavigator {
       // EXIT 방향 보너스: canExit 상태에서 EXIT까지의 경로 첫 홉에 +3
       if (exitHopId && (candidate.id as string) === (exitHopId as string)) {
         score += 3.0;
+      }
+
+      // Portal 필수 유도: 미방문 shaft 포털에 강한 보너스 (zone 수준의 인력)
+      if (candidate.type === 'portal' && candidate.shaftId
+          && !visitedShaftIds.has(candidate.shaftId as string)) {
+        score += 2.5;
       }
 
       scored.push({ node: candidate, score });
@@ -260,18 +291,41 @@ export class WaypointNavigator {
   }
 
   /**
-   * BFS: 현재 노드에서 가장 가까운 EXIT까지의 첫 홉 반환
+   * BFS: 현재 노드에서 가장 가까운 EXIT까지의 첫 홉 반환.
+   * Portal shaft 노드들은 가상 엣지로 상호 연결되어 BFS가 층 경계를 넘어갈 수 있게 한다.
    */
   private findFirstHopToExit(fromId: WaypointId): WaypointNode | null {
     if (this.exitNodes.length === 0) return null;
     const exitIds = new Set(this.exitNodes.map(n => n.id as string));
 
-    // BFS
+    // Build shaft membership lookup (shaftId → member nodes) once per BFS call
+    const shaftMembers = new Map<string, WaypointNode[]>();
+    for (const node of this.nodeMap.values()) {
+      if (node.type !== 'portal' || !node.shaftId) continue;
+      const key = node.shaftId as string;
+      const list = shaftMembers.get(key) ?? [];
+      list.push(node);
+      shaftMembers.set(key, list);
+    }
+
+    // "Virtual neighbors": 실제 edge + 같은 shaft의 다른 엘리베이터 노드들
+    const virtualNeighbors = (id: WaypointId): WaypointNode[] => {
+      const out: WaypointNode[] = this.getNeighbors(id).map(n => n.node);
+      const node = this.nodeMap.get(id as string);
+      if (node?.type === 'portal' && node.shaftId) {
+        const members = shaftMembers.get(node.shaftId as string) ?? [];
+        for (const m of members) {
+          if ((m.id as string) !== (node.id as string)) out.push(m);
+        }
+      }
+      return out;
+    };
+
     const visited = new Set<string>();
     const queue: { nodeId: string; firstHop: WaypointNode }[] = [];
 
     // 시작: 이웃 노드들을 firstHop으로 등록
-    for (const { node } of this.getNeighbors(fromId)) {
+    for (const node of virtualNeighbors(fromId)) {
       if (exitIds.has(node.id as string)) return node; // 직접 연결된 EXIT
       queue.push({ nodeId: node.id as string, firstHop: node });
       visited.add(node.id as string);
@@ -280,7 +334,7 @@ export class WaypointNavigator {
 
     while (queue.length > 0) {
       const { nodeId, firstHop } = queue.shift()!;
-      for (const { node: neighbor } of this.getNeighbors(nodeId as WaypointId)) {
+      for (const neighbor of virtualNeighbors(nodeId as WaypointId)) {
         const nid = neighbor.id as string;
         if (visited.has(nid)) continue;
         if (exitIds.has(nid)) return firstHop; // EXIT 도달 — 첫 홉 반환
@@ -293,12 +347,16 @@ export class WaypointNavigator {
 
   private countVisitedEssential(pathLog: readonly PathLogEntry[]): number {
     const visited = new Set<string>();
+    const visitedShafts = new Set<string>();
     for (const entry of pathLog) {
       const node = this.nodeMap.get(entry.nodeId as string);
-      if (node && (node.type === 'zone' || node.type === 'attractor')) {
+      if (!node) continue;
+      if (node.type === 'zone' || node.type === 'attractor') {
         visited.add(entry.nodeId as string);
+      } else if (node.type === 'portal' && node.shaftId) {
+        visitedShafts.add(node.shaftId as string);
       }
     }
-    return visited.size;
+    return visited.size + visitedShafts.size;
   }
 }

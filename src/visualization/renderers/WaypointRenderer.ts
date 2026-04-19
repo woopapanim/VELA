@@ -14,6 +14,7 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
   hub:       { fill: '#8b5cf6', stroke: '#7c3aed', label: 'H' },    // 보라
   rest:      { fill: '#f59e0b', stroke: '#d97706', label: 'R' },    // 앰버 (rest zone 컬러와 일치)
   bend:      { fill: '#64748b', stroke: '#475569', label: '·' },    // slate (작은 점)
+  portal:    { fill: '#06b6d4', stroke: '#0891b2', label: '↕' },    // cyan (층/동 간 이동)
 };
 
 const EDGE_COLOR_DARK = 'rgba(148, 163, 184, 0.6)';  // slate-400 (dark bg)
@@ -100,8 +101,10 @@ export function renderWaypoints(
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = colors.fill;
     ctx.fill();
-    ctx.strokeStyle = isSelected ? '#ffffff' : colors.stroke;
-    ctx.lineWidth = (isSelected ? 2 : 1.25) * px;
+    // Unshafted portal: warning orange stroke
+    const unshaftedPortal = node.type === 'portal' && !node.shaftId;
+    ctx.strokeStyle = isSelected ? '#ffffff' : (unshaftedPortal ? '#f97316' : colors.stroke);
+    ctx.lineWidth = (isSelected ? 2 : unshaftedPortal ? 2 : 1.25) * px;
     ctx.stroke();
 
     ctx.shadowColor = 'transparent';

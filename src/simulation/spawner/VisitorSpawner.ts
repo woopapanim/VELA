@@ -110,6 +110,7 @@ export function spawnVisitor(
     },
     waitStartedAt: null,
     enteredAt: simTime,
+    exitedAt: null,
     isActive: true,
     lastGateTransitTime: 0,
     // Graph-Point navigation

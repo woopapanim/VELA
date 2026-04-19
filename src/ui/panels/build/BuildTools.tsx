@@ -71,7 +71,7 @@ export function BuildTools() {
       y: (0) / camera.zoom + camera.y + ch / 2,
     };
 
-    const zoneW = 150, zoneH = 120;
+    const zoneW = 320, zoneH = 260;
     let x = Math.round(center.x - zoneW / 2);
     let y = Math.round(center.y - zoneH / 2);
     // 겹침 회피: 중앙에 놓을 수 없으면 주변 탐색
@@ -232,6 +232,7 @@ export function BuildTools() {
               { type: 'attractor' as WaypointType, label: 'Attractor', color: '#f59e0b', descKey: 'build.node.attractor.desc' },
               { type: 'hub' as WaypointType, label: 'Hub', color: '#8b5cf6', descKey: 'build.node.hub.desc' },
               { type: 'rest' as WaypointType, label: 'Rest', color: '#9ca3af', descKey: 'build.node.rest.desc' },
+              { type: 'portal' as WaypointType, label: 'Portal', color: '#06b6d4', descKey: 'build.node.portal.desc' },
             ]).map(({ type, label, color, descKey }) => (
               <button
                 key={type}

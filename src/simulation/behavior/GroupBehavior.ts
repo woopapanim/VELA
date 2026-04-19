@@ -56,8 +56,19 @@ export function syncFollowerToLeader(
 
   // Leader is moving/exiting → follower follows (steering forces handle actual position)
   if (leaderAction === VISITOR_ACTION.MOVING || leaderAction === VISITOR_ACTION.EXITING) {
+    // Leader teleported (floor changed)? Snap follower to leader so they don't
+    // try to walk across the inter-floor gap on the shared canvas.
+    const floorChanged = (leader.currentFloorId as string | null) !== (follower.currentFloorId as string | null);
+    const teleportPatch = floorChanged
+      ? {
+          position: { x: leader.position.x, y: leader.position.y },
+          currentFloorId: leader.currentFloorId,
+          velocity: { x: 0, y: 0 },
+        }
+      : {};
     return {
       ...follower,
+      ...teleportPatch,
       currentAction: leaderAction,
       targetZoneId: leader.targetZoneId,
       targetNodeId: leader.targetNodeId,

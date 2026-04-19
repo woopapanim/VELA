@@ -56,8 +56,6 @@ function makeZone(
       position: { x: g.x, y: g.y },
       width: 40,
       connectedGateId: null,
-      targetFloorId: null,
-      targetGateId: null,
     })),
     mediaIds: [],
     color: ZONE_COLORS[type] ?? '#3b82f6',

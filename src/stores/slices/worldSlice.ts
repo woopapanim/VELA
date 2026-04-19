@@ -1,6 +1,12 @@
 import type { StateCreator } from 'zustand';
-import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
+import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph, WaypointNode, WaypointEdge, ElevatorShaft } from '@/domain';
 import { zonesOverlap } from '@/domain/zoneGeometry';
+import {
+  floorsNeedRelayout,
+  layoutFloorsHorizontally,
+  computeNewFloorOrigin,
+  computeFloorContentBbox,
+} from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
 const MEDIA_GAP = 0;
@@ -189,11 +195,15 @@ export interface WorldSlice {
   activeFloorId: string | null;
   scenario: Scenario | null;
   waypointGraph: WaypointGraph | null;
+  shafts: ElevatorShaft[];
 
   // Actions
   setScenario: (scenario: Scenario) => void;
   updateScenarioMeta: (updates: Partial<Scenario['meta']>) => void;
   setActiveFloor: (floorId: string) => void;
+  addFloor: () => void;
+  removeFloor: (floorId: string) => void;
+  renameFloor: (floorId: string, name: string) => void;
   addZone: (zone: ZoneConfig) => void;
   updateZone: (zoneId: string, updates: Partial<ZoneConfig>) => void;
   removeZone: (zoneId: string) => void;
@@ -208,6 +218,10 @@ export interface WorldSlice {
   updateEdge: (id: string, updates: Partial<WaypointEdge>) => void;
   removeEdge: (id: string) => void;
   setWaypointGraph: (graph: WaypointGraph | null) => void;
+  // Elevator shaft CRUD
+  addShaft: (shaft: ElevatorShaft) => void;
+  updateShaft: (id: string, updates: Partial<ElevatorShaft>) => void;
+  removeShaft: (id: string) => void;
   reset: () => void;
 }
 
@@ -218,10 +232,10 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   activeFloorId: null,
   scenario: null,
   waypointGraph: null,
+  shafts: [],
 
   setScenario: (scenario) => {
     const activeFloorId = scenario.floors[0]?.id as string ?? null;
-    const expandedFloors = expandCanvasForZones([...scenario.floors], scenario.zones, activeFloorId);
     // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
     const correctedMedia = scenario.media.map((m: any) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
@@ -229,13 +243,45 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       }
       return m;
     });
+
+    // If multiple floors have overlapping content in world coords (legacy tab-based scenarios),
+    // auto-lay them out horizontally so the shared canvas shows them side-by-side.
+    let floorsArr: FloorConfig[] = [...scenario.floors];
+    let zonesArr: ZoneConfig[] = [...scenario.zones];
+    let mediaArr: MediaPlacement[] = correctedMedia;
+    let graphArr: WaypointGraph | null = scenario.waypointGraph ?? null;
+
+    if (floorsNeedRelayout(floorsArr, zonesArr, mediaArr, graphArr)) {
+      const laid = layoutFloorsHorizontally(floorsArr, zonesArr, mediaArr, graphArr);
+      floorsArr = laid.floors;
+      zonesArr = laid.zones;
+      mediaArr = laid.media;
+      graphArr = laid.waypointGraph;
+    }
+
+    // Legacy migration: rewrite node.type 'elevator' → 'portal'.
+    if (graphArr) {
+      let migrated = false;
+      const nodes = graphArr.nodes.map(n => {
+        if ((n.type as string) === 'elevator') {
+          migrated = true;
+          return { ...n, type: 'portal' as const };
+        }
+        return n;
+      });
+      if (migrated) graphArr = { ...graphArr, nodes };
+    }
+
+    const expandedFloors = expandCanvasForZones(floorsArr, zonesArr, activeFloorId);
+    const shaftsArr: ElevatorShaft[] = [...(scenario.shafts ?? [])];
     set({
-      scenario: { ...scenario, floors: expandedFloors, media: correctedMedia },
+      scenario: { ...scenario, floors: expandedFloors, zones: zonesArr, media: mediaArr, waypointGraph: graphArr ?? undefined, shafts: shaftsArr },
       floors: expandedFloors,
-      zones: [...scenario.zones],
-      media: correctedMedia,
+      zones: zonesArr,
+      media: mediaArr,
       activeFloorId,
-      waypointGraph: scenario.waypointGraph ?? null,
+      waypointGraph: graphArr,
+      shafts: shaftsArr,
     });
   },
 
@@ -245,6 +291,109 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   }),
 
   setActiveFloor: (floorId) => set({ activeFloorId: floorId }),
+
+  addFloor: () => set((s) => {
+    // Next level = max existing + 1 (first floor gets level 1 if 1F exists at 0)
+    const maxLevel = s.floors.reduce((m, f) => Math.max(m, f.level), -1);
+    const nextLevel = maxLevel + 1;
+    const name = nextLevel === 0 ? '1F' : nextLevel > 0 ? `${nextLevel + 1}F` : `B${-nextLevel}`;
+    const baseCanvas = s.floors[0]?.canvas ?? {
+      width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025,
+      bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false,
+    };
+    const regionW = Math.max(400, baseCanvas.width);
+    const regionH = Math.max(300, baseCanvas.height);
+
+    // Assign explicit bounds to any existing floor that lacks them, so the shared
+    // canvas has a visible region outline matching the new-floor default size.
+    let normalizedFloors: FloorConfig[] = s.floors.map((f) => {
+      if (f.bounds) return f;
+      const bbox = computeFloorContentBbox(f, s.zones, s.media, s.waypointGraph);
+      if (bbox) {
+        // Center the full-size region on the existing content so the zone stays in place.
+        const cx = bbox.x + bbox.w / 2;
+        const cy = bbox.y + bbox.h / 2;
+        return { ...f, bounds: { x: cx - regionW / 2, y: cy - regionH / 2, w: regionW, h: regionH } };
+      }
+      // Empty floor: default region at origin.
+      return { ...f, bounds: { x: 0, y: 0, w: regionW, h: regionH } };
+    });
+
+    const id = `floor_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` as any;
+    // Place the new region to the right of the existing rightmost region on the shared canvas.
+    const origin = computeNewFloorOrigin(normalizedFloors, s.zones, s.media, s.waypointGraph);
+    const newFloor: FloorConfig = {
+      id,
+      name,
+      level: nextLevel,
+      canvas: { ...baseCanvas, backgroundImage: null, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
+      zoneIds: [],
+      metadata: {},
+      bounds: { x: origin.x, y: origin.y, w: regionW, h: regionH },
+    };
+    const newFloors = [...normalizedFloors, newFloor];
+    return {
+      floors: newFloors,
+      activeFloorId: id as string,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  removeFloor: (floorId) => set((s) => {
+    if (s.floors.length <= 1) return {}; // keep at least one floor
+    const newFloors = s.floors.filter(f => (f.id as string) !== floorId);
+    // Zone membership comes from FloorConfig.zoneIds (not ZoneConfig.floorId which doesn't exist)
+    const removedFloor = s.floors.find(f => (f.id as string) === floorId);
+    const removedZoneIds = new Set((removedFloor?.zoneIds ?? []).map(id => id as string));
+    const newZones = s.zones.filter(z => !removedZoneIds.has(z.id as string));
+    const newMedia = s.media.filter(m => !removedZoneIds.has(m.zoneId as string));
+    const newGraph = s.waypointGraph
+      ? {
+          nodes: s.waypointGraph.nodes.filter(n => (n.floorId as string) !== floorId),
+          edges: s.waypointGraph.edges.filter(e => {
+            const from = s.waypointGraph!.nodes.find(n => n.id === e.fromId);
+            const to = s.waypointGraph!.nodes.find(n => n.id === e.toId);
+            return from && to && (from.floorId as string) !== floorId && (to.floorId as string) !== floorId;
+          }),
+        }
+      : null;
+    // Portals on the removed floor were already dropped above (newGraph filter).
+    // A shaft now serves fewer floors; drop any shaft whose remaining portal set
+    // spans fewer than two floors — no teleport is possible from a single-floor shaft.
+    const remainingPortalsByShaft = new Map<string, Set<string>>();
+    for (const n of newGraph?.nodes ?? []) {
+      if (n.type !== 'portal' || !n.shaftId) continue;
+      const key = n.shaftId as string;
+      let set = remainingPortalsByShaft.get(key);
+      if (!set) { set = new Set(); remainingPortalsByShaft.set(key, set); }
+      set.add(n.floorId as string);
+    }
+    const newShafts = s.shafts.filter(sh => (remainingPortalsByShaft.get(sh.id as string)?.size ?? 0) >= 2);
+    const nextActive = (s.activeFloorId === floorId)
+      ? (newFloors[0]?.id as string ?? null)
+      : s.activeFloorId;
+    return {
+      floors: newFloors,
+      zones: newZones,
+      media: newMedia,
+      waypointGraph: newGraph,
+      shafts: newShafts,
+      activeFloorId: nextActive,
+      scenario: s.scenario
+        ? { ...s.scenario, floors: newFloors, zones: newZones, media: newMedia, waypointGraph: newGraph ?? undefined, shafts: newShafts }
+        : s.scenario,
+    };
+  }),
+
+  renameFloor: (floorId, name) => set((s) => {
+    const newFloors = s.floors.map(f =>
+      (f.id as string) === floorId ? { ...f, name } : f
+    );
+    return {
+      floors: newFloors,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
 
   addZone: (zone) => {
     // Save undo snapshot BEFORE mutation
@@ -519,6 +668,56 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       scenario: s.scenario ? { ...s.scenario, waypointGraph: graph ?? undefined } : s.scenario,
     })),
 
+  // ── Elevator Shaft CRUD ──
+
+  addShaft: (shaft) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      if (s.shafts.some(sh => (sh.id as string) === (shaft.id as string))) return {};
+      const newShafts = [...s.shafts, shaft];
+      return {
+        shafts: newShafts,
+        scenario: s.scenario ? { ...s.scenario, shafts: newShafts } : s.scenario,
+      };
+    });
+  },
+
+  updateShaft: (id, updates) =>
+    set((s) => {
+      const newShafts = s.shafts.map(sh =>
+        (sh.id as string) === id ? { ...sh, ...updates } : sh,
+      );
+      return {
+        shafts: newShafts,
+        scenario: s.scenario ? { ...s.scenario, shafts: newShafts } : s.scenario,
+      };
+    }),
+
+  removeShaft: (id) => {
+    const cur = get();
+    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    set((s) => {
+      const newShafts = s.shafts.filter(sh => (sh.id as string) !== id);
+      // Also strip shaftId from any elevator nodes that referenced it
+      const newGraph: WaypointGraph | null = s.waypointGraph
+        ? {
+            ...s.waypointGraph,
+            nodes: s.waypointGraph.nodes.map(n =>
+              (n.shaftId as string | undefined) === id ? { ...n, shaftId: null } : n,
+            ),
+          }
+        : null;
+      return {
+        shafts: newShafts,
+        waypointGraph: newGraph,
+        scenario: s.scenario
+          ? { ...s.scenario, shafts: newShafts, waypointGraph: newGraph ?? undefined }
+          : s.scenario,
+      };
+    });
+  },
+
   reset: () =>
     set({
       floors: [],
@@ -527,5 +726,6 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       activeFloorId: null,
       scenario: null,
       waypointGraph: null,
+      shafts: [],
     }),
 });

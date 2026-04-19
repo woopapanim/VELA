@@ -1,4 +1,4 @@
-import type { FloorId, ZoneId, MediaId, Vector2D, WaypointId, WaypointEdgeId } from './common';
+import type { FloorId, ZoneId, MediaId, Vector2D, WaypointId, WaypointEdgeId, ShaftId } from './common';
 
 export type { WaypointId, WaypointEdgeId };
 
@@ -11,6 +11,7 @@ export const WAYPOINT_TYPE = {
   HUB: 'hub',             // 의사결정점 (교차로/분기점, 체류 없음)
   REST: 'rest',           // 휴게/버퍼
   BEND: 'bend',           // 단순 경유점 (엣지 꺾기용, 경로 탐색 무시)
+  PORTAL: 'portal',       // 포털 노드 (ShaftId로 그룹화, 층/동 간 이동 허브)
 } as const;
 
 export type WaypointType = (typeof WAYPOINT_TYPE)[keyof typeof WAYPOINT_TYPE];
@@ -32,6 +33,9 @@ export interface WaypointNode {
   readonly zoneId: ZoneId | null;
   // 미디어 직접 바인딩 (ATTRACTOR 전용)
   readonly mediaId: MediaId | null;
+  // Portal shaft 소속 (PORTAL 전용): 같은 shaftId를 공유하는 노드들 간 텔레포트 가능.
+  // 한 shaft는 층마다 최대 1개의 노드를 가짐.
+  readonly shaftId?: ShaftId | null;
 }
 
 // ---- Edge Direction ----

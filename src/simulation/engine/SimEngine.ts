@@ -34,6 +34,7 @@ import type {
   WaypointNode,
   WaypointId,
   PathLogEntry,
+  ElevatorShaft,
 } from '@/domain';
 import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_INTERACTION_OFFSET } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
@@ -84,6 +85,7 @@ export interface SimulationWorld {
   globalFlowMode?: string;
   guidedUntilIndex?: number;
   waypointGraph?: WaypointGraph;
+  shafts?: readonly ElevatorShaft[];
   totalVisitors?: number;  // 누적 입장 상한 (default: Infinity)
 }
 
@@ -346,8 +348,15 @@ export class SimulationEngine {
         const mid = v.targetMediaId as string;
         this._tickMediaViewers.set(mid, (this._tickMediaViewers.get(mid) ?? 0) + 1);
       }
-      // Track crowd at waypoint nodes
-      if (v.currentNodeId) {
+      // Track crowd at waypoint nodes — only count agents actually staying
+      // (RESTING/WATCHING/WAITING), not those in transit to next node.
+      // Including in-transit agents would inflate crowd density and repel new arrivals
+      // even when the node is functionally empty.
+      if (v.currentNodeId && (
+        v.currentAction === VISITOR_ACTION.RESTING ||
+        v.currentAction === VISITOR_ACTION.WATCHING ||
+        v.currentAction === VISITOR_ACTION.WAITING
+      )) {
         const nid = v.currentNodeId as string;
         this.nodeCrowd.set(nid, (this.nodeCrowd.get(nid) ?? 0) + 1);
       }
@@ -680,7 +689,7 @@ export class SimulationEngine {
 
     // ── 2. Exiting: reached exit gate → deactivate ──
     if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
-      return { ...v, isActive: false };
+      return { ...v, isActive: false, exitedAt: this.state.timeState.elapsed };
     }
 
     // ── 3. Media arrival ──
@@ -1871,6 +1880,76 @@ export class SimulationEngine {
       return this.beginExitGraph(v, curNode);
     }
 
+    // 1b. ELEVATOR 노드 도착 → wait + travel 후 같은 shaft의 다른 층 노드로 텔레포트
+    if (curNode.type === 'portal' && curNode.shaftId) {
+      const shaft = this.world.shafts?.find(sh => (sh.id as string) === (curNode.shaftId as string));
+      if (shaft) {
+        // 같은 shaft에 속한 다른 floor의 엘리베이터 노드 후보
+        const members = this.waypointNav.getNodesByShaft(curNode.shaftId);
+        const candidates = members.filter(m =>
+          (m.id as string) !== (curNode.id as string) &&
+          (m.floorId as string) !== (curNode.floorId as string),
+        );
+        if (candidates.length > 0) {
+          // Just-teleported guard: 직전 로그가 같은 shaft의 다른 노드면 이미 도착 → 다음 노드 선택으로 진행
+          const prevLog = v.pathLog[v.pathLog.length - 2];
+          const prevNode = prevLog ? this.waypointNav.getNode(prevLog.nodeId as any) : null;
+          const justTeleported = prevNode
+            && prevNode.type === 'portal'
+            && (prevNode.shaftId as string | undefined) === (curNode.shaftId as string);
+          if (!justTeleported) {
+            // 목적지 선택: 에이전트의 currentTargetNode/targetZone이 있으면 그 층의 노드, 없으면 첫 번째
+            let dest = candidates[0];
+            const targetFloor = v.targetFloorId as string | null;
+            if (targetFloor) {
+              const onTarget = candidates.find(c => (c.floorId as string) === targetFloor);
+              if (onTarget) dest = onTarget;
+            }
+            const floorSpan = Math.abs(
+              (this.world.floors.find(f => (f.id as string) === (dest.floorId as string))?.level ?? 0)
+              - (this.world.floors.find(f => (f.id as string) === (curNode.floorId as string))?.level ?? 0)
+            );
+            const totalWaitMs = shaft.waitTimeMs + floorSpan * shaft.travelTimePerFloorMs;
+            const lastLog = v.pathLog[v.pathLog.length - 1];
+            if (lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
+              const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
+              if (elapsed < totalWaitMs) {
+                return {
+                  ...v,
+                  currentAction: VISITOR_ACTION.WATCHING,
+                  velocity: { x: 0, y: 0 },
+                  steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+                };
+              }
+            }
+            // Teleport
+            const closedLog = this.closePathLogEntry(v.pathLog, curNode.id, this.state.timeState.elapsed);
+            const newPathLog: PathLogEntry[] = [...closedLog, {
+              nodeId: dest.id,
+              entryTime: this.state.timeState.elapsed,
+              exitTime: 0,
+              duration: 0,
+            }];
+            return {
+              ...v,
+              position: { x: dest.position.x, y: dest.position.y },
+              currentFloorId: dest.floorId,
+              // Reset to destination portal's zone (or null if portal is outside any zone).
+              // Keeping the old floor's zoneId here causes stepCollision to clamp the
+              // agent back into the previous floor's polygon on the next tick.
+              currentZoneId: (dest.zoneId as any) ?? null,
+              currentNodeId: dest.id,
+              pathLog: newPathLog,
+              velocity: { x: 0, y: 0 },
+              currentAction: VISITOR_ACTION.IDLE,
+              steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
+            };
+          }
+          // justTeleported: fall through to next-node selection
+        }
+      }
+    }
+
     // 2. HUB/BEND 노드 → 체류/미디어 없이 바로 다음 노드 선택
     if (curNode.type === 'hub' || curNode.type === 'bend') {
       // 바로 step 4 (다음 노드 선택)으로
@@ -1982,6 +2061,7 @@ export class SimulationEngine {
       currentAction: VISITOR_ACTION.EXITING,
       velocity: { x: 0, y: 0 },
       isActive: false,
+      exitedAt: this.state.timeState.elapsed,
     };
   }
 
@@ -2609,12 +2689,18 @@ export class SimulationEngine {
       }
     }
 
-    // Floor bounds — skip for EXITING agents and exit-node seekers so they reach exit
+    // Floor bounds — skip for EXITING agents and exit-node seekers so they reach exit.
+    // Shared-canvas model: clamp to floor.bounds (world-space frame) rather than
+    // floor.canvas (intrinsic size starting at 0,0), otherwise agents on non-first
+    // floors get dragged back to the origin on every tick after teleporting.
     const targetingExit = !!v.targetNodeId && this.waypointNav
       && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
     if (ENABLE_FLOOR_CLAMP && v.currentAction !== VISITOR_ACTION.EXITING && !targetingExit) {
       const floor = this.world.floors.find(f => f.id === v.currentFloorId);
-      if (floor) pos = clampToRect(pos, { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height });
+      if (floor) {
+        const frame = floor.bounds ?? { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height };
+        pos = clampToRect(pos, frame);
+      }
     }
 
     if (pos === v.position) return v;

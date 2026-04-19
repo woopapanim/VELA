@@ -65,6 +65,7 @@ export function SimulationControls() {
       globalFlowMode: flowMode,
       guidedUntilIndex: guidedIdx,
       waypointGraph: store.waypointGraph ?? undefined,
+      shafts: store.shafts,
       totalVisitors: store.scenario.visitorDistribution.totalCount,
       categoryWeights: store.scenario.visitorDistribution.categoryWeights,
     };

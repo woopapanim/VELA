@@ -37,12 +37,12 @@ export const FLOW_TYPE = {
 
 export type FlowType = (typeof FLOW_TYPE)[keyof typeof FLOW_TYPE];
 
-// ---- Gate (zone entrance/exit + inter-floor portal) ----
+// ---- Gate (zone entrance/exit, same-floor) ----
+// Cross-floor transit is handled by ElevatorShaft + elevator waypoint nodes, not gates.
 export const GATE_TYPE = {
   ENTRANCE: 'entrance',
   EXIT: 'exit',
   BIDIRECTIONAL: 'bidirectional',
-  PORTAL: 'portal',
 } as const;
 
 export type GateType = (typeof GATE_TYPE)[keyof typeof GATE_TYPE];
@@ -55,9 +55,6 @@ export interface Gate {
   readonly position: Vector2D;
   readonly width: number;
   readonly connectedGateId: GateId | null;
-  // Portal-only (inter-floor)
-  readonly targetFloorId: FloorId | null;
-  readonly targetGateId: GateId | null;
 }
 
 // ---- Gateway Mode (spawn/exit direction for gateway zones) ----

@@ -5,6 +5,7 @@ import type { MediaPlacement } from './media';
 import type { VisitorDistribution } from './visitor';
 import type { SimulationConfig } from './simulation';
 import type { WaypointGraph } from './waypoint';
+import type { ElevatorShaft } from './shaft';
 
 // ---- Scenario Meta ----
 export interface ScenarioMeta {
@@ -38,6 +39,7 @@ export interface Scenario {
   readonly globalFlowMode?: GlobalFlowMode;   // default 'free'
   readonly guidedUntilIndex?: number;          // for hybrid: sequential up to this zone index
   readonly waypointGraph?: WaypointGraph;       // Graph-Point 동선 그래프
+  readonly shafts?: readonly ElevatorShaft[];   // 엘리베이터 샤프트 (층 간 이동)
 }
 
 // ---- Scenario Summary (lightweight for lists) ----

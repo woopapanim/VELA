@@ -1,7 +1,5 @@
 import type { ZoneConfig } from '@/domain';
 
-let _animFrame = 0;
-
 type Pt = { x: number; y: number };
 
 function getShapeEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): [Pt, Pt][] {
@@ -33,8 +31,6 @@ export function renderGates(
   zones: readonly ZoneConfig[],
   isDark: boolean,
 ) {
-  _animFrame++;
-
   for (const zone of zones) {
     const b = zone.bounds;
 
@@ -83,9 +79,7 @@ export function renderGates(
 
       // Gate color
       let color: string;
-      if (type === 'portal') {
-        color = isDark ? '#c084fc' : '#7c3aed';
-      } else if (type === 'entrance') {
+      if (type === 'entrance') {
         color = isDark ? '#4ade80' : '#16a34a';
       } else if (type === 'exit') {
         color = isDark ? '#f87171' : '#dc2626';
@@ -93,24 +87,7 @@ export function renderGates(
         color = isDark ? '#60a5fa' : '#2563eb';
       }
 
-      if (type === 'portal') {
-        const pulse = (Math.sin(_animFrame * 0.08) + 1) * 0.5;
-        ctx.beginPath();
-        ctx.arc(gx, gy, 6 + pulse * 4, 0, Math.PI * 2);
-        ctx.strokeStyle = color;
-        ctx.globalAlpha = 0.3 + pulse * 0.3;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([2, 2]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 0.7;
-        const d = 3;
-        ctx.beginPath();
-        ctx.moveTo(gx, gy - d); ctx.lineTo(gx + d, gy); ctx.lineTo(gx, gy + d); ctx.lineTo(gx - d, gy);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-      } else {
+      {
         // Draw gate line along the angle (tangent to wall/circle)
         const dx = Math.cos(angle) * halfW;
         const dy = Math.sin(angle) * halfW;

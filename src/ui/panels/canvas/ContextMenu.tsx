@@ -76,6 +76,7 @@ const NODE_TYPES = [
   { type: 'attractor', label: 'Attractor', color: '#f59e0b' },
   { type: 'hub', label: 'Hub', color: '#8b5cf6' },
   { type: 'rest', label: 'Rest', color: '#9ca3af' },
+  { type: 'portal', label: 'Portal', color: '#06b6d4' },
 ];
 
 let _ctxZoneCounter = 200;

@@ -14,3 +14,4 @@ export { renderSnapGuides, findSnapGuides, type SnapGuide } from './SnapGuideRen
 export { renderSpawnPoints } from './SpawnPointRenderer';
 export { renderMeasureLine } from './MeasureRenderer';
 export { renderWaypoints } from './WaypointRenderer';
+export { renderFloorFrames } from './FloorFrameRenderer';
