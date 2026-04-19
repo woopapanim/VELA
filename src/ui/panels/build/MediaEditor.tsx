@@ -201,24 +201,22 @@ export function MediaEditor() {
         </select>
       </div>
 
-      {/* Omnidirectional (analog only) */}
-      {interactionType === 'analog' && (
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <label className="panel-label">Omnidirectional</label>
-            <InfoTooltip text={t('tooltip.media.omnidirectional')} />
-          </div>
-          <button
-            onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
-            disabled={isLocked}
-            className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
-              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
-            }`}
-          >
-            {(m as any).omnidirectional ? '360°' : 'Front'}
-          </button>
+      {/* Omnidirectional */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <label className="panel-label">Omnidirectional</label>
+          <InfoTooltip text={t('tooltip.media.omnidirectional')} />
         </div>
-      )}
+        <button
+          onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
+          disabled={isLocked}
+          className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+            (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+          }`}
+        >
+          {(m as any).omnidirectional ? '360°' : 'Front'}
+        </button>
+      </div>
 
       {/* Stage Interval (staged only) */}
       {interactionType === 'staged' && (

@@ -452,19 +452,17 @@ export function PropertyPopover({ popover, onClose }: {
           </select>
         </Row>
 
-        {/* Omnidirectional (analog only) */}
-        {interactionType === 'analog' && (
-          <Row label="Omni">
-            <button
-              onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
-              className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
-                (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
-              }`}
-            >
-              {(m as any).omnidirectional ? '360°' : 'Front'}
-            </button>
-          </Row>
-        )}
+        {/* Omnidirectional */}
+        <Row label="Omni">
+          <button
+            onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
+            className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
+              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+            }`}
+          >
+            {(m as any).omnidirectional ? '360°' : 'Front'}
+          </button>
+        </Row>
 
         {/* Stage Interval (staged only) */}
         {interactionType === 'staged' && (
