@@ -61,22 +61,43 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       ? exited.reduce((s, v) => s + ((v.exitedAt ?? durationMs) - v.enteredAt), 0) / exited.length
       : 0;
 
-    const peakUtilRatio = Math.max(0, ...latestSnapshot.zoneUtilizations.map((u) => u.ratio));
+    // Peak ratio uses peakOccupancy (running max from utilization.ts), not current ratio.
+    // latestSnapshot.zoneUtilizations[i].ratio is the active-only current value — 0 at sim end.
+    const peakRatioByZone = new Map<string, number>();
+    for (const u of latestSnapshot.zoneUtilizations) {
+      const cap = u.capacity > 0 ? u.capacity : 1;
+      peakRatioByZone.set(u.zoneId as string, u.peakOccupancy / cap);
+    }
+    const peakUtilRatio = Math.max(0, ...peakRatioByZone.values());
     const peakZone = latestSnapshot.zoneUtilizations.reduce(
-      (best, u) => (u.ratio > (best?.ratio ?? -1) ? u : best),
+      (best, u) => {
+        const r = (peakRatioByZone.get(u.zoneId as string) ?? 0);
+        const bestR = best ? (peakRatioByZone.get(best.zoneId as string) ?? -1) : -1;
+        return r > bestR ? u : best;
+      },
       latestSnapshot.zoneUtilizations[0] ?? null,
     );
     const peakZoneName = peakZone
       ? zones.find((z) => z.id === peakZone.zoneId)?.name ?? '—'
       : '—';
 
+    // Per-zone cumulative max bottleneck (kpiHistory entries are { timestamp, snapshot }).
+    const peakBottleneckByZone = new Map<string, { score: number; avgQueueTime: number; flowInRate: number; flowOutRate: number; groupContribution: number; isGroupInduced: boolean }>();
+    for (const entry of kpiHistory) {
+      for (const b of entry.snapshot.bottlenecks) {
+        const k = b.zoneId as string;
+        const prev = peakBottleneckByZone.get(k);
+        if (!prev || b.score > prev.score) peakBottleneckByZone.set(k, b);
+      }
+    }
+
     const zoneBreakdown = zones.map((z) => {
       const util = latestSnapshot.zoneUtilizations.find((u) => u.zoneId === z.id);
-      const bn = latestSnapshot.bottlenecks.find((b) => b.zoneId === z.id);
+      const bn = peakBottleneckByZone.get(z.id as string);
       const visit = latestSnapshot.visitDurations.find((v) => v.zoneId === z.id);
       const currentActive = active.filter((v) => v.currentZoneId === z.id).length;
       const peak = util?.peakOccupancy ?? currentActive;
-      const ratio = util?.ratio ?? 0;
+      const ratio = z.capacity > 0 ? peak / z.capacity : 0;  // peak ratio, not current
       const areaPerPerson = peak > 0 ? z.area / peak : z.area;
       let grade: 'A' | 'B' | 'C' | 'D' | 'F';
       if (areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD * 2) grade = 'A';
@@ -108,8 +129,17 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       };
     });
 
+    // Cumulative zone-visit distribution: how many visitors ever entered each zone.
+    // Replaces "real-time active" donut which becomes empty/single-zone post-sim.
+    const zoneVisitCount = new Map<string, number>();
+    for (const v of visitors) {
+      for (const zid of v.visitedZoneIds) {
+        const k = zid as string;
+        zoneVisitCount.set(k, (zoneVisitCount.get(k) ?? 0) + 1);
+      }
+    }
     const zoneDistribution = zoneBreakdown
-      .map((z) => ({ id: z.id, name: z.name, color: z.color, count: z.currentActive }))
+      .map((z) => ({ id: z.id, name: z.name, color: z.color, count: zoneVisitCount.get(z.id) ?? 0 }))
       .filter((d) => d.count > 0)
       .sort((a, b) => b.count - a.count);
 
@@ -171,15 +201,57 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       else completion.high++;
     }
 
+    // Fatigue computed from full visitor list (active + exited keep their final fatigue value).
+    // latestSnapshot.fatigueDistribution filters active-only and goes empty at sim end.
+    const fatigueValues = visitors.map((v) => v.fatigue).sort((a, b) => a - b);
+    const fN = fatigueValues.length;
+    const avgFatigueCum = fN > 0 ? fatigueValues.reduce((s, f) => s + f, 0) / fN : 0;
+    const medianFatigueCum = fN > 0 ? fatigueValues[Math.floor(fN / 2)] : 0;
+    const p90FatigueCum = fN > 0 ? fatigueValues[Math.floor(fN * 0.9)] : 0;
+    const p99FatigueCum = fN > 0 ? fatigueValues[Math.min(fN - 1, Math.floor(fN * 0.99))] : 0;
+    const histogram = Array.from({ length: 10 }, (_, i) => {
+      const rangeMin = i / 10;
+      const rangeMax = (i + 1) / 10;
+      const count = fatigueValues.filter((f) => f >= rangeMin && f < rangeMax).length;
+      return { rangeMin, rangeMax, count };
+    });
+    const histMax = Math.max(1, ...histogram.map((b) => b.count));
+
+    // Cumulative skip rate from mediaStats (totalSkips already summed above).
+    const globalSkipRateCum = (totalWatches + totalSkips) > 0
+      ? totalSkips / (totalWatches + totalSkips)
+      : 0;
+
+    // Cumulative completion / total time from full visitor list.
+    const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= 3).length;
+    const completionRateCum = visitors.length > 0 ? wellVisited / visitors.length : 0;
+    let totalTimeSum = 0;
+    let totalTimeCount = 0;
+    for (const v of exited) {
+      if (v.exitedAt != null && v.enteredAt > 0) {
+        totalTimeSum += v.exitedAt - v.enteredAt;
+        totalTimeCount++;
+      }
+    }
+    const averageTotalTimeMsCum = totalTimeCount > 0 ? totalTimeSum / totalTimeCount : avgDwellMs;
+    const minutesElapsed = durationMs / 60000;
+    const throughputPerMinuteCum = minutesElapsed > 0 ? totalExited / minutesElapsed : 0;
+
     const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t);
     const criticalInsights = insights.filter((i) => i.severity === 'critical');
     const warningInsights = insights.filter((i) => i.severity === 'warning');
 
-    const histogram = latestSnapshot.fatigueDistribution.histogram;
-    const histMax = Math.max(1, ...histogram.map((b) => b.count));
-
-    const groupInducedBottlenecks = latestSnapshot.bottlenecks.filter((b) => b.isGroupInduced).length;
-    const totalBottlenecks = latestSnapshot.bottlenecks.filter((b) => b.score > 0.5).length;
+    // Bottleneck count = zones that ever crossed score>0.5 anywhere in kpiHistory.
+    const everBottlenecked = new Set<string>();
+    const everGroupInduced = new Set<string>();
+    for (const entry of kpiHistory) {
+      for (const b of entry.snapshot.bottlenecks) {
+        if (b.score > 0.5) everBottlenecked.add(b.zoneId as string);
+        if (b.isGroupInduced) everGroupInduced.add(b.zoneId as string);
+      }
+    }
+    const totalBottlenecks = everBottlenecked.size;
+    const groupInducedBottlenecks = everGroupInduced.size;
 
     return {
       totalVisitors: visitors.length,
@@ -190,16 +262,17 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       avgDwellMs,
       peakUtilRatio,
       peakZoneName,
-      peakZoneRatio: peakZone?.ratio ?? 0,
-      avgFatigue: latestSnapshot.fatigueDistribution.mean,
-      p90Fatigue: latestSnapshot.fatigueDistribution.p90,
-      p99Fatigue: latestSnapshot.fatigueDistribution.p99,
-      globalSkipRate: latestSnapshot.skipRate.globalSkipRate,
+      peakZoneRatio: peakZone ? (peakRatioByZone.get(peakZone.zoneId as string) ?? 0) : 0,
+      avgFatigue: avgFatigueCum,
+      medianFatigue: medianFatigueCum,
+      p90Fatigue: p90FatigueCum,
+      p99Fatigue: p99FatigueCum,
+      globalSkipRate: globalSkipRateCum,
       bottleneckCount: totalBottlenecks,
       groupInducedBottlenecks,
-      completionRate: latestSnapshot.flowEfficiency.completionRate,
-      throughputPerMinute: latestSnapshot.flowEfficiency.throughputPerMinute,
-      averageTotalTimeMs: latestSnapshot.flowEfficiency.averageTotalTimeMs,
+      completionRate: completionRateCum,
+      throughputPerMinute: throughputPerMinuteCum,
+      averageTotalTimeMs: averageTotalTimeMsCum,
       zoneBreakdown,
       zoneDistribution,
       gradeDist,
@@ -219,7 +292,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       histogram,
       histMax,
     };
-  }, [scenario, visitors, zones, media, timeState, latestSnapshot, mediaStats, groups, t]);
+  }, [scenario, visitors, zones, media, timeState, latestSnapshot, kpiHistory, mediaStats, groups, totalExited, t]);
 
   const handleExport = useCallback(async () => {
     if (!reportRef.current || !scenario) return;
@@ -375,7 +448,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
               <Finding metric="공간 등급" body={`A ${data.gradeDist.A} · B ${data.gradeDist.B} · C ${data.gradeDist.C} · D ${data.gradeDist.D} · F ${data.gradeDist.F}`} />
               <Finding metric="콘텐츠 노출" body={`총 ${data.totalWatches}회 관람 · 평균 ${(data.totalWatchMs / 60000 / Math.max(1, data.totalWatches)).toFixed(1)}분 시청`} />
               <Finding metric="대기 현황" body={`대기 이벤트 ${data.totalWaits}회 · 그룹 ${data.totalGroups}팀`} />
-              <Finding metric="피로도 분포" body={`평균 ${Math.round(data.avgFatigue * 100)}% · 중앙값 ${Math.round(latestSnapshot!.fatigueDistribution.median * 100)}% · P99 ${Math.round(data.p99Fatigue * 100)}%`} />
+              <Finding metric="피로도 분포" body={`평균 ${Math.round(data.avgFatigue * 100)}% · 중앙값 ${Math.round(data.medianFatigue * 100)}% · P99 ${Math.round(data.p99Fatigue * 100)}%`} />
               <Finding metric="동선 완주도" body={`≥3존 방문 ${data.completion.mid + data.completion.high}명 · ≤2존 이탈 ${data.completion.zero + data.completion.low}명`} />
             </div>
           </div>
@@ -456,10 +529,10 @@ export function FullReport({ onClose }: { onClose: () => void }) {
 
           <div className="grid grid-cols-5 gap-10 mt-10">
             <div className="col-span-2">
-              <SubHeader>실시간 존 분포</SubHeader>
+              <SubHeader>존별 누적 방문 분포</SubHeader>
               <div className="mt-4"><ZoneDonut data={data.zoneDistribution} /></div>
               <p className="text-xs text-slate-500 mt-4 text-center">
-                활성 존 {data.zoneDistribution.length}개 · 관람객 {data.activeVisitors}명
+                방문된 존 {data.zoneDistribution.length}개 · 누적 방문 {data.zoneDistribution.reduce((s, z) => s + z.count, 0)}회
               </p>
             </div>
 

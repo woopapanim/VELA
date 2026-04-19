@@ -88,8 +88,10 @@ export function SimulationControls() {
 
       const activeVisitors = eng.getActiveVisitors();
 
+      // Push ALL visitors (active + exited) so analytics/report can read full lifecycle.
+      // Renderers filter by isActive themselves.
       updateSimState(
-        eng.getActiveVisitors(),
+        eng.getVisitors(),
         eng.getGroups(),
         state.timeState,
         state.phase,
