@@ -541,7 +541,16 @@ export function FullReport({ onClose }: { onClose: () => void }) {
             시뮬레이션 경과에 따른 최대 혼잡도 · 평균 피로도 · 활성 관람객 수 변화. 언제 병목이 발생했고, 어느 구간에서 경험 품질이 꺾였는지 확인합니다.
           </p>
           {kpiHistory.length >= 3 ? (
-            <TimelineChart history={kpiHistory} />
+            <>
+              <TimelineChart history={kpiHistory} keyMoments={data.keyMoments} />
+              <div className="mt-10">
+                <SubHeader>존별 점유 추이 (Stacked)</SubHeader>
+                <p className="text-sm text-slate-500 mt-2 mb-4">
+                  각 존이 동시에 얼마나 채워졌는지 누적 영역으로 비교합니다. 특정 시점에 어느 존이 부담을 떠안고 있었는지 한눈에 확인합니다.
+                </p>
+                <ZoneOccupancyTimeline history={kpiHistory} zones={zones} keyMoments={data.keyMoments} />
+              </div>
+            </>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
               <p className="text-sm text-slate-500">
@@ -1328,9 +1337,17 @@ function categoryLabelKo(cat: string): string {
   return map[cat] ?? cat;
 }
 
-function TimelineChart({ history }: { history: readonly { timestamp: number; snapshot: any }[] }) {
+function TimelineChart({
+  history,
+  keyMoments,
+}: {
+  history: readonly { timestamp: number; snapshot: any }[];
+  keyMoments: readonly { kind: string; label: string; timestampMs: number }[];
+}) {
   const stepSize = Math.max(1, Math.floor(history.length / 60));
-  const sampled = history.filter((_, i) => i % stepSize === 0);
+  const sampledIdx: number[] = [];
+  for (let i = 0; i < history.length; i += stepSize) sampledIdx.push(i);
+  const sampled = sampledIdx.map((i) => history[i]);
 
   const labels = sampled.map((e) => {
     const s = Math.floor(e.timestamp / 1000);
@@ -1349,6 +1366,19 @@ function TimelineChart({ history }: { history: readonly { timestamp: number; sna
 
   const peakPoint = peakUtil.reduce((acc, v, i) => (v > acc.v ? { v, i } : acc), { v: -1, i: -1 });
   const peakLabel = peakPoint.i >= 0 ? labels[peakPoint.i] : null;
+
+  // Map each keyMoment to nearest sampled index for marker positioning.
+  const markers = keyMoments
+    .map((km) => {
+      let bestI = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < sampled.length; i++) {
+        const d = Math.abs(sampled[i].timestamp - km.timestampMs);
+        if (d < bestDist) { bestDist = d; bestI = i; }
+      }
+      return bestI >= 0 ? { index: bestI, label: km.label, kind: km.kind } : null;
+    })
+    .filter((m): m is { index: number; label: string; kind: string } => !!m);
 
   const chartData = {
     labels,
@@ -1405,10 +1435,45 @@ function TimelineChart({ history }: { history: readonly { timestamp: number; sna
     },
   };
 
+  const markerPlugin = {
+    id: 'keyMomentMarkers',
+    afterDatasetsDraw(chart: any) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales?.x) return;
+      ctx.save();
+      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      for (const m of markers) {
+        const x = scales.x.getPixelForValue(m.index);
+        if (!Number.isFinite(x)) continue;
+        ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const text = m.label;
+        const tw = ctx.measureText(text).width + 10;
+        const th = 14;
+        const bx = Math.min(chartArea.right - tw - 2, Math.max(chartArea.left + 2, x - tw / 2));
+        const by = chartArea.top + 2;
+        ctx.fillStyle = 'rgba(15,23,42,0.85)';
+        roundRect(ctx, bx, by, tw, th, 3);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, bx + tw / 2, by + th / 2);
+      }
+      ctx.restore();
+    },
+  };
+
   return (
     <div>
       <div className="bg-white rounded-xl border border-slate-200 p-6" style={{ height: 320 }}>
-        <Line data={chartData} options={options} />
+        <Line data={chartData} options={options} plugins={[markerPlugin]} />
       </div>
       {peakLabel && (
         <div className="mt-4 rounded-xl bg-red-50 border border-red-100 p-4">
@@ -1420,4 +1485,157 @@ function TimelineChart({ history }: { history: readonly { timestamp: number; sna
       )}
     </div>
   );
+}
+
+function ZoneOccupancyTimeline({
+  history,
+  zones,
+  keyMoments,
+}: {
+  history: readonly { timestamp: number; snapshot: any }[];
+  zones: readonly { id: any; name: string }[];
+  keyMoments: readonly { kind: string; label: string; timestampMs: number }[];
+}) {
+  const stepSize = Math.max(1, Math.floor(history.length / 60));
+  const sampledIdx: number[] = [];
+  for (let i = 0; i < history.length; i += stepSize) sampledIdx.push(i);
+  const sampled = sampledIdx.map((i) => history[i]);
+
+  // Show zones whose peakOccupancy ever exceeded 0 across the full (unsampled) history.
+  // currentOccupancy is sparse — sampling can miss it. peakOccupancy is the running max
+  // and reliably reflects whether a zone was ever utilized.
+  const peakById = new Map<string, number>();
+  for (const e of history) {
+    for (const u of e.snapshot.zoneUtilizations) {
+      const k = u.zoneId as string;
+      peakById.set(k, Math.max(peakById.get(k) ?? 0, u.peakOccupancy ?? 0));
+    }
+  }
+  const visibleZones = zones.filter((z) => (peakById.get(z.id as string) ?? 0) > 0);
+
+  if (visibleZones.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+        <p className="text-sm text-slate-500">존 점유 데이터가 없습니다.</p>
+      </div>
+    );
+  }
+
+  const labels = sampled.map((e) => {
+    const s = Math.floor(e.timestamp / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
+  });
+
+  const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'];
+
+  const datasets = visibleZones.map((z, i) => {
+    const color = palette[i % palette.length];
+    const data = sampled.map((e) => {
+      const u = e.snapshot.zoneUtilizations.find((x: any) => x.zoneId === z.id);
+      return u?.currentOccupancy ?? 0;
+    });
+    return {
+      label: z.name,
+      data,
+      borderColor: color,
+      backgroundColor: hexToRgba(color, 0.45),
+      fill: true as const,
+      tension: 0.3,
+      pointRadius: 0,
+      borderWidth: 1,
+    };
+  });
+
+  const markers = keyMoments
+    .map((km) => {
+      let bestI = -1;
+      let bestDist = Infinity;
+      for (let i = 0; i < sampled.length; i++) {
+        const d = Math.abs(sampled[i].timestamp - km.timestampMs);
+        if (d < bestDist) { bestDist = d; bestI = i; }
+      }
+      return bestI >= 0 ? { index: bestI, label: km.label } : null;
+    })
+    .filter((m): m is { index: number; label: string } => !!m);
+
+  const options: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        display: true, position: 'top' as const,
+        labels: { color: '#475569', font: { size: 11 }, boxWidth: 10, boxHeight: 10 },
+      },
+      tooltip: {
+        backgroundColor: '#ffffff', titleColor: '#0f172a', bodyColor: '#475569',
+        borderColor: '#e2e8f0', borderWidth: 1, padding: 10,
+      },
+    },
+    scales: {
+      x: {
+        ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 12 },
+        grid: { color: 'rgba(15,23,42,0.04)' },
+        stacked: true,
+      },
+      y: {
+        position: 'left' as const, min: 0, stacked: true,
+        title: { display: true, text: '점유 인원 (누적)', color: '#94a3b8', font: { size: 10 } },
+        ticks: { color: '#94a3b8', font: { size: 10 } },
+        grid: { color: 'rgba(15,23,42,0.04)' },
+      },
+    },
+  };
+
+  const markerPlugin = {
+    id: 'zoneStackMarkers',
+    afterDatasetsDraw(chart: any) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales?.x) return;
+      ctx.save();
+      ctx.font = '600 9px ui-sans-serif, system-ui, sans-serif';
+      for (const m of markers) {
+        const x = scales.x.getPixelForValue(m.index);
+        if (!Number.isFinite(x)) continue;
+        ctx.strokeStyle = 'rgba(15,23,42,0.30)';
+        ctx.setLineDash([3, 3]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    },
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 p-6" style={{ height: 320 }}>
+      <Line data={{ labels, datasets }} options={options} plugins={[markerPlugin]} />
+    </div>
+  );
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const m = hex.replace('#', '');
+  const r = parseInt(m.substring(0, 2), 16);
+  const g = parseInt(m.substring(2, 4), 16);
+  const b = parseInt(m.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
