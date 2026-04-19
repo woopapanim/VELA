@@ -306,7 +306,10 @@ export function FullReport({ onClose }: { onClose: () => void }) {
     try {
       const safeName = scenario.meta.name.replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
       const dateStr = new Date().toISOString().slice(0, 10);
-      await exportElementToPdf(reportRef.current, `vela-report-${safeName}-${dateStr}.pdf`);
+      await exportElementToPdf(reportRef.current, `vela-report-${safeName}-${dateStr}.pdf`, {
+        title: `${scenario.meta.name} — VELA Report`,
+        subject: 'Spatial simulation & visitor flow analysis',
+      });
     } catch (err) {
       console.error('PDF export failed', err);
       alert('PDF export failed. See console for details.');
@@ -379,7 +382,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       {/* PDF-captured content */}
       <div ref={reportRef} className="bg-white text-slate-900">
         {/* ===== Cover ===== */}
-        <header className="px-14 pt-14 pb-10 border-b border-slate-200">
+        <header className="px-14 pt-14 pb-10 border-b border-slate-200" data-pdf-title="표지">
           <p className="text-[10px] uppercase tracking-[0.24em] text-blue-600 font-semibold mb-4">
             VELA · Spatial Simulation Report
           </p>
@@ -1010,7 +1013,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
             ? { border: 'border-amber-200', bg: 'bg-amber-50', label: 'text-amber-600' }
             : { border: 'border-emerald-200', bg: 'bg-emerald-50', label: 'text-emerald-700' };
           return (
-            <section className="px-14 py-14 border-t border-slate-200">
+            <section className="px-14 py-14 border-t border-slate-200" data-pdf-title="Key Verdict">
               <div className={`rounded-2xl p-10 border ${palette.border} ${palette.bg}`}>
                 <p className={`text-[10px] uppercase tracking-[0.24em] ${palette.label} font-semibold mb-4`}>Key Verdict</p>
                 <h2 className="text-3xl font-bold leading-tight mb-5 text-slate-900">
@@ -1025,7 +1028,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
         })()}
 
         {/* ===== Appendix ===== */}
-        <section className="px-14 py-10 border-t border-slate-200">
+        <section className="px-14 py-10 border-t border-slate-200" data-pdf-title="Appendix · 데이터 정의">
           <SubHeader>Appendix · 데이터 정의</SubHeader>
           <div className="mt-4 grid grid-cols-2 gap-x-10 gap-y-3 text-xs text-slate-500 leading-relaxed">
             <AppendixItem term="Peak Utilization" def="관측 기간 동안 존의 최대 동시 수용 수 ÷ 설계 정원." />
@@ -1039,7 +1042,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
-        <footer className="px-14 py-6 border-t border-slate-200">
+        <footer className="px-14 py-6 border-t border-slate-200" data-pdf-skip="true">
           <div className="flex items-center justify-between text-[10px] text-slate-400">
             <p>VELA — Spatial Simulation & Flow Analytics · Report v{scenario.meta.version}</p>
             <p>Generated {generatedDate} {generatedTime}</p>
