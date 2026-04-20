@@ -6,8 +6,9 @@ import type { MediaType } from '@/domain';
  *
  * Coordinates are in **meters**, with origin at the top-left of the input image.
  * IDs are plain strings (branded IDs are minted during hydration).
- * Fields the AI cannot reliably infer (visitor distribution, simulation config,
- * waypoint graph) are omitted here and filled by the hydrator.
+ * Fields the AI cannot reliably infer (visitor distribution, simulation config)
+ * are omitted here and filled by the hydrator. The hydrator also builds the
+ * waypoint graph from zone roles + connections.
  */
 export interface DraftScenario {
   readonly name: string;
@@ -25,6 +26,9 @@ export interface DraftScale {
   readonly heightMeters: number;
 }
 
+/** Role drives the waypoint node type the hydrator emits for this zone. */
+export type DraftZoneRole = 'spawn' | 'exit' | 'exhibit' | 'rest';
+
 export interface DraftZone {
   /** Unique slug key the AI invents (e.g. "reception", "treatment_bay"). */
   readonly key: string;
@@ -38,18 +42,18 @@ export interface DraftZone {
    * When present, supersedes rect for hit-testing but rect still drives layout.
    */
   readonly polygon?: readonly DraftPoint[];
-  readonly gates: readonly DraftGate[];
+  /**
+   * Waypoint role. Defaults to 'exhibit'. At least one zone should be 'spawn'
+   * and at least one should be 'exit' for the simulation to run.
+   */
+  readonly role?: DraftZoneRole;
+  /**
+   * Keys of zones this zone connects to (doorways / shared edges). Edges are
+   * bidirectional by default. If omitted or empty, the hydrator falls back to
+   * spatial adjacency between zone rects.
+   */
+  readonly connections?: readonly string[];
   readonly attractiveness?: number; // 0-1, optional AI hint
-}
-
-export interface DraftGate {
-  /** Absolute image coords in METERS. Snapped to zone edge in hydrator. */
-  readonly position: DraftPoint;
-  /** Opening width in meters (e.g. 1.0 for a single door). */
-  readonly width: number;
-  readonly type?: 'entrance' | 'exit' | 'bidirectional';
-  /** Optional key of connected zone (forms a gate pair). */
-  readonly connectsTo?: string;
 }
 
 export interface DraftMedia {

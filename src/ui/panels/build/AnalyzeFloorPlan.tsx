@@ -218,16 +218,27 @@ export function AnalyzeFloorPlan({
               </div>
 
               <div>
-                <p className="panel-label mb-2">Detected ({review.scenario.zones.length} zones · {review.scenario.media.length} media)</p>
+                <p className="panel-label mb-2">
+                  Detected ({review.scenario.zones.length} zones · {review.scenario.media.length} media ·{' '}
+                  {review.scenario.waypointGraph?.nodes.length ?? 0} nodes ·{' '}
+                  {review.scenario.waypointGraph?.edges.length ?? 0} edges)
+                </p>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {review.scenario.zones.map((z) => {
                     const mediaCount = review.scenario.media.filter((m) => m.zoneId === z.id).length;
+                    const node = review.scenario.waypointGraph?.nodes.find((n) => n.zoneId === z.id);
+                    const edgeCount = review.scenario.waypointGraph?.edges.filter(
+                      (e) => node && (e.fromId === node.id || e.toId === node.id),
+                    ).length ?? 0;
+                    const roleTag = node?.type === 'entry' ? 'spawn'
+                      : node?.type === 'exit' ? 'exit'
+                      : node?.type === 'rest' ? 'rest' : 'exhibit';
                     return (
                       <div key={z.id as string} className="flex items-center gap-2 text-[11px]">
                         <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: z.color }} />
                         <span className="flex-1 truncate">{z.name}</span>
                         <span className="text-muted-foreground font-data">
-                          {z.type} · {z.gates.length}g · {mediaCount}m
+                          {roleTag} · {edgeCount}e · {mediaCount}m
                         </span>
                       </div>
                     );

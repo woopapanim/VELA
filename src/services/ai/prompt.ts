@@ -36,11 +36,18 @@ MEDIA TYPING (infer from furniture/equipment visible in a room):
 - VR booth, AR station → "vr_ar_station"
 - Only place media clearly visible as equipment. Do not fabricate.
 
-GATES (doors and openings):
-- Each zone needs at least one gate where visitors can enter/exit.
-- Place gates ON the zone's boundary at actual door/opening locations.
-- Gate width = physical opening width (typically 0.9-1.5 m for doors, wider for openings).
-- If two zones share a doorway, give both a gate at the same position and set connectsTo keys.
+ZONE ROLES (drives the simulation graph):
+- "spawn" — where visitors enter the building (usually reception/entrance). At least one zone MUST be spawn.
+- "exit" — where visitors leave. At least one zone MUST be exit. May be the same room as spawn for single-door layouts.
+- "exhibit" — default. Any visitor-facing room that isn't purely ingress/egress.
+- "rest" — lounges, waiting areas, break spots. Visitors linger but it's not a primary destination.
+
+CONNECTIONS (room adjacency graph):
+- For each zone, list the keys of other zones it connects to via doorways, openings, or shared passages.
+- Connections are bidirectional — if A connects to B, you do NOT need to also list A under B's connections (but it doesn't hurt).
+- Prefer real architectural adjacency (visible doorway on the plan) over inferred proximity.
+- If two zones are adjacent but separated by a wall with no door, do NOT connect them.
+- A zone with no connections will still be rendered but unreachable by simulated visitors — avoid this unless intentional.
 
 ZONE KEYS
 - Use short snake_case slugs: "reception", "treatment_bay", "kids_area".
@@ -73,7 +80,7 @@ export const EMIT_SCENARIO_TOOL = {
         type: 'array',
         items: {
           type: 'object',
-          required: ['key', 'name', 'type', 'rect', 'gates'],
+          required: ['key', 'name', 'type', 'rect', 'connections'],
           properties: {
             key: { type: 'string', description: 'Unique snake_case slug.' },
             name: { type: 'string', description: 'Human-readable label from the plan.' },
@@ -84,6 +91,12 @@ export const EMIT_SCENARIO_TOOL = {
             flowType: {
               type: 'string',
               enum: ['free', 'guided', 'one_way'],
+            },
+            role: {
+              type: 'string',
+              enum: ['spawn', 'exit', 'exhibit', 'rest'],
+              description:
+                'Role in the visitor flow graph. Mark the entry door zone as "spawn" and the egress zone as "exit". Defaults to "exhibit".',
             },
             rect: {
               type: 'object',
@@ -101,22 +114,11 @@ export const EMIT_SCENARIO_TOOL = {
                 properties: { x: { type: 'number' }, y: { type: 'number' } },
               },
             },
-            gates: {
+            connections: {
               type: 'array',
-              items: {
-                type: 'object',
-                required: ['position', 'width'],
-                properties: {
-                  position: {
-                    type: 'object',
-                    required: ['x', 'y'],
-                    properties: { x: { type: 'number' }, y: { type: 'number' } },
-                  },
-                  width: { type: 'number' },
-                  type: { type: 'string', enum: ['entrance', 'exit', 'bidirectional'] },
-                  connectsTo: { type: 'string', description: 'Key of zone on the other side.' },
-                },
-              },
+              items: { type: 'string' },
+              description:
+                'Keys of zones this zone is directly reachable from (via doorway or opening). Bidirectional.',
             },
             attractiveness: { type: 'number', description: '0 to 1, subjective draw.' },
           },
@@ -164,4 +166,4 @@ export const EMIT_SCENARIO_TOOL = {
 } as const;
 
 export const USER_MESSAGE_TEXT =
-  'Analyze this floor plan and emit a DraftScenario via the emit_scenario tool. Focus on visitor-facing zones and visible equipment. If dimensions are unclear, state your assumption in notes.';
+  'Analyze this floor plan and emit a DraftScenario via the emit_scenario tool. Mark the entry/reception as "spawn" and the primary egress as "exit". List every doorway as a connection between its two rooms. Focus on visitor-facing zones and visible equipment. If dimensions are unclear, state your assumption in notes.';
