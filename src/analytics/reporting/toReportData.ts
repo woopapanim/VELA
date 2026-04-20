@@ -113,7 +113,7 @@ export interface ReportSystemOverview {
   readonly totalCapacity: number;
   readonly mediaCapacity: number;
   readonly avgCrowdingPct: number;
-  readonly avgTransitMin: number;
+  readonly avgDwellMin: number;
   readonly throughputPerMin: number;
   readonly interpretation: string | null;
 }
@@ -123,7 +123,7 @@ export interface ReportFlow {
   readonly avgTotalMin: number;
   readonly throughputPerMin: number;
   readonly completionRate: number;
-  readonly exitRate: number;
+  readonly earlyExitRate: number;
   readonly groupInducedBottleneckPct: number;
   readonly completionDist: readonly ReportCompositionRow[];
   readonly bottleneckCount: number;
@@ -370,7 +370,11 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const p99Fat = fN > 0 ? fv[Math.min(fN - 1, Math.floor(fN * 0.99))] : 0;
   const fatigueHist: ReportFatigueBucket[] = Array.from({ length: 10 }, (_, i) => {
     const lo = i * 10, hi = (i + 1) * 10;
-    const frac = fv.filter((f) => f * 100 >= lo && f * 100 < hi).length;
+    const isLast = i === 9;
+    const frac = fv.filter((f) => {
+      const pct = f * 100;
+      return pct >= lo && (isLast ? pct <= hi : pct < hi);
+    }).length;
     return { bucket: `${lo}-${hi}`, n: frac };
   });
 
@@ -386,12 +390,15 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const throughputPerMin = minutesElapsed > 0 ? totalExited / minutesElapsed : 0;
 
   // ---- Bottleneck count (>0.5 ever) --------------------------------------
+  // Both sets share the same score threshold so the ratio never exceeds 1.
   const everBottle = new Set<string>();
   const everGroupInduced = new Set<string>();
   for (const entry of kpiHistory) {
     for (const b of entry.snapshot.bottlenecks) {
-      if (b.score > 0.5) everBottle.add(b.zoneId as string);
-      if (b.isGroupInduced) everGroupInduced.add(b.zoneId as string);
+      if (b.score > 0.5) {
+        everBottle.add(b.zoneId as string);
+        if (b.isGroupInduced) everGroupInduced.add(b.zoneId as string);
+      }
     }
   }
 
@@ -630,8 +637,17 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const totalArea = zones.reduce((s, z) => s + z.area, 0);
   const totalCap = zones.reduce((s, z) => s + z.capacity, 0);
   const mediaCap = media.reduce((s, m) => s + (m.capacity ?? 0), 0);
-  const liveTotal = latestSnapshot.zoneUtilizations.reduce((s, u) => s + u.currentOccupancy, 0);
-  const avgCrowdingPct = totalCap > 0 ? Math.round((liveTotal / totalCap) * 100) : 0;
+  // Time-averaged crowding across the whole run (not the last snapshot).
+  let crowdSum = 0;
+  let crowdSamples = 0;
+  for (const entry of kpiHistory) {
+    const occ = entry.snapshot.zoneUtilizations.reduce((s, u) => s + u.currentOccupancy, 0);
+    if (totalCap > 0) {
+      crowdSum += occ / totalCap;
+      crowdSamples++;
+    }
+  }
+  const avgCrowdingPct = crowdSamples > 0 ? Math.round((crowdSum / crowdSamples) * 100) : 0;
   let interpretation: string | null = null;
   if (peakUtilRatio > 1) {
     interpretation = t('vela.sys.interp.over', { zone: peakZoneName, pct: Math.round(peakUtilRatio * 100) });
@@ -645,7 +661,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     totalCapacity: totalCap,
     mediaCapacity: mediaCap,
     avgCrowdingPct,
-    avgTransitMin: avgDwellMs / MS_MIN,
+    avgDwellMin: avgDwellMs / MS_MIN,
     throughputPerMin,
     interpretation,
   };
@@ -666,8 +682,13 @@ export function toReportData(input: ToReportDataInput): ReportData {
     { label: t('vela.flow.dist.mid'), count: fb.mid, pct: Math.round((fb.mid / exTotal) * 100) },
     { label: t('vela.flow.dist.high'), count: fb.high, pct: Math.round((fb.high / exTotal) * 100), tone: 'ok' },
   ];
-  const exitRate = exited.length > 0 ? (fb.zero + fb.low) / exited.length : 0;
+  const earlyExitRate = exited.length > 0 ? (fb.zero + fb.low) / exited.length : 0;
   const groupInducedPct = everBottle.size > 0 ? everGroupInduced.size / everBottle.size : 0;
+
+  // Avg total duration among *completed* visitors (fall back to all if none exited yet).
+  const exitedDwellMs = exited.length > 0
+    ? exited.reduce((s, v) => s + ((v.exitedAt ?? durationMs) - v.enteredAt), 0) / exited.length
+    : avgDwellMs;
 
   // ---- Top routes (from visitor zone sequences) -------------------------
   const zoneNameById = new Map(zones.map((z) => [z.id as string, z.name]));
@@ -696,10 +717,10 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const flowMode = (scenario.globalFlowMode ?? 'free') as 'free' | 'sequential' | 'hybrid';
   const flow: ReportFlow = {
     completed: exited.length,
-    avgTotalMin: avgDwellMs / MS_MIN,
+    avgTotalMin: exitedDwellMs / MS_MIN,
     throughputPerMin,
     completionRate,
-    exitRate,
+    earlyExitRate,
     groupInducedBottleneckPct: groupInducedPct,
     completionDist,
     bottleneckCount: everBottle.size,

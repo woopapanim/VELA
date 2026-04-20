@@ -7,7 +7,7 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
     completed: flow.completed,
     bottlenecks: flow.bottleneckCount,
   });
-  const exitRatePct = Math.round(flow.exitRate * 100);
+  const exitRatePct = Math.round(flow.earlyExitRate * 100);
   const completionPct = Math.round(flow.completionRate * 100);
   const groupPct = Math.round(flow.groupInducedBottleneckPct * 100);
 

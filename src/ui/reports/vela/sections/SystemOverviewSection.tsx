@@ -100,7 +100,7 @@ export function SystemOverviewSection({
             <div className="kv-row"><dt>{t('vela.sys.kv.capacity')}</dt><dd className="num">{system.totalCapacity}</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.mediaCap')}</dt><dd className="num">{system.mediaCapacity}</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.avgCrowd')}</dt><dd className="num">{system.avgCrowdingPct}%</dd></div>
-            <div className="kv-row"><dt>{t('vela.sys.kv.avgTransit')}</dt><dd className="num">{system.avgTransitMin.toFixed(1)} {t('vela.sys.td.stayUnit')}</dd></div>
+            <div className="kv-row"><dt>{t('vela.sys.kv.avgDwell')}</dt><dd className="num">{system.avgDwellMin.toFixed(1)} {t('vela.sys.td.stayUnit')}</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.throughput')}</dt><dd className="num">{system.throughputPerMin.toFixed(1)} {t('vela.kpi.throughput.unit')}</dd></div>
           </dl>
         </div>
