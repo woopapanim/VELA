@@ -277,18 +277,6 @@ export function AnalyticsPanel() {
           <CompletionReport />
           <EventLog />
           <AgentJourney />
-          <div className="bento-box p-3">
-            <h2 className="panel-section mb-2">
-              Heatmap
-            </h2>
-            <div className="h-2 rounded-full" style={{
-              background: 'linear-gradient(to right, var(--heatmap-cold), var(--heatmap-mid), var(--heatmap-hot))',
-            }} />
-            <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-muted-foreground">Cold</span>
-              <span className="text-[10px] text-muted-foreground">Hot</span>
-            </div>
-          </div>
         </div>
       )}
     </div>

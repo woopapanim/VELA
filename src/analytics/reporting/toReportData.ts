@@ -1,0 +1,767 @@
+import type {
+  Scenario, ZoneConfig, MediaConfig, FloorConfig,
+  Visitor, VisitorGroup, TimeState, SimulationSnapshot,
+  InsightEntry,
+} from '@/domain';
+import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import { generateInsights, extractKeyMoments } from '@/analytics';
+
+export type Severity = 'info' | 'warning' | 'critical';
+export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
+
+export interface ReportMeta {
+  readonly id: string;
+  readonly projectName: string;
+  readonly generated: string;   // "YYYY-MM-DD HH:mm"
+  readonly duration: string;    // "29m 51s"
+  readonly visitors: number;
+  readonly active: number;
+  readonly exited: number;
+  readonly version: string;
+  readonly peakMoment: string | null; // "28:14" or null
+}
+
+export interface ReportEvidence {
+  readonly label: string;
+  readonly value: string;     // "120%", "96%"
+  readonly tone: 'ok' | 'warn' | 'bad';
+  readonly note: string;
+}
+
+export interface ReportKpi {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+  readonly unit?: string;
+  readonly tone?: 'ok' | 'amb' | 'warn';
+  readonly note: string;
+  readonly hero?: boolean;
+  readonly bar?: { readonly pct: number; readonly cap: number; readonly max: number; readonly danger?: boolean };
+}
+
+export interface ReportFinding {
+  readonly id: string;
+  readonly severity: Severity;
+  readonly title: string;
+  readonly detail: string;
+  readonly action: string;
+  readonly evidence: { readonly metric: string; readonly value: number; readonly threshold: number };
+}
+
+export interface ReportZoneRow {
+  readonly id: string;
+  readonly name: string;
+  readonly type: string;
+  readonly area: number;
+  readonly cap: number;
+  readonly peak: number;
+  readonly utilPct: number;       // 0..∞ (over 100 = over capacity)
+  readonly areaPerPerson: number;
+  readonly stayMin: number;
+  readonly bottleneck: number | null;
+  readonly grade: Grade;
+  readonly visits: number;
+  readonly visitPct: number;
+}
+
+export interface ReportMediaRow {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;           // analog / passive / active / staged
+  readonly zone: string;
+  readonly peakViewers: number;
+  readonly capacity: number;
+  readonly utilPct: number;
+  readonly watches: number;
+  readonly skips: number;
+  readonly engagement: number | null;  // null when no approach data
+  readonly avgWatchS: number | null;
+  readonly avgWaitS: number | null;
+}
+
+export interface ReportFatigueBucket { readonly bucket: string; readonly n: number }
+
+export interface ReportFloorRoom {
+  readonly label: string;
+  readonly x: number; readonly y: number; readonly w: number; readonly h: number;
+  readonly occ: number; readonly cap: number;
+}
+export interface ReportFloor {
+  readonly name: string;
+  readonly cap: number;
+  readonly rooms: readonly ReportFloorRoom[];
+}
+
+export interface ReportTimelinePoint {
+  readonly t: number;           // seconds since sim start
+  readonly crowdPct: number;    // peak zone utilization %, 0..∞
+  readonly fatiguePct: number;  // mean fatigue %, 0..100
+  readonly active: number;      // active visitor count
+}
+
+export interface ReportCompositionRow {
+  readonly label: string;
+  readonly count: number;
+  readonly pct: number;          // 0..100
+  readonly tone?: 'danger' | 'warn' | 'ok';
+}
+
+export interface ReportSystemOverview {
+  readonly zonesCount: number;
+  readonly mediaCount: number;
+  readonly totalAreaM2: number;
+  readonly totalCapacity: number;
+  readonly mediaCapacity: number;
+  readonly avgCrowdingPct: number;
+  readonly avgTransitMin: number;
+  readonly throughputPerMin: number;
+  readonly interpretation: string | null;
+}
+
+export interface ReportFlow {
+  readonly completed: number;
+  readonly avgTotalMin: number;
+  readonly throughputPerMin: number;
+  readonly completionRate: number;
+  readonly exitRate: number;
+  readonly groupInducedBottleneckPct: number;
+  readonly completionDist: readonly ReportCompositionRow[];
+  readonly bottleneckCount: number;
+  readonly topRoutes: readonly { readonly path: string; readonly count: number; readonly pct: number }[];
+  readonly flowMode: 'free' | 'sequential' | 'hybrid';
+}
+
+export interface ReportBehavior {
+  readonly groupsCount: number;
+  readonly composition: readonly ReportCompositionRow[];
+  readonly groupInducedBottleneckPct: number;
+}
+
+export interface ReportMediaTotals {
+  readonly totalViews: number;
+  readonly totalSkips: number;
+  readonly totalWatchMin: number;
+  readonly activationPct: number;  // 0..100
+  readonly activationRatio: string; // "5/6"
+}
+
+export interface ReportGlossaryEntry { readonly term: string; readonly def: string }
+
+export interface ReportHeadline {
+  readonly a: string;
+  readonly b: string;
+  readonly tone: 'critical' | 'warning' | 'healthy';
+}
+
+export interface ReportData {
+  readonly meta: ReportMeta;
+  readonly headline: ReportHeadline;
+  readonly evidence: readonly ReportEvidence[];
+  readonly kpis: readonly ReportKpi[];
+  readonly findings: readonly ReportFinding[];
+  readonly zones: readonly ReportZoneRow[];
+  readonly zoneVisitLegend: readonly {
+    readonly id: string; readonly name: string; readonly visits: number; readonly pct: number;
+  }[];
+  readonly media: readonly ReportMediaRow[];
+  readonly mediaTotals: ReportMediaTotals;
+  readonly fatigueHist: readonly ReportFatigueBucket[];
+  readonly fatigueStats: {
+    readonly avg: number; readonly median: number; readonly p90: number; readonly p99: number;
+  };
+  readonly floors: readonly ReportFloor[];
+  readonly topMedia: readonly ReportMediaRow[];
+  readonly bottomMedia: readonly ReportMediaRow[];
+  readonly timeline: readonly ReportTimelinePoint[];
+  readonly peakMomentMs: number | null;
+  readonly system: ReportSystemOverview;
+  readonly flow: ReportFlow;
+  readonly behavior: ReportBehavior;
+  readonly glossary: readonly ReportGlossaryEntry[];
+}
+
+export interface ToReportDataInput {
+  readonly scenario: Scenario;
+  readonly zones: readonly ZoneConfig[];
+  readonly media: readonly MediaConfig[];
+  readonly floors: readonly FloorConfig[];
+  readonly visitors: readonly Visitor[];
+  readonly groups: readonly VisitorGroup[];
+  readonly timeState: TimeState;
+  readonly latestSnapshot: SimulationSnapshot;
+  readonly kpiHistory: readonly { readonly timestamp: number; readonly snapshot: SimulationSnapshot }[];
+  readonly mediaStats: ReadonlyMap<string, {
+    readonly watchCount: number; readonly skipCount: number; readonly waitCount: number;
+    readonly totalWatchMs: number; readonly totalWaitMs: number; readonly peakViewers: number;
+  }>;
+  readonly totalExited: number;
+  readonly t: (k: string, params?: Record<string, string | number>) => string;
+}
+
+const MS_MIN = 60_000;
+
+function fmtDuration(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}m ${String(ss).padStart(2, '0')}s`;
+}
+
+function fmtClock(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}:${String(ss).padStart(2, '0')}`;
+}
+
+function fmtDateStamp(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${day} ${hh}:${mm}`;
+}
+
+function gradeFor(areaPerPerson: number): Grade {
+  if (areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD * 2) return 'A';
+  if (areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD) return 'B';
+  if (areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD * 0.7) return 'C';
+  if (areaPerPerson >= INTERNATIONAL_DENSITY_STANDARD * 0.4) return 'D';
+  return 'F';
+}
+
+function findingFromInsight(e: InsightEntry, idx: number): ReportFinding {
+  const sev: Severity = e.severity === 'critical' ? 'critical' : e.severity === 'warning' ? 'warning' : 'info';
+  return {
+    id: String(idx + 1).padStart(2, '0'),
+    severity: sev,
+    title: e.problem,
+    detail: e.cause,
+    action: e.recommendation,
+    evidence: { metric: e.dataEvidence.metric, value: e.dataEvidence.value, threshold: e.dataEvidence.threshold },
+  };
+}
+
+export function toReportData(input: ToReportDataInput): ReportData {
+  const {
+    scenario, zones, media, floors, visitors, groups,
+    timeState, latestSnapshot, kpiHistory, mediaStats, totalExited, t,
+  } = input;
+
+  const exited = visitors.filter((v) => !v.isActive);
+  const active = visitors.filter((v) => v.isActive);
+  const durationMs = timeState.elapsed;
+
+  // ---- Peak util ---------------------------------------------------------
+  const peakRatioByZone = new Map<string, number>();
+  for (const u of latestSnapshot.zoneUtilizations) {
+    const cap = u.capacity > 0 ? u.capacity : 1;
+    peakRatioByZone.set(u.zoneId as string, u.peakOccupancy / cap);
+  }
+  const peakUtilRatio = Math.max(0, ...peakRatioByZone.values());
+  const peakZoneUtil = latestSnapshot.zoneUtilizations.reduce(
+    (best, u) => {
+      const r = peakRatioByZone.get(u.zoneId as string) ?? 0;
+      const bestR = best ? (peakRatioByZone.get(best.zoneId as string) ?? -1) : -1;
+      return r > bestR ? u : best;
+    },
+    latestSnapshot.zoneUtilizations[0] ?? null,
+  );
+  const peakZoneName = peakZoneUtil
+    ? zones.find((z) => z.id === peakZoneUtil.zoneId)?.name ?? '—'
+    : '—';
+
+  // ---- Per-zone cumulative max bottleneck --------------------------------
+  const peakBottleneckByZone = new Map<string, { score: number; avgQueueTime: number; isGroupInduced: boolean }>();
+  for (const entry of kpiHistory) {
+    for (const b of entry.snapshot.bottlenecks) {
+      const k = b.zoneId as string;
+      const prev = peakBottleneckByZone.get(k);
+      if (!prev || b.score > prev.score) peakBottleneckByZone.set(k, b);
+    }
+  }
+
+  // ---- Zone visit counts -------------------------------------------------
+  const zoneVisitCount = new Map<string, number>();
+  for (const v of visitors) {
+    for (const zid of v.visitedZoneIds) {
+      const k = zid as string;
+      zoneVisitCount.set(k, (zoneVisitCount.get(k) ?? 0) + 1);
+    }
+  }
+  const totalVisits = [...zoneVisitCount.values()].reduce((s, n) => s + n, 0);
+
+  // ---- Zone rows ---------------------------------------------------------
+  const zoneRows: ReportZoneRow[] = zones.map((z) => {
+    const util = latestSnapshot.zoneUtilizations.find((u) => u.zoneId === z.id);
+    const visit = latestSnapshot.visitDurations.find((v) => v.zoneId === z.id);
+    const currentActive = active.filter((v) => v.currentZoneId === z.id).length;
+    const peak = util?.peakOccupancy ?? currentActive;
+    const utilPct = z.capacity > 0 ? (peak / z.capacity) * 100 : 0;
+    const areaPerPerson = peak > 0 ? z.area / peak : z.area;
+    const visits = zoneVisitCount.get(z.id as string) ?? 0;
+    const visitPct = totalVisits > 0 ? Math.round((visits / totalVisits) * 100) : 0;
+    const bn = peakBottleneckByZone.get(z.id as string);
+    return {
+      id: z.id as string,
+      name: z.name,
+      type: z.type,
+      area: z.area,
+      cap: z.capacity,
+      peak,
+      utilPct: Math.round(utilPct),
+      areaPerPerson,
+      stayMin: (visit?.meanDurationMs ?? 0) / MS_MIN,
+      bottleneck: bn ? Math.round(bn.score * 100) : null,
+      grade: gradeFor(areaPerPerson),
+      visits,
+      visitPct,
+    };
+  });
+
+  // ---- Media rows --------------------------------------------------------
+  const mediaRows: ReportMediaRow[] = media.map((m) => {
+    const stat = mediaStats.get(m.id as string);
+    const zone = zones.find((z) => z.id === m.zoneId);
+    const watches = stat?.watchCount ?? 0;
+    const skips = stat?.skipCount ?? 0;
+    const waits = stat?.waitCount ?? 0;
+    const totalApproaches = watches + skips;
+    const engagement = totalApproaches >= 3
+      ? Math.round((watches / totalApproaches) * 100)
+      : null;
+    const avgWatchS = watches > 0 ? Math.round((stat?.totalWatchMs ?? 0) / watches / 1000) : null;
+    const avgWaitS = waits > 0 ? Math.round((stat?.totalWaitMs ?? 0) / waits / 1000) : null;
+    const peakViewers = stat?.peakViewers ?? 0;
+    const utilPct = m.capacity > 0 ? Math.round((peakViewers / m.capacity) * 100) : 0;
+    return {
+      id: m.id as string,
+      name: m.name,
+      kind: String(m.interactionType ?? 'analog').toLowerCase(),
+      zone: zone?.name ?? '—',
+      peakViewers,
+      capacity: m.capacity,
+      utilPct,
+      watches,
+      skips,
+      engagement,
+      avgWatchS,
+      avgWaitS,
+    };
+  });
+
+  const totalWatches = mediaRows.reduce((s, m) => s + m.watches, 0);
+  const totalSkips = mediaRows.reduce((s, m) => s + m.skips, 0);
+  const totalApproaches = totalWatches + totalSkips;
+  const globalSkipRate = totalApproaches > 0 ? totalSkips / totalApproaches : 0;
+  const mediaActiveCount = mediaRows.filter((m) => m.watches > 0).length;
+
+  const mediaSortable = mediaRows.filter((m) => m.engagement != null);
+  const topMedia = [...mediaSortable].sort((a, b) => (b.engagement ?? 0) - (a.engagement ?? 0)).slice(0, 3);
+  const bottomMedia = [...mediaSortable].sort((a, b) => (a.engagement ?? 0) - (b.engagement ?? 0)).slice(0, 3);
+
+  // ---- Fatigue stats -----------------------------------------------------
+  const fv = visitors.map((v) => v.fatigue).sort((a, b) => a - b);
+  const fN = fv.length;
+  const avgFat = fN > 0 ? fv.reduce((s, f) => s + f, 0) / fN : 0;
+  const medFat = fN > 0 ? fv[Math.floor(fN / 2)] : 0;
+  const p90Fat = fN > 0 ? fv[Math.floor(fN * 0.9)] : 0;
+  const p99Fat = fN > 0 ? fv[Math.min(fN - 1, Math.floor(fN * 0.99))] : 0;
+  const fatigueHist: ReportFatigueBucket[] = Array.from({ length: 10 }, (_, i) => {
+    const lo = i * 10, hi = (i + 1) * 10;
+    const frac = fv.filter((f) => f * 100 >= lo && f * 100 < hi).length;
+    return { bucket: `${lo}-${hi}`, n: frac };
+  });
+
+  // ---- Derived top-level KPIs --------------------------------------------
+  const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= 3).length;
+  const completionRate = visitors.length > 0 ? wellVisited / visitors.length : 0;
+  // Average stay covers exited visitors (completed dwell) and active visitors (current dwell so far)
+  // so the KPI is non-zero even before anyone exits.
+  const avgDwellMs = visitors.length > 0
+    ? visitors.reduce((s, v) => s + ((v.exitedAt ?? durationMs) - v.enteredAt), 0) / visitors.length
+    : 0;
+  const minutesElapsed = durationMs / MS_MIN;
+  const throughputPerMin = minutesElapsed > 0 ? totalExited / minutesElapsed : 0;
+
+  // ---- Bottleneck count (>0.5 ever) --------------------------------------
+  const everBottle = new Set<string>();
+  const everGroupInduced = new Set<string>();
+  for (const entry of kpiHistory) {
+    for (const b of entry.snapshot.bottlenecks) {
+      if (b.score > 0.5) everBottle.add(b.zoneId as string);
+      if (b.isGroupInduced) everGroupInduced.add(b.zoneId as string);
+    }
+  }
+
+  // ---- Insights → findings ----------------------------------------------
+  const insights = generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t);
+  const findings: ReportFinding[] = insights
+    .slice(0, 6)
+    .map((e, i) => findingFromInsight(e, i));
+
+  // ---- Key moment --------------------------------------------------------
+  const keyMoments = extractKeyMoments(kpiHistory);
+  const peakMomentMs = keyMoments.find((k) => k.kind === 'peak-crowding')?.timestamp
+    ?? keyMoments[0]?.timestamp
+    ?? null;
+  const peakMoment = peakMomentMs != null ? fmtClock(peakMomentMs) : null;
+
+  // ---- Meta --------------------------------------------------------------
+  const meta: ReportMeta = {
+    id: `Sim ${String(scenario.meta.version ?? 1).padStart(4, '0')}`,
+    projectName: scenario.meta.name,
+    generated: fmtDateStamp(),
+    duration: fmtDuration(durationMs),
+    visitors: visitors.length,
+    active: active.length,
+    exited: exited.length,
+    version: `v${scenario.meta.version ?? 1}`,
+    peakMoment,
+  };
+
+  // ---- Evidence (TL;DR) --------------------------------------------------
+  const mediaActivationPct = media.length > 0 ? Math.round((mediaActiveCount / media.length) * 100) : 0;
+  const mediaActivationRatio = media.length > 0 ? mediaActiveCount / media.length : 0;
+
+  // ---- Key verdict — first matching signal wins ------------------------
+  const verdictPct = (r: number) => Math.round(r * 100);
+  let headline: ReportHeadline;
+  if (peakUtilRatio > 1) {
+    headline = {
+      tone: 'critical',
+      a: t('vela.verdict.over.a', { zone: peakZoneName, pct: verdictPct(peakUtilRatio) }),
+      b: t('vela.verdict.over.b'),
+    };
+  } else if (everBottle.size > 0 && everGroupInduced.size > 0 && everGroupInduced.size / everBottle.size >= 0.5) {
+    headline = {
+      tone: 'warning',
+      a: t('vela.verdict.group.a', { count: everBottle.size, induced: everGroupInduced.size }),
+      b: t('vela.verdict.group.b'),
+    };
+  } else if (globalSkipRate > 0.4) {
+    headline = {
+      tone: 'warning',
+      a: t('vela.verdict.skip.a', { pct: verdictPct(globalSkipRate) }),
+      b: t('vela.verdict.skip.b'),
+    };
+  } else if (p90Fat > 0.7) {
+    headline = {
+      tone: 'warning',
+      a: t('vela.verdict.fatigue.a', { pct: verdictPct(p90Fat) }),
+      b: t('vela.verdict.fatigue.b'),
+    };
+  } else if (completionRate < 0.3 && exited.length >= 10) {
+    headline = {
+      tone: 'warning',
+      a: t('vela.verdict.completion.a', { pct: verdictPct(completionRate) }),
+      b: t('vela.verdict.completion.b'),
+    };
+  } else if (mediaActivationRatio < 0.5 && media.length > 0) {
+    headline = {
+      tone: 'warning',
+      a: t('vela.verdict.activation.a', { pct: verdictPct(mediaActivationRatio) }),
+      b: t('vela.verdict.activation.b'),
+    };
+  } else {
+    headline = {
+      tone: 'healthy',
+      a: t('vela.verdict.balanced.a', {
+        peak: verdictPct(peakUtilRatio),
+        activation: verdictPct(mediaActivationRatio),
+        skip: verdictPct(globalSkipRate),
+      }),
+      b: t('vela.verdict.balanced.b'),
+    };
+  }
+
+  const evidence: ReportEvidence[] = [
+    {
+      label: t('vela.ev.peak.label'),
+      value: `${Math.round(peakUtilRatio * 100)}%`,
+      tone: peakUtilRatio > 1 ? 'bad' : peakUtilRatio > 0.85 ? 'warn' : 'ok',
+      note: peakUtilRatio > 1 ? t('vela.ev.peak.noteOver', { zone: peakZoneName }) : t('vela.ev.peak.note', { zone: peakZoneName }),
+    },
+    {
+      label: t('vela.ev.fatigue.label'),
+      value: `${Math.round(p90Fat * 100)}%`,
+      tone: p90Fat > 0.8 ? 'bad' : p90Fat > 0.6 ? 'warn' : 'ok',
+      note: t('vela.ev.fatigue.note'),
+    },
+    {
+      label: t('vela.ev.activation.label'),
+      value: `${mediaActivationPct}%`,
+      tone: mediaActivationPct >= 80 ? 'ok' : mediaActivationPct >= 50 ? 'warn' : 'bad',
+      note: t('vela.ev.activation.note', { total: media.length, active: mediaActiveCount }),
+    },
+    {
+      label: t('vela.ev.skip.label'),
+      value: `${Math.round(globalSkipRate * 100)}%`,
+      tone: globalSkipRate > 0.5 ? 'bad' : globalSkipRate > 0.3 ? 'warn' : 'ok',
+      note: t('vela.ev.skip.note', { views: totalWatches, skips: totalSkips }),
+    },
+  ];
+
+  // ---- KPIs --------------------------------------------------------------
+  const peakPct = Math.round(peakUtilRatio * 100);
+  const kpis: ReportKpi[] = [
+    {
+      key: 'peak',
+      label: t('vela.kpi.peak.label'),
+      value: String(peakPct),
+      unit: '%',
+      tone: peakUtilRatio > 1 ? 'warn' : undefined,
+      note: t('vela.kpi.peak.note', { zone: peakZoneName }),
+      hero: true,
+      bar: { pct: peakPct, cap: 100, max: Math.max(120, peakPct + 10), danger: peakUtilRatio > 1 },
+    },
+    {
+      key: 'visitors',
+      label: t('vela.kpi.visitors.label'),
+      value: String(visitors.length),
+      note: t('vela.kpi.visitors.note', { active: active.length, exited: exited.length }),
+    },
+    {
+      key: 'stay',
+      label: t('vela.kpi.stay.label'),
+      value: (avgDwellMs / MS_MIN).toFixed(1),
+      unit: t('vela.kpi.stay.unit'),
+      note: t('vela.kpi.stay.note', { pct: Math.round(completionRate * 100) }),
+    },
+    {
+      key: 'fatigue',
+      label: t('vela.kpi.fatigue.label'),
+      value: String(Math.round(avgFat * 100)),
+      unit: '%',
+      note: t('vela.kpi.fatigue.note', { pct: Math.round(p90Fat * 100) }),
+    },
+    {
+      key: 'skip',
+      label: t('vela.kpi.skip.label'),
+      value: String(Math.round(globalSkipRate * 100)),
+      unit: '%',
+      tone: globalSkipRate > 0.3 ? 'amb' : undefined,
+      note: t('vela.kpi.skip.note', { watches: totalWatches, skips: totalSkips }),
+    },
+    {
+      key: 'bottleneck',
+      label: t('vela.kpi.bottleneck.label'),
+      value: String(everBottle.size),
+      note: t('vela.kpi.bottleneck.note', { count: everGroupInduced.size }),
+    },
+    {
+      key: 'throughput',
+      label: t('vela.kpi.throughput.label'),
+      value: throughputPerMin.toFixed(1),
+      unit: t('vela.kpi.throughput.unit'),
+      note: t('vela.kpi.throughput.note'),
+    },
+  ];
+
+  // ---- Floors (normalized bounds) ----------------------------------------
+  const floorsOut: ReportFloor[] = floors.map((f) => {
+    const floorZones = zones.filter((z) => f.zoneIds.includes(z.id));
+    if (floorZones.length === 0) return { name: f.name, cap: 0, rooms: [] };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const z of floorZones) {
+      minX = Math.min(minX, z.bounds.x);
+      minY = Math.min(minY, z.bounds.y);
+      maxX = Math.max(maxX, z.bounds.x + z.bounds.w);
+      maxY = Math.max(maxY, z.bounds.y + z.bounds.h);
+    }
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+    const pad = 0.04;
+    const cap = floorZones.reduce((s, z) => s + z.capacity, 0);
+    const rooms: ReportFloorRoom[] = floorZones.map((z) => {
+      const util = latestSnapshot.zoneUtilizations.find((u) => u.zoneId === z.id);
+      const occ = util?.peakOccupancy ?? 0;
+      return {
+        label: z.name,
+        x: pad + ((z.bounds.x - minX) / spanX) * (1 - pad * 2),
+        y: pad + ((z.bounds.y - minY) / spanY) * (1 - pad * 2),
+        w: (z.bounds.w / spanX) * (1 - pad * 2),
+        h: (z.bounds.h / spanY) * (1 - pad * 2),
+        occ,
+        cap: z.capacity,
+      };
+    });
+    return { name: f.name, cap, rooms };
+  });
+
+  // ---- Timeline (downsampled from kpiHistory) ----------------------------
+  const MAX_POINTS = 120;
+  const step = kpiHistory.length > MAX_POINTS ? Math.ceil(kpiHistory.length / MAX_POINTS) : 1;
+  const timeline: ReportTimelinePoint[] = [];
+  for (let i = 0; i < kpiHistory.length; i += step) {
+    const entry = kpiHistory[i];
+    const snap = entry.snapshot;
+    let maxRatio = 0;
+    for (const u of snap.zoneUtilizations) {
+      const cap = u.capacity > 0 ? u.capacity : 1;
+      const r = u.currentOccupancy / cap;
+      if (r > maxRatio) maxRatio = r;
+    }
+    const activeAt = snap.zoneUtilizations.reduce((s, u) => s + u.currentOccupancy, 0);
+    timeline.push({
+      t: Math.round(entry.timestamp / 1000),
+      crowdPct: Math.round(maxRatio * 100),
+      fatiguePct: Math.round((snap.fatigueDistribution?.mean ?? 0) * 100),
+      active: activeAt,
+    });
+  }
+  if (timeline.length === 0) {
+    timeline.push({
+      t: 0,
+      crowdPct: Math.round(peakUtilRatio * 100),
+      fatiguePct: Math.round(avgFat * 100),
+      active: active.length,
+    });
+  }
+
+  // ---- Zone visit legend -------------------------------------------------
+  const zoneVisitLegend = zoneRows
+    .filter((z) => z.visits > 0)
+    .sort((a, b) => b.visits - a.visits)
+    .map((z) => ({ id: z.id, name: z.name, visits: z.visits, pct: z.visitPct }));
+
+  // ---- System overview ---------------------------------------------------
+  const totalArea = zones.reduce((s, z) => s + z.area, 0);
+  const totalCap = zones.reduce((s, z) => s + z.capacity, 0);
+  const mediaCap = media.reduce((s, m) => s + (m.capacity ?? 0), 0);
+  const liveTotal = latestSnapshot.zoneUtilizations.reduce((s, u) => s + u.currentOccupancy, 0);
+  const avgCrowdingPct = totalCap > 0 ? Math.round((liveTotal / totalCap) * 100) : 0;
+  let interpretation: string | null = null;
+  if (peakUtilRatio > 1) {
+    interpretation = t('vela.sys.interp.over', { zone: peakZoneName, pct: Math.round(peakUtilRatio * 100) });
+  } else if (peakUtilRatio > 0.85) {
+    interpretation = t('vela.sys.interp.near', { zone: peakZoneName, pct: Math.round(peakUtilRatio * 100) });
+  }
+  const system: ReportSystemOverview = {
+    zonesCount: zones.length,
+    mediaCount: media.length,
+    totalAreaM2: Math.round(totalArea * 10) / 10,
+    totalCapacity: totalCap,
+    mediaCapacity: mediaCap,
+    avgCrowdingPct,
+    avgTransitMin: avgDwellMs / MS_MIN,
+    throughputPerMin,
+    interpretation,
+  };
+
+  // ---- Flow --------------------------------------------------------------
+  const fb = { zero: 0, low: 0, mid: 0, high: 0 };
+  for (const v of exited) {
+    const n = v.visitedZoneIds.length;
+    if (n === 0) fb.zero++;
+    else if (n <= 2) fb.low++;
+    else if (n <= 4) fb.mid++;
+    else fb.high++;
+  }
+  const exTotal = Math.max(1, exited.length);
+  const completionDist: ReportCompositionRow[] = [
+    { label: t('vela.flow.dist.zero'), count: fb.zero, pct: Math.round((fb.zero / exTotal) * 100), tone: 'danger' },
+    { label: t('vela.flow.dist.low'), count: fb.low, pct: Math.round((fb.low / exTotal) * 100), tone: 'warn' },
+    { label: t('vela.flow.dist.mid'), count: fb.mid, pct: Math.round((fb.mid / exTotal) * 100) },
+    { label: t('vela.flow.dist.high'), count: fb.high, pct: Math.round((fb.high / exTotal) * 100), tone: 'ok' },
+  ];
+  const exitRate = exited.length > 0 ? (fb.zero + fb.low) / exited.length : 0;
+  const groupInducedPct = everBottle.size > 0 ? everGroupInduced.size / everBottle.size : 0;
+
+  // ---- Top routes (from visitor zone sequences) -------------------------
+  const zoneNameById = new Map(zones.map((z) => [z.id as string, z.name]));
+  const routeCounts = new Map<string, { count: number; path: string }>();
+  let routedVisitors = 0;
+  for (const v of visitors) {
+    if (v.visitedZoneIds.length < 2) continue;
+    const ids = v.visitedZoneIds.map((id) => id as string);
+    const names = ids.map((id) => zoneNameById.get(id) ?? '—');
+    const path = names.join(' → ');
+    const key = ids.join('|');
+    const prev = routeCounts.get(key);
+    if (prev) prev.count++;
+    else routeCounts.set(key, { count: 1, path });
+    routedVisitors++;
+  }
+  const topRoutes = [...routeCounts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((r) => ({
+      path: r.path,
+      count: r.count,
+      pct: routedVisitors > 0 ? Math.round((r.count / routedVisitors) * 100) : 0,
+    }));
+
+  const flowMode = (scenario.globalFlowMode ?? 'free') as 'free' | 'sequential' | 'hybrid';
+  const flow: ReportFlow = {
+    completed: exited.length,
+    avgTotalMin: avgDwellMs / MS_MIN,
+    throughputPerMin,
+    completionRate,
+    exitRate,
+    groupInducedBottleneckPct: groupInducedPct,
+    completionDist,
+    bottleneckCount: everBottle.size,
+    topRoutes,
+    flowMode,
+  };
+
+  // ---- Behavior (visitor composition) -----------------------------------
+  const catCounts = new Map<string, number>();
+  for (const v of visitors) catCounts.set(v.category, (catCounts.get(v.category) ?? 0) + 1);
+  const total = Math.max(1, visitors.length);
+  const composition: ReportCompositionRow[] = [...catCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([label, count]) => ({ label, count, pct: Math.round((count / total) * 100) }));
+  const behavior: ReportBehavior = {
+    groupsCount: groups.length,
+    composition,
+    groupInducedBottleneckPct: groupInducedPct,
+  };
+
+  // ---- Media totals ------------------------------------------------------
+  const totalWatchMs = [...mediaStats.values()].reduce((s, v) => s + (v.totalWatchMs ?? 0), 0);
+  const mediaTotals: ReportMediaTotals = {
+    totalViews: totalWatches,
+    totalSkips,
+    totalWatchMin: Math.round(totalWatchMs / MS_MIN),
+    activationPct: mediaActivationPct,
+    activationRatio: `${mediaActiveCount}/${media.length}`,
+  };
+
+  // ---- Glossary ---------------------------------------------------------
+  const glossary: ReportGlossaryEntry[] = [
+    { term: t('vela.gl.peak.term'), def: t('vela.gl.peak.def') },
+    { term: t('vela.gl.density.term'), def: t('vela.gl.density.def') },
+    { term: t('vela.gl.bottleneck.term'), def: t('vela.gl.bottleneck.def') },
+    { term: t('vela.gl.completion.term'), def: t('vela.gl.completion.def') },
+    { term: t('vela.gl.skip.term'), def: t('vela.gl.skip.def') },
+    { term: t('vela.gl.engagement.term'), def: t('vela.gl.engagement.def') },
+    { term: t('vela.gl.fatigue.term'), def: t('vela.gl.fatigue.def') },
+    { term: t('vela.gl.group.term'), def: t('vela.gl.group.def') },
+  ];
+
+  return {
+    meta,
+    headline,
+    evidence,
+    kpis,
+    findings,
+    zones: zoneRows,
+    zoneVisitLegend,
+    media: mediaRows,
+    mediaTotals,
+    fatigueHist,
+    fatigueStats: { avg: avgFat, median: medFat, p90: p90Fat, p99: p99Fat },
+    floors: floorsOut,
+    topMedia,
+    bottomMedia,
+    timeline,
+    peakMomentMs,
+    system,
+    flow,
+    behavior,
+    glossary,
+  };
+}

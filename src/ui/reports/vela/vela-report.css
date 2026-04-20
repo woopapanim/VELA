@@ -1,0 +1,849 @@
+/* ============================================================
+   VELA Report v5 — editorial layout
+   Scoped under .vela-report so tokens don't leak into the app.
+   ============================================================ */
+
+.vela-report {
+  --ink-0:   #ffffff;
+  --ink-50:  #fafafa;
+  --ink-100: #f4f4f5;
+  --ink-200: #e4e4e7;
+  --ink-300: #d4d4d8;
+  --ink-400: #a1a1aa;
+  --ink-500: #71717a;
+  --ink-600: #52525b;
+  --ink-700: #3f3f46;
+  --ink-800: #27272a;
+  --ink-900: #18181b;
+
+  --accent:      #2F5BFF;
+  --accent-ink:  #1E3FC4;
+  --accent-tint: #EEF2FF;
+
+  --danger:      #DC2626;
+  --danger-tint: #FEF2F2;
+  --warn:        #B45309;
+  --warn-tint:   #FEF7EC;
+
+  --page-max: 1120px;
+  --page-pad: 88px;
+
+  --font-sans: "Pretendard Variable", Pretendard, "Inter", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-display: "Pretendard Variable", Pretendard, "Inter", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Pretendard Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  font-family: var(--font-sans);
+  color: var(--ink-800);
+  background: var(--ink-100);
+  font-size: 15px;
+  line-height: 1.55;
+  font-feature-settings: "ss01","cv11","tnum","ss08";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Korean: unify mono with sans so Latin+Hangul share metrics and sit on the same baseline in mixed rows. */
+.vela-report[data-lang="ko"] {
+  --font-mono: "Pretendard Variable", Pretendard, "Inter", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vela-report *,
+.vela-report *::before,
+.vela-report *::after { box-sizing: border-box; }
+
+.vela-report a { color: inherit; }
+.vela-report img,
+.vela-report svg { display: block; max-width: 100%; }
+
+/* Page shell */
+.vela-report .page {
+  max-width: var(--page-max);
+  margin: 48px auto 160px;
+  background: var(--ink-0);
+  border: 1px solid var(--ink-200);
+  border-radius: 2px;
+}
+.vela-report .page > section,
+.vela-report .page > .pdf-group > section {
+  padding: 96px var(--page-pad);
+  border-bottom: 1px solid var(--ink-200);
+}
+.vela-report .page > section:last-child { border-bottom: 0; }
+.vela-report .page > .pdf-group { display: block; }
+
+/* Utilities */
+.vela-report .eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  font-weight: 500;
+}
+.vela-report .mono { font-family: var(--font-mono); font-feature-settings: "tnum"; }
+.vela-report .num  { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.vela-report .muted { color: var(--ink-500); }
+
+.vela-report .s-ok     { color: var(--accent); }
+.vela-report .s-warn   { color: var(--warn); }
+.vela-report .s-danger { color: var(--danger); }
+.vela-report .s-ink    { color: var(--ink-700); }
+
+/* Grade chip */
+.vela-report .grade {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+}
+.vela-report .grade.A { background: var(--ink-100); color: var(--ink-900); }
+.vela-report .grade.B { background: var(--ink-100); color: var(--ink-700); }
+.vela-report .grade.C { background: var(--warn-tint); color: var(--warn); }
+.vela-report .grade.D { background: var(--danger-tint); color: var(--danger); }
+.vela-report .grade.F { background: var(--danger-tint); color: var(--danger); }
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.vela-report .hero { padding-top: 80px; padding-bottom: 72px; }
+.vela-report .hero .topline {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-500); letter-spacing: .16em; text-transform: uppercase;
+  padding-bottom: 24px; border-bottom: 1px solid var(--ink-200);
+}
+.vela-report .hero .topline .brand { color: var(--ink-900); font-weight: 500; }
+.vela-report .hero .supra {
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ink-500); font-weight: 500;
+  margin: 56px 0 16px;
+}
+.vela-report .hero h1.title {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: clamp(56px, 8.5vw, 112px);
+  letter-spacing: -0.04em;
+  line-height: .98;
+  margin: 0 0 20px;
+  color: var(--ink-900);
+}
+.vela-report .hero h1.title .accent { color: var(--ink-400); font-weight: 500; }
+.vela-report .hero .subtitle {
+  font-size: 17px; color: var(--ink-600); font-weight: 400;
+  max-width: 620px; line-height: 1.55;
+  margin: 0 0 64px;
+}
+.vela-report .hero .subtitle em { color: var(--ink-900); font-style: normal; font-weight: 600; }
+.vela-report .hero .subtitle b  { color: var(--ink-900); font-weight: 600; }
+.vela-report .hero .meta {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 32px;
+  padding-top: 28px;
+  border-top: 1px solid var(--ink-200);
+}
+.vela-report .hero .meta .cell .k {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-500); margin-bottom: 10px;
+  font-weight: 500;
+}
+.vela-report .hero .meta .cell .v {
+  font-family: var(--font-display); font-weight: 600; font-size: 18px;
+  color: var(--ink-900); letter-spacing: -0.01em;
+}
+
+/* ============================================================
+   TL;DR
+   ============================================================ */
+.vela-report .tldr {
+  padding: 96px var(--page-pad) !important;
+  background: var(--ink-900);
+  color: #fff;
+  border-bottom: 0 !important;
+}
+.vela-report .tldr .eyebrow { color: rgba(255,255,255,.55); }
+.vela-report .tldr blockquote {
+  margin: 24px 0 56px;
+  font-family: var(--font-display);
+  font-size: clamp(32px, 4.2vw, 56px);
+  line-height: 1.12;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+  max-width: 900px;
+  color: rgba(255,255,255,.6);
+}
+.vela-report .tldr blockquote .em { color: #fff; }
+.vela-report .tldr.tone-critical .eyebrow { color: #fca5a5; }
+.vela-report .tldr.tone-warning  .eyebrow { color: #fbbf24; }
+.vela-report .tldr.tone-healthy  .eyebrow { color: #6ee7b7; }
+.vela-report .tldr.tone-critical blockquote .em { color: #fecaca; }
+.vela-report .tldr.tone-warning  blockquote .em { color: #fde68a; }
+.vela-report .tldr.tone-healthy  blockquote .em { color: #bbf7d0; }
+.vela-report .tldr .evidence {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 48px; margin-top: 0;
+  padding-top: 32px; border-top: 1px solid rgba(255,255,255,.14);
+}
+.vela-report .tldr .evidence .c .k {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255,255,255,.5); margin-bottom: 12px;
+  font-weight: 500;
+}
+.vela-report .tldr .evidence .c .v {
+  font-family: var(--font-display); font-weight: 600; font-size: 40px;
+  color: #fff; letter-spacing: -0.03em; line-height: 1;
+}
+.vela-report .tldr .evidence .c .v.bad  { color: #ff8a80; }
+.vela-report .tldr .evidence .c .v.warn { color: #ff8a80; }
+.vela-report .tldr .evidence .c .v.ok   { color: #fff; }
+.vela-report .tldr .evidence .c .note {
+  font-size: 12px; color: rgba(255,255,255,.55);
+  margin-top: 10px; line-height: 1.5;
+}
+
+/* ============================================================
+   SECTION HEADING
+   ============================================================ */
+.vela-report .sec-head {
+  display: grid; grid-template-columns: 1fr auto;
+  align-items: end; gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--ink-900);
+  margin-bottom: 56px;
+}
+.vela-report .sec-head .num {
+  font-family: var(--font-mono);
+  font-size: 11px; line-height: 1;
+  color: var(--ink-500); font-weight: 500;
+  letter-spacing: .16em;
+  grid-row: 1; grid-column: 1;
+  margin-bottom: 16px;
+  display: block;
+}
+.vela-report .sec-head .num::before { content: "\2014\00a0\00a0"; }
+.vela-report .sec-head .title-block { grid-row: 2; grid-column: 1; }
+.vela-report .sec-head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(32px, 3.6vw, 44px);
+  font-weight: 600; letter-spacing: -0.025em;
+  color: var(--ink-900);
+  line-height: 1.05;
+}
+.vela-report .sec-head h2 .accent { color: var(--ink-400); font-weight: 500; }
+.vela-report .sec-head h2 em      { font-style: normal; color: var(--ink-400); font-weight: 500; }
+.vela-report .sec-head .meta {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-400); text-align: right;
+  letter-spacing: .08em;
+  grid-row: 2; grid-column: 2;
+  align-self: end;
+}
+
+.vela-report .sec-intro {
+  font-size: 15px; color: var(--ink-600);
+  line-height: 1.65; max-width: 680px;
+  margin: 0 0 48px;
+}
+
+/* ============================================================
+   KPI GRID
+   ============================================================ */
+.vela-report .kpi-grid {
+  display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  gap: 0;
+  border-top: 1px solid var(--ink-900);
+  border-bottom: 1px solid var(--ink-200);
+}
+.vela-report .kpi {
+  padding: 32px 32px 32px 0;
+  border-right: 1px solid var(--ink-200);
+  display: flex; flex-direction: column;
+}
+.vela-report .kpi:first-child {
+  padding-left: 0;
+  grid-row: span 2;
+  justify-content: space-between;
+  padding-right: 40px;
+}
+.vela-report .kpi:nth-child(n+2) { padding-left: 24px; }
+.vela-report .kpi:last-child { border-right: 0; padding-right: 0; }
+.vela-report .kpi .k {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-500); margin-bottom: 16px;
+  font-weight: 500;
+}
+.vela-report .kpi .v {
+  font-family: var(--font-display); font-weight: 600;
+  font-size: 44px; letter-spacing: -0.03em;
+  color: var(--ink-900); line-height: 1;
+  display: flex; align-items: baseline; gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.vela-report .kpi .v .unit { font-size: 18px; color: var(--ink-400); font-weight: 500; margin-left: 2px; }
+.vela-report .kpi.hero-kpi .v { font-size: 128px; font-weight: 700; letter-spacing: -0.05em; }
+.vela-report .kpi.hero-kpi .v .unit { font-size: 36px; }
+.vela-report .kpi.hero-kpi .v.warn { color: var(--danger); }
+.vela-report .kpi .note {
+  margin-top: 12px;
+  font-size: 13px; color: var(--ink-500);
+  line-height: 1.5;
+}
+.vela-report .kpi .caption {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .12em; color: var(--ink-400);
+  margin-top: 6px;
+}
+.vela-report .kpi .caption .s-danger { color: var(--danger); }
+
+.vela-report .kpi-bar {
+  margin-top: 20px;
+  height: 2px; background: var(--ink-200);
+  position: relative; overflow: visible;
+}
+.vela-report .kpi-bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink-900); }
+.vela-report .kpi-bar .fill.danger { background: var(--danger); }
+.vela-report .kpi-bar .cap {
+  position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--ink-900);
+}
+
+/* ============================================================
+   FINDINGS
+   ============================================================ */
+.vela-report .findings {
+  margin-top: 64px;
+  display: grid; grid-template-columns: 1fr; gap: 0;
+}
+.vela-report .finding {
+  display: grid; grid-template-columns: 100px 1fr 280px;
+  gap: 32px; align-items: start;
+  padding: 28px 0;
+  border-top: 1px solid var(--ink-200);
+}
+.vela-report .finding:first-child { border-top: 1px solid var(--ink-900); }
+.vela-report .finding:last-child  { border-bottom: 1px solid var(--ink-200); }
+.vela-report .finding .sev {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  font-weight: 500; color: var(--ink-500);
+  padding-top: 4px;
+}
+.vela-report .finding .sev.warn   { color: var(--ink-900); }
+.vela-report .finding .sev.danger { color: var(--danger); }
+.vela-report .finding .sev.info   { color: var(--ink-500); }
+.vela-report .finding .body .t {
+  font-size: 17px; font-weight: 600; color: var(--ink-900);
+  letter-spacing: -0.015em; line-height: 1.35;
+}
+.vela-report .finding .body .d {
+  font-size: 14px; color: var(--ink-500); margin-top: 6px;
+  line-height: 1.55;
+}
+.vela-report .finding .action {
+  font-size: 13px; color: var(--ink-700); line-height: 1.55;
+  text-align: left;
+  padding-left: 20px; border-left: 1px solid var(--ink-300);
+}
+
+/* ============================================================
+   SECTION INTRO
+   ============================================================ */
+.vela-report .sec-intro {
+  font-size: 15px; color: var(--ink-600);
+  line-height: 1.65; max-width: 680px;
+  margin: 0 0 48px;
+}
+
+/* ============================================================
+   FLOOR DENSITY GRID
+   ============================================================ */
+.vela-report .floors {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+}
+.vela-report .floor-card {
+  border: 1px solid var(--ink-200); border-radius: 10px;
+  padding: 16px; background: var(--ink-50);
+  position: relative; aspect-ratio: 1.3;
+}
+.vela-report .floor-card .fhead {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-600); letter-spacing: .08em; margin-bottom: 10px;
+}
+.vela-report .floor-card .fhead .name {
+  font-weight: 600; color: var(--ink-900);
+}
+.vela-report .floor-card .plan {
+  position: relative; width: 100%; height: calc(100% - 26px);
+  background: var(--ink-0); border: 1px solid var(--ink-200); border-radius: 6px;
+}
+.vela-report .floor-card .room {
+  position: absolute; border: 1px solid rgba(0,0,0,.08); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600; font-family: var(--font-mono);
+}
+.vela-report .floors-legend {
+  display: flex; gap: 16px; margin-top: 24px;
+  font-size: 12px; color: var(--ink-600); flex-wrap: wrap;
+}
+.vela-report .floors-legend .sw {
+  display: inline-block; width: 12px; height: 12px;
+  margin-right: 6px; vertical-align: -2px; border-radius: 2px;
+}
+
+/* ============================================================
+   TIMELINE CHART CARD
+   ============================================================ */
+.vela-report .chart-card {
+  border: 1px solid var(--ink-200);
+  border-radius: 2px; padding: 28px; background: var(--ink-0);
+}
+.vela-report .chart-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 20px; padding-bottom: 16px;
+  border-bottom: 1px solid var(--ink-200);
+}
+.vela-report .chart-head .t {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .16em; text-transform: uppercase;
+  font-weight: 500; color: var(--ink-500);
+}
+.vela-report .legend {
+  display: flex; gap: 20px; font-size: 12px; color: var(--ink-600);
+  font-family: var(--font-mono); letter-spacing: .04em;
+}
+.vela-report .legend .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 8px; vertical-align: 0;
+}
+.vela-report .legend .l-danger .dot { background: #c2362b; }
+.vela-report .legend .l-warn .dot   { background: #b7791f; }
+.vela-report .legend .l-brand .dot  { background: #2f66f6; }
+
+.vela-report .peak-callout {
+  margin-top: 20px; padding: 16px 20px;
+  background: var(--ink-50); border-left: 3px solid var(--danger);
+  border-radius: 0 6px 6px 0;
+}
+.vela-report .peak-callout .label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--danger); font-weight: 600; margin-bottom: 4px;
+}
+.vela-report .peak-callout .body {
+  font-size: 14px; color: var(--ink-800); line-height: 1.5;
+}
+.vela-report .peak-callout .supp {
+  font-size: 12px; color: var(--ink-500); line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* ============================================================
+   TWO-COL + DEFN + DONUT
+   ============================================================ */
+.vela-report .two-col {
+  display: grid; grid-template-columns: 1.2fr 1fr;
+  gap: 64px; align-items: start;
+}
+.vela-report .col-label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-500); margin-bottom: 12px;
+}
+
+.vela-report .defn { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px 64px; }
+.vela-report .defn dt {
+  font-weight: 600; font-size: 13px; color: var(--ink-900);
+  margin-bottom: 6px;
+}
+.vela-report .defn dd { margin: 0; font-size: 13px; color: var(--ink-500); line-height: 1.6; }
+
+.vela-report .kv-list { display: grid; grid-template-columns: 1fr; gap: 0; }
+.vela-report .kv-row {
+  display: grid; grid-template-columns: 1fr auto;
+  border-bottom: 1px solid var(--ink-200);
+  padding: 12px 0;
+}
+.vela-report .kv-row:last-child { border-bottom: 0; }
+.vela-report .kv-row dt { font-size: 13px; color: var(--ink-800); }
+.vela-report .kv-row dd {
+  margin: 0; font-size: 13px; color: var(--ink-900);
+  font-variant-numeric: tabular-nums; text-align: right;
+}
+.vela-report .kv-row dd.s-danger { color: var(--danger); }
+
+.vela-report .donut-wrap { display: flex; align-items: center; gap: 32px; }
+.vela-report .donut-legend { display: grid; gap: 8px; font-size: 13px; flex: 1; }
+.vela-report .donut-legend .row { display: flex; align-items: center; gap: 10px; }
+.vela-report .donut-legend .sw {
+  display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+}
+.vela-report .donut-legend .lbl { flex: 1; color: var(--ink-800); }
+.vela-report .donut-legend .pct { color: var(--ink-500); font-variant-numeric: tabular-nums; }
+.vela-report .donut-note {
+  font-size: 11px; color: var(--ink-500); margin-top: 8px;
+  font-family: var(--font-mono); letter-spacing: .04em;
+}
+
+/* ============================================================
+   INTERPRETATION CALLOUT
+   ============================================================ */
+.vela-report .interp {
+  margin-top: 20px; padding: 16px 20px;
+  background: var(--danger-tint); border-left: 3px solid var(--danger);
+  border-radius: 0 6px 6px 0;
+}
+.vela-report .interp .label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--danger); font-weight: 600; margin-bottom: 4px;
+}
+.vela-report .interp .body {
+  font-size: 14px; color: var(--ink-800); line-height: 1.5;
+}
+
+/* ============================================================
+   ZONE TABLE
+   ============================================================ */
+.vela-report .ztable {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  margin-top: 40px;
+}
+.vela-report .ztable thead th {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-500);
+  text-align: right; padding: 14px 12px;
+  border-bottom: 1px solid var(--ink-900);
+}
+.vela-report .ztable thead th:first-child,
+.vela-report .ztable thead th.l { text-align: left; padding-left: 0; }
+.vela-report .ztable tbody td {
+  padding: 20px 12px;
+  border-bottom: 1px solid var(--ink-200);
+  text-align: right;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-700);
+}
+.vela-report .ztable tbody td:first-child { padding-left: 0; }
+.vela-report .ztable tbody td.l { text-align: left; }
+.vela-report .ztable tbody tr:last-child td { border-bottom: 0; }
+.vela-report .ztable .zone { display: flex; align-items: center; gap: 12px; }
+.vela-report .ztable .zone .label .name { font-weight: 600; color: var(--ink-900); font-size: 14px; }
+.vela-report .ztable .zone .label .tag {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-500); margin-top: 2px;
+}
+.vela-report .ztable .bar-cell { position: relative; padding-right: 12px; width: 160px; }
+.vela-report .ztable .bar {
+  height: 3px; background: var(--ink-100); position: relative; margin-top: 6px;
+}
+.vela-report .ztable .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink-900); }
+.vela-report .ztable .bar .fill.danger { background: var(--danger); }
+.vela-report .ztable .bar .cap {
+  position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--ink-900);
+}
+.vela-report .ztable .mono-sub {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-500); margin-top: 2px;
+}
+.vela-report .ztable .grade {
+  display: inline-block; font-family: var(--font-display);
+  font-size: 15px; font-weight: 700;
+  padding: 4px 10px; border-radius: 4px;
+  min-width: 28px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.vela-report .ztable .grade.A { color: #15803d; background: #dcfce7; }
+.vela-report .ztable .grade.B { color: var(--accent-ink); background: var(--accent-tint); }
+.vela-report .ztable .grade.C { color: var(--warn); background: var(--warn-tint); }
+.vela-report .ztable .grade.D,
+.vela-report .ztable .grade.F { color: var(--danger); background: var(--danger-tint); }
+.vela-report .ztable .muted { color: var(--ink-400); }
+
+/* ============================================================
+   FLOW DIST + VCOMP
+   ============================================================ */
+.vela-report .flowdist { display: grid; gap: 14px; }
+.vela-report .flowdist .row {
+  display: grid; grid-template-columns: 180px 1fr 90px;
+  gap: 16px; align-items: center; font-size: 13px;
+}
+.vela-report .flowdist .row .bar { height: 3px; background: var(--ink-100); position: relative; overflow: hidden; }
+.vela-report .flowdist .row .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink-900); }
+.vela-report .flowdist .row .bar .fill.danger { background: var(--danger); }
+.vela-report .flowdist .row .bar .fill.warn { background: var(--ink-900); }
+.vela-report .flowdist .row .bar .fill.ok { background: var(--ink-900); }
+.vela-report .flowdist .row .v {
+  text-align: right; font-variant-numeric: tabular-nums;
+  color: var(--ink-900); font-weight: 500;
+}
+.vela-report .flowdist .row .v.muted { color: var(--ink-400); font-weight: 400; }
+.vela-report .flowdist .row .l { color: var(--ink-700); }
+
+.vela-report .vcomp { display: grid; gap: 12px; }
+.vela-report .vcomp .row {
+  display: grid; grid-template-columns: 120px 1fr 80px;
+  gap: 16px; align-items: center; font-size: 13px;
+}
+.vela-report .vcomp .row .bar { height: 4px; background: var(--ink-100); position: relative; overflow: hidden; }
+.vela-report .vcomp .row .bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--ink-900); }
+.vela-report .vcomp .row .v {
+  text-align: right; color: var(--ink-900);
+  font-variant-numeric: tabular-nums; font-weight: 500;
+}
+
+.vela-report .kv-row dt .info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  margin-left: 6px; font-size: 9px; font-weight: 600;
+  font-family: var(--font-mono);
+  background: var(--ink-200); color: var(--ink-600);
+  cursor: help; vertical-align: baseline;
+  font-style: italic;
+}
+.vela-report .tip-body {
+  margin-top: 10px; font-size: 11px; line-height: 1.5;
+  color: var(--ink-500);
+  padding-left: 10px; border-left: 2px solid var(--ink-200);
+}
+
+.vela-report .routes-block {
+  margin-top: 48px; padding-top: 32px;
+  border-top: 1px solid var(--ink-200);
+}
+.vela-report .routes-hint {
+  font-size: 12px; color: var(--ink-500);
+  margin: 8px 0 20px; line-height: 1.5;
+}
+.vela-report .routes {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; gap: 0;
+}
+.vela-report .route {
+  display: grid; grid-template-columns: 32px 1fr auto;
+  gap: 16px; align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--ink-200);
+  font-size: 13px;
+}
+.vela-report .route:first-child { border-top: 1px solid var(--ink-900); }
+.vela-report .route:last-child { border-bottom: 1px solid var(--ink-200); }
+.vela-report .route .rank {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .08em; color: var(--ink-500);
+}
+.vela-report .route .path {
+  color: var(--ink-800); font-weight: 500;
+  line-height: 1.4;
+}
+.vela-report .route .count {
+  display: inline-flex; align-items: baseline; gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.vela-report .route .count .num {
+  font-size: 16px; font-weight: 600; color: var(--ink-900);
+}
+.vela-report .route .count .pct {
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-500); min-width: 44px; text-align: right;
+}
+
+.vela-report .soft-note {
+  margin-top: 16px; padding: 14px 16px;
+  background: var(--ink-50); border-radius: 8px;
+  font-size: 13px; color: var(--ink-700); line-height: 1.5;
+}
+.vela-report .soft-note b { color: var(--ink-900); font-weight: 600; }
+.vela-report .inline-note { margin-top: 16px; font-size: 13px; color: var(--ink-600); line-height: 1.5; }
+.vela-report .inline-note b { color: var(--ink-900); }
+
+/* ============================================================
+   MEDIA LIST + PICKS + TOTALS
+   ============================================================ */
+.vela-report .media-list { display: grid; gap: 0; margin-top: 16px; }
+.vela-report .media-row {
+  display: grid; grid-template-columns: 1.4fr 1fr .8fr .8fr 1fr;
+  gap: 16px; align-items: center;
+  padding: 18px 0; border-bottom: 1px solid var(--ink-200);
+  font-size: 13px;
+}
+.vela-report .media-row.head {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-500); padding: 8px 0;
+  border-top: 0; border-bottom: 1px solid var(--ink-900);
+}
+.vela-report .media-row.head + .media-row { border-top: 0; }
+.vela-report .media-row .name { font-weight: 600; color: var(--ink-900); font-size: 14px; }
+.vela-report .media-row .kind {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .12em; color: var(--ink-500);
+  text-transform: uppercase; margin-top: 3px;
+}
+.vela-report .media-row .zone { color: var(--ink-600); }
+.vela-report .media-row .r-num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.vela-report .media-row .r-num .util {
+  font-family: var(--font-mono); font-size: 10px;
+  margin-top: 2px; color: var(--ink-500);
+}
+.vela-report .media-row .r-num .util.danger { color: var(--danger); }
+.vela-report .media-row .r-num .util.muted  { color: var(--ink-400); }
+.vela-report .media-row .engagement {
+  display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+}
+.vela-report .media-row .engagement .bar {
+  width: 100px; height: 3px; background: var(--ink-100); position: relative;
+}
+.vela-report .media-row .engagement .bar .fill {
+  position: absolute; inset: 0 auto 0 0; background: var(--ink-900);
+}
+.vela-report .media-row .engagement .bar .fill.danger { background: var(--danger); }
+.vela-report .media-row .engagement .num {
+  font-variant-numeric: tabular-nums; min-width: 44px;
+  text-align: right; color: var(--ink-900); font-weight: 600;
+}
+
+.vela-report .picks {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 48px; margin-top: 32px;
+}
+.vela-report .picks .col > .h {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-500); margin-bottom: 16px;
+  display: flex; justify-content: space-between; align-items: center;
+  padding-bottom: 12px; border-bottom: 1px solid var(--ink-900);
+  font-weight: 500;
+}
+.vela-report .picks .col.low > .h { color: var(--danger); border-bottom-color: var(--danger); }
+.vela-report .pick {
+  display: grid; grid-template-columns: 1fr auto; gap: 16px;
+  padding: 18px 0; border-bottom: 1px solid var(--ink-200);
+  align-items: center;
+}
+.vela-report .pick:last-child { border-bottom: 0; }
+.vela-report .pick .n { font-weight: 600; color: var(--ink-900); font-size: 14px; }
+.vela-report .pick .d {
+  font-size: 11px; color: var(--ink-500); margin-top: 4px;
+  font-family: var(--font-mono); letter-spacing: .04em;
+}
+.vela-report .pick .v {
+  font-size: 24px; font-weight: 600; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; font-family: var(--font-display);
+}
+.vela-report .pick.top .v { color: var(--ink-900); }
+.vela-report .pick.low .v { color: var(--danger); }
+
+.vela-report .media-totals {
+  margin-top: 32px;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 24px; padding-top: 24px;
+  border-top: 1px solid var(--ink-200);
+}
+.vela-report .media-totals .cell .k {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-500); margin-bottom: 6px;
+}
+.vela-report .media-totals .cell .v {
+  font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.vela-report .media-totals .cell .v .u {
+  font-size: 14px; color: var(--ink-500); font-weight: 500; margin-left: 4px;
+}
+.vela-report .media-totals .cell .v.warn { color: var(--warn); }
+.vela-report .media-totals .cell .v.ok { color: #15803d; }
+
+/* ============================================================
+   RECOMMENDATIONS
+   ============================================================ */
+.vela-report .recos { display: grid; gap: 0; }
+.vela-report .reco {
+  display: grid; grid-template-columns: 48px 1fr 1fr;
+  gap: 32px; align-items: start;
+  padding: 32px 0; border-top: 1px solid var(--ink-200);
+}
+.vela-report .reco:first-child { border-top: 1px solid var(--ink-900); }
+.vela-report .reco:last-child  { border-bottom: 1px solid var(--ink-200); }
+.vela-report .reco .idx {
+  font-family: var(--font-mono); font-size: 11px; line-height: 1;
+  color: var(--ink-500); font-weight: 500; letter-spacing: .1em;
+  padding-top: 6px;
+}
+.vela-report .reco .prob .tag {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-500); font-weight: 500;
+  margin-bottom: 10px;
+}
+.vela-report .reco .prob .tag.danger { color: var(--danger); }
+.vela-report .reco .prob .tag.info   { color: var(--accent); }
+.vela-report .reco .prob .t {
+  font-size: 18px; font-weight: 600; color: var(--ink-900);
+  letter-spacing: -0.015em; line-height: 1.35;
+}
+.vela-report .reco .prob .cause {
+  font-size: 13px; color: var(--ink-500); margin-top: 10px; line-height: 1.6;
+}
+.vela-report .reco .prob .evi {
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-400);
+  margin-top: 14px; letter-spacing: .05em;
+}
+.vela-report .reco .prob .evi b { color: var(--ink-900); font-weight: 600; }
+.vela-report .reco .act {
+  font-size: 14px; color: var(--ink-800); line-height: 1.55;
+  padding-left: 24px;
+  border-left: 1px solid var(--ink-300);
+}
+.vela-report .reco .act .h {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--ink-500); margin-bottom: 10px;
+  font-weight: 500;
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.vela-report .foot {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-400); text-transform: uppercase; letter-spacing: .12em;
+  padding: 40px var(--page-pad);
+  border-top: 1px solid var(--ink-200);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 900px) {
+  .vela-report { --page-pad: 32px; }
+  .vela-report .hero .meta,
+  .vela-report .tldr .evidence { grid-template-columns: repeat(2, 1fr); }
+  .vela-report .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .vela-report .kpi:first-child { grid-row: auto; padding-right: 0; border-right: 0; }
+  .vela-report .finding { grid-template-columns: 1fr; }
+  .vela-report .finding .action { padding-left: 0; border-left: 0; border-top: 1px solid var(--ink-200); padding-top: 12px; }
+  .vela-report .two-col { grid-template-columns: 1fr; gap: 48px; }
+  .vela-report .floors { grid-template-columns: 1fr; }
+  .vela-report .picks { grid-template-columns: 1fr; }
+  .vela-report .media-row { grid-template-columns: 1fr 1fr; }
+  .vela-report .media-totals { grid-template-columns: 1fr 1fr; }
+  .vela-report .reco { grid-template-columns: 1fr; }
+  .vela-report .reco .act { padding-left: 0; border-left: 0; border-top: 1px solid var(--ink-200); padding-top: 12px; }
+  .vela-report .defn { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   PRINT
+   ============================================================ */
+@media print {
+  .vela-report { background: #fff; }
+  .vela-report .page { margin: 0; border: 0; border-radius: 0; }
+  .vela-report .page > section,
+  .vela-report .page > .pdf-group > section { page-break-inside: avoid; }
+  .vela-report .page > .pdf-group { page-break-inside: avoid; }
+  .vela-report .tldr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
