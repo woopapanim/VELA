@@ -1,4 +1,6 @@
 import type { Visitor, ZoneConfig, ZoneUtilization } from '@/domain';
+import { getZonePolygon } from '@/simulation/engine';
+import { isPointInPolygon } from '@/simulation/collision';
 
 // Persistent peak tracking across the entire simulation run.
 // Call resetPeakOccupancy() when starting a new simulation.
@@ -17,22 +19,26 @@ export function calculateZoneUtilization(
   const watchingMap = new Map<string, number>();
   const waitingMap = new Map<string, number>();
 
-  // Position-based occupancy — matches ZoneRenderer canvas display.
-  // currentZoneId only updates on node arrival, so it misses in-transit agents
-  // physically inside a zone. We count by bounds instead for UI consistency.
+  // Position-based occupancy using zone polygon (not AABB bounds).
+  // bounds-based counting over-counts non-rect zones (circle, L, polygon) and
+  // double-counts agents in overlapping bounding boxes — observed 154/18 on a
+  // rest zone because transit agents physically crossed its AABB halo.
+  const polyByZone = new Map<string, ReturnType<typeof getZonePolygon>>();
+  for (const zone of zones) polyByZone.set(zone.id as string, getZonePolygon(zone));
+
   for (const zone of zones) {
-    const b = zone.bounds;
     const zid = zone.id as string;
+    const poly = polyByZone.get(zid)!;
+    const b = zone.bounds;
     for (const v of visitors) {
       if (!v.isActive) continue;
-      if (
-        v.position.x >= b.x && v.position.x <= b.x + b.w &&
-        v.position.y >= b.y && v.position.y <= b.y + b.h
-      ) {
-        occupancyMap.set(zid, (occupancyMap.get(zid) ?? 0) + 1);
-        if (v.currentAction === 'WATCHING') watchingMap.set(zid, (watchingMap.get(zid) ?? 0) + 1);
-        if (v.currentAction === 'WAITING') waitingMap.set(zid, (waitingMap.get(zid) ?? 0) + 1);
-      }
+      const p = v.position;
+      // Fast AABB reject first, then precise polygon test.
+      if (p.x < b.x || p.x > b.x + b.w || p.y < b.y || p.y > b.y + b.h) continue;
+      if (!isPointInPolygon(p, poly)) continue;
+      occupancyMap.set(zid, (occupancyMap.get(zid) ?? 0) + 1);
+      if (v.currentAction === 'WATCHING') watchingMap.set(zid, (watchingMap.get(zid) ?? 0) + 1);
+      if (v.currentAction === 'WAITING') waitingMap.set(zid, (waitingMap.get(zid) ?? 0) + 1);
     }
   }
 

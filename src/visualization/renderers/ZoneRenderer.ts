@@ -1,5 +1,7 @@
 import type { ZoneConfig, Visitor } from '@/domain';
 import { ZONE_COLORS } from '@/domain';
+import { getZonePolygon } from '@/simulation/engine';
+import { isPointInPolygon } from '@/simulation/collision';
 
 let _zoneAnimFrame = 0;
 
@@ -18,18 +20,20 @@ export function renderZones(
   // Keep strokes/handles at constant screen-pixel size regardless of zoom
   const px = 1 / Math.max(zoom, 0.3);
 
-  // Pre-compute occupancy per zone (position-based: count visitors physically inside bounds)
+  // Pre-compute occupancy per zone using polygon (not AABB) so non-rect zones
+  // and overlapping bounds don't over-count transit agents.
   const occupancy = new Map<string, number>();
   if (visitors) {
     for (const zone of zones) {
       const b = zone.bounds;
+      const poly = getZonePolygon(zone);
       let count = 0;
       for (const v of visitors) {
         if (!v.isActive) continue;
-        if (v.position.x >= b.x && v.position.x <= b.x + b.w &&
-            v.position.y >= b.y && v.position.y <= b.y + b.h) {
-          count++;
-        }
+        const p = v.position;
+        if (p.x < b.x || p.x > b.x + b.w || p.y < b.y || p.y > b.y + b.h) continue;
+        if (!isPointInPolygon(p, poly)) continue;
+        count++;
       }
       if (count > 0) occupancy.set(zone.id as string, count);
     }
