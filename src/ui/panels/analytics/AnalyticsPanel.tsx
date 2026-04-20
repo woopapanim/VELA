@@ -36,6 +36,7 @@ import { ZoneMediaPerformance } from './ZoneMediaPerformance';
 import { FlowVsExperience } from './FlowVsExperience';
 import { PinTimeline } from './PinTimeline';
 import { PinDetail } from './PinDetail';
+import { PinCompare } from './PinCompare';
 
 type AnalyticsTab = 'flow' | 'behavior' | 'experience' | 'action' | 'pin' | 'report';
 
@@ -279,6 +280,7 @@ export function AnalyticsPanel() {
       {tab === 'pin' && (
         <div className="space-y-3">
           <PinTimeline />
+          <PinCompare />
           <PinDetail />
         </div>
       )}

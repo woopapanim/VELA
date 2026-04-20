@@ -38,6 +38,8 @@ export function ProjectManager() {
   const resetSim = useStore((s) => s.resetSim);
   const clearHistory = useStore((s) => s.clearHistory);
   const clearReplay = useStore((s) => s.clearReplay);
+  const setPins = useStore((s) => s.setPins);
+  const clearPins = useStore((s) => s.clearPins);
   const phase = useStore((s) => s.phase);
   const { toast } = useToast();
   const t = useT();
@@ -96,8 +98,9 @@ export function ProjectManager() {
       },
     };
     setScenario(blank);
+    clearPins();
     toast('info', 'New project created');
-  }, [resetSim, clearHistory, clearReplay, setScenario, toast]);
+  }, [resetSim, clearHistory, clearReplay, setScenario, clearPins, toast]);
 
   // Save = JSON 파일 다운로드 성공 후 localStorage 저장
   const handleSave = useCallback(async () => {
@@ -112,6 +115,7 @@ export function ProjectManager() {
       floors: store.floors,
       shafts: store.shafts,
       waypointGraph: store.waypointGraph ?? undefined,
+      pins: store.pins.length > 0 ? store.pins : undefined,
       meta: { ...s.meta, name, updatedAt: Date.now(), version: s.meta.version + 1 },
     });
 
@@ -213,6 +217,7 @@ export function ProjectManager() {
       const data: Scenario = { ...parsed, meta: { ...parsed.meta, name: nameFromFile } };
       resetSim(); clearHistory(); clearReplay();
       setScenario(data);
+      setPins(data.pins ? [...data.pins] : []);
       // Recent에 추가
       const entry: ProjectEntry = {
         id: data.meta.id as string,
@@ -280,8 +285,9 @@ export function ProjectManager() {
     clearHistory();
     clearReplay();
     setScenario(entry.scenario);
+    setPins(entry.scenario.pins ? [...entry.scenario.pins] : []);
     toast('info', `Loaded "${entry.name}"`);
-  }, [resetSim, clearHistory, clearReplay, setScenario, toast]);
+  }, [resetSim, clearHistory, clearReplay, setScenario, setPins, toast]);
 
   // Delete from history
   const handleDeleteHistory = useCallback((id: string) => {
