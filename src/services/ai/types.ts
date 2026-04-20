@@ -30,11 +30,16 @@ export interface DraftZone {
   readonly key: string;
   readonly name: string;
   readonly type: ZoneType;
-  /** Axis-aligned bounding rect in METERS. */
+  /**
+   * Zone shape hint. "circle" → editor inscribes a circle into the bounds rect.
+   * "rect" → plain rectangle unless a polygon is also provided (then it becomes a custom shape).
+   */
+  readonly shape?: 'rect' | 'circle';
+  /** Axis-aligned bounding rect in METERS. For circles this is the bounding box. */
   readonly rect: DraftRect;
   /**
-   * Optional polygon (METERS, absolute image coords) for L/O/non-rect rooms.
-   * When present, supersedes rect for hit-testing but rect still drives layout.
+   * Optional polygon (METERS, absolute image coords) for L-shaped / curved rooms.
+   * Ignored when shape === 'circle'.
    */
   readonly polygon?: readonly DraftPoint[];
 }

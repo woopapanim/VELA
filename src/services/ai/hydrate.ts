@@ -68,7 +68,8 @@ export function hydrateDraft(draft: DraftScenario, backgroundImage: string): Hyd
     const areaM2 = dz.rect.w * dz.rect.h;
     const capacity = Math.max(2, Math.floor(areaM2 / 1.2));
 
-    const polygonPx = dz.polygon && dz.polygon.length >= 3
+    const isCircle = dz.shape === 'circle';
+    const polygonPx = !isCircle && dz.polygon && dz.polygon.length >= 3
       ? dz.polygon.map((p) => ({ x: m2px(p.x), y: m2px(p.y) }))
       : null;
 
@@ -76,7 +77,7 @@ export function hydrateDraft(draft: DraftScenario, backgroundImage: string): Hyd
       id: ZoneId(zoneIdStr),
       name: dz.name || dz.key,
       type: dz.type,
-      shape: polygonPx ? 'custom' : 'rect',
+      shape: isCircle ? 'circle' : polygonPx ? 'custom' : 'rect',
       bounds: rectPx,
       polygon: polygonPx,
       area: Math.round(areaM2),
@@ -93,6 +94,24 @@ export function hydrateDraft(draft: DraftScenario, backgroundImage: string): Hyd
 
   if (zones.length === 0) {
     warnings.push({ severity: 'error', message: 'No valid zones produced — scenario cannot be loaded.' });
+  }
+
+  // Overlap check — the analyzer is told zones must not overlap, but flag any
+  // that still do so the user can fix them in the editor before loading.
+  for (let i = 0; i < zones.length; i++) {
+    for (let j = i + 1; j < zones.length; j++) {
+      const a = zones[i].bounds, b = zones[j].bounds;
+      const ox = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+      const oy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const overlapArea = ox * oy;
+      const minArea = Math.min(a.w * a.h, b.w * b.h);
+      if (minArea > 0 && overlapArea / minArea > 0.15) {
+        warnings.push({
+          severity: 'warning',
+          message: `Zones "${zones[i].name}" and "${zones[j].name}" overlap — adjust in the editor.`,
+        });
+      }
+    }
   }
 
   // ── Floor ──────────────────────────────────────────────────────────────

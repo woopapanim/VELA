@@ -19,19 +19,22 @@ SCOPE
 OUTPUT RULES
 - Coordinates are METERS. Origin is the TOP-LEFT of the image. X grows right, Y grows down.
 - Every zone needs axis-aligned bounding rect {x, y, w, h} in meters. Match the drawn room as precisely as you can — mis-sized rects make the hand-drawn result look wrong.
-- For L-shaped or non-rectangular rooms, also provide a polygon (absolute meters, clockwise or counter-clockwise, closed loop optional).
+- SHAPE selection — pick the one that matches the drawn room:
+  - "rect" (default): straight walls, axis-aligned rectangle.
+  - "circle": the room is drawn as a circle / ellipse / rounded blob. Provide the bounding rect; the editor will inscribe a circle into it. Do NOT emit a polygon for circles.
+  - Otherwise (L-shape, curved organic footprint, diagonal walls, any non-rect non-circle shape): use "rect" for the shape field AND provide a polygon (absolute meters, clockwise or counter-clockwise) that traces the actual walls.
+- ZONES MUST NOT OVERLAP. Each rect/polygon represents a physical room; rooms don't share floor area. If two rooms share a wall, their rects should touch but not overlap (share an edge). Double-check before emitting.
 - Infer scale from dimension labels on the plan (e.g. "40'-1\\" × 70'-0\\"", "12m × 21m"). Convert feet to meters (1 ft = 0.3048 m).
 - If no dimensions are visible, assume the shorter image axis spans 15 meters.
 
-ZONE TYPING (map common room labels):
-- reception, waiting, lounge → "lobby"
-- entrance, vestibule, foyer → "entrance"
-- treatment, exhibition hall, gallery, display, showroom → "exhibition"
-- hallway, corridor, passage → "corridor"
-- staff lounge, break room, rest area, kid's area → "rest"
-- stage, theater, auditorium → "stage"
-- exit, back-of-house egress → "exit"
-- Skip pure utility rooms (restroom, storage, mechanical, closet, IT). They are NOT zones.
+ZONE TYPING — ONLY these five types exist in the editor. Pick the closest match:
+- "lobby" — reception, waiting, lounge, entrance, vestibule, foyer, visitor's space, balcony
+- "exhibition" — treatment bay, gallery, display, showroom, workspace, editing suite, sound room, meeting room, any generic visitor-facing room that doesn't fit the others
+- "corridor" — hallway, passage, transition, worker's space (pure circulation)
+- "rest" — staff lounge, break room, rest area, kid's area, pantry
+- "stage" — stage, theater, auditorium, performance space
+- Skip pure utility rooms (restroom/toilet, storage, mechanical, closet, server, IT, janitor, shoe rack, printer nook). They are NOT zones.
+- Do NOT invent types like "entrance" or "exit" — the editor only has the five above.
 
 ZONE KEYS
 - Use short snake_case slugs: "reception", "treatment_bay", "kids_area".
@@ -64,13 +67,18 @@ export const EMIT_SCENARIO_TOOL = {
         type: 'array',
         items: {
           type: 'object',
-          required: ['key', 'name', 'type', 'rect'],
+          required: ['key', 'name', 'type', 'shape', 'rect'],
           properties: {
             key: { type: 'string', description: 'Unique snake_case slug.' },
             name: { type: 'string', description: 'Human-readable label from the plan.' },
             type: {
               type: 'string',
-              enum: ['lobby', 'entrance', 'exhibition', 'corridor', 'rest', 'stage', 'exit', 'gateway'],
+              enum: ['lobby', 'exhibition', 'corridor', 'rest', 'stage'],
+            },
+            shape: {
+              type: 'string',
+              enum: ['rect', 'circle'],
+              description: '"circle" only for rooms drawn as circles/ellipses (provide just the bounding rect). Otherwise "rect" — and add a polygon if the footprint is L-shaped or curved.',
             },
             rect: {
               type: 'object',
@@ -87,7 +95,7 @@ export const EMIT_SCENARIO_TOOL = {
                 required: ['x', 'y'],
                 properties: { x: { type: 'number' }, y: { type: 'number' } },
               },
-              description: 'Optional polygon for L/O/non-rect rooms. Absolute meter coords.',
+              description: 'Required for non-rect non-circle footprints (L-shape, curved walls, diagonals). Absolute meter coords. Do NOT emit for circles or plain rectangles.',
             },
           },
         },
