@@ -160,13 +160,6 @@ export class CanvasManager {
       renderGrid(ctx, canvasWidth, canvasHeight, state.gridSize, isDark, this.camera.x, this.camera.y, this.camera.zoom);
     }
 
-    // 2. Heatmap (below zones) — floor-wide cumulative dwell gradient.
-    if (state.overlayMode === 'heatmap') {
-      const grids = state.densityGrids ? [...state.densityGrids.values()] : [];
-      this.heatmapRenderer.update(grids);
-      this.heatmapRenderer.render(ctx, grids, state.visitors, isDark, canvasWidth, canvasHeight);
-    }
-
     // Determine hidden floors (editor-only view filter — sim still ticks them).
     const hiddenFloorIds = new Set<string>();
     const hiddenZoneIds = new Set<string>();
@@ -205,6 +198,15 @@ export class CanvasManager {
 
     // 3. Zones (with occupancy overlay)
     renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
+
+    // 3a. Heatmap — floor-wide cumulative dwell gradient, painted over zone
+    // fills so it isn't hidden by their translucent backgrounds. Sits below
+    // gates / waypoints / agents so those remain readable.
+    if (state.overlayMode === 'heatmap') {
+      const grids = state.densityGrids ? [...state.densityGrids.values()] : [];
+      this.heatmapRenderer.update(grids);
+      this.heatmapRenderer.render(ctx, grids, state.visitors, isDark, canvasWidth, canvasHeight);
+    }
 
     // 4. Gates (rendered relative to zone bounds for wall alignment)
     if (state.showGates) {

@@ -57,8 +57,23 @@ export function PinTimeline() {
         </button>
       </div>
 
-      {/* Timeline axis */}
-      <div className="relative h-6 mb-3 bg-secondary/40 rounded-md">
+      {/* Timeline axis — click anywhere on the bar to jump to the nearest pin.
+          Dots are sized generously so they're clickable even when close. */}
+      <div
+        className="relative h-6 mb-3 bg-secondary/40 rounded-md cursor-pointer"
+        onClick={(e) => {
+          if (pins.length === 0 || axisMax <= 0) return;
+          const rect = e.currentTarget.getBoundingClientRect();
+          const clickMs = ((e.clientX - rect.left) / rect.width) * axisMax;
+          let nearest = pins[0];
+          let best = Math.abs(pins[0].simulationTimeMs - clickMs);
+          for (const p of pins) {
+            const d = Math.abs(p.simulationTimeMs - clickMs);
+            if (d < best) { best = d; nearest = p; }
+          }
+          selectPin(nearest.id as PinId);
+        }}
+      >
         {pins.map((p) => {
           const pct = axisMax > 0 ? Math.min(100, (p.simulationTimeMs / axisMax) * 100) : 0;
           const isSelected = p.id === selectedPinId;
@@ -67,11 +82,9 @@ export function PinTimeline() {
             <button
               key={p.id as string}
               onClick={(e) => {
+                e.stopPropagation();
                 if (e.shiftKey) {
-                  const ok = toggleCompare(p.id as PinId);
-                  if (!ok) {
-                    // toast: handled by caller usually — silent no-op here
-                  }
+                  toggleCompare(p.id as PinId);
                 } else {
                   selectPin(p.id as PinId);
                 }
@@ -81,8 +94,8 @@ export function PinTimeline() {
                 isSelected
                   ? 'w-4 h-4 bg-primary ring-2 ring-primary/30'
                   : isCompare
-                  ? 'w-3 h-3 bg-[var(--status-warning)]'
-                  : 'w-2.5 h-2.5 bg-muted-foreground hover:bg-primary/70'
+                  ? 'w-3.5 h-3.5 bg-[var(--status-warning)]'
+                  : 'w-3 h-3 bg-muted-foreground hover:bg-primary/70'
               }`}
               style={{ left: `${pct}%` }}
             />

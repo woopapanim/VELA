@@ -137,10 +137,11 @@ export function SimulationControls() {
         );
         pushSnapshot(snapshot);
 
-        // Bottleneck alert toasts
+        // Bottleneck alert toasts — once per zone per 60s sim-time so a
+        // persistent hotspot doesn't dominate the toast stack.
         for (const bn of snapshot.bottlenecks) {
           if (bn.score > 0.85) {
-            const key = `bn_${bn.zoneId as string}_${Math.floor(elapsed / 10000)}`;
+            const key = `bn_${bn.zoneId as string}_${Math.floor(elapsed / 60000)}`;
             if (!milestonesHit.current.has(key as any)) {
               milestonesHit.current.add(key as any);
               const zone = currentStore.zones.find((z) => z.id === bn.zoneId);
@@ -232,7 +233,7 @@ export function SimulationControls() {
   return (
     <div className="space-y-3">
       {/* Controls */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
             onClick={handleStart}
@@ -267,7 +268,7 @@ export function SimulationControls() {
         )}
         <button
           onClick={toggleHeatmap}
-          className={`flex items-center justify-center px-2.5 py-2 text-xs rounded-xl transition-colors ${
+          className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
           title="Toggle Heatmap"
@@ -277,7 +278,7 @@ export function SimulationControls() {
         <button
           onClick={handlePin}
           disabled={phase === SIMULATION_PHASE.IDLE}
-          className="flex items-center justify-center px-2.5 py-2 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           title={`${t('pinpoint.action.pin')} (P)`}
         >
           <Pin className="w-3.5 h-3.5" />

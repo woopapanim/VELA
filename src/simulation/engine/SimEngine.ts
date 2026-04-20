@@ -676,6 +676,30 @@ export class SimulationEngine {
       }
     }
 
+    // --- RESTING: tick dwell timer at current waypoint node ---
+    // Without this branch, an agent set to RESTING by assignNextTarget never
+    // re-evaluates and sits at the rest node forever (the dwell check inside
+    // assignNextTarget only runs when something else first kicks the agent
+    // back into IDLE). Piles dozens of agents onto a single rest node.
+    if (action === VISITOR_ACTION.RESTING) {
+      if (v.currentNodeId) {
+        const curNode = this.nodeMap.get(v.currentNodeId as string);
+        const lastLog = v.pathLog[v.pathLog.length - 1];
+        if (curNode && lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
+          const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
+          if (elapsed >= curNode.dwellTimeMs) {
+            return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE });
+          }
+        } else {
+          // pathLog got out of sync with currentNodeId — recover by reassigning
+          return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE });
+        }
+      } else {
+        return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE });
+      }
+      return v; // still resting
+    }
+
     // --- WATCHING: tick engagement timer ---
     if (action === VISITOR_ACTION.WATCHING) {
       const rem = (this.engagementTimers.get(v.id as string) ?? 0) - dt;
