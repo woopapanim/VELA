@@ -551,11 +551,16 @@
 .vela-report .ztable .mono-sub {
   font-family: var(--font-mono); font-size: 10px; color: var(--ink-500); margin-top: 2px;
 }
+.vela-report .ztable th.grade-col,
+.vela-report .ztable td.grade-col {
+  text-align: center; width: 56px; padding-left: 8px; padding-right: 0;
+}
 .vela-report .ztable .grade {
-  display: inline-block; font-family: var(--font-display);
-  font-size: 15px; font-weight: 700;
-  padding: 4px 10px; border-radius: 4px;
-  min-width: 28px; text-align: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-size: 14px; font-weight: 700; line-height: 1;
+  width: 28px; height: 28px;
+  border-radius: 6px;
   font-variant-numeric: tabular-nums;
 }
 .vela-report .ztable .grade.A { color: #15803d; background: #dcfce7; }

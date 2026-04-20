@@ -141,7 +141,7 @@ export function SystemOverviewSection({
             <th>{t('vela.sys.th.stay')}</th>
             <th>{t('vela.sys.th.trend')}</th>
             <th>{t('vela.sys.th.bottleneck')}</th>
-            <th>{t('vela.sys.th.grade')}</th>
+            <th className="grade-col">{t('vela.sys.th.grade')}</th>
           </tr>
         </thead>
         <tbody>
@@ -187,7 +187,7 @@ export function SystemOverviewSection({
                 <td>{z.stayMin.toFixed(1)}{t('vela.sys.td.stayUnit')}</td>
                 <td className="trend-cell"><Sparkline data={z.sparkline} overCap={z.utilPct > 100} /></td>
                 <td className={z.bottleneck == null ? 'muted' : ''}>{z.bottleneck == null ? '—' : z.bottleneck}</td>
-                <td><span className={`grade ${z.grade}`}>{z.grade}</span></td>
+                <td className="grade-col"><span className={`grade ${z.grade}`}>{z.grade}</span></td>
               </tr>
             );
           })}
