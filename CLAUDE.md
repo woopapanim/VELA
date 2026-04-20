@@ -83,8 +83,10 @@ domain ← simulation ← stores → analytics
 | A/B 비교 (ComparisonEngine) | ✅ 완료 |
 | 정적 밀도 분석 | ✅ 완료 |
 | Multi-floor 기본 구조 | ✅ 완료 |
+| Multi-floor 배경 오버레이 + 영역 편집 | ✅ 완료 |
+| AI 도면 분석 (Anthropic vision → DraftScenario) | ✅ 완료 |
+| **Structured Reporting (VELA Report v2)** | ✅ 완료 |
 | **Pinpoint 분석** | ⬜ 스텁 |
-| **Structured Reporting** | ⬜ 스텁 |
 | **Advanced Analytics (트렌드/민감도)** | ⬜ 스텁 |
 
 ## 작업 규칙
