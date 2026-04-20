@@ -154,13 +154,13 @@ export const ko: Dict = {
   'insight.congestion.warning.rec': '→ 인접 존으로 관심 요소 재배치',
 
   // Insight engine — bottleneck
-  'insight.bottleneck.group.problem': '{zone}: 단체 동선 분리 검토',
-  'insight.bottleneck.critical.problem': '{zone}: 출구 게이트 확장 시급',
-  'insight.bottleneck.warning.problem': '{zone}: 출구 흐름 개선 필요',
+  'insight.bottleneck.group.problem': '{zone}: 단체 방문 집중으로 병목',
+  'insight.bottleneck.critical.problem': '{zone}: 출구 처리 한계 초과',
+  'insight.bottleneck.warning.problem': '{zone}: 출구 흐름 지연',
   'insight.bottleneck.cause':
     '유입 {flowIn}/s > 유출 {flowOut}/s — 병목 지수 {score}',
-  'insight.bottleneck.group.rec': '→ 게이트 폭 확장 또는 투어 시간대 분산',
-  'insight.bottleneck.nonGroup.rec': '→ 출구 게이트 추가 또는 미디어 배치 분산',
+  'insight.bottleneck.group.rec': '→ 투어 타임슬롯 분산 또는 단체 비율 축소',
+  'insight.bottleneck.nonGroup.rec': '→ 출구 게이트 추가 또는 존 용량 상향',
 
   // Insight engine — density
   'insight.density.problem': '{zone}: 면적 확장 또는 수용 상한 설정',
@@ -171,8 +171,8 @@ export const ko: Dict = {
   // Insight engine — skip
   'insight.skip.problem': '인기 미디어 복제 배치 검토',
   'insight.skip.cause': '전체 스킵률 {pct}% — 대기 시간 초과로 관람 포기',
-  'insight.skip.rec.withHighSkip': '→ 고스킵 미디어 {count}개 다중 배치 또는 대기열 관리',
-  'insight.skip.rec.default': '→ 복제 배치 또는 대기열 관리 시스템 도입',
+  'insight.skip.rec.withHighSkip': '→ 고스킵 미디어 {count}개 복제 배치 또는 수용량 상향',
+  'insight.skip.rec.default': '→ 동일 미디어 복제 배치 또는 수용량 상향',
 
   // Insight engine — fatigue
   'insight.fatigue.problem': '휴식 존 추가 필요',
@@ -210,7 +210,7 @@ export const ko: Dict = {
   'insight.groupImpact.tour.problem': '도슨트 전용 동선 검토',
   'insight.groupImpact.tour.cause':
     '투어 {tourPct}% 인원이 병목 {impactPct}% 유발 ({groupCount}개 그룹 / {tourCount}명)',
-  'insight.groupImpact.tour.rec': '→ 투어 시간대 분산 또는 우회 경로 제공',
+  'insight.groupImpact.tour.rec': '→ 투어 타임슬롯 분산 또는 단체 비율 축소',
   'insight.groupImpact.fatigue.problem': '그룹 동선 휴식 존 추가',
   'insight.groupImpact.fatigue.cause':
     '그룹 피로도 {groupPct}% vs 솔로 {soloPct}% ({count}명 체류 배율 높음)',

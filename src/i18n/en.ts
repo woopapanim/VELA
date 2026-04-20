@@ -160,15 +160,15 @@ export const en: Dict = {
   'insight.congestion.warning.rec': '→ Redistribute attractions to adjacent zones',
 
   // Insight engine — bottleneck
-  'insight.bottleneck.group.problem': '{zone}: Review group flow separation',
-  'insight.bottleneck.critical.problem': '{zone}: Urgently widen exit gate',
-  'insight.bottleneck.warning.problem': '{zone}: Improve exit flow',
+  'insight.bottleneck.group.problem': '{zone}: Tour arrivals concentrating',
+  'insight.bottleneck.critical.problem': '{zone}: Exit throughput exceeded',
+  'insight.bottleneck.warning.problem': '{zone}: Exit flow slowing',
   'insight.bottleneck.cause':
     'Inflow {flowIn}/s > outflow {flowOut}/s — bottleneck index {score}',
   'insight.bottleneck.group.rec':
-    '→ Widen gate or stagger tour schedules',
+    '→ Stagger tour time slots or reduce tour ratio',
   'insight.bottleneck.nonGroup.rec':
-    '→ Add exit gate or spread media placement',
+    '→ Add exit gate or raise zone capacity',
 
   // Insight engine — density
   'insight.density.problem': '{zone}: Expand area or set capacity cap',
@@ -182,9 +182,9 @@ export const en: Dict = {
   'insight.skip.cause':
     'Global skip rate {pct}% — visitors abandon due to wait time',
   'insight.skip.rec.withHighSkip':
-    '→ Duplicate {count} high-skip media or introduce queue management',
+    '→ Duplicate {count} high-skip media or raise their capacity',
   'insight.skip.rec.default':
-    '→ Duplicate placement or introduce queue management',
+    '→ Duplicate placement or raise media capacity',
 
   // Insight engine — fatigue
   'insight.fatigue.problem': 'Add rest zone',
@@ -232,7 +232,7 @@ export const en: Dict = {
   'insight.groupImpact.tour.cause':
     '{tourPct}% tour visitors cause {impactPct}% of bottlenecks ({groupCount} groups / {tourCount} people)',
   'insight.groupImpact.tour.rec':
-    '→ Stagger tour schedules or provide detour routes',
+    '→ Stagger tour time slots or reduce tour ratio',
   'insight.groupImpact.fatigue.problem': 'Add rest zone on group flow',
   'insight.groupImpact.fatigue.cause':
     'Group fatigue {groupPct}% vs solo {soloPct}% ({count} visitors with higher dwell multiplier)',
