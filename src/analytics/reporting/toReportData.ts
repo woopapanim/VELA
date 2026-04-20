@@ -1,7 +1,7 @@
 import type {
   Scenario, ZoneConfig, MediaConfig, FloorConfig,
   Visitor, VisitorGroup, TimeState, SimulationSnapshot,
-  InsightEntry,
+  InsightEntry, WaypointGraph,
 } from '@/domain';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { generateInsights, extractKeyMoments } from '@/analytics';
@@ -127,6 +127,22 @@ export interface ReportDwellBucket {
   readonly pct: number;           // 0..100
 }
 
+export interface ReportNodeDistRow {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly count: number;
+  readonly pct: number;
+}
+
+export interface ReportTransitionCell {
+  readonly fromId: string;
+  readonly fromName: string;
+  readonly toId: string;
+  readonly toName: string;
+  readonly count: number;
+  readonly pct: number;        // out of total transitions from `fromId`
+}
+
 export interface ReportFlow {
   readonly completed: number;
   readonly avgTotalMin: number;
@@ -143,6 +159,12 @@ export interface ReportFlow {
     readonly medianMin: number;
     readonly p90Min: number;
     readonly p99Min: number;
+  };
+  readonly entryDist: readonly ReportNodeDistRow[];
+  readonly exitDist: readonly ReportNodeDistRow[];
+  readonly transitionMatrix: {
+    readonly zones: readonly { readonly id: string; readonly name: string }[];
+    readonly cells: readonly ReportTransitionCell[];
   };
 }
 
@@ -209,6 +231,9 @@ export interface ToReportDataInput {
     readonly watchCount: number; readonly skipCount: number; readonly waitCount: number;
     readonly totalWatchMs: number; readonly totalWaitMs: number; readonly peakViewers: number;
   }>;
+  readonly spawnByNode: ReadonlyMap<string, number>;
+  readonly exitByNode: ReadonlyMap<string, number>;
+  readonly waypointGraph: WaypointGraph | null;
   readonly totalExited: number;
   readonly t: (k: string, params?: Record<string, string | number>) => string;
 }
@@ -261,7 +286,9 @@ function findingFromInsight(e: InsightEntry, idx: number): ReportFinding {
 export function toReportData(input: ToReportDataInput): ReportData {
   const {
     scenario, zones, media, floors, visitors, groups,
-    timeState, latestSnapshot, kpiHistory, mediaStats, totalExited, t,
+    timeState, latestSnapshot, kpiHistory, mediaStats,
+    spawnByNode, exitByNode, waypointGraph,
+    totalExited, t,
   } = input;
 
   const exited = visitors.filter((v) => !v.isActive);
@@ -781,6 +808,65 @@ export function toReportData(input: ToReportDataInput): ReportData {
     ? dwellMinsSorted[Math.min(dwellMinsSorted.length - 1, Math.floor(dwellMinsSorted.length * p))]
     : 0;
 
+  // ---- Entry / exit node distribution ----------------------------------
+  const nodeLabelById = new Map<string, string>();
+  if (waypointGraph) {
+    for (const n of waypointGraph.nodes) {
+      nodeLabelById.set(n.id as string, n.label || (n.id as string).slice(0, 6));
+    }
+  }
+  const buildDist = (src: ReadonlyMap<string, number>): ReportNodeDistRow[] => {
+    const total = [...src.values()].reduce((s, n) => s + n, 0);
+    return [...src.entries()]
+      .filter(([, c]) => c > 0)
+      .map(([nodeId, count]) => ({
+        nodeId,
+        label: nodeLabelById.get(nodeId) ?? nodeId.slice(0, 6),
+        count,
+        pct: total > 0 ? Math.round((count / total) * 100) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  };
+  const entryDist = buildDist(spawnByNode);
+  const exitDist = buildDist(exitByNode);
+
+  // ---- Zone transition matrix (A → B counts from visitedZoneIds) --------
+  const transitionZoneIds = zones.map((z) => z.id as string);
+  const transitionZoneNames = new Map(zones.map((z) => [z.id as string, z.name]));
+  const transitionCounts = new Map<string, Map<string, number>>();
+  const rowTotals = new Map<string, number>();
+  for (const v of visitors) {
+    const ids = v.visitedZoneIds.map((id) => id as string);
+    for (let i = 0; i < ids.length - 1; i++) {
+      const from = ids[i], to = ids[i + 1];
+      if (from === to) continue;
+      if (!transitionCounts.has(from)) transitionCounts.set(from, new Map());
+      const row = transitionCounts.get(from)!;
+      row.set(to, (row.get(to) ?? 0) + 1);
+      rowTotals.set(from, (rowTotals.get(from) ?? 0) + 1);
+    }
+  }
+  const transitionCells: ReportTransitionCell[] = [];
+  for (const [fromId, row] of transitionCounts) {
+    const rowTotal = rowTotals.get(fromId) ?? 0;
+    for (const [toId, count] of row) {
+      transitionCells.push({
+        fromId,
+        fromName: transitionZoneNames.get(fromId) ?? '—',
+        toId,
+        toName: transitionZoneNames.get(toId) ?? '—',
+        count,
+        pct: rowTotal > 0 ? Math.round((count / rowTotal) * 100) : 0,
+      });
+    }
+  }
+  // Only include zones that actually participated (either as from or to)
+  const transitionZoneSet = new Set<string>();
+  for (const c of transitionCells) { transitionZoneSet.add(c.fromId); transitionZoneSet.add(c.toId); }
+  const transitionZones = transitionZoneIds
+    .filter((id) => transitionZoneSet.has(id))
+    .map((id) => ({ id, name: transitionZoneNames.get(id) ?? '—' }));
+
   const flowMode = (scenario.globalFlowMode ?? 'free') as 'free' | 'sequential' | 'hybrid';
   const flow: ReportFlow = {
     completed: exited.length,
@@ -798,6 +884,12 @@ export function toReportData(input: ToReportDataInput): ReportData {
       medianMin: dwellAt(0.5),
       p90Min: dwellAt(0.9),
       p99Min: dwellAt(0.99),
+    },
+    entryDist,
+    exitDist,
+    transitionMatrix: {
+      zones: transitionZones,
+      cells: transitionCells,
     },
   };
 

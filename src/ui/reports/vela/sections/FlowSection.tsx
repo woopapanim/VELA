@@ -1,5 +1,71 @@
-import type { ReportFlow } from '@/analytics/reporting';
+import type { ReportFlow, ReportNodeDistRow, ReportTransitionCell } from '@/analytics/reporting';
 import { useT } from '@/i18n';
+
+function NodeDistList({ rows, empty }: { rows: readonly ReportNodeDistRow[]; empty: string }) {
+  if (rows.length === 0) return <div className="inline-note muted">{empty}</div>;
+  return (
+    <ol className="node-dist">
+      {rows.map((r, i) => (
+        <li key={r.nodeId}>
+          <span className="rank">{String(i + 1).padStart(2, '0')}</span>
+          <span className="label">{r.label}</span>
+          <div className="bar"><div className="fill" style={{ width: `${r.pct}%` }} /></div>
+          <span className="v">{r.count} · {r.pct}%</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function TransitionMatrix({
+  zones, cells,
+}: {
+  zones: readonly { readonly id: string; readonly name: string }[];
+  cells: readonly ReportTransitionCell[];
+}) {
+  if (zones.length < 2 || cells.length === 0) return null;
+  const byFromTo = new Map<string, ReportTransitionCell>();
+  for (const c of cells) byFromTo.set(`${c.fromId}|${c.toId}`, c);
+  const colorFor = (pct: number) => {
+    if (pct >= 60) return '#c2362b';
+    if (pct >= 40) return '#ed7b59';
+    if (pct >= 20) return '#ffcb7a';
+    if (pct >= 5) return '#d7e4ff';
+    return '#f6f6f8';
+  };
+  return (
+    <div className="trans-matrix-wrap">
+      <table className="trans-matrix">
+        <thead>
+          <tr>
+            <th className="corner">↓ From / To →</th>
+            {zones.map((z) => (
+              <th key={z.id} title={z.name}>{z.name}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {zones.map((fz) => (
+            <tr key={fz.id}>
+              <th className="row-head" title={fz.name}>{fz.name}</th>
+              {zones.map((tz) => {
+                const c = byFromTo.get(`${fz.id}|${tz.id}`);
+                if (!c) return <td key={tz.id} className="empty">—</td>;
+                const bg = colorFor(c.pct);
+                return (
+                  <td key={tz.id} style={{ background: bg, color: c.pct >= 40 ? '#fff' : 'var(--ink-800)' }}>
+                    <div className="pct">{c.pct}%</div>
+                    <div className="cnt">{c.count}</div>
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function DwellHistogram({ flow }: { flow: ReportFlow }) {
   const t = useT();
@@ -103,6 +169,34 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
             p99: flow.dwellStats.p99Min.toFixed(1),
           })}</p>
           <DwellHistogram flow={flow} />
+        </div>
+      )}
+
+      {(flow.entryDist.length > 0 || flow.exitDist.length > 0) && (
+        <div className="nodedist-block">
+          <div className="two-col">
+            <div>
+              <div className="col-label">{t('vela.flow.entry.title')}</div>
+              <p className="routes-hint">{t('vela.flow.entry.hint')}</p>
+              <NodeDistList rows={flow.entryDist} empty={t('vela.flow.entry.empty')} />
+            </div>
+            <div>
+              <div className="col-label">{t('vela.flow.exit.title')}</div>
+              <p className="routes-hint">{t('vela.flow.exit.hint')}</p>
+              <NodeDistList rows={flow.exitDist} empty={t('vela.flow.exit.empty')} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {flow.transitionMatrix.cells.length > 0 && (
+        <div className="trans-block">
+          <div className="col-label">{t('vela.flow.trans.title')}</div>
+          <p className="routes-hint">{t('vela.flow.trans.hint')}</p>
+          <TransitionMatrix
+            zones={flow.transitionMatrix.zones}
+            cells={flow.transitionMatrix.cells}
+          />
         </div>
       )}
 

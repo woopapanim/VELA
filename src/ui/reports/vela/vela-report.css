@@ -613,9 +613,66 @@
 }
 
 .vela-report .routes-block,
-.vela-report .dwell-block {
+.vela-report .dwell-block,
+.vela-report .nodedist-block,
+.vela-report .trans-block {
   margin-top: 40px; padding-top: 28px;
   border-top: 1px solid var(--ink-200);
+}
+
+.vela-report .node-dist {
+  list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px;
+}
+.vela-report .node-dist li {
+  display: grid; grid-template-columns: 28px 1fr 140px 90px;
+  gap: 10px; align-items: center;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-700);
+}
+.vela-report .node-dist .rank {
+  color: var(--ink-400); font-variant-numeric: tabular-nums;
+}
+.vela-report .node-dist .label {
+  color: var(--ink-800); font-family: var(--font-sans);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vela-report .node-dist .bar {
+  height: 6px; background: var(--ink-100); border-radius: 3px; overflow: hidden;
+}
+.vela-report .node-dist .bar .fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+}
+.vela-report .node-dist .v {
+  text-align: right; color: var(--ink-700); font-variant-numeric: tabular-nums;
+}
+
+.vela-report .trans-matrix-wrap { overflow-x: auto; margin-top: 12px; }
+.vela-report table.trans-matrix {
+  border-collapse: collapse; font-family: var(--font-mono);
+  font-size: 10px; width: 100%;
+}
+.vela-report table.trans-matrix th,
+.vela-report table.trans-matrix td {
+  border: 1px solid var(--ink-100); padding: 6px 8px; text-align: center;
+  min-width: 48px; vertical-align: middle;
+}
+.vela-report table.trans-matrix .corner,
+.vela-report table.trans-matrix .row-head {
+  background: var(--ink-50); color: var(--ink-700);
+  font-weight: 600; font-family: var(--font-sans); font-size: 11px;
+  text-align: left; position: sticky; left: 0;
+}
+.vela-report table.trans-matrix thead th {
+  background: var(--ink-50); color: var(--ink-700);
+  font-family: var(--font-sans); font-size: 11px; font-weight: 600;
+}
+.vela-report table.trans-matrix td .pct {
+  font-weight: 700; font-size: 11px;
+}
+.vela-report table.trans-matrix td .cnt {
+  font-size: 9px; opacity: 0.85; margin-top: 2px;
+}
+.vela-report table.trans-matrix td.empty {
+  color: var(--ink-300);
 }
 .vela-report .routes-hint {
   font-size: 12px; color: var(--ink-500);

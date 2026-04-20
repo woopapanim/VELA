@@ -33,6 +33,9 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
   const totalSpawned = useStore((s) => s.totalSpawned);
   const totalExited = useStore((s) => s.totalExited);
   const densityGrids = useStore((s) => s.densityGrids);
+  const spawnByNode = useStore((s) => s.spawnByNode);
+  const exitByNode = useStore((s) => s.exitByNode);
+  const waypointGraph = useStore((s) => s.waypointGraph);
 
   const reportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -42,9 +45,11 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
     if (!scenario || !latestSnapshot) return null;
     return toReportData({
       scenario, zones, media, floors, visitors, groups,
-      timeState, latestSnapshot, kpiHistory, mediaStats, totalExited, t,
+      timeState, latestSnapshot, kpiHistory, mediaStats,
+      spawnByNode, exitByNode, waypointGraph,
+      totalExited, t,
     });
-  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, totalExited, t]);
+  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, t]);
 
   const handleExport = useCallback(async () => {
     if (!pageRef.current || !scenario) return;
