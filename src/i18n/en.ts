@@ -421,6 +421,11 @@ export const en: Dict = {
   'vela.tl.callout.structural': '. Observed as structural crowding, not a transient event.',
   'vela.tl.callout.dot': '.',
   'vela.tl.callout.supp': 'At this moment: {active} active visitors, mean fatigue {fatigue}% — capacity and experience density peaked together.',
+  'vela.tl.exit.title': 'Cumulative Exits',
+  'vela.tl.exit.hint': 'Cumulative visitors exited over time ({total} completed) — how quickly the facility empties.',
+  'vela.tl.rank.title': 'Zone ranking at {moment}',
+  'vela.tl.rank.titleNoPeak': 'Peak zone ranking',
+  'vela.tl.rank.hint': 'Zones with highest utilization at the peak moment — reveals simultaneous pressure patterns.',
 
   // VELA Report — System overview
   'vela.sys.eyebrow': 'Space Configuration',
@@ -446,6 +451,7 @@ export const en: Dict = {
   'vela.sys.th.util': 'Utilization',
   'vela.sys.th.density': 'm²/person',
   'vela.sys.th.stay': 'Avg. stay',
+  'vela.sys.th.trend': 'Trend',
   'vela.sys.th.bottleneck': 'Bottleneck',
   'vela.sys.th.grade': 'Grade',
   'vela.sys.td.capPrefix': 'Cap.',

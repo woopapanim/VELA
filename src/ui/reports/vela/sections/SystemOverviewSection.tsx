@@ -10,6 +10,23 @@ function fmtClockShort(ms: number): string {
   return `${m}:${String(ss).padStart(2, '0')}`;
 }
 
+function Sparkline({ data, overCap }: { data: readonly number[]; overCap?: boolean }) {
+  if (data.length === 0) return <span className="muted" style={{ fontSize: 10 }}>—</span>;
+  const W = 84, H = 22;
+  const max = Math.max(1, ...data);
+  const step = data.length > 1 ? W / (data.length - 1) : 0;
+  const pts = data.map((v, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)} ${(H - (v / max) * (H - 2) - 1).toFixed(1)}`).join(' ');
+  const stroke = overCap ? '#c2362b' : '#2f66f6';
+  const fill = overCap ? 'rgba(194, 54, 43, 0.12)' : 'rgba(47, 102, 246, 0.12)';
+  const areaD = `${pts} L ${W} ${H} L 0 ${H} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} style={{ display: 'block' }}>
+      <path d={areaD} fill={fill} />
+      <path d={pts} fill="none" stroke={stroke} strokeWidth={1.4} strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function Donut({
   data,
 }: {
@@ -122,6 +139,7 @@ export function SystemOverviewSection({
             <th>{t('vela.sys.th.util')}</th>
             <th>{t('vela.sys.th.density')}</th>
             <th>{t('vela.sys.th.stay')}</th>
+            <th>{t('vela.sys.th.trend')}</th>
             <th>{t('vela.sys.th.bottleneck')}</th>
             <th>{t('vela.sys.th.grade')}</th>
           </tr>
@@ -167,6 +185,7 @@ export function SystemOverviewSection({
                 </td>
                 <td>{z.areaPerPerson.toFixed(1)}</td>
                 <td>{z.stayMin.toFixed(1)}{t('vela.sys.td.stayUnit')}</td>
+                <td className="trend-cell"><Sparkline data={z.sparkline} overCap={z.utilPct > 100} /></td>
                 <td className={z.bottleneck == null ? 'muted' : ''}>{z.bottleneck == null ? '—' : z.bottleneck}</td>
                 <td><span className={`grade ${z.grade}`}>{z.grade}</span></td>
               </tr>

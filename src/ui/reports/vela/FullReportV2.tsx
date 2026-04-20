@@ -163,6 +163,7 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
             peakMomentMs={data.peakMomentMs}
             peakZoneLabel={data.zones.reduce((best, z) => z.utilPct > (best?.utilPct ?? -1) ? z : best, data.zones[0])?.name ?? '—'}
             peakUtilPct={Math.max(0, ...data.zones.map((z) => z.utilPct))}
+            peakRanking={data.peakRanking}
           />
           <SystemOverviewSection
             system={data.system}

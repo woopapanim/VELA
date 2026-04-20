@@ -396,6 +396,11 @@ export const ko: Dict = {
   'vela.tl.callout.structural': '. 일시적인 사건이 아닌 구조적 혼잡으로 관찰됨.',
   'vela.tl.callout.dot': '.',
   'vela.tl.callout.supp': '이 시점 활성 관람객 {active}명, 평균 피로도 {fatigue}% — 동시 수용력과 체험 밀도가 함께 정점을 찍은 구간.',
+  'vela.tl.exit.title': '누적 퇴장',
+  'vela.tl.exit.hint': '시간에 따른 누적 퇴장자 수 (총 {total}명 완료) — 시설이 비워지는 속도를 보여줍니다.',
+  'vela.tl.rank.title': '{moment} 시점 존 랭킹',
+  'vela.tl.rank.titleNoPeak': '피크 존 랭킹',
+  'vela.tl.rank.hint': '피크 순간에 용량 대비 점유율이 높은 존들 — 동시 압박 패턴을 보여줍니다.',
 
   // VELA Report — System overview
   'vela.sys.eyebrow': '공간 구성',
@@ -421,6 +426,7 @@ export const ko: Dict = {
   'vela.sys.th.util': '점유율',
   'vela.sys.th.density': 'm²/인',
   'vela.sys.th.stay': '평균 체류',
+  'vela.sys.th.trend': '추이',
   'vela.sys.th.bottleneck': '병목',
   'vela.sys.th.grade': '등급',
   'vela.sys.td.capPrefix': '수용',

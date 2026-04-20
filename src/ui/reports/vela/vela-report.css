@@ -645,6 +645,41 @@
   text-align: right; color: var(--ink-700); font-variant-numeric: tabular-nums;
 }
 
+.vela-report .peak-rank {
+  list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 6px;
+}
+.vela-report .peak-rank li {
+  display: grid; grid-template-columns: 28px 1fr 140px 110px;
+  gap: 10px; align-items: center;
+  font-family: var(--font-mono); font-size: 11px; color: var(--ink-700);
+}
+.vela-report .peak-rank .rank {
+  color: var(--ink-400); font-variant-numeric: tabular-nums;
+}
+.vela-report .peak-rank .label {
+  color: var(--ink-800); font-family: var(--font-sans);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vela-report .peak-rank .bar {
+  height: 6px; background: var(--ink-100); border-radius: 3px; overflow: hidden;
+}
+.vela-report .peak-rank .bar .fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+}
+.vela-report .peak-rank .bar .fill.warn { background: var(--warn); }
+.vela-report .peak-rank .bar .fill.danger { background: var(--danger); }
+.vela-report .peak-rank .v {
+  text-align: right; color: var(--ink-700); font-variant-numeric: tabular-nums;
+}
+.vela-report .peak-rank .v.s-warn { color: var(--warn); font-weight: 600; }
+.vela-report .peak-rank .v.s-danger { color: var(--danger); font-weight: 700; }
+.vela-report .peak-rank .v .cnt {
+  color: var(--ink-400); font-size: 10px; font-weight: 400;
+}
+
+.vela-report .timeline-subgrid { margin-top: 32px; }
+.vela-report .ztable .trend-cell { padding: 6px 8px; width: 92px; }
+
 .vela-report .trans-matrix-wrap { overflow-x: auto; margin-top: 12px; }
 .vela-report table.trans-matrix {
   border-collapse: collapse; font-family: var(--font-mono);

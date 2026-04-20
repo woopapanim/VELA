@@ -63,6 +63,7 @@ export interface ReportZoneRow {
   readonly visits: number;
   readonly visitPct: number;
   readonly peakAtMs: number | null;  // when this zone hit its peak
+  readonly sparkline: readonly number[];  // util ratio (0..1.5+) sampled along kpiHistory
 }
 
 export interface ReportMediaRow {
@@ -100,6 +101,15 @@ export interface ReportTimelinePoint {
   readonly crowdPct: number;    // peak zone utilization %, 0..∞
   readonly fatiguePct: number;  // mean fatigue %, 0..100
   readonly active: number;      // active visitor count
+  readonly exited: number;      // cumulative exited count
+}
+
+export interface ReportPeakRankRow {
+  readonly id: string;
+  readonly name: string;
+  readonly occ: number;
+  readonly cap: number;
+  readonly pct: number;         // 0..∞ (capacity %)
 }
 
 export interface ReportCompositionRow {
@@ -211,6 +221,7 @@ export interface ReportData {
   readonly bottomMedia: readonly ReportMediaRow[];
   readonly timeline: readonly ReportTimelinePoint[];
   readonly peakMomentMs: number | null;
+  readonly peakRanking: readonly ReportPeakRankRow[];
   readonly system: ReportSystemOverview;
   readonly flow: ReportFlow;
   readonly behavior: ReportBehavior;
@@ -336,6 +347,27 @@ export function toReportData(input: ToReportDataInput): ReportData {
     }
   }
 
+  // ---- Per-zone sparkline (utilization ratio along downsampled history) --
+  const SPARK_POINTS = 48;
+  const sparkStep = kpiHistory.length > SPARK_POINTS
+    ? Math.ceil(kpiHistory.length / SPARK_POINTS)
+    : 1;
+  const zoneSparkline = new Map<string, number[]>();
+  for (const z of zones) {
+    zoneSparkline.set(z.id as string, []);
+  }
+  for (let i = 0; i < kpiHistory.length; i += sparkStep) {
+    const snap = kpiHistory[i].snapshot;
+    const utilByZone = new Map<string, number>();
+    for (const u of snap.zoneUtilizations) {
+      const cap = u.capacity > 0 ? u.capacity : 1;
+      utilByZone.set(u.zoneId as string, u.currentOccupancy / cap);
+    }
+    for (const z of zones) {
+      zoneSparkline.get(z.id as string)!.push(utilByZone.get(z.id as string) ?? 0);
+    }
+  }
+
   // ---- Zone visit counts -------------------------------------------------
   const zoneVisitCount = new Map<string, number>();
   for (const v of visitors) {
@@ -373,6 +405,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
       visits,
       visitPct,
       peakAtMs: peakAt?.ts ?? null,
+      sparkline: zoneSparkline.get(z.id as string) ?? [],
     };
   });
 
@@ -470,6 +503,26 @@ export function toReportData(input: ToReportDataInput): ReportData {
     ?? keyMoments[0]?.timestamp
     ?? null;
   const peakMoment = peakMomentMs != null ? fmtClock(peakMomentMs) : null;
+
+  // ---- Peak-moment zone ranking ----------------------------------------
+  let peakRanking: ReportPeakRankRow[] = [];
+  if (peakMomentMs != null && kpiHistory.length > 0) {
+    const nearest = kpiHistory.reduce((best, entry) =>
+      Math.abs(entry.timestamp - peakMomentMs) < Math.abs(best.timestamp - peakMomentMs) ? entry : best,
+    kpiHistory[0]);
+    const zoneNameMap = new Map(zones.map((z) => [z.id as string, z.name]));
+    peakRanking = nearest.snapshot.zoneUtilizations
+      .filter((u) => u.currentOccupancy > 0 || u.capacity > 0)
+      .map((u) => ({
+        id: u.zoneId as string,
+        name: zoneNameMap.get(u.zoneId as string) ?? '—',
+        occ: u.currentOccupancy,
+        cap: u.capacity,
+        pct: u.capacity > 0 ? Math.round((u.currentOccupancy / u.capacity) * 100) : 0,
+      }))
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 8);
+  }
 
   // ---- Meta --------------------------------------------------------------
   const meta: ReportMeta = {
@@ -681,11 +734,13 @@ export function toReportData(input: ToReportDataInput): ReportData {
       if (r > maxRatio) maxRatio = r;
     }
     const activeAt = snap.zoneUtilizations.reduce((s, u) => s + u.currentOccupancy, 0);
+    const exitedAt = snap.flowEfficiency?.totalVisitorsProcessed ?? 0;
     timeline.push({
       t: Math.round(entry.timestamp / 1000),
       crowdPct: Math.round(maxRatio * 100),
       fatiguePct: Math.round((snap.fatigueDistribution?.mean ?? 0) * 100),
       active: activeAt,
+      exited: exitedAt,
     });
   }
   if (timeline.length === 0) {
@@ -694,6 +749,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
       crowdPct: Math.round(peakUtilRatio * 100),
       fatiguePct: Math.round(avgFat * 100),
       active: active.length,
+      exited: totalExited,
     });
   }
 
@@ -945,6 +1001,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     bottomMedia,
     timeline,
     peakMomentMs,
+    peakRanking,
     system,
     flow,
     behavior,

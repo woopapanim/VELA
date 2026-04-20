@@ -1,4 +1,4 @@
-import type { ReportTimelinePoint } from '@/analytics/reporting';
+import type { ReportTimelinePoint, ReportPeakRankRow } from '@/analytics/reporting';
 import { useT } from '@/i18n';
 
 function fmtClock(sec: number): string {
@@ -7,14 +7,68 @@ function fmtClock(sec: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function ExitCurve({ timeline }: { timeline: readonly ReportTimelinePoint[] }) {
+  const W = 460, H = 120;
+  const P = { t: 12, r: 12, b: 26, l: 36 };
+  const t0 = timeline[0].t;
+  const tMax = timeline[timeline.length - 1].t;
+  const tSpan = Math.max(1, tMax - t0);
+  const xScale = (tv: number) => P.l + ((tv - t0) / tSpan) * (W - P.l - P.r);
+  const exitedMax = Math.max(1, ...timeline.map((p) => p.exited));
+  const yScale = (v: number) => P.t + (1 - v / exitedMax) * (H - P.t - P.b);
+  const pathD = timeline.map((p, i) => `${i === 0 ? 'M' : 'L'}${xScale(p.t).toFixed(1)} ${yScale(p.exited).toFixed(1)}`).join(' ');
+  const areaD = `${pathD} L ${xScale(tMax)} ${H - P.b} L ${xScale(t0)} ${H - P.b} Z`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', height: 'auto', maxHeight: 140 }}>
+      {[0, Math.round(exitedMax / 2), exitedMax].map((v) => (
+        <g key={`y-${v}`}>
+          <line x1={P.l} x2={W - P.r} y1={yScale(v)} y2={yScale(v)} stroke="#e7e7ec" strokeWidth={1} />
+          <text x={P.l - 6} y={yScale(v) + 3} textAnchor="end" fill="#9a9ca4" fontSize={9} fontFamily="JetBrains Mono, monospace">{v}</text>
+        </g>
+      ))}
+      {[0, 0.5, 1].map((f) => {
+        const tv = Math.round(t0 + tSpan * f);
+        return (
+          <text key={`x-${f}`} x={xScale(tv)} y={H - 8} textAnchor="middle" fill="#9a9ca4" fontSize={9} fontFamily="JetBrains Mono, monospace">{fmtClock(tv)}</text>
+        );
+      })}
+      <path d={areaD} fill="#2f66f6" fillOpacity={0.1} />
+      <path d={pathD} fill="none" stroke="#2f66f6" strokeWidth={1.6} />
+    </svg>
+  );
+}
+
+function PeakRanking({ rows }: { rows: readonly ReportPeakRankRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <ol className="peak-rank">
+      {rows.map((r, i) => {
+        const cls = r.pct > 100 ? 'danger' : r.pct >= 85 ? 'warn' : '';
+        const fillW = Math.min(100, (r.pct / Math.max(120, r.pct + 10)) * 100);
+        return (
+          <li key={r.id}>
+            <span className="rank">{String(i + 1).padStart(2, '0')}</span>
+            <span className="label">{r.name}</span>
+            <div className="bar"><div className={`fill ${cls}`} style={{ width: `${fillW}%` }} /></div>
+            <span className={`v ${r.pct > 100 ? 's-danger' : r.pct >= 85 ? 's-warn' : ''}`}>
+              {r.pct}% <span className="cnt">({r.occ}/{r.cap})</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 export function TimelineSection({
-  timeline, peakMoment, peakMomentMs, peakZoneLabel, peakUtilPct,
+  timeline, peakMoment, peakMomentMs, peakZoneLabel, peakUtilPct, peakRanking,
 }: {
   timeline: readonly ReportTimelinePoint[];
   peakMoment: string | null;
   peakMomentMs: number | null;
   peakZoneLabel: string;
   peakUtilPct: number;
+  peakRanking: readonly ReportPeakRankRow[];
 }) {
   const t = useT();
   if (timeline.length === 0) return null;
@@ -120,6 +174,25 @@ export function TimelineSection({
           )}
         </div>
       )}
+
+      <div className="two-col timeline-subgrid">
+        <div>
+          <div className="col-label">{t('vela.tl.exit.title')}</div>
+          <p className="routes-hint">{t('vela.tl.exit.hint', {
+            total: timeline[timeline.length - 1]?.exited ?? 0,
+          })}</p>
+          <ExitCurve timeline={timeline} />
+        </div>
+        <div>
+          <div className="col-label">
+            {peakMoment
+              ? t('vela.tl.rank.title', { moment: peakMoment })
+              : t('vela.tl.rank.titleNoPeak')}
+          </div>
+          <p className="routes-hint">{t('vela.tl.rank.hint')}</p>
+          <PeakRanking rows={peakRanking} />
+        </div>
+      </div>
     </section>
   );
 }
