@@ -1,9 +1,9 @@
 import { useRef, useCallback, useState } from 'react';
-import { Play, Pause, Square, Thermometer, AlertTriangle } from 'lucide-react';
+import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
 import { useStore } from '@/stores';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
-import { assembleKpiSnapshot } from '@/analytics';
+import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import type { OverlayMode } from '@/stores';
@@ -211,6 +211,20 @@ export function SimulationControls() {
     setOverlayMode(next);
   }, [overlayMode, setOverlayMode]);
 
+  const handlePin = useCallback(() => {
+    const store = useStore.getState();
+    const totalS = Math.max(0, Math.round(store.timeState.elapsed / 1000));
+    const mm = Math.floor(totalS / 60);
+    const ss = totalS % 60;
+    const time = `${mm}:${String(ss).padStart(2, '0')}`;
+    const pin = pinCurrentMoment(store, t('pinpoint.defaultLabel', { time }));
+    if (!pin) {
+      toast('warning', t('pinpoint.toast.noSnapshot'));
+      return;
+    }
+    toast('success', t('pinpoint.toast.created', { time }));
+  }, [t, toast]);
+
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
@@ -259,6 +273,14 @@ export function SimulationControls() {
           title="Toggle Heatmap"
         >
           <Thermometer className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handlePin}
+          disabled={phase === SIMULATION_PHASE.IDLE}
+          className="flex items-center justify-center px-2.5 py-2 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          title={`${t('pinpoint.action.pin')} (P)`}
+        >
+          <Pin className="w-3.5 h-3.5" />
         </button>
       </div>
 
