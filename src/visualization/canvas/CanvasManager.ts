@@ -1,4 +1,4 @@
-import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig } from '@/domain';
+import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig, DensityGrid } from '@/domain';
 import type { OverlayMode, ShaftQueueSnapshot } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
@@ -43,6 +43,7 @@ export interface RenderState {
   floors?: readonly FloorConfig[];
   activeFloorId?: string | null;
   shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>;
+  densityGrids?: ReadonlyMap<string, DensityGrid>;
 }
 
 export class CanvasManager {
@@ -159,10 +160,11 @@ export class CanvasManager {
       renderGrid(ctx, canvasWidth, canvasHeight, state.gridSize, isDark, this.camera.x, this.camera.y, this.camera.zoom);
     }
 
-    // 2. Heatmap (below zones)
+    // 2. Heatmap (below zones) — floor-wide cumulative dwell gradient.
     if (state.overlayMode === 'heatmap') {
-      this.heatmapRenderer.update(state.visitors, isDark);
-      this.heatmapRenderer.render(ctx, isDark);
+      const grids = state.densityGrids ? [...state.densityGrids.values()] : [];
+      this.heatmapRenderer.update(grids);
+      this.heatmapRenderer.render(ctx, grids, state.visitors, isDark, canvasWidth, canvasHeight);
     }
 
     // Determine hidden floors (editor-only view filter — sim still ticks them).
