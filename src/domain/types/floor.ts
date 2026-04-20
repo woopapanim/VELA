@@ -10,6 +10,7 @@ export interface CanvasData {
   readonly bgOffsetY: number; // background image Y offset (world px), default 0
   readonly bgScale: number; // background image scale (relative to native size), default 1
   readonly bgLocked: boolean; // true = placement confirmed, handles hidden
+  readonly bgHidden?: boolean; // editor-only: hide overlay without deleting it
 }
 
 export interface FloorConfig {

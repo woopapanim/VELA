@@ -101,6 +101,7 @@ export class CanvasManager {
 
       for (const fl of state.floors) {
         if (fl.hidden) continue;
+        if (fl.canvas.bgHidden) continue;
         const src = fl.canvas.backgroundImage;
         if (!src) continue;
         const floorId = fl.id as string;

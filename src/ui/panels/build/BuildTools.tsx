@@ -4,7 +4,6 @@ import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
-import { BackgroundUpload } from './BackgroundUpload';
 import { AnalyzeFloorPlan } from './AnalyzeFloorPlan';
 
 const ZONE_TYPES = [
@@ -335,9 +334,6 @@ export function BuildTools() {
           </button>
         </div>
       )}
-
-      {/* Background Upload */}
-      {!isSimRunning && <BackgroundUpload />}
 
       {showAnalyzer && (
         <AnalyzeFloorPlan

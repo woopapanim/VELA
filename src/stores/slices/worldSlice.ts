@@ -208,6 +208,7 @@ export interface WorldSlice {
   addFloor: () => void;
   removeFloor: (floorId: string) => void;
   renameFloor: (floorId: string, name: string) => void;
+  updateFloorCanvas: (floorId: string, patch: Partial<import('@/domain/types/floor').CanvasData>) => void;
   shiftFloor: (floorId: string, dx: number, dy: number) => void;
   resizeFloor: (floorId: string, bounds: { x: number; y: number; w: number; h: number }) => void;
   setFloorHidden: (floorId: string, hidden: boolean) => void;
@@ -397,6 +398,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   renameFloor: (floorId, name) => set((s) => {
     const newFloors = s.floors.map(f =>
       (f.id as string) === floorId ? { ...f, name } : f
+    );
+    return {
+      floors: newFloors,
+      scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  updateFloorCanvas: (floorId, patch) => set((s) => {
+    const newFloors = s.floors.map(f =>
+      (f.id as string) === floorId ? { ...f, canvas: { ...f.canvas, ...patch } } : f
     );
     return {
       floors: newFloors,

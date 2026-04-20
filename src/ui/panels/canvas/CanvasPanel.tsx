@@ -1018,7 +1018,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         const manager = managerRef.current;
         if (manager && store.showBackground) {
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
-          if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
+          if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false) && !fl.canvas.bgHidden) {
             const bgBounds = manager.getBgImageBounds(
               fl.id as string,
               fl.canvas.bgOffsetX ?? 0,
@@ -1363,7 +1363,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           const manager = managerRef.current;
           if (manager && store.showBackground && store.phase !== 'running') {
             const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
-            if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
+            if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false) && !fl.canvas.bgHidden) {
               const bgB = manager.getBgImageBounds(fl.id as string, fl.canvas.bgOffsetX ?? 0, fl.canvas.bgOffsetY ?? 0, fl.canvas.bgScale ?? 1);
               if (bgB) {
                 const bgCorners: Array<{ corner: string; cx: number; cy: number }> = [
@@ -1392,21 +1392,13 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     // Background image drag
     if (world && (mode === 'bg-move' || mode === 'bg-resize')) {
       const store = useStore.getState();
-      const scenario = store.scenario;
-      if (scenario && store.activeFloorId) {
-        const fl = scenario.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+      if (store.activeFloorId) {
+        const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
         if (fl) {
           if (mode === 'bg-move') {
             const newX = world.x - dragOffset.current.x;
             const newY = world.y - dragOffset.current.y;
-            store.setScenario({
-              ...scenario,
-              floors: scenario.floors.map((f: any) =>
-                (f.id as string) === store.activeFloorId
-                  ? { ...f, canvas: { ...f.canvas, bgOffsetX: newX, bgOffsetY: newY } }
-                  : f,
-              ),
-            });
+            store.updateFloorCanvas(fl.id as string, { bgOffsetX: newX, bgOffsetY: newY });
           } else {
             // bg-resize: proportional scaling based on diagonal distance from anchor
             const dx = world.x - bgDragAnchor.current.x;
@@ -1415,31 +1407,19 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             if (bgDragInitDiag.current > 0) {
               const ratio = newDiag / bgDragInitDiag.current;
               const newScale = Math.max(0.05, bgDragInitScale.current * ratio);
-              // Recompute offset so anchor corner stays fixed
               const manager = managerRef.current;
               if (manager) {
                 const img = manager.getBgImageBounds(fl.id as string, 0, 0, newScale);
                 if (img) {
                   const anchor = bgDragAnchor.current;
-                  const c = resizeCorner.current; // the dragged corner
-                  // anchor is the opposite corner, so:
-                  // if dragging SE, anchor is NW (top-left) → offset = anchor
-                  // if dragging NE, anchor is SW → offsetX = anchor.x - w, offsetY = anchor.y - h...
-                  // Actually: anchor = opposite corner position. We want that corner to remain at the same world position.
+                  const c = resizeCorner.current;
                   let newOffX = fl.canvas.bgOffsetX ?? 0;
                   let newOffY = fl.canvas.bgOffsetY ?? 0;
                   if (c === 'se') { newOffX = anchor.x; newOffY = anchor.y; }
                   else if (c === 'sw') { newOffX = anchor.x - img.w; newOffY = anchor.y; }
                   else if (c === 'ne') { newOffX = anchor.x; newOffY = anchor.y - img.h; }
                   else { newOffX = anchor.x - img.w; newOffY = anchor.y - img.h; }
-                  store.setScenario({
-                    ...scenario,
-                    floors: scenario.floors.map((f: any) =>
-                      (f.id as string) === store.activeFloorId
-                        ? { ...f, canvas: { ...f.canvas, bgScale: newScale, bgOffsetX: newOffX, bgOffsetY: newOffY } }
-                        : f,
-                    ),
-                  });
+                  store.updateFloorCanvas(fl.id as string, { bgScale: newScale, bgOffsetX: newOffX, bgOffsetY: newOffY });
                 }
               }
             }
