@@ -11,6 +11,15 @@ import type { Scenario } from '@/domain';
 
 type Stage = 'idle' | 'analyzing' | 'review';
 
+function measureImage(url: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error('Failed to measure image.'));
+    img.src = url;
+  });
+}
+
 interface ReviewData {
   readonly scenario: Scenario;
   readonly draft: DraftScenario;
@@ -51,7 +60,8 @@ export function AnalyzeFloorPlan({
       setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
       const draft = await analyzeFloorPlan(base64, mediaType);
       setProgress('Building scenario...');
-      const { scenario, warnings } = hydrateDraft(draft, previewUrl);
+      const imageSize = await measureImage(previewUrl);
+      const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
       setReview({ scenario, draft, warnings, previewUrl });
       setStage('review');
     } catch (err) {

@@ -13,6 +13,11 @@ export interface HydrationResult {
   readonly warnings: readonly HydrationWarning[];
 }
 
+export interface ImageSize {
+  readonly width: number;
+  readonly height: number;
+}
+
 /** Default px-per-meter. Matches VELA's canvas.scale = 0.025 (i.e. 1 px = 0.025 m → 40 px/m). */
 const PX_PER_METER = 40;
 /** Canvas margin around the floor plan so zones near edges don't clip. */
@@ -30,7 +35,11 @@ const ZONE_PALETTE: readonly HexColor[] = [
  * editor — the floor plan image is kept as a background overlay so they can
  * trace whatever they need on top.
  */
-export function hydrateDraft(draft: DraftScenario, backgroundImage: string): HydrationResult {
+export function hydrateDraft(
+  draft: DraftScenario,
+  backgroundImage: string,
+  imageSize?: ImageSize,
+): HydrationResult {
   const warnings: HydrationWarning[] = [];
 
   // ── Canvas dimensions ──────────────────────────────────────────────────
@@ -127,7 +136,11 @@ export function hydrateDraft(draft: DraftScenario, backgroundImage: string): Hyd
       scale: 1 / PX_PER_METER,
       bgOffsetX: CANVAS_MARGIN_PX,
       bgOffsetY: CANVAS_MARGIN_PX,
-      bgScale: 1,
+      // Match image natural size to the declared meter span so 1m-on-image = 1m-in-world.
+      // Fall back to 1.0 (legacy behavior) if caller didn't measure.
+      bgScale: imageSize && imageSize.width > 0
+        ? (imageWidthM * PX_PER_METER) / imageSize.width
+        : 1,
       bgLocked: false,
     },
     zoneIds: zones.map((z) => z.id),
