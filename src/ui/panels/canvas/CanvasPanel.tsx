@@ -279,6 +279,32 @@ export function CanvasPanel() {
     return null;
   }
 
+  // Hit-test the frame outline (dashed border). Click has to land within a
+  // small margin on either side of an edge — not deep inside the frame —
+  // so clicks in the empty interior don't steal focus from zone work.
+  function hitTestFloorOutline(
+    world: { x: number; y: number },
+    floors: readonly FloorConfig[],
+    zones: readonly ZoneConfig[],
+  ): FloorConfig | null {
+    if (floors.length <= 1) return null;
+    const zoom = Math.max(managerRef.current?.camera.zoom ?? 1, 0.3);
+    const m = 6 / zoom; // ~6 screen px on either side of the border
+    for (const floor of floors) {
+      const frame = getFloorFrameBounds(floor, zones);
+      if (!frame) continue;
+      const { x, y, w, h } = frame;
+      const inOuter =
+        world.x >= x - m && world.x <= x + w + m &&
+        world.y >= y - m && world.y <= y + h + m;
+      const inInner =
+        world.x >= x + m && world.x <= x + w - m &&
+        world.y >= y + m && world.y <= y + h - m;
+      if (inOuter && !inInner) return floor;
+    }
+    return null;
+  }
+
   // Hit-test corner resize handle on the selected active floor's frame.
   function hitTestFloorCorner(
     world: { x: number; y: number },
@@ -421,7 +447,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           e.preventDefault();
           return;
         }
-        const hitFloor = hitTestFloorLabel(world, storeInit.floors, storeInit.zones);
+        const hitFloor =
+          hitTestFloorLabel(world, storeInit.floors, storeInit.zones) ??
+          hitTestFloorOutline(world, storeInit.floors, storeInit.zones);
         if (hitFloor) {
           // Selection is handled by the click handler (so a pure click toggles cleanly);
           // mousedown only arms floor-drag in case the user drags.
@@ -1039,19 +1067,6 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             }
           }
         }
-        // Floor frame interior click — arms drag for the floor under the cursor.
-        // Selection is handled by the click handler (so pure clicks still toggle cleanly).
-        if (store.floors.length > 1) {
-          const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
-          if (hitFloor) {
-            store.pushUndo(store.zones, store.media, store.waypointGraph);
-            dragMode.current = 'floor-drag';
-            dragFloorId.current = hitFloor.id as string;
-            floorDragLast.current = { x: world.x, y: world.y };
-            e.preventDefault();
-            return;
-          }
-        }
         selectZone(null);
       }
     }
@@ -1118,24 +1133,16 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const anyZone = hitZone();
     const hitNothing = !anyNode && !anyEdge && !anyMedia && !anyZone;
 
-    // Floor label click → toggle active floor (without deselecting zones/media/nodes)
-    const hitFloorLabel = store.phase !== 'running'
-      ? hitTestFloorLabel(world, store.floors, store.zones)
+    // Floor label/outline click → toggle active floor (no interior click — that's
+    // reserved for zone work). Does not deselect zones/media/nodes.
+    const hitFloorHandle = store.phase !== 'running'
+      ? (hitTestFloorLabel(world, store.floors, store.zones) ??
+         hitTestFloorOutline(world, store.floors, store.zones))
       : null;
-    if (hitFloorLabel) {
-      const fid = hitFloorLabel.id as string;
+    if (hitFloorHandle) {
+      const fid = hitFloorHandle.id as string;
       store.setActiveFloor(store.activeFloorId === fid ? null : fid);
       return;
-    }
-
-    // Click inside a floor's frame (empty area, nothing else hit) — select that floor.
-    if (hitNothing && store.floors.length > 1 && store.phase !== 'running') {
-      const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
-      if (hitFloor) {
-        const fid = hitFloor.id as string;
-        if (store.activeFloorId !== fid) store.setActiveFloor(fid);
-        return;
-      }
     }
 
     // 빈 공간 클릭 → 전체 선택 해제 + Select 모드
@@ -1279,8 +1286,10 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           return;
         }
       }
-      // Floor label hover takes priority (visible only when >1 floors)
-      if (!spacePressed.current && store.phase !== 'running' && hitTestFloorLabel(world, store.floors, store.zones)) {
+      // Floor label/outline hover takes priority (visible only when >1 floors)
+      if (!spacePressed.current && store.phase !== 'running' &&
+          (hitTestFloorLabel(world, store.floors, store.zones) ||
+           hitTestFloorOutline(world, store.floors, store.zones))) {
         el.style.cursor = 'move';
         return;
       }
