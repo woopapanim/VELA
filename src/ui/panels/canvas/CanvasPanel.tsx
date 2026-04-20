@@ -185,11 +185,6 @@ export function CanvasPanel() {
             canvasHeight: rect.height,
             gridSize: gridSz,
             pixelToMeterScale: fl?.canvas.scale ?? 0.025,
-            backgroundImage: fl?.canvas.backgroundImage ?? null,
-            bgOffsetX: fl?.canvas.bgOffsetX ?? 0,
-            bgOffsetY: fl?.canvas.bgOffsetY ?? 0,
-            bgScale: fl?.canvas.bgScale ?? 1,
-            bgLocked: fl?.canvas.bgLocked ?? false,
             simPhase: store.phase,
             waypointGraph: store.waypointGraph,
             selectedWaypointId: store.selectedWaypointId ?? null,
@@ -997,6 +992,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
           if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
             const bgBounds = manager.getBgImageBounds(
+              fl.id as string,
               fl.canvas.bgOffsetX ?? 0,
               fl.canvas.bgOffsetY ?? 0,
               fl.canvas.bgScale ?? 1,
@@ -1359,7 +1355,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           if (manager && store.showBackground && store.phase !== 'running') {
             const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
             if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false)) {
-              const bgB = manager.getBgImageBounds(fl.canvas.bgOffsetX ?? 0, fl.canvas.bgOffsetY ?? 0, fl.canvas.bgScale ?? 1);
+              const bgB = manager.getBgImageBounds(fl.id as string, fl.canvas.bgOffsetX ?? 0, fl.canvas.bgOffsetY ?? 0, fl.canvas.bgScale ?? 1);
               if (bgB) {
                 const bgCorners: Array<{ corner: string; cx: number; cy: number }> = [
                   { corner: 'nw', cx: bgB.x, cy: bgB.y },
@@ -1413,7 +1409,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
               // Recompute offset so anchor corner stays fixed
               const manager = managerRef.current;
               if (manager) {
-                const img = manager.getBgImageBounds(0, 0, newScale);
+                const img = manager.getBgImageBounds(fl.id as string, 0, 0, newScale);
                 if (img) {
                   const anchor = bgDragAnchor.current;
                   const c = resizeCorner.current; // the dragged corner
