@@ -32,6 +32,7 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
   const groups = useStore((s) => s.groups);
   const totalSpawned = useStore((s) => s.totalSpawned);
   const totalExited = useStore((s) => s.totalExited);
+  const densityGrids = useStore((s) => s.densityGrids);
 
   const reportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -149,6 +150,7 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
             floors={data.floors}
             peakMoment={data.meta.peakMoment}
             fatigueP90Pct={Math.round(data.fatigueStats.p90 * 100)}
+            densityGrids={densityGrids}
           />
           <TimelineSection
             timeline={data.timeline}

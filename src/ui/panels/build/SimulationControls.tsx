@@ -22,6 +22,7 @@ export function SimulationControls() {
   const visitors = useStore((s) => s.visitors);
   const updateSimState = useStore((s) => s.updateSimState);
   const setShaftQueues = useStore((s) => s.setShaftQueues);
+  const setDensityGrids = useStore((s) => s.setDensityGrids);
   const setPhase = useStore((s) => s.setPhase);
   const resetSim = useStore((s) => s.resetSim);
   const overlayMode = useStore((s) => s.overlayMode);
@@ -107,6 +108,7 @@ export function SimulationControls() {
       if (state.phase === 'completed' || state.phase !== 'running') {
         if (state.phase === 'completed' && !milestonesHit.current.has(-1)) {
           milestonesHit.current.add(-1);
+          setDensityGrids(eng.getDensityGrids());
           toast('success', '✅ Simulation completed!');
         }
       }
@@ -124,6 +126,7 @@ export function SimulationControls() {
       const elapsed = state.timeState.elapsed;
       if (elapsed - lastSnapshotTime >= KPI_SAMPLE_INTERVAL_MS) {
         lastSnapshotTime = elapsed;
+        setDensityGrids(eng.getDensityGrids());
         const currentStore = useStore.getState();
         const snapshot = assembleKpiSnapshot(
           currentStore.zones,

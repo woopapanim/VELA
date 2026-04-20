@@ -87,9 +87,11 @@ export interface ReportFloorRoom {
   readonly occ: number; readonly cap: number;
 }
 export interface ReportFloor {
+  readonly floorId: string;
   readonly name: string;
   readonly cap: number;
   readonly rooms: readonly ReportFloorRoom[];
+  readonly boundsWorld: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
 }
 
 export interface ReportTimelinePoint {
@@ -569,7 +571,15 @@ export function toReportData(input: ToReportDataInput): ReportData {
   // ---- Floors (normalized bounds) ----------------------------------------
   const floorsOut: ReportFloor[] = floors.map((f) => {
     const floorZones = zones.filter((z) => f.zoneIds.includes(z.id));
-    if (floorZones.length === 0) return { name: f.name, cap: 0, rooms: [] };
+    if (floorZones.length === 0) {
+      return {
+        floorId: f.id as string,
+        name: f.name,
+        cap: 0,
+        rooms: [],
+        boundsWorld: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
+      };
+    }
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const z of floorZones) {
       minX = Math.min(minX, z.bounds.x);
@@ -594,7 +604,13 @@ export function toReportData(input: ToReportDataInput): ReportData {
         cap: z.capacity,
       };
     });
-    return { name: f.name, cap, rooms };
+    return {
+      floorId: f.id as string,
+      name: f.name,
+      cap,
+      rooms,
+      boundsWorld: { minX, minY, maxX, maxY },
+    };
   });
 
   // ---- Timeline (downsampled from kpiHistory) ----------------------------

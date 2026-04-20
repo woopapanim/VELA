@@ -1,5 +1,8 @@
+import { useMemo } from 'react';
 import type { ReportFloor } from '@/analytics/reporting';
+import type { DensityGrid } from '@/domain';
 import { useT } from '@/i18n';
+import { renderDensityGridToDataUrl } from '../heatmapRender';
 
 function densityColor(pct: number): string {
   if (pct > 100) return '#c2362b';
@@ -10,13 +13,25 @@ function densityColor(pct: number): string {
 }
 
 export function DensitySection({
-  floors, peakMoment, fatigueP90Pct,
+  floors, peakMoment, fatigueP90Pct, densityGrids,
 }: {
   floors: readonly ReportFloor[];
   peakMoment: string | null;
   fatigueP90Pct: number;
+  densityGrids: ReadonlyMap<string, DensityGrid>;
 }) {
   const t = useT();
+  const heatmapUrls = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of floors) {
+      const grid = densityGrids.get(f.floorId);
+      if (!grid) continue;
+      const url = renderDensityGridToDataUrl(grid, { boundsWorld: f.boundsWorld });
+      if (url) map.set(f.floorId, url);
+    }
+    return map;
+  }, [floors, densityGrids]);
+
   if (floors.length === 0) return null;
   const metaLabel = peakMoment
     ? t('vela.density.metaWithPeak', { moment: peakMoment, p90: fatigueP90Pct })
@@ -39,6 +54,7 @@ export function DensitySection({
       <div className="floors">
         {floors.map((floor) => {
           const totalOcc = floor.rooms.reduce((s, r) => s + r.occ, 0);
+          const heatmapUrl = heatmapUrls.get(floor.floorId);
           return (
             <div className="floor-card" key={floor.name}>
               <div className="fhead">
@@ -46,6 +62,22 @@ export function DensitySection({
                 <span>{totalOcc}/{floor.cap}</span>
               </div>
               <div className="plan">
+                {heatmapUrl && (
+                  <img
+                    className="heatmap-layer"
+                    src={heatmapUrl}
+                    alt=""
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'none',
+                      mixBlendMode: 'multiply',
+                      borderRadius: 'inherit',
+                    }}
+                  />
+                )}
                 {floor.rooms.map((rm, idx) => {
                   const pct = rm.cap ? Math.round((100 * rm.occ) / rm.cap) : 0;
                   const color = densityColor(pct);

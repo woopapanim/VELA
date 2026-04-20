@@ -66,8 +66,12 @@
 }
 .vela-report .page > section,
 .vela-report .page > .pdf-group > section {
-  padding: 96px var(--page-pad);
+  padding: 48px var(--page-pad);
   border-bottom: 1px solid var(--ink-200);
+}
+/* Hero + TLDR are the report cover — keep their generous feel */
+.vela-report .page > .pdf-group > section:first-child {
+  padding: 80px var(--page-pad) 56px;
 }
 .vela-report .page > section:last-child { border-bottom: 0; }
 .vela-report .page > .pdf-group { display: block; }

@@ -24,6 +24,7 @@ import type {
   ZoneConfig,
   MediaPlacement,
   FloorConfig,
+  FloorId,
   SimulationConfig,
   TimeState,
   SimulationPhase,
@@ -36,6 +37,7 @@ import type {
   WaypointId,
   PathLogEntry,
   ElevatorShaft,
+  DensityGrid,
 } from '@/domain';
 import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
@@ -155,6 +157,15 @@ export class SimulationEngine {
   // a slot opens when a boarding agent teleports out.
   private shaftBoarding = new Map<string, Map<string, { startMs: number; endMs: number }>>();
 
+  // Cumulative visitor-seconds grid per floor. Feeds the report heatmap.
+  // Monotonically grows over the run; never decays.
+  private _densityGrids = new Map<string, {
+    floorId: FloorId;
+    originX: number; originY: number;
+    cellPx: number; cols: number; rows: number;
+    data: Float32Array;
+  }>();
+
   constructor(world: SimulationWorld) {
     this.world = world;
     this.rng = createSeededRandom(world.config.seed);
@@ -189,6 +200,38 @@ export class SimulationEngine {
           viewersInSession: 0,
         });
       }
+    }
+
+    // Initialize per-floor density grids using each floor's bounds
+    // (or bounding box of its zones as fallback).
+    const CELL_PX = 24;
+    for (const floor of world.floors) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      if (floor.bounds) {
+        minX = floor.bounds.x; minY = floor.bounds.y;
+        maxX = floor.bounds.x + floor.bounds.w;
+        maxY = floor.bounds.y + floor.bounds.h;
+      } else {
+        for (const z of world.zones) {
+          if (z.floorId !== floor.id) continue;
+          minX = Math.min(minX, z.bounds.x);
+          minY = Math.min(minY, z.bounds.y);
+          maxX = Math.max(maxX, z.bounds.x + z.bounds.w);
+          maxY = Math.max(maxY, z.bounds.y + z.bounds.h);
+        }
+      }
+      if (!isFinite(minX)) continue;
+      const pad = CELL_PX;
+      const originX = minX - pad;
+      const originY = minY - pad;
+      const cols = Math.max(1, Math.ceil((maxX - minX + pad * 2) / CELL_PX));
+      const rows = Math.max(1, Math.ceil((maxY - minY + pad * 2) / CELL_PX));
+      this._densityGrids.set(floor.id as string, {
+        floorId: floor.id,
+        originX, originY,
+        cellPx: CELL_PX, cols, rows,
+        data: new Float32Array(cols * rows),
+      });
     }
 
     resetSpawnerIds();
@@ -227,6 +270,15 @@ export class SimulationEngine {
   getSpawnByNode(): ReadonlyMap<string, number> { return this._spawnByNode; }
   getExitByNode(): ReadonlyMap<string, number> { return this._exitByNode; }
   getMediaStats(): Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }> { return this._mediaStats; }
+
+  /**
+   * Snapshot per-floor cumulative density grids (visitor-seconds per cell).
+   * The returned Float32Arrays are references into engine state — callers
+   * that need to persist across ticks should copy them.
+   */
+  getDensityGrids(): ReadonlyMap<string, DensityGrid> {
+    return this._densityGrids;
+  }
 
   /**
    * Per-shaft snapshot of boarding agents + queued agents at any of the shaft's portals.
@@ -471,6 +523,18 @@ export class SimulationEngine {
     }
     this.state.visitors = next;
 
+    // Accumulate visitor-seconds into the per-floor density grid.
+    // Weight = dtS so a visitor standing still for 1 second adds 1.0 to its cell.
+    for (const [, a] of next) {
+      if (!a.isActive) continue;
+      const grid = this._densityGrids.get(a.currentFloorId as string);
+      if (!grid) continue;
+      const cx = Math.floor((a.position.x - grid.originX) / grid.cellPx);
+      const cy = Math.floor((a.position.y - grid.originY) / grid.cellPx);
+      if (cx >= 0 && cx < grid.cols && cy >= 0 && cy < grid.rows) {
+        grid.data[cy * grid.cols + cx] += dtS;
+      }
+    }
   }
 
   /* ═══════════════════════════════════════════════

@@ -8,6 +8,7 @@ export * from './simulation';
 export * from './scenario';
 export * from './kpi';
 export * from './heatmap';
+export * from './density';
 export * from './comparison';
 export * from './pinpoint';
 export * from './report';

@@ -3,18 +3,17 @@ import jsPDF from 'jspdf';
 
 const PAGE_W_MM = 210;
 const PAGE_H_MM = 297;
+const PAGE_MARGIN_MM = 0;
+const CONTENT_H_MM = PAGE_H_MM - PAGE_MARGIN_MM * 2;
 
 /**
- * Export a report element to A4 PDF, one top-level section per page-set.
+ * Export a report element to A4 PDF.
  *
- * Each immediate child (header, section) is rasterized separately so a
- * section is never split mid-content unless its own height exceeds one
- * page — in which case it tiles cleanly across pages from its start.
- * Adds an outline bookmark per section using its h2 title, plus PDF
- * metadata, so the document is browsable rather than one opaque scroll.
+ * Greedy-packs top-level sections onto each page: stacks the next section
+ * on the current page if it still fits within A4, otherwise starts a new
+ * page. Sections taller than a full page tile across consecutive pages.
  *
- * Text remains rasterized (html2canvas) — Korean glyphs come through
- * because the browser already rendered them before capture.
+ * Keeps text rasterized (html2canvas) so Korean glyphs come through.
  */
 export async function exportElementToPdf(
   element: HTMLElement,
@@ -30,6 +29,7 @@ export async function exportElementToPdf(
   });
 
   const sections = Array.from(element.children) as HTMLElement[];
+  let cursorY = PAGE_MARGIN_MM;
   let firstRendered = true;
 
   for (const section of sections) {
@@ -45,29 +45,45 @@ export async function exportElementToPdf(
       windowHeight: section.scrollHeight,
     });
 
-    const imgWidth = PAGE_W_MM;
+    const imgWidth = PAGE_W_MM - PAGE_MARGIN_MM * 2;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
 
-    if (!firstRendered) pdf.addPage();
-    firstRendered = false;
+    const title = sectionTitle(section);
 
-    const startPage = pdf.getNumberOfPages();
+    // Tall section: always starts a fresh page, then tiles.
+    if (imgHeight > CONTENT_H_MM) {
+      if (!firstRendered) pdf.addPage();
+      firstRendered = false;
+      const startPage = pdf.getNumberOfPages();
 
-    let heightLeft = imgHeight;
-    let position = 0;
-    pdf.addImage(dataUrl, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-    heightLeft -= PAGE_H_MM;
-
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(dataUrl, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= PAGE_H_MM;
+      let heightLeft = imgHeight;
+      let position = PAGE_MARGIN_MM;
+      pdf.addImage(dataUrl, 'JPEG', PAGE_MARGIN_MM, position, imgWidth, imgHeight, undefined, 'FAST');
+      heightLeft -= CONTENT_H_MM;
+      while (heightLeft > 0) {
+        position = PAGE_MARGIN_MM + (heightLeft - imgHeight);
+        pdf.addPage();
+        pdf.addImage(dataUrl, 'JPEG', PAGE_MARGIN_MM, position, imgWidth, imgHeight, undefined, 'FAST');
+        heightLeft -= CONTENT_H_MM;
+      }
+      cursorY = PAGE_H_MM; // force next section onto a new page
+      if (title) pdf.outline.add(null, title, { pageNumber: startPage });
+      continue;
     }
 
-    const title = sectionTitle(section) ?? `Section ${pdf.getNumberOfPages()}`;
-    pdf.outline.add(null, title, { pageNumber: startPage });
+    // Regular section: pack on current page if it fits, else new page.
+    const fitsOnCurrent = cursorY + imgHeight <= PAGE_H_MM - PAGE_MARGIN_MM;
+    if (!fitsOnCurrent) {
+      if (!firstRendered) pdf.addPage();
+      cursorY = PAGE_MARGIN_MM;
+    }
+    firstRendered = false;
+
+    const currentPage = pdf.getNumberOfPages();
+    pdf.addImage(dataUrl, 'JPEG', PAGE_MARGIN_MM, cursorY, imgWidth, imgHeight, undefined, 'FAST');
+    if (title) pdf.outline.add(null, title, { pageNumber: currentPage });
+    cursorY += imgHeight;
   }
 
   pdf.save(filename);
