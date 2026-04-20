@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Pencil, Check, Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, X, Pencil, Check, Eye, EyeOff, ChevronUp, ChevronDown, LayoutGrid } from 'lucide-react';
 import { useStore } from '@/stores';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
@@ -13,6 +13,7 @@ export function RegionsPanel() {
   const renameFloor = useStore((s) => s.renameFloor);
   const setFloorHidden = useStore((s) => s.setFloorHidden);
   const moveFloorLevel = useStore((s) => s.moveFloorLevel);
+  const relayoutFloors = useStore((s) => s.relayoutFloors);
   const phase = useStore((s) => s.phase);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -29,14 +30,26 @@ export function RegionsPanel() {
           <InfoTooltip text="각 층(region)을 관리합니다. 활성 층 = 새 zone/waypoint 배치 기본 대상. 눈 아이콘으로 층을 숨겨 편집 집중." />
         </h2>
         {!isSimRunning && (
-          <button
-            onClick={addFloor}
-            className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
-            title="Add floor"
-          >
-            <Plus className="w-3 h-3" />
-            Add
-          </button>
+          <div className="flex items-center gap-1">
+            {floors.length > 1 && (
+              <button
+                onClick={relayoutFloors}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
+                title="Auto-arrange regions side-by-side by level"
+              >
+                <LayoutGrid className="w-3 h-3" />
+                Arrange
+              </button>
+            )}
+            <button
+              onClick={addFloor}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
+              title="Add floor"
+            >
+              <Plus className="w-3 h-3" />
+              Add
+            </button>
+          </div>
         )}
       </div>
 

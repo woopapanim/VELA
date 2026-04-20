@@ -8,6 +8,8 @@ import {
   computeFloorContentBbox,
   shiftFloorChildren,
   findFloorAtPoint,
+  clampFloorShift,
+  clampFloorResize,
 } from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
@@ -210,6 +212,7 @@ export interface WorldSlice {
   resizeFloor: (floorId: string, bounds: { x: number; y: number; w: number; h: number }) => void;
   setFloorHidden: (floorId: string, hidden: boolean) => void;
   moveFloorLevel: (floorId: string, direction: 'up' | 'down') => void;
+  relayoutFloors: () => void;
   addZone: (zone: ZoneConfig) => void;
   updateZone: (zoneId: string, updates: Partial<ZoneConfig>) => void;
   removeZone: (zoneId: string) => void;
@@ -433,11 +436,14 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     if (dx === 0 && dy === 0) return {};
     const floor = s.floors.find(f => (f.id as string) === floorId);
     if (!floor) return {};
-    const shifted = shiftFloorChildren(floor, dx, dy, s.zones, s.media, s.waypointGraph);
     const baseBounds = floor.bounds ?? { x: 0, y: 0, w: floor.canvas.width, h: floor.canvas.height };
+    const floorWithBounds = floor.bounds ? floor : { ...floor, bounds: baseBounds };
+    const clamped = clampFloorShift(floorWithBounds, dx, dy, s.floors, s.zones);
+    if (clamped.dx === 0 && clamped.dy === 0) return {};
+    const shifted = shiftFloorChildren(floorWithBounds, clamped.dx, clamped.dy, s.zones, s.media, s.waypointGraph);
     const newFloors = s.floors.map(f =>
       (f.id as string) === floorId
-        ? { ...f, bounds: { ...baseBounds, x: baseBounds.x + dx, y: baseBounds.y + dy } }
+        ? { ...shifted.floor, bounds: { ...baseBounds, x: baseBounds.x + clamped.dx, y: baseBounds.y + clamped.dy } }
         : f,
     );
     return {
@@ -453,18 +459,29 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   resizeFloor: (floorId, bounds) => set((s) => {
     const MIN_W = 200, MIN_H = 150;
-    const clamped = {
-      x: bounds.x,
-      y: bounds.y,
-      w: Math.max(MIN_W, bounds.w),
-      h: Math.max(MIN_H, bounds.h),
-    };
+    const floor = s.floors.find(f => (f.id as string) === floorId);
+    if (!floor) return {};
+    const clamped = clampFloorResize(floor, bounds, s.floors, s.zones, MIN_W, MIN_H);
     const newFloors = s.floors.map(f =>
       (f.id as string) === floorId ? { ...f, bounds: clamped } : f,
     );
     return {
       floors: newFloors,
       scenario: s.scenario ? { ...s.scenario, floors: newFloors } : s.scenario,
+    };
+  }),
+
+  relayoutFloors: () => set((s) => {
+    if (s.floors.length <= 1) return {};
+    const laid = layoutFloorsHorizontally(s.floors, s.zones, s.media, s.waypointGraph);
+    return {
+      floors: laid.floors,
+      zones: laid.zones,
+      media: laid.media,
+      waypointGraph: laid.waypointGraph,
+      scenario: s.scenario
+        ? { ...s.scenario, floors: laid.floors, zones: laid.zones, media: laid.media, waypointGraph: laid.waypointGraph ?? undefined }
+        : s.scenario,
     };
   }),
 

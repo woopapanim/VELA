@@ -77,6 +77,110 @@ function rectsOverlap(a: Rect, b: Rect): boolean {
 }
 
 /**
+ * Clamp a proposed (dx, dy) shift so the floor's visual frame (bounds ∪ zone bbox)
+ * won't overlap any other floor's frame. Tries full move first, then axis-separated
+ * (x-only, y-only), so dragging against another floor slides along its edge.
+ * If the floor already overlaps another (pre-existing tangled state), only block
+ * shifts that would *increase* the overlap — otherwise the user can't untangle it.
+ */
+export function clampFloorShift(
+  floor: FloorConfig,
+  dx: number,
+  dy: number,
+  others: readonly FloorConfig[],
+  zones: readonly ZoneConfig[],
+): { dx: number; dy: number } {
+  const selfFrame = getFloorFrameBounds(floor, zones);
+  if (!selfFrame) return { dx, dy };
+
+  const otherFrames: Rect[] = [];
+  for (const o of others) {
+    if ((o.id as string) === (floor.id as string)) continue;
+    const f = getFloorFrameBounds(o, zones);
+    if (f) otherFrames.push(f);
+  }
+  if (otherFrames.length === 0) return { dx, dy };
+
+  // Pre-existing overlaps: allow moves that don't worsen them (measured by
+  // intersection area). This lets users drag tangled floors apart.
+  const intersectArea = (a: Rect, b: Rect) => {
+    const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+    const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    return ix * iy;
+  };
+  const baseAreas = otherFrames.map(o => intersectArea(selfFrame, o));
+
+  const shiftRect = (r: Rect, sx: number, sy: number): Rect => ({ x: r.x + sx, y: r.y + sy, w: r.w, h: r.h });
+  const worsens = (sx: number, sy: number) => {
+    const moved = shiftRect(selfFrame, sx, sy);
+    for (let i = 0; i < otherFrames.length; i++) {
+      const newArea = intersectArea(moved, otherFrames[i]);
+      if (newArea > baseAreas[i]) return true;
+    }
+    return false;
+  };
+
+  if (!worsens(dx, dy)) return { dx, dy };
+  if (dx !== 0 && !worsens(dx, 0)) return { dx, dy: 0 };
+  if (dy !== 0 && !worsens(0, dy)) return { dx: 0, dy };
+  return { dx: 0, dy: 0 };
+}
+
+/**
+ * Clamp a proposed new rect for `floor` so it won't overlap other floors' frames.
+ * Used by resize: keeps the anchored edge in place and trims the dragged edge
+ * so the resulting rect stops at the nearest other-floor frame boundary.
+ */
+export function clampFloorResize(
+  floor: FloorConfig,
+  proposed: Rect,
+  others: readonly FloorConfig[],
+  zones: readonly ZoneConfig[],
+  minW = 200,
+  minH = 150,
+): Rect {
+  const base = floor.bounds ?? proposed;
+  const otherRects: Rect[] = [];
+  for (const o of others) {
+    if ((o.id as string) === (floor.id as string)) continue;
+    const f = getFloorFrameBounds(o, zones);
+    if (f) otherRects.push(f);
+  }
+  let { x, y, w, h } = proposed;
+  w = Math.max(minW, w);
+  h = Math.max(minH, h);
+
+  for (const o of otherRects) {
+    // Skip if already disjoint on either axis.
+    if (x + w <= o.x || o.x + o.w <= x || y + h <= o.y || o.y + o.h <= y) continue;
+
+    // Determine which edge is being dragged for each axis: compare proposed vs base.
+    const leftMoved = x !== base.x;
+    const rightMoved = x + w !== base.x + base.w;
+    const topMoved = y !== base.y;
+    const bottomMoved = y + h !== base.y + base.h;
+
+    // Pick the axis with the smaller penetration to resolve on.
+    const penLeft = x + w - o.x;            // if >0 and right edge is the culprit
+    const penRight = o.x + o.w - x;         // if >0 and left edge is the culprit
+    const penTop = y + h - o.y;
+    const penBottom = o.y + o.h - y;
+
+    const candidates: Array<{ pen: number; apply: () => void }> = [];
+    if (rightMoved && penLeft > 0) candidates.push({ pen: penLeft, apply: () => { w = Math.max(minW, o.x - x); } });
+    if (leftMoved && penRight > 0)  candidates.push({ pen: penRight, apply: () => { const newX = o.x + o.w; w = Math.max(minW, x + w - newX); x = newX; } });
+    if (bottomMoved && penTop > 0) candidates.push({ pen: penTop, apply: () => { h = Math.max(minH, o.y - y); } });
+    if (topMoved && penBottom > 0) candidates.push({ pen: penBottom, apply: () => { const newY = o.y + o.h; h = Math.max(minH, y + h - newY); y = newY; } });
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => a.pen - b.pen);
+      candidates[0].apply();
+    }
+  }
+  return { x, y, w, h };
+}
+
+/**
  * Visual frame bounds for a floor on the shared canvas.
  * Returns the union of `floor.bounds` (user-set) and zones' bbox + padding (content).
  * So the frame always contains both the user's chosen area and any zones assigned to the floor —
@@ -174,7 +278,10 @@ export function floorsNeedRelayout(
   return false;
 }
 
-/** Shift all children of a floor by (dx, dy) in world coordinates. */
+/** Shift all children of a floor by (dx, dy) in world coordinates.
+ *  Also returns the floor with its background overlay offset shifted by the
+ *  same delta so the floor plan image stays glued to its region.
+ */
 export function shiftFloorChildren(
   floor: FloorConfig,
   dx: number,
@@ -182,10 +289,19 @@ export function shiftFloorChildren(
   zones: readonly ZoneConfig[],
   media: readonly MediaPlacement[],
   waypointGraph: WaypointGraph | null,
-): { zones: ZoneConfig[]; media: MediaPlacement[]; waypointGraph: WaypointGraph | null } {
+): { floor: FloorConfig; zones: ZoneConfig[]; media: MediaPlacement[]; waypointGraph: WaypointGraph | null } {
   if (dx === 0 && dy === 0) {
-    return { zones: zones as ZoneConfig[], media: media as MediaPlacement[], waypointGraph };
+    return { floor, zones: zones as ZoneConfig[], media: media as MediaPlacement[], waypointGraph };
   }
+
+  const shiftedFloor: FloorConfig = {
+    ...floor,
+    canvas: {
+      ...floor.canvas,
+      bgOffsetX: floor.canvas.bgOffsetX + dx,
+      bgOffsetY: floor.canvas.bgOffsetY + dy,
+    },
+  };
 
   const floorId = floor.id as string;
   const zoneIdsOnFloor = zoneIdsFor(floor);
@@ -225,7 +341,7 @@ export function shiftFloorChildren(
       }
     : null;
 
-  return { zones: newZones, media: newMedia, waypointGraph: newGraph };
+  return { floor: shiftedFloor, zones: newZones, media: newMedia, waypointGraph: newGraph };
 }
 
 /**
@@ -277,7 +393,7 @@ export function layoutFloorsHorizontally(
     const regionW = bbox.w + REGION_PADDING * 2;
     const regionH = bbox.h + REGION_PADDING * 2;
     newFloorsById.set(floor.id as string, {
-      ...floor,
+      ...shifted.floor,
       bounds: { x: cursorX, y: 0, w: regionW, h: regionH },
     });
     cursorX += regionW + REGION_GAP;
