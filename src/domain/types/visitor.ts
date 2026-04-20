@@ -120,6 +120,7 @@ export interface Visitor {
   readonly steering: SteeringState;
   readonly waitStartedAt: number | null;
   readonly enteredAt: number;
+  readonly zoneEnteredAtMs: number;          // elapsed ms when the current zone was entered (for dwell)
   readonly exitedAt: number | null;          // elapsed ms when isActive became false
   readonly isActive: boolean;
   // ── Gate crossing ──

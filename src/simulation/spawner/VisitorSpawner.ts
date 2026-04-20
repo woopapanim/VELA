@@ -110,6 +110,7 @@ export function spawnVisitor(
     },
     waitStartedAt: null,
     enteredAt: simTime,
+    zoneEnteredAtMs: simTime,
     exitedAt: null,
     isActive: true,
     lastGateTransitTime: 0,

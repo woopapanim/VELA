@@ -53,7 +53,7 @@ import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration 
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 import { distance } from '../utils/math';
-import { recordSkipEvent, recordMediaApproach, resetSkipTracking } from '@/analytics/calculators';
+import { recordSkipEvent, recordMediaApproach, resetSkipTracking, recordZoneExit, resetDwellTracking } from '@/analytics/calculators';
 
 /* ═══════════════════════════════════════════════════════════════════
  *  SIM FEATURE FLAGS — 최소 파이프라인 디버깅용
@@ -236,6 +236,7 @@ export class SimulationEngine {
 
     resetSpawnerIds();
     resetSkipTracking();
+    resetDwellTracking();
 
     this.state = {
       visitors: new Map(),
@@ -576,6 +577,7 @@ export class SimulationEngine {
             ...v,
             currentZoneId: entryNode.zoneId ?? ('' as any),
             visitedZoneIds: entryNode.zoneId ? [entryNode.zoneId] : [],
+            zoneEnteredAtMs: elapsed,
             currentNodeId: entryNode.id,
             targetNodeId: null,
             pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
@@ -624,6 +626,7 @@ export class SimulationEngine {
           ...v,
           currentZoneId: spawnZone.id,
           visitedZoneIds: [spawnZone.id],
+          zoneEnteredAtMs: elapsed,
         };
         this.state.visitors.set(spawned.id as string, spawned);
         this._totalSpawned++;
@@ -819,7 +822,11 @@ export class SimulationEngine {
 
     // ── 2. Exiting: reached exit gate → deactivate ──
     if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
-      return { ...v, isActive: false, exitedAt: this.state.timeState.elapsed };
+      const now = this.state.timeState.elapsed;
+      if (v.currentZoneId) {
+        recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+      }
+      return { ...v, isActive: false, exitedAt: now };
     }
 
     // ── 3. Media arrival ──
@@ -1054,14 +1061,20 @@ export class SimulationEngine {
       ? v.visitedZoneIds
       : [...v.visitedZoneIds, nextHop];
 
+    const now = this.state.timeState.elapsed;
+    if (v.currentZoneId && (nextHop as string) !== (v.currentZoneId as string)) {
+      recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+    }
+
     // Enter new zone at connected gate position
     return this.assignNextTarget({
       ...v,
       currentZoneId: nextHop,
       position: entryPos,
       visitedZoneIds: newVisitedZoneIds,
+      zoneEnteredAtMs: now,
       currentAction: VISITOR_ACTION.IDLE,
-      lastGateTransitTime: this.state.timeState.elapsed,
+      lastGateTransitTime: now,
       steering: { ...v.steering, isArrived: false },
     });
   }
@@ -2195,12 +2208,16 @@ export class SimulationEngine {
   private beginExitGraph(v: Visitor, exitNode: WaypointNode): Visitor {
     const xid = exitNode.id as string;
     this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
+    const now = this.state.timeState.elapsed;
+    if (v.currentZoneId) {
+      recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+    }
     return {
       ...v,
       currentAction: VISITOR_ACTION.EXITING,
       velocity: { x: 0, y: 0 },
       isActive: false,
-      exitedAt: this.state.timeState.elapsed,
+      exitedAt: now,
     };
   }
 
@@ -2217,10 +2234,16 @@ export class SimulationEngine {
       ? [...v.visitedZoneIds, targetNode.zoneId]
       : v.visitedZoneIds;
 
+    const now = this.state.timeState.elapsed;
+    const zoneChanged = v.currentZoneId && (newZoneId as string) !== (v.currentZoneId as string);
+    if (zoneChanged) {
+      recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+    }
+
     // Add pathLog entry for new node
     const newPathLog: PathLogEntry[] = [...v.pathLog, {
       nodeId: targetNode.id,
-      entryTime: this.state.timeState.elapsed,
+      entryTime: now,
       exitTime: 0,
       duration: 0,
     }];
@@ -2231,6 +2254,7 @@ export class SimulationEngine {
       targetNodeId: null,
       currentZoneId: newZoneId,
       visitedZoneIds: newVisitedZones,
+      zoneEnteredAtMs: zoneChanged ? now : v.zoneEnteredAtMs,
       currentAction: VISITOR_ACTION.IDLE,
       pathLog: newPathLog,
       steering: { ...v.steering, isArrived: false },
@@ -2794,13 +2818,18 @@ export class SimulationEngine {
               };
               const newVisited = v.visitedZoneIds.includes(newZoneId)
                 ? v.visitedZoneIds : [...v.visitedZoneIds, newZoneId];
+              const nowMs = this.state.timeState.elapsed;
+              if (v.currentZoneId && (newZoneId as string) !== (v.currentZoneId as string)) {
+                recordZoneExit(v.currentZoneId as string, Math.max(0, nowMs - v.zoneEnteredAtMs));
+              }
               return this.assignNextTarget({
                 ...v,
                 currentZoneId: newZoneId,
                 position: entryPos,
                 visitedZoneIds: newVisited,
+                zoneEnteredAtMs: nowMs,
                 currentAction: VISITOR_ACTION.IDLE,
-                lastGateTransitTime: this.state.timeState.elapsed,
+                lastGateTransitTime: nowMs,
                 steering: { ...v.steering, isArrived: false },
               });
             }
