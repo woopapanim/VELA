@@ -208,7 +208,7 @@ export interface ReportData {
   readonly findings: readonly ReportFinding[];
   readonly zones: readonly ReportZoneRow[];
   readonly zoneVisitLegend: readonly {
-    readonly id: string; readonly name: string; readonly visits: number; readonly pct: number;
+    readonly id: string; readonly name: string; readonly dwellMin: number; readonly pct: number;
   }[];
   readonly media: readonly ReportMediaRow[];
   readonly mediaTotals: ReportMediaTotals;
@@ -753,11 +753,24 @@ export function toReportData(input: ToReportDataInput): ReportData {
     });
   }
 
-  // ---- Zone visit legend -------------------------------------------------
+  // ---- Zone dwell-time legend -------------------------------------------
+  // Share of cumulative time spent in each zone (meanDwell × visitors who
+  // completed a dwell). More informative than visit counts, which are
+  // uniform when every visitor traverses every zone (sequential flow).
+  const zoneDwellMin = new Map<string, number>();
+  for (const d of latestSnapshot.visitDurations) {
+    const totalMin = (d.meanDurationMs * d.sampleCount) / MS_MIN;
+    if (totalMin > 0) zoneDwellMin.set(d.zoneId as string, totalMin);
+  }
+  const totalDwellMin = [...zoneDwellMin.values()].reduce((s, v) => s + v, 0);
   const zoneVisitLegend = zoneRows
-    .filter((z) => z.visits > 0)
-    .sort((a, b) => b.visits - a.visits)
-    .map((z) => ({ id: z.id, name: z.name, visits: z.visits, pct: z.visitPct }));
+    .map((z) => {
+      const dwellMin = zoneDwellMin.get(z.id) ?? 0;
+      const pct = totalDwellMin > 0 ? Math.round((dwellMin / totalDwellMin) * 100) : 0;
+      return { id: z.id, name: z.name, dwellMin: Math.round(dwellMin * 10) / 10, pct };
+    })
+    .filter((z) => z.dwellMin > 0)
+    .sort((a, b) => b.dwellMin - a.dwellMin);
 
   // ---- System overview ---------------------------------------------------
   const totalArea = zones.reduce((s, z) => s + z.area, 0);

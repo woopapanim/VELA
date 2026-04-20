@@ -30,14 +30,14 @@ function Sparkline({ data, overCap }: { data: readonly number[]; overCap?: boole
 function Donut({
   data,
 }: {
-  data: readonly { readonly id: string; readonly name: string; readonly visits: number; readonly pct: number }[];
+  data: readonly { readonly id: string; readonly name: string; readonly dwellMin: number; readonly pct: number }[];
 }) {
   const t = useT();
   const size = 200;
   const stroke = 28;
   const r = (size - stroke) / 2;
   const c = size / 2;
-  const total = data.reduce((s, d) => s + d.visits, 0);
+  const total = data.reduce((s, d) => s + d.dwellMin, 0);
   if (total === 0) {
     return (
       <svg viewBox={`0 0 ${size} ${size}`} width={180} height={180}>
@@ -48,7 +48,7 @@ function Donut({
   }
   let a0 = -Math.PI / 2;
   const paths = data.map((z, i) => {
-    const frac = z.visits / total;
+    const frac = z.dwellMin / total;
     const a1 = a0 + frac * Math.PI * 2;
     const large = frac > 0.5 ? 1 : 0;
     const x0 = c + r * Math.cos(a0);
@@ -63,8 +63,8 @@ function Donut({
     <svg viewBox={`0 0 ${size} ${size}`} width={180} height={180}>
       <circle cx={c} cy={c} r={r} fill="none" stroke="#f3f3f5" strokeWidth={stroke} />
       {paths}
-      <text x={c} y={c - 4} textAnchor="middle" fill="#0e0f13" fontSize={28} fontWeight={700} fontFamily="Inter, sans-serif">{total}</text>
-      <text x={c} y={c + 18} textAnchor="middle" fill="#6b6e77" fontSize={10} fontFamily="JetBrains Mono, monospace" letterSpacing="0.14em">{t('vela.sys.donut.visits')}</text>
+      <text x={c} y={c - 4} textAnchor="middle" fill="#0e0f13" fontSize={28} fontWeight={700} fontFamily="Inter, sans-serif">{Math.round(total)}</text>
+      <text x={c} y={c + 18} textAnchor="middle" fill="#6b6e77" fontSize={10} fontFamily="JetBrains Mono, monospace" letterSpacing="0.14em">{t('vela.sys.donut.dwellMin')}</text>
     </svg>
   );
 }
@@ -74,7 +74,7 @@ export function SystemOverviewSection({
 }: {
   system: ReportSystemOverview;
   zones: readonly ReportZoneRow[];
-  zoneVisitLegend: readonly { readonly id: string; readonly name: string; readonly visits: number; readonly pct: number }[];
+  zoneVisitLegend: readonly { readonly id: string; readonly name: string; readonly dwellMin: number; readonly pct: number }[];
 }) {
   const t = useT();
   const metaLabel = t('vela.sys.meta', {
@@ -109,7 +109,7 @@ export function SystemOverviewSection({
               <div className="donut-note">
                 {t('vela.sys.donut.note', {
                   count: zoneVisitLegend.length,
-                  total: zoneVisitLegend.reduce((s, z) => s + z.visits, 0),
+                  total: Math.round(zoneVisitLegend.reduce((s, z) => s + z.dwellMin, 0)),
                 })}
               </div>
             </div>
