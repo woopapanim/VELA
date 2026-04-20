@@ -447,6 +447,9 @@ export const ko: Dict = {
   'vela.flow.groupTip': '단체 입장 그룹이 같은 시점에 같은 게이트를 공유해 발생한 병목 비중입니다. 높을수록 그룹 진입 시간 분리 또는 전용 동선 분기가 필요합니다.',
   'vela.flow.routes.title': '가장 많이 선택된 동선',
   'vela.flow.routes.hint': '관람객이 실제로 이동한 존 순서(visitedZoneIds) 기준 상위 5개 — 자유동선에서도 특정 경로가 몰리는지 확인하세요.',
+  'vela.flow.dwell.title': '체류 시간 분포',
+  'vela.flow.dwell.hint': '퇴장 완료 관람객의 총 체류 시간(분) 분포. 중앙값 {median}m · P90 {p90}m · P99 {p99}m — 러싱과 몰입의 비율을 확인하세요.',
+  'vela.flow.dwell.axisLabel': '분포 (분)',
   'vela.flow.note':
     '유의미한 병목은 감지되지 않음 — 이탈은 대기 정체가 아닌 콘텐츠 이탈에 기인.',
   'vela.flow.dist.zero': '0개 존 (즉시 이탈)',

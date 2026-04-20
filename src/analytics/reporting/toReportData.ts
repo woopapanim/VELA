@@ -62,6 +62,7 @@ export interface ReportZoneRow {
   readonly grade: Grade;
   readonly visits: number;
   readonly visitPct: number;
+  readonly peakAtMs: number | null;  // when this zone hit its peak
 }
 
 export interface ReportMediaRow {
@@ -120,6 +121,12 @@ export interface ReportSystemOverview {
   readonly interpretation: string | null;
 }
 
+export interface ReportDwellBucket {
+  readonly label: string;         // "0-2m", "2-5m", …
+  readonly count: number;
+  readonly pct: number;           // 0..100
+}
+
 export interface ReportFlow {
   readonly completed: number;
   readonly avgTotalMin: number;
@@ -131,6 +138,12 @@ export interface ReportFlow {
   readonly bottleneckCount: number;
   readonly topRoutes: readonly { readonly path: string; readonly count: number; readonly pct: number }[];
   readonly flowMode: 'free' | 'sequential' | 'hybrid';
+  readonly dwellHist: readonly ReportDwellBucket[];
+  readonly dwellStats: {
+    readonly medianMin: number;
+    readonly p90Min: number;
+    readonly p99Min: number;
+  };
 }
 
 export interface ReportBehavior {
@@ -284,6 +297,18 @@ export function toReportData(input: ToReportDataInput): ReportData {
     }
   }
 
+  // ---- Per-zone peak moment (timestamp of max occupancy) -----------------
+  const zonePeakAt = new Map<string, { occ: number; ts: number }>();
+  for (const entry of kpiHistory) {
+    for (const u of entry.snapshot.zoneUtilizations) {
+      const k = u.zoneId as string;
+      const prev = zonePeakAt.get(k);
+      if (!prev || u.currentOccupancy > prev.occ) {
+        zonePeakAt.set(k, { occ: u.currentOccupancy, ts: entry.timestamp });
+      }
+    }
+  }
+
   // ---- Zone visit counts -------------------------------------------------
   const zoneVisitCount = new Map<string, number>();
   for (const v of visitors) {
@@ -305,6 +330,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     const visits = zoneVisitCount.get(z.id as string) ?? 0;
     const visitPct = totalVisits > 0 ? Math.round((visits / totalVisits) * 100) : 0;
     const bn = peakBottleneckByZone.get(z.id as string);
+    const peakAt = zonePeakAt.get(z.id as string);
     return {
       id: z.id as string,
       name: z.name,
@@ -319,6 +345,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
       grade: gradeFor(areaPerPerson),
       visits,
       visitPct,
+      peakAtMs: peakAt?.ts ?? null,
     };
   });
 
@@ -730,6 +757,30 @@ export function toReportData(input: ToReportDataInput): ReportData {
       pct: routedVisitors > 0 ? Math.round((r.count / routedVisitors) * 100) : 0,
     }));
 
+  // ---- Dwell histogram (exited visitors only) --------------------------
+  // Buckets in minutes: [0,2), [2,5), [5,10), [10,15), [15,20), [20,30), [30,45), [45,+∞)
+  const DWELL_EDGES = [0, 2, 5, 10, 15, 20, 30, 45, Infinity];
+  const dwellCounts = new Array(DWELL_EDGES.length - 1).fill(0);
+  const dwellMinsSorted: number[] = [];
+  for (const v of exited) {
+    const min = ((v.exitedAt ?? durationMs) - v.enteredAt) / MS_MIN;
+    dwellMinsSorted.push(min);
+    for (let i = 0; i < DWELL_EDGES.length - 1; i++) {
+      if (min >= DWELL_EDGES[i] && min < DWELL_EDGES[i + 1]) { dwellCounts[i]++; break; }
+    }
+  }
+  dwellMinsSorted.sort((a, b) => a - b);
+  const dwellTotal = Math.max(1, exited.length);
+  const dwellHist: ReportDwellBucket[] = dwellCounts.map((count, i) => {
+    const lo = DWELL_EDGES[i];
+    const hi = DWELL_EDGES[i + 1];
+    const label = hi === Infinity ? `${lo}m+` : `${lo}-${hi}m`;
+    return { label, count, pct: Math.round((count / dwellTotal) * 100) };
+  });
+  const dwellAt = (p: number) => dwellMinsSorted.length > 0
+    ? dwellMinsSorted[Math.min(dwellMinsSorted.length - 1, Math.floor(dwellMinsSorted.length * p))]
+    : 0;
+
   const flowMode = (scenario.globalFlowMode ?? 'free') as 'free' | 'sequential' | 'hybrid';
   const flow: ReportFlow = {
     completed: exited.length,
@@ -742,6 +793,12 @@ export function toReportData(input: ToReportDataInput): ReportData {
     bottleneckCount: everBottle.size,
     topRoutes,
     flowMode,
+    dwellHist,
+    dwellStats: {
+      medianMin: dwellAt(0.5),
+      p90Min: dwellAt(0.9),
+      p99Min: dwellAt(0.99),
+    },
   };
 
   // ---- Behavior (visitor composition) -----------------------------------

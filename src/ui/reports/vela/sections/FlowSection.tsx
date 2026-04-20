@@ -1,6 +1,36 @@
 import type { ReportFlow } from '@/analytics/reporting';
 import { useT } from '@/i18n';
 
+function DwellHistogram({ flow }: { flow: ReportFlow }) {
+  const t = useT();
+  const W = 460, H = 140;
+  const P = { t: 8, r: 8, b: 26, l: 8 };
+  const max = Math.max(1, ...flow.dwellHist.map((d) => d.count));
+  const colWidth = (W - P.l - P.r) / flow.dwellHist.length;
+  const barWidth = Math.max(4, colWidth - 6);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', height: 'auto', maxHeight: 160 }}>
+      {flow.dwellHist.map((d, i) => {
+        const h = (d.count / max) * (H - P.t - P.b);
+        const x = P.l + i * colWidth;
+        const y = H - P.b - h;
+        return (
+          <g key={d.label}>
+            <rect x={x + 3} y={y} width={barWidth} height={h} fill="#2f66f6" fillOpacity={0.82} rx={2} />
+            {d.count > 0 && (
+              <text x={x + 3 + barWidth / 2} y={y - 3} textAnchor="middle" fill="#0e0f13" fontSize={9} fontFamily="JetBrains Mono, monospace">{d.count}</text>
+            )}
+            <text x={x + 3 + barWidth / 2} y={H - 10} textAnchor="middle" fill="#6b6e77" fontSize={9} fontFamily="JetBrains Mono, monospace">{d.label}</text>
+          </g>
+        );
+      })}
+      <text x={P.l} y={P.t + 6} fill="#9a9ca4" fontSize={9} fontFamily="JetBrains Mono, monospace">
+        {t('vela.flow.dwell.axisLabel')}
+      </text>
+    </svg>
+  );
+}
+
 export function FlowSection({ flow }: { flow: ReportFlow }) {
   const t = useT();
   const metaLabel = t('vela.flow.meta', {
@@ -63,6 +93,18 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
           )}
         </div>
       </div>
+
+      {flow.completed > 0 && (
+        <div className="dwell-block">
+          <div className="col-label">{t('vela.flow.dwell.title')}</div>
+          <p className="routes-hint">{t('vela.flow.dwell.hint', {
+            median: flow.dwellStats.medianMin.toFixed(1),
+            p90: flow.dwellStats.p90Min.toFixed(1),
+            p99: flow.dwellStats.p99Min.toFixed(1),
+          })}</p>
+          <DwellHistogram flow={flow} />
+        </div>
+      )}
 
       {flow.topRoutes.length > 0 && (
         <div className="routes-block">

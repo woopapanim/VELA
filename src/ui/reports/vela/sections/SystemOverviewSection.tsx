@@ -3,6 +3,13 @@ import { useT } from '@/i18n';
 
 const DONUT_COLORS = ['#2f66f6', '#84afff', '#c4d7ff', '#1f4fd8', '#b7d0ff', '#5e85ff'];
 
+function fmtClockShort(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${m}:${String(ss).padStart(2, '0')}`;
+}
+
 function Donut({
   data,
 }: {
@@ -138,7 +145,12 @@ export function SystemOverviewSection({
                   {z.area.toFixed(1)}m²
                   <div className="mono-sub">{t('vela.sys.td.capPrefix')} {z.cap}</div>
                 </td>
-                <td>{z.peak}</td>
+                <td>
+                  {z.peak}
+                  {z.peakAtMs != null && (
+                    <div className="mono-sub">@ {fmtClockShort(z.peakAtMs)}</div>
+                  )}
+                </td>
                 <td className="bar-cell">
                   <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline' }}>
                     <span className={`num ${utilNumCls}`} style={{ fontWeight: 600 }}>{z.utilPct}%</span>

@@ -612,8 +612,9 @@
   padding-left: 10px; border-left: 2px solid var(--ink-200);
 }
 
-.vela-report .routes-block {
-  margin-top: 48px; padding-top: 32px;
+.vela-report .routes-block,
+.vela-report .dwell-block {
+  margin-top: 40px; padding-top: 28px;
   border-top: 1px solid var(--ink-200);
 }
 .vela-report .routes-hint {

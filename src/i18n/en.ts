@@ -472,6 +472,9 @@ export const en: Dict = {
   'vela.flow.groupTip': 'Share of bottlenecks caused by tour groups sharing the same gate at the same time. High values suggest separating group entry windows or adding a dedicated flow.',
   'vela.flow.routes.title': 'Most-taken routes',
   'vela.flow.routes.hint': 'Top 5 zone sequences (from visitedZoneIds) — useful to check whether free-flow scenarios still concentrate on a dominant path.',
+  'vela.flow.dwell.title': 'Dwell-time distribution',
+  'vela.flow.dwell.hint': 'Histogram of total dwell time (minutes) for completed visitors. Median {median}m · P90 {p90}m · P99 {p99}m — reveals rushers vs. lingerers.',
+  'vela.flow.dwell.axisLabel': 'Distribution (minutes)',
   'vela.flow.note':
     'No significant bottleneck detected — exits are attributed to content abandonment, not queue blocking.',
   'vela.flow.dist.zero': '0 zones (immediate exit)',
