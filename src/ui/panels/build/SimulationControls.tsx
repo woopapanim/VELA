@@ -20,6 +20,7 @@ export function SimulationControls() {
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
   const visitors = useStore((s) => s.visitors);
+  const pinCount = useStore((s) => s.pins.length);
   const updateSimState = useStore((s) => s.updateSimState);
   const setShaftQueues = useStore((s) => s.setShaftQueues);
   const setDensityGrids = useStore((s) => s.setDensityGrids);
@@ -232,12 +233,12 @@ export function SimulationControls() {
 
   return (
     <div className="space-y-3">
-      {/* Controls */}
-      <div className="flex flex-wrap gap-2">
+      {/* Controls — action row (Start/Pause/Resume + Stop) */}
+      <div className="flex gap-2">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
             onClick={handleStart}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Play className="w-3.5 h-3.5" /> Start
           </button>
@@ -245,7 +246,7 @@ export function SimulationControls() {
         {phase === SIMULATION_PHASE.RUNNING && (
           <button
             onClick={handlePause}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-warning)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Pause className="w-3.5 h-3.5" /> Pause
           </button>
@@ -253,7 +254,7 @@ export function SimulationControls() {
         {phase === SIMULATION_PHASE.PAUSED && (
           <button
             onClick={handleResume}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Play className="w-3.5 h-3.5" /> Resume
           </button>
@@ -261,14 +262,18 @@ export function SimulationControls() {
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
           <button
             onClick={requestStop}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Square className="w-3.5 h-3.5" /> Stop
           </button>
         )}
+      </div>
+
+      {/* Utility row — overlay + pin, predictable placement */}
+      <div className="flex gap-2">
         <button
           onClick={toggleHeatmap}
-          className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors ${
+          className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors active:scale-95 ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
           title="Toggle Heatmap"
@@ -278,10 +283,15 @@ export function SimulationControls() {
         <button
           onClick={handlePin}
           disabled={phase === SIMULATION_PHASE.IDLE}
-          className="shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="relative shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95"
           title={`${t('pinpoint.action.pin')} (P)`}
         >
           <Pin className="w-3.5 h-3.5" />
+          {pinCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background">
+              {pinCount}
+            </span>
+          )}
         </button>
       </div>
 

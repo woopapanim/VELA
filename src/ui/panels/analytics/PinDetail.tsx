@@ -89,18 +89,20 @@ export function PinDetail() {
 
       {/* Zone table */}
       <div>
-        <h3 className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+        <h3 className="flex items-center gap-1.5 text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2 pb-1 border-b border-border">
+          <span className="w-1 h-3 rounded-sm bg-primary" />
           {t('pinpoint.detail.zones')}
         </h3>
-        <table className="w-full text-[10px]">
+        <div className="-mx-4 px-4 overflow-x-auto">
+        <table className="min-w-full text-[10px]">
           <thead>
-            <tr className="text-muted-foreground">
-              <th className="text-left pb-1">{t('pinpoint.detail.th.zone')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.occCap')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.ratio')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.comfort')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.watching')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.waiting')}</th>
+            <tr className="text-[9px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+              <th className="text-left pb-1.5 pr-2 font-medium">{t('pinpoint.detail.th.zone')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.occCap')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.ratio')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.comfort')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.watching')}</th>
+              <th className="text-right pb-1.5 pl-1.5 font-medium">{t('pinpoint.detail.th.waiting')}</th>
             </tr>
           </thead>
           <tbody>
@@ -116,18 +118,19 @@ export function PinDetail() {
                 const comfortCls = z.comfortIndex < 1 ? 'text-[var(--status-danger)]' : '';
                 const watchingVisitorCount = (z as any).watchingVisitorCount ?? 0;
                 return (
-                  <tr key={z.zoneId as string} className="border-t border-border/40">
-                    <td className="py-1 truncate max-w-20">{zone?.name ?? '—'}</td>
-                    <td className="text-right font-data py-1">{z.occupancy}/{zone?.capacity ?? 0}</td>
-                    <td className={`text-right font-data py-1 ${ratioCls}`}>{Math.round(ratio * 100)}%</td>
-                    <td className={`text-right font-data py-1 ${comfortCls}`}>{z.comfortIndex.toFixed(2)}</td>
-                    <td className="text-right font-data py-1">{watchingVisitorCount || '—'}</td>
-                    <td className="text-right font-data py-1">{z.waitingVisitorCount || '—'}</td>
+                  <tr key={z.zoneId as string} className="border-t border-border/40 hover:bg-secondary/30">
+                    <td className="py-1.5 pr-2 truncate">{zone?.name ?? '—'}</td>
+                    <td className="py-1.5 px-1.5 text-right font-data">{z.occupancy}/{zone?.capacity ?? 0}</td>
+                    <td className={`py-1.5 px-1.5 text-right font-data ${ratioCls}`}>{Math.round(ratio * 100)}%</td>
+                    <td className={`py-1.5 px-1.5 text-right font-data ${comfortCls}`}>{z.comfortIndex.toFixed(2)}</td>
+                    <td className="py-1.5 px-1.5 text-right font-data">{watchingVisitorCount || '—'}</td>
+                    <td className="py-1.5 pl-1.5 text-right font-data">{z.waitingVisitorCount || '—'}</td>
                   </tr>
                 );
               })}
           </tbody>
         </table>
+        </div>
         {prev ? null : (
           <p className="text-[9px] text-muted-foreground mt-1 italic">{t('pinpoint.detail.noPrev')}</p>
         )}
@@ -135,16 +138,18 @@ export function PinDetail() {
 
       {/* Media table */}
       <div>
-        <h3 className="text-[10px] font-semibold text-muted-foreground uppercase mb-1.5">
+        <h3 className="flex items-center gap-1.5 text-[10px] font-semibold text-foreground uppercase tracking-wider mb-2 pb-1 border-b border-border">
+          <span className="w-1 h-3 rounded-sm bg-primary" />
           {t('pinpoint.detail.media')}
         </h3>
-        <table className="w-full text-[10px]">
+        <div className="-mx-4 px-4 overflow-x-auto">
+        <table className="min-w-full text-[10px]">
           <thead>
-            <tr className="text-muted-foreground">
-              <th className="text-left pb-1">{t('pinpoint.detail.th.media')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.viewers')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.queue')}</th>
-              <th className="text-right pb-1">{t('pinpoint.detail.th.skips')}</th>
+            <tr className="text-[9px] uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+              <th className="text-left pb-1.5 pr-2 font-medium">{t('pinpoint.detail.th.media')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.viewers')}</th>
+              <th className="text-right pb-1.5 px-1.5 font-medium">{t('pinpoint.detail.th.queue')}</th>
+              <th className="text-right pb-1.5 pl-1.5 font-medium">{t('pinpoint.detail.th.skips')}</th>
             </tr>
           </thead>
           <tbody>
@@ -155,16 +160,17 @@ export function PinDetail() {
               .map((m) => {
                 const mp = media.find((mm: MediaPlacement) => mm.id === m.mediaId);
                 return (
-                  <tr key={m.mediaId as string} className="border-t border-border/40">
-                    <td className="py-1 truncate max-w-24">{mp?.name ?? '—'}</td>
-                    <td className="text-right font-data py-1">{m.currentViewers}</td>
-                    <td className={`text-right font-data py-1 ${m.queueLength > 0 ? 'text-[var(--status-warning)]' : ''}`}>{m.queueLength || '—'}</td>
-                    <td className="text-right font-data py-1">{m.skipCountSoFar || '—'}</td>
+                  <tr key={m.mediaId as string} className="border-t border-border/40 hover:bg-secondary/30">
+                    <td className="py-1.5 pr-2 truncate">{mp?.name ?? '—'}</td>
+                    <td className="py-1.5 px-1.5 text-right font-data">{m.currentViewers}</td>
+                    <td className={`py-1.5 px-1.5 text-right font-data ${m.queueLength > 0 ? 'text-[var(--status-warning)]' : ''}`}>{m.queueLength || '—'}</td>
+                    <td className="py-1.5 pl-1.5 text-right font-data">{m.skipCountSoFar || '—'}</td>
                   </tr>
                 );
               })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
