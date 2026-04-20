@@ -86,7 +86,7 @@ domain ← simulation ← stores → analytics
 | Multi-floor 배경 오버레이 + 영역 편집 | ✅ 완료 |
 | AI 도면 분석 (Anthropic vision → DraftScenario) | ✅ 완료 |
 | **Structured Reporting (VELA Report v2)** | ✅ 완료 |
-| **Pinpoint 분석** | ⬜ 스텁 |
+| **Pinpoint 분석** | ✅ 완료 |
 | **Advanced Analytics (트렌드/민감도)** | ⬜ 스텁 |
 
 ## 작업 규칙
