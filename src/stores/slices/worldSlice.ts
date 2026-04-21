@@ -245,7 +245,6 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   shafts: [],
 
   setScenario: (scenario) => {
-    const activeFloorId = scenario.floors[0]?.id as string ?? null;
     // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
     const correctedMedia = scenario.media.map((m: any) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
@@ -254,10 +253,29 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       return m;
     });
 
-    // If multiple floors have overlapping content in world coords (legacy tab-based scenarios),
-    // auto-lay them out horizontally so the shared canvas shows them side-by-side.
-    let floorsArr: FloorConfig[] = [...scenario.floors];
+    // Legacy migration: if the scenario has zones but no floors, or zone floorIds
+    // don't match any floor, synthesize a default floor so per-floor systems
+    // (density grids, heatmap, floor-based routing) have something to key on.
+    let floorsArr: FloorConfig[] = scenario.floors ? [...scenario.floors] : [];
     let zonesArr: ZoneConfig[] = [...scenario.zones];
+    const floorIdSet = new Set(floorsArr.map(f => f.id as string));
+    const orphanZones = zonesArr.filter(z => !floorIdSet.has(z.floorId as string));
+    if (floorsArr.length === 0 || orphanZones.length > 0) {
+      const fallbackId = (floorsArr[0]?.id as string) ?? 'floor_1f';
+      if (floorsArr.length === 0) {
+        floorsArr = [{
+          id: fallbackId as any,
+          name: '1F',
+          level: 0,
+          canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false } as any,
+          zoneIds: zonesArr.map(z => z.id),
+          metadata: {},
+        }];
+      }
+      // Reparent any orphans onto the fallback floor so densityGrids keys match.
+      zonesArr = zonesArr.map(z => floorIdSet.has(z.floorId as string) ? z : { ...z, floorId: fallbackId as any });
+    }
+    const activeFloorId = floorsArr[0]?.id as string ?? null;
     let mediaArr: MediaPlacement[] = correctedMedia;
     let graphArr: WaypointGraph | null = scenario.waypointGraph ?? null;
 
