@@ -4,14 +4,6 @@ import type { DensityGrid } from '@/domain';
 import { useT } from '@/i18n';
 import { renderDensityGridToDataUrl } from '../heatmapRender';
 
-function densityColor(pct: number): string {
-  if (pct > 100) return '#c2362b';
-  if (pct >= 85) return '#ff9b8c';
-  if (pct >= 60) return '#ffcb7a';
-  if (pct >= 30) return '#fff0b3';
-  return '#dbe8ff';
-}
-
 export function DensitySection({
   floors, peakMoment, fatigueP90Pct, densityGrids,
 }: {
@@ -80,7 +72,6 @@ export function DensitySection({
                 )}
                 {floor.rooms.map((rm, idx) => {
                   const pct = rm.cap ? Math.round((100 * rm.occ) / rm.cap) : 0;
-                  const color = densityColor(pct);
                   return (
                     <div
                       className="room"
@@ -90,11 +81,9 @@ export function DensitySection({
                         top: `${rm.y * 100}%`,
                         width: `${rm.w * 100}%`,
                         height: `${rm.h * 100}%`,
-                        background: color,
-                        color: pct > 85 ? '#fff' : 'var(--ink-800)',
                       }}
                     >
-                      {pct}%
+                      <span className="room-label">{pct}%</span>
                     </div>
                   );
                 })}

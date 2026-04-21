@@ -383,9 +383,21 @@
   background: var(--ink-0); border: 1px solid var(--ink-200); border-radius: 6px;
 }
 .vela-report .floor-card .room {
-  position: absolute; border: 1px solid rgba(0,0,0,.08); border-radius: 4px;
+  position: absolute;
+  border: 1px solid rgba(0,0,0,.18);
+  border-radius: 4px;
+  background: transparent;
   display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.vela-report .floor-card .room .room-label {
   font-size: 11px; font-weight: 600; font-family: var(--font-mono);
+  color: var(--ink-900);
+  background: rgba(255,255,255,.85);
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .vela-report .floors-legend {
   display: flex; gap: 16px; margin-top: 24px;
@@ -455,6 +467,7 @@
   letter-spacing: .14em; text-transform: uppercase;
   color: var(--ink-500); margin-bottom: 12px;
 }
+.vela-report[data-lang="ko"] .col-label { font-weight: 700; color: var(--ink-800); }
 
 .vela-report .defn { display: grid; grid-template-columns: repeat(2, 1fr); gap: 32px 64px; }
 .vela-report .defn dt {
