@@ -165,6 +165,11 @@ export class SimulationEngine {
     cellPx: number; cols: number; rows: number;
     data: Float32Array;
   }>();
+  // Fallback floor id used when a spawn node / visitor has no floorId set
+  // (e.g. legacy scenarios where the waypoint graph was built without
+  // floor tagging). Without this, visitors end up with currentFloorId === ""
+  // and the density grid lookup silently drops every sample.
+  private _defaultFloorId: string = '';
 
   constructor(world: SimulationWorld) {
     this.world = world;
@@ -202,8 +207,13 @@ export class SimulationEngine {
       }
     }
 
-    // Initialize per-floor density grids using each floor's bounds
-    // (or bounding box of its zones as fallback).
+    // First floor id used as fallback when spawn nodes / visitors have no
+    // floorId assigned (legacy waypoint graphs).
+    this._defaultFloorId = (world.floors[0]?.id as string) ?? '';
+
+    // Initialize per-floor density grids. Always union floor.bounds with the
+    // actual zone bbox so saved scenarios with stale/wrong bounds still
+    // produce a grid that covers where visitors actually walk.
     const CELL_PX = 24;
     for (const floor of world.floors) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -211,14 +221,13 @@ export class SimulationEngine {
         minX = floor.bounds.x; minY = floor.bounds.y;
         maxX = floor.bounds.x + floor.bounds.w;
         maxY = floor.bounds.y + floor.bounds.h;
-      } else {
-        for (const z of world.zones) {
-          if (z.floorId !== floor.id) continue;
-          minX = Math.min(minX, z.bounds.x);
-          minY = Math.min(minY, z.bounds.y);
-          maxX = Math.max(maxX, z.bounds.x + z.bounds.w);
-          maxY = Math.max(maxY, z.bounds.y + z.bounds.h);
-        }
+      }
+      for (const z of world.zones) {
+        if (z.floorId !== floor.id) continue;
+        minX = Math.min(minX, z.bounds.x);
+        minY = Math.min(minY, z.bounds.y);
+        maxX = Math.max(maxX, z.bounds.x + z.bounds.w);
+        maxY = Math.max(maxY, z.bounds.y + z.bounds.h);
       }
       if (!isFinite(minX)) continue;
       const pad = CELL_PX;
@@ -526,9 +535,11 @@ export class SimulationEngine {
 
     // Accumulate visitor-seconds into the per-floor density grid.
     // Weight = dtS so a visitor standing still for 1 second adds 1.0 to its cell.
+    // Fall back to default floor when a visitor has no floorId (legacy graphs).
     for (const [, a] of next) {
       if (!a.isActive) continue;
-      const grid = this._densityGrids.get(a.currentFloorId as string);
+      const fid = (a.currentFloorId as string) || this._defaultFloorId;
+      const grid = this._densityGrids.get(fid);
       if (!grid) continue;
       const cx = Math.floor((a.position.x - grid.originX) / grid.cellPx);
       const cy = Math.floor((a.position.y - grid.originY) / grid.cellPx);
@@ -569,7 +580,8 @@ export class SimulationEngine {
           spawnRatePerSecond: slot.spawnRatePerSecond,
           categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
         };
-        const batch = generateSpawnBatch(1, dist, entryNode.position, entryNode.floorId, elapsed, this.rng);
+        const nodeFloorId = (entryNode.floorId as string) || this._defaultFloorId;
+        const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng);
         // Deduct actual spawned count from accumulator (groups spawn multiple)
         this.spawnAccumulator -= batch.visitors.length;
         for (const v of batch.visitors) {

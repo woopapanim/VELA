@@ -451,7 +451,7 @@ export function PropertyPopover({ popover, onClose }: {
         </Row>
 
         <div className="text-[8px] text-muted-foreground">
-          {(zone.bounds.w / 20).toFixed(1)}x{(zone.bounds.h / 20).toFixed(1)}m · {zone.area.toFixed(1)}m² · {zone.shape}
+          {(() => { const f = floors.find((fl) => fl.id === zone.floorId) ?? floors[0]; const mpu = (f as any)?.canvas?.scale ?? 0.025; return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`; })()} · {zone.area.toFixed(1)}m² · {zone.shape}
         </div>
 
         {/* Add Media — inline expandable */}

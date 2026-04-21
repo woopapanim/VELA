@@ -593,6 +593,7 @@ export const ko: Dict = {
   'pinpoint.toast.created': '{time} 시점에 핀 저장',
   'pinpoint.toast.maxCompare': '비교는 최대 {max}개까지 가능',
   'pinpoint.toast.noSnapshot': '시뮬레이션이 시작되어야 핀을 만들 수 있습니다',
+  'regions.tooltip': '각 층(region)을 관리합니다. 활성 층 = 새 zone/waypoint 배치 기본 대상. 눈 아이콘으로 층을 숨겨 편집 집중. 이미지 아이콘으로 층별 플로어플랜 오버레이 관리.',
   'pinpoint.defaultLabel': '{time} 핀',
   'pinpoint.empty.title': '아직 핀이 없습니다',
   'pinpoint.empty.hint': '시뮬 중에 P 키 또는 "지금 핀" 버튼으로 순간을 저장하세요',

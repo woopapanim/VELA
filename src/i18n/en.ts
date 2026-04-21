@@ -618,6 +618,7 @@ export const en: Dict = {
   'pinpoint.toast.created': 'Pinned at {time}',
   'pinpoint.toast.maxCompare': 'Max {max} pins to compare',
   'pinpoint.toast.noSnapshot': 'Start a simulation first to capture pins',
+  'regions.tooltip': 'Manage each region (floor). The active region is the default target for new zone / waypoint placement. Hide a region with the eye icon to focus editing. Use the image icon to manage the per-floor floorplan overlay.',
   'pinpoint.defaultLabel': 'Pin @ {time}',
   'pinpoint.empty.title': 'No pins yet',
   'pinpoint.empty.hint': 'While simulating, press P or click "Pin now" to save a moment',

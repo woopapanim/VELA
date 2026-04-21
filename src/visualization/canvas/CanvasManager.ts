@@ -197,7 +197,9 @@ export class CanvasManager {
     }
 
     // 3. Zones (with occupancy overlay)
-    renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
+    const activeFloor = state.floors?.find(f => f.id === state.activeFloorId) ?? state.floors?.[0];
+    const metersPerUnit = (activeFloor as any)?.canvas?.scale ?? 0.025;
+    renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom, metersPerUnit);
 
     // 3a. Heatmap — floor-wide cumulative dwell gradient, painted over zone
     // fills so it isn't hidden by their translucent backgrounds. Sits below
@@ -228,8 +230,10 @@ export class CanvasManager {
       renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
     }
 
-    // 5. Flow lines (between zones)
-    if (state.overlayMode === 'flow' || state.visitors.length > 0) {
+    // 5. Flow lines (between zones) — explicit overlay toggle only, so the
+    // "Show Flow" switch actually controls visibility instead of being
+    // overridden by the presence of live visitors.
+    if (state.overlayMode === 'flow') {
       renderFlowLines(ctx, visibleZones, state.visitors, isDark);
     }
 

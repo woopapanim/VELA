@@ -32,6 +32,7 @@ export function SimulationControls() {
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
   const clearHistory = useStore((s) => s.clearHistory);
+  const clearPins = useStore((s) => s.clearPins);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
 
@@ -203,10 +204,11 @@ export function SimulationControls() {
     resetSim();
     clearHistory();
     clearReplay();
+    clearPins();
     milestonesHit.current.clear();
     setShowStopConfirm(false);
     setTimeout(() => setPhase('idle' as any), 50);
-  }, [resetSim, clearHistory, clearReplay, setPhase]);
+  }, [resetSim, clearHistory, clearReplay, clearPins, setPhase]);
 
   const toggleHeatmap = useCallback(() => {
     const next: OverlayMode = overlayMode === 'heatmap' ? 'none' : 'heatmap';
