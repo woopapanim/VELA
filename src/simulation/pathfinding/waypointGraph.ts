@@ -22,7 +22,7 @@ const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
 // EXIT 노드 진입 조건
-const EXIT_VISIT_RATIO = 0.6;    // 필수 노드의 60% 방문 시 (이전 0.8)
+const EXIT_VISIT_RATIO = 0.9;    // 필수 노드 90% 방문 후 EXIT 허용 (stuck/fatigue/MAX_TOTAL_DWELL은 별개로 escape 경로 제공)
 const EXIT_FATIGUE_THRESHOLD = 0.75; // 피로 75% 이상 (이전 0.9)
 
 // Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성

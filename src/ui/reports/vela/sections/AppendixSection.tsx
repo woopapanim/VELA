@@ -8,7 +8,6 @@ export function AppendixSection({ glossary }: { glossary: readonly ReportGlossar
       <header className="sec-head">
         <div className="num">A</div>
         <div className="title-block">
-          <div className="eyebrow">{t('vela.appendix.eyebrow')}</div>
           <h2>{t('vela.appendix.title')}</h2>
         </div>
         <div className="meta">{t('vela.appendix.meta')}</div>

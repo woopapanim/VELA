@@ -520,7 +520,7 @@ export const en: Dict = {
   'vela.media.titleA': 'Media',
   'vela.media.titleB': 'experience',
   'vela.media.meta': '{count} media · {activation}% activation',
-  'vela.media.perf': '7.1 · Content performance',
+  'vela.media.perf': 'Content performance',
   'vela.media.th.media': 'Media',
   'vela.media.th.zone': 'Zone',
   'vela.media.th.peakCap': 'Peak/Cap',

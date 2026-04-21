@@ -112,7 +112,6 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
       <header className="sec-head">
         <div className="num">05</div>
         <div className="title-block">
-          <div className="eyebrow">{t('vela.flow.eyebrow')}</div>
           <h2>{t('vela.flow.titleA')} <span className="accent">{t('vela.flow.titleB')}</span></h2>
         </div>
         <div className="meta">{metaLabel}</div>

@@ -111,7 +111,6 @@ export function TimelineSection({
       <header className="sec-head">
         <div className="num">03</div>
         <div className="title-block">
-          <div className="eyebrow">{t('vela.tl.eyebrow')}</div>
           <h2>{t('vela.tl.titleA')} <em>{t('vela.tl.titleEm')}</em></h2>
         </div>
         <div className="meta">{metaLabel}</div>

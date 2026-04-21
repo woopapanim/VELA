@@ -22,7 +22,7 @@ export const DEFAULT_PHYSICS: PhysicsConfig = {
 };
 
 export const DEFAULT_SKIP_THRESHOLD: SkipThreshold = {
-  skipMultiplier: 1.0,
+  skipMultiplier: 2.0,
   maxWaitTimeMs: 30_000, // 30s hard cap — matches typical media engagement time
   skipCooldownMs: 5_000,
 };

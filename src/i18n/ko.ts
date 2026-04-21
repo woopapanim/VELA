@@ -323,9 +323,9 @@ export const ko: Dict = {
   'vela.hero.line': '리포트 · {version} · {date}',
   'vela.hero.titleA': '공간',
   'vela.hero.titleB': '리포트',
-  'vela.hero.subtitleA': '우리는 수용 한계가 아니라, 경험의 ',
-  'vela.hero.subtitleEm': '질적 분포',
-  'vela.hero.subtitleB': '를 측정합니다.',
+  'vela.hero.subtitleA': '우리는 ‘얼마나 많이’가 아니라, ‘',
+  'vela.hero.subtitleEm': '어떻게 경험되는가',
+  'vela.hero.subtitleB': '’를 측정합니다.',
   'vela.hero.kGenerated': '생성일',
   'vela.hero.kDuration': '시뮬레이션',
   'vela.hero.kVisitors': '방문객',
@@ -365,9 +365,9 @@ export const ko: Dict = {
 
   // VELA Report — Density
   'vela.density.eyebrow': '공간 밀도',
-  'vela.density.titleA': '공간',
+  'vela.density.titleA': '피크 시점 공간',
   'vela.density.titleB': '밀도',
-  'vela.density.titleC': ' — 피크 시점',
+  'vela.density.titleC': '',
   'vela.density.metaWithPeak': '피크 @ {moment} · P90 {p90}%',
   'vela.density.metaNoPeak': 'P90 {p90}%',
   'vela.density.introWithMoment': ' (피크-피로도 시점 {moment} 기준)',
@@ -380,9 +380,9 @@ export const ko: Dict = {
   'vela.density.lg.over': '수용 초과',
 
   // VELA Report — Timeline
-  'vela.tl.eyebrow': '타임라인',
-  'vela.tl.titleA': '시간에 따른',
-  'vela.tl.titleEm': '변화',
+  'vela.tl.eyebrow': '',
+  'vela.tl.titleA': '시간대별 변화',
+  'vela.tl.titleEm': '추이',
   'vela.tl.metaPeak': '{start} — {end} · 피크 {peak}',
   'vela.tl.metaRange': '{start} — {end}',
   'vela.tl.intro':
@@ -405,7 +405,7 @@ export const ko: Dict = {
   // VELA Report — System overview
   'vela.sys.eyebrow': '공간 구성',
   'vela.sys.titleA': '공간',
-  'vela.sys.titleB': '구성',
+  'vela.sys.titleB': '구성 및 분포',
   'vela.sys.meta': '존 {zones}개 · 미디어 {media}개 · {area} m²',
   'vela.sys.col.visitDist': '존별 체류시간 분포',
   'vela.sys.col.composition': '구성',
@@ -495,7 +495,7 @@ export const ko: Dict = {
   'vela.media.titleA': '미디어',
   'vela.media.titleB': '경험',
   'vela.media.meta': '미디어 {count}개 · 활성화율 {activation}%',
-  'vela.media.perf': '7.1 · 콘텐츠 성과',
+  'vela.media.perf': '콘텐츠 성과',
   'vela.media.th.media': '미디어',
   'vela.media.th.zone': '존',
   'vela.media.th.peakCap': '피크/수용',
@@ -514,8 +514,8 @@ export const ko: Dict = {
   'vela.media.u.min': '분',
 
   // VELA Report — Recommendations
-  'vela.recos.eyebrow': '권장 조치',
-  'vela.recos.title': '권장 조치',
+  'vela.recos.eyebrow': '개선 권장사항',
+  'vela.recos.title': '개선 권장사항',
   'vela.recos.meta': '{count}건 · 우선순위 정렬',
   'vela.recos.evidence': '근거 · {metric} · {value} · 임계값 {threshold}',
   'vela.recos.actionH': '권장 조치',

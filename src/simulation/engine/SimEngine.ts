@@ -674,7 +674,7 @@ export class SimulationEngine {
                   ...v,
                   currentAction: VISITOR_ACTION.MOVING,
                   targetMediaId: leader.targetMediaId,
-                  targetPosition: this.computeMediaTargetPos(media),
+                  targetPosition: this.computeMediaTargetPos(media, v.position),
                   targetZoneId: leader.currentZoneId,
                   steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
                 };
@@ -1488,10 +1488,10 @@ export class SimulationEngine {
    * - ANALOG: 현재 다른 에이전트가 점유하지 않은 perimeter slot 반환 (softCap 기준)
    * - ACTIVE/STAGED: null (Phase C 에서 slot 예약 시스템 확장 예정)
    */
-  private computeMediaTargetPos(m: MediaPlacement): Vector2D | null {
+  private computeMediaTargetPos(m: MediaPlacement, agentPos?: Vector2D): Vector2D | null {
     const intType = (m as any).interactionType ?? 'passive';
     if (intType === 'passive') return this.pickPassiveSlot(m);
-    if (intType === 'analog') return this.pickAnalogSlot(m);
+    if (intType === 'analog') return this.pickAnalogSlot(m, agentPos);
     if (intType === 'active' || intType === 'staged') return this.pickMediaSlot(m);
     return null;
   }
@@ -1594,7 +1594,7 @@ export class SimulationEngine {
    * Analog 미디어의 빈 perimeter slot 을 찾아 반환.
    * 다른 MOVING/WATCHING 에이전트의 targetPosition/position 과 충돌하지 않는 slot 선택.
    */
-  private pickAnalogSlot(m: MediaPlacement): Vector2D {
+  private pickAnalogSlot(m: MediaPlacement, agentPos?: Vector2D): Vector2D {
     const pwM = m.size.width, phM = m.size.height;
     const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
     const softCap = Math.max(m.capacity || 0, autoCap);
@@ -1612,18 +1612,37 @@ export class SimulationEngine {
       }
     }
 
-    // Find a free slot (min distance > 12px from any occupied point)
     const MIN_DIST_SQ = 12 * 12;
-    for (let i = 0; i < softCap; i++) {
-      const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
-      let free = true;
+    const isFree = (slotPos: Vector2D): boolean => {
       for (const op of occupied) {
         const dx = slotPos.x - op.x, dy = slotPos.y - op.y;
-        if (dx * dx + dy * dy < MIN_DIST_SQ) { free = false; break; }
+        if (dx * dx + dy * dy < MIN_DIST_SQ) return false;
       }
-      if (free) return slotPos;
+      return true;
+    };
+
+    // Omnidirectional + agent position known → pick nearest free slot to agent
+    // (avoids forcing agents to detour around the media to reach slot 0)
+    if ((m as any).omnidirectional && agentPos) {
+      const candidates: { pos: Vector2D; distSq: number }[] = [];
+      for (let i = 0; i < softCap; i++) {
+        const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
+        if (!isFree(slotPos)) continue;
+        const dx = slotPos.x - agentPos.x, dy = slotPos.y - agentPos.y;
+        candidates.push({ pos: slotPos, distSq: dx * dx + dy * dy });
+      }
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.distSq - b.distSq);
+        return candidates[0].pos;
+      }
+      return this.getAnalogSlotWithCap(m, 0, softCap);
     }
-    // All full — fall back to slot 0 (onArrival softCap check 에서 reject 됨)
+
+    // Directional (or no agent context) → first free slot in perimeter order
+    for (let i = 0; i < softCap; i++) {
+      const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
+      if (isFree(slotPos)) return slotPos;
+    }
     return this.getAnalogSlotWithCap(m, 0, softCap);
   }
 
@@ -1829,7 +1848,7 @@ export class SimulationEngine {
         if (pick && available.length > 0) {
           recordMediaApproach(pick.id as string);
           return {
-            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+            ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick, v.position),
             currentAction: VISITOR_ACTION.MOVING,
             steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
           };
@@ -1975,7 +1994,7 @@ export class SimulationEngine {
           if (pick) {
             recordMediaApproach(pick.id as string);
             return {
-              ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick),
+              ...v, targetMediaId: pick.id, targetPosition: this.computeMediaTargetPos(pick, v.position),
               currentAction: VISITOR_ACTION.MOVING,
               steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
             };
@@ -2155,7 +2174,7 @@ export class SimulationEngine {
             return {
               ...v,
               targetMediaId: media.id,
-              targetPosition: this.computeMediaTargetPos(media),
+              targetPosition: this.computeMediaTargetPos(media, v.position),
               targetNodeId: null,
               currentAction: VISITOR_ACTION.MOVING,
               steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
@@ -2177,7 +2196,7 @@ export class SimulationEngine {
             return {
               ...v,
               targetMediaId: pick.id,
-              targetPosition: this.computeMediaTargetPos(pick),
+              targetPosition: this.computeMediaTargetPos(pick, v.position),
               targetNodeId: null,
               currentAction: VISITOR_ACTION.MOVING,
               steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
