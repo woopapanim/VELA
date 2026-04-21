@@ -5,8 +5,10 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { useT } from '@/i18n';
 
 export function RegionsPanel() {
+  const t = useT();
   const floors = useStore((s) => s.floors);
   const zones = useStore((s) => s.zones);
   const activeFloorId = useStore((s) => s.activeFloorId);
@@ -71,7 +73,7 @@ export function RegionsPanel() {
       <div className="flex items-center justify-between mb-3">
         <h2 className="panel-section flex items-center gap-1.5">
           Regions ({floors.length})
-          <InfoTooltip text="각 층(region)을 관리합니다. 활성 층 = 새 zone/waypoint 배치 기본 대상. 눈 아이콘으로 층을 숨겨 편집 집중. 이미지 아이콘으로 층별 플로어플랜 오버레이 관리." />
+          <InfoTooltip text={t('regions.tooltip')} />
         </h2>
         {!isSimRunning && (
           <div className="flex items-center gap-1">

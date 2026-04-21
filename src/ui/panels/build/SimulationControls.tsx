@@ -1,9 +1,9 @@
 import { useRef, useCallback, useState } from 'react';
-import { Play, Pause, Square, Thermometer, AlertTriangle } from 'lucide-react';
+import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
 import { useStore } from '@/stores';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
-import { assembleKpiSnapshot } from '@/analytics';
+import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import type { OverlayMode } from '@/stores';
@@ -20,6 +20,7 @@ export function SimulationControls() {
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
   const visitors = useStore((s) => s.visitors);
+  const pinCount = useStore((s) => s.pins.length);
   const updateSimState = useStore((s) => s.updateSimState);
   const setShaftQueues = useStore((s) => s.setShaftQueues);
   const setDensityGrids = useStore((s) => s.setDensityGrids);
@@ -31,6 +32,7 @@ export function SimulationControls() {
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
   const clearHistory = useStore((s) => s.clearHistory);
+  const clearPins = useStore((s) => s.clearPins);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
 
@@ -137,10 +139,11 @@ export function SimulationControls() {
         );
         pushSnapshot(snapshot);
 
-        // Bottleneck alert toasts
+        // Bottleneck alert toasts — once per zone per 60s sim-time so a
+        // persistent hotspot doesn't dominate the toast stack.
         for (const bn of snapshot.bottlenecks) {
           if (bn.score > 0.85) {
-            const key = `bn_${bn.zoneId as string}_${Math.floor(elapsed / 10000)}`;
+            const key = `bn_${bn.zoneId as string}_${Math.floor(elapsed / 60000)}`;
             if (!milestonesHit.current.has(key as any)) {
               milestonesHit.current.add(key as any);
               const zone = currentStore.zones.find((z) => z.id === bn.zoneId);
@@ -201,15 +204,30 @@ export function SimulationControls() {
     resetSim();
     clearHistory();
     clearReplay();
+    clearPins();
     milestonesHit.current.clear();
     setShowStopConfirm(false);
     setTimeout(() => setPhase('idle' as any), 50);
-  }, [resetSim, clearHistory, clearReplay, setPhase]);
+  }, [resetSim, clearHistory, clearReplay, clearPins, setPhase]);
 
   const toggleHeatmap = useCallback(() => {
     const next: OverlayMode = overlayMode === 'heatmap' ? 'none' : 'heatmap';
     setOverlayMode(next);
   }, [overlayMode, setOverlayMode]);
+
+  const handlePin = useCallback(() => {
+    const store = useStore.getState();
+    const totalS = Math.max(0, Math.round(store.timeState.elapsed / 1000));
+    const mm = Math.floor(totalS / 60);
+    const ss = totalS % 60;
+    const time = `${mm}:${String(ss).padStart(2, '0')}`;
+    const pin = pinCurrentMoment(store, t('pinpoint.defaultLabel', { time }));
+    if (!pin) {
+      toast('warning', t('pinpoint.toast.noSnapshot'));
+      return;
+    }
+    toast('success', t('pinpoint.toast.created', { time }));
+  }, [t, toast]);
 
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
@@ -217,12 +235,12 @@ export function SimulationControls() {
 
   return (
     <div className="space-y-3">
-      {/* Controls */}
+      {/* Controls — action row (Start/Pause/Resume + Stop) */}
       <div className="flex gap-2">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
             onClick={handleStart}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Play className="w-3.5 h-3.5" /> Start
           </button>
@@ -230,7 +248,7 @@ export function SimulationControls() {
         {phase === SIMULATION_PHASE.RUNNING && (
           <button
             onClick={handlePause}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-warning)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Pause className="w-3.5 h-3.5" /> Pause
           </button>
@@ -238,7 +256,7 @@ export function SimulationControls() {
         {phase === SIMULATION_PHASE.PAUSED && (
           <button
             onClick={handleResume}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Play className="w-3.5 h-3.5" /> Resume
           </button>
@@ -246,19 +264,36 @@ export function SimulationControls() {
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
           <button
             onClick={requestStop}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
             <Square className="w-3.5 h-3.5" /> Stop
           </button>
         )}
+      </div>
+
+      {/* Utility row — overlay + pin, predictable placement */}
+      <div className="flex gap-2">
         <button
           onClick={toggleHeatmap}
-          className={`flex items-center justify-center px-2.5 py-2 text-xs rounded-xl transition-colors ${
+          className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors active:scale-95 ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
           title="Toggle Heatmap"
         >
           <Thermometer className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handlePin}
+          disabled={phase === SIMULATION_PHASE.IDLE}
+          className="relative shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95"
+          title={`${t('pinpoint.action.pin')} (P)`}
+        >
+          <Pin className="w-3.5 h-3.5" />
+          {pinCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background">
+              {pinCount}
+            </span>
+          )}
         </button>
       </div>
 

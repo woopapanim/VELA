@@ -13,6 +13,7 @@ import {
   Sparkles,
   Zap,
   FileText,
+  Pin,
 } from 'lucide-react';
 import type { InsightEntry } from '@/domain';
 import { TrendChart } from './TrendChart';
@@ -33,14 +34,18 @@ import { EngagementHistogram } from './EngagementHistogram';
 import { ExperienceQuality } from './ExperienceQuality';
 import { ZoneMediaPerformance } from './ZoneMediaPerformance';
 import { FlowVsExperience } from './FlowVsExperience';
+import { PinTimeline } from './PinTimeline';
+import { PinDetail } from './PinDetail';
+import { PinCompare } from './PinCompare';
 
-type AnalyticsTab = 'flow' | 'behavior' | 'experience' | 'action' | 'report';
+type AnalyticsTab = 'flow' | 'behavior' | 'experience' | 'action' | 'pin' | 'report';
 
 const TABS: { id: AnalyticsTab; label: string; icon: typeof GitBranch }[] = [
   { id: 'flow', label: 'Flow', icon: GitBranch },
   { id: 'behavior', label: 'Behavior', icon: Users },
   { id: 'experience', label: 'Experience', icon: Sparkles },
   { id: 'action', label: 'Action', icon: Zap },
+  { id: 'pin', label: 'Pin', icon: Pin },
   { id: 'report', label: 'Report', icon: FileText },
 ];
 
@@ -269,6 +274,14 @@ export function AnalyticsPanel() {
 
           <SensitivityPanel />
           <StatsDashboard />
+        </div>
+      )}
+
+      {tab === 'pin' && (
+        <div className="space-y-3">
+          <PinTimeline />
+          <PinCompare />
+          <PinDetail />
         </div>
       )}
 

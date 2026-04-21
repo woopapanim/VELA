@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '@/stores';
 import type { OverlayMode } from '@/stores';
+import { pinCurrentMoment } from '@/analytics';
 
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -42,6 +43,15 @@ export function useKeyboardShortcuts() {
         case 'l':
         case 'L': {
           store.toggleLabels();
+          break;
+        }
+        case 'p':
+        case 'P': {
+          const totalS = Math.max(0, Math.round(store.timeState.elapsed / 1000));
+          const mm = Math.floor(totalS / 60);
+          const ss = totalS % 60;
+          const label = `Pin @ ${mm}:${String(ss).padStart(2, '0')}`;
+          pinCurrentMoment(store, label);
           break;
         }
         case 'Escape': {

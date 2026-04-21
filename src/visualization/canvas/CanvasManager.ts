@@ -1,4 +1,4 @@
-import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig } from '@/domain';
+import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig, DensityGrid } from '@/domain';
 import type { OverlayMode, ShaftQueueSnapshot } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
@@ -43,6 +43,7 @@ export interface RenderState {
   floors?: readonly FloorConfig[];
   activeFloorId?: string | null;
   shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>;
+  densityGrids?: ReadonlyMap<string, DensityGrid>;
 }
 
 export class CanvasManager {
@@ -159,12 +160,6 @@ export class CanvasManager {
       renderGrid(ctx, canvasWidth, canvasHeight, state.gridSize, isDark, this.camera.x, this.camera.y, this.camera.zoom);
     }
 
-    // 2. Heatmap (below zones)
-    if (state.overlayMode === 'heatmap') {
-      this.heatmapRenderer.update(state.visitors, isDark);
-      this.heatmapRenderer.render(ctx, isDark);
-    }
-
     // Determine hidden floors (editor-only view filter — sim still ticks them).
     const hiddenFloorIds = new Set<string>();
     const hiddenZoneIds = new Set<string>();
@@ -202,7 +197,18 @@ export class CanvasManager {
     }
 
     // 3. Zones (with occupancy overlay)
-    renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom);
+    const activeFloor = state.floors?.find(f => f.id === state.activeFloorId) ?? state.floors?.[0];
+    const metersPerUnit = (activeFloor as any)?.canvas?.scale ?? 0.025;
+    renderZones(ctx, visibleZones, state.selectedZoneId, state.showLabels, isDark, state.visitors, this.camera.zoom, metersPerUnit);
+
+    // 3a. Heatmap — floor-wide cumulative dwell gradient, painted over zone
+    // fills so it isn't hidden by their translucent backgrounds. Sits below
+    // gates / waypoints / agents so those remain readable.
+    if (state.overlayMode === 'heatmap') {
+      const grids = state.densityGrids ? [...state.densityGrids.values()] : [];
+      this.heatmapRenderer.update(grids);
+      this.heatmapRenderer.render(ctx, grids, state.visitors, isDark, canvasWidth, canvasHeight);
+    }
 
     // 4. Gates (rendered relative to zone bounds for wall alignment)
     if (state.showGates) {
@@ -224,8 +230,10 @@ export class CanvasManager {
       renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
     }
 
-    // 5. Flow lines (between zones)
-    if (state.overlayMode === 'flow' || state.visitors.length > 0) {
+    // 5. Flow lines (between zones) — explicit overlay toggle only, so the
+    // "Show Flow" switch actually controls visibility instead of being
+    // overridden by the presence of live visitors.
+    if (state.overlayMode === 'flow') {
       renderFlowLines(ctx, visibleZones, state.visitors, isDark);
     }
 

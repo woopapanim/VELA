@@ -23,7 +23,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const addToast = useCallback((type: ToastType, message: string, duration = 4000) => {
     const id = ++_toastId;
-    setToasts((prev) => [...prev.slice(-4), { id, type, message, duration }]);
+    // Cap at 3 visible toasts so persistent bottleneck/milestone spam can't
+    // pile up and block the bottom-right corner of the UI.
+    setToasts((prev) => [...prev.slice(-2), { id, type, message, duration }]);
   }, []);
 
   const removeToast = useCallback((id: number) => {
