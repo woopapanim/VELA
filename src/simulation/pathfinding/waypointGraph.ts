@@ -153,16 +153,24 @@ export class WaypointNavigator {
     const mustOutstanding = !!mustVisit
       && (mustVisit.unvisitedZoneIds.size > 0 || mustVisit.unvisitedMediaIds.size > 0);
 
+    // 개인 관람 예산 초과 — 시나리오 크기와 독립적으로 정시 퇴장 유도.
+    // mustVisit 가 남았으면 여전히 보류 (히어로 우선 Tier 2 규칙과 동일).
+    const budgetExceeded = !mustOutstanding
+      && visitor.visitBudgetMs > 0
+      && now > 0
+      && (now - visitor.enteredAt) >= visitor.visitBudgetMs;
+
     // EXIT 진입 조건 체크
     const canExit = stuck
+      || budgetExceeded
       || (!mustOutstanding && (
         visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
         || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD
       ));
 
-    // Stuck 또는 canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
+    // Stuck/예산초과 또는 canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
     const allEssentialDone = visitedCount >= this.essentialCount;
-    if (stuck || (canExit && allEssentialDone)) {
+    if (stuck || budgetExceeded || (canExit && allEssentialDone)) {
       const exitFirstHop = this.findFirstHopToExit(currentNodeId);
       if (exitFirstHop) return exitFirstHop;
     }

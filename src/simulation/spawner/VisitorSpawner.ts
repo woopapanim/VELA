@@ -21,6 +21,11 @@ import {
   ENGAGEMENT_PATIENCE_MODIFIER,
   CATEGORY_CONFIGS,
   DEFAULT_CATEGORY_WEIGHTS,
+  DEFAULT_RECOMMENDED_DURATION_MS,
+  VISIT_BUDGET_PROFILE_MULT,
+  VISIT_BUDGET_ENGAGEMENT_MULT,
+  VISIT_BUDGET_JITTER_MIN,
+  VISIT_BUDGET_JITTER_MAX,
 } from '@/domain';
 import { VISITOR_ACTION, VISITOR_CATEGORY, STEERING_BEHAVIOR } from '@/domain';
 import type { SeededRandom } from '../utils/random';
@@ -75,11 +80,25 @@ function createProfile(
   };
 }
 
+function computeVisitBudget(
+  profile: VisitorProfile,
+  recommendedDurationMs: number,
+  rng: SeededRandom,
+): number {
+  const profileMult = VISIT_BUDGET_PROFILE_MULT[profile.type] ?? 1.0;
+  const engagementMult =
+    VISIT_BUDGET_ENGAGEMENT_MULT[profile.engagementLevel as keyof typeof VISIT_BUDGET_ENGAGEMENT_MULT] ?? 1.0;
+  const jitter = VISIT_BUDGET_JITTER_MIN + rng.next() * (VISIT_BUDGET_JITTER_MAX - VISIT_BUDGET_JITTER_MIN);
+  return recommendedDurationMs * profileMult * engagementMult * jitter;
+}
+
 export function spawnVisitor(
   profile: VisitorProfile,
   spawnPosition: Vector2D,
   spawnFloorId: FloorId,
   simTime: number,
+  rng: SeededRandom,
+  recommendedDurationMs: number = DEFAULT_RECOMMENDED_DURATION_MS,
   groupId?: GroupId,
   isLeader: boolean = false,
   category: VisitorCategory = VISITOR_CATEGORY.SOLO,
@@ -110,6 +129,7 @@ export function spawnVisitor(
     },
     waitStartedAt: null,
     enteredAt: simTime,
+    visitBudgetMs: computeVisitBudget(profile, recommendedDurationMs, rng),
     zoneEnteredAtMs: simTime,
     exitedAt: null,
     isActive: true,
@@ -133,6 +153,7 @@ export function generateSpawnBatch(
   spawnFloorId: FloorId,
   simTime: number,
   rng: SeededRandom,
+  recommendedDurationMs: number = DEFAULT_RECOMMENDED_DURATION_MS,
 ): SpawnBatch {
   const visitors: Visitor[] = [];
   const groups: VisitorGroup[] = [];
@@ -153,7 +174,7 @@ export function generateSpawnBatch(
         x: spawnPosition.x + rng.nextFloat(-10, 10),
         y: spawnPosition.y + rng.nextFloat(-10, 10),
       };
-      visitors.push(spawnVisitor(profile, offset, spawnFloorId, simTime, undefined, false, cat));
+      visitors.push(spawnVisitor(profile, offset, spawnFloorId, simTime, rng, recommendedDurationMs, undefined, false, cat));
       remaining -= 1;
 
     } else if (cat === VISITOR_CATEGORY.SMALL_GROUP) {
@@ -171,7 +192,7 @@ export function generateSpawnBatch(
           x: spawnPosition.x + rng.nextFloat(-15, 15),
           y: spawnPosition.y + rng.nextFloat(-15, 15),
         };
-        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, gid, i === 0, cat));
+        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, rng, recommendedDurationMs, gid, i === 0, cat));
       }
 
       const groupType = groupSize <= 2 ? 'pair' as const : 'small' as const;
@@ -204,7 +225,7 @@ export function generateSpawnBatch(
           x: spawnPosition.x + rng.nextFloat(-20, 20),
           y: spawnPosition.y + rng.nextFloat(-20, 20),
         };
-        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, gid, i === 0, cat));
+        members.push(spawnVisitor(profile, offset, spawnFloorId, simTime, rng, recommendedDurationMs, gid, i === 0, cat));
       }
 
       groups.push({

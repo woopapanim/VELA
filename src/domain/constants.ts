@@ -133,6 +133,28 @@ export const FATIGUE_ACTION_MULT = {
   idle:            0,
 } as const;
 
+// ---- Visit Budget ----
+// 개인 관람 예산 (visitor.visitBudgetMs) 계산. recommendedDuration × profile × engagement × jitter.
+export const DEFAULT_RECOMMENDED_DURATION_MS = 60 * 60_000; // 60분
+
+export const VISIT_BUDGET_PROFILE_MULT: Record<string, number> = {
+  general:  1.0,
+  vip:      1.2,  // thorough
+  child:    0.6,  // short attention
+  elderly:  1.0,
+  disabled: 1.0,
+};
+
+export const VISIT_BUDGET_ENGAGEMENT_MULT = {
+  quick:      0.6,
+  explorer:   1.0,
+  immersive:  1.4,
+} as const;
+
+// 지터 범위 (균등) — 같은 프로필 내에서도 개인차
+export const VISIT_BUDGET_JITTER_MIN = 0.85;
+export const VISIT_BUDGET_JITTER_MAX = 1.15;
+
 // ---- Patience by Profile (0-1) ----
 export const PATIENCE_VALUES: Record<string, number> = {
   general: 0.5,

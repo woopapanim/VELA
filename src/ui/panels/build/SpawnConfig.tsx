@@ -33,6 +33,7 @@ export function SpawnConfig() {
   if (!scenario) return null;
 
   const durationMin = Math.floor((config?.duration ?? 0) / 60000);
+  const recommendedMin = Math.floor((config?.recommendedDurationMs ?? 60 * 60_000) / 60000);
   const slotsCount = config?.timeSlots?.length ?? 0;
   const isMultiSlot = slotsCount > 1;
   // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
@@ -94,6 +95,13 @@ export function SpawnConfig() {
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
+          />
+          <NumField
+            label="Rec. Stay (min)"
+            value={recommendedMin}
+            onChange={(v) => updateConfig('recommendedDurationMs', Math.max(5, v) * 60000)}
+            disabled={isLocked}
+            step={5}
           />
           <div>
             <NumField

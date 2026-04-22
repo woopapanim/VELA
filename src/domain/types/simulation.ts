@@ -22,6 +22,8 @@ export interface SimulationConfig {
   readonly physics: PhysicsConfig;
   readonly skipThreshold: SkipThreshold;
   readonly timeSlots: readonly TimeSlotConfig[];
+  // 권장 관람 시간 — visitor.visitBudgetMs 계산의 기준. 미지정 시 DEFAULT_RECOMMENDED_DURATION_MS.
+  readonly recommendedDurationMs?: number;
 }
 
 // ---- Time State (Fixed Timestep with accumulator) ----

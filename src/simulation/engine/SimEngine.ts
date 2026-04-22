@@ -747,7 +747,7 @@ export class SimulationEngine {
           categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
         };
         const nodeFloorId = (entryNode.floorId as string) || this._defaultFloorId;
-        const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng);
+        const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng, this.world.config.recommendedDurationMs);
         // Deduct actual spawned count from accumulator (groups spawn multiple)
         this.spawnAccumulator -= batch.visitors.length;
         // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
@@ -801,7 +801,7 @@ export class SimulationEngine {
         categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
       };
       const gate = spawnZone.gates[0];
-      const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng);
+      const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng, this.world.config.recommendedDurationMs);
       this.spawnAccumulator -= batch.visitors.length;
       for (const v of batch.visitors) {
         const spawned: Visitor = {

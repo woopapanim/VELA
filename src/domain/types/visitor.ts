@@ -120,6 +120,8 @@ export interface Visitor {
   readonly steering: SteeringState;
   readonly waitStartedAt: number | null;
   readonly enteredAt: number;
+  // 개인 관람 예산 — (now - enteredAt) >= visitBudgetMs 면 canExit. recommendedDuration × profile/engagement/지터.
+  readonly visitBudgetMs: number;
   readonly zoneEnteredAtMs: number;          // elapsed ms when the current zone was entered (for dwell)
   readonly exitedAt: number | null;          // elapsed ms when isActive became false
   readonly isActive: boolean;
