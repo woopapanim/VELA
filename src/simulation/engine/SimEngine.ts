@@ -145,6 +145,26 @@ export class SimulationEngine {
   // key: visitorId. value.targetMediaId 가 바뀌면 타이머 리셋.
   private _movingSince = new Map<string, { startMs: number; targetMediaId: string | null }>();
 
+  // ---- Diagnostics: cumulative stuck counters (Phase 1 B 진단) ----
+  // MOVING_TIMEOUT 발화 시 mediaId / zoneId / interactionType 별 누적 카운트.
+  // diagnoseCongestion() 로 덤프. 정상 플로우 성능에 영향 없음.
+  private _stuckByMedia = new Map<string, number>();
+  private _stuckByZone = new Map<string, number>();
+  private _stuckByIntType = new Map<string, number>();
+
+  // ---- Diagnostics: per-exit context (조기이탈 원인 분석) ----
+  // 에이전트가 isActive=false 가 될 때마다 1 entry 추가. diagnoseEarlyExit() 로 덤프.
+  private _exitLog: Array<{
+    visitorId: string;
+    zonesVisited: number;
+    mediaVisited: number;
+    fatigue: number;
+    totalDwellMs: number;
+    lastZoneId: string | null;
+    exitNodeId: string | null;
+    exitedAtMs: number;
+  }> = [];
+
   // group caches (rebuilt each tick)
   private groupMemberPositions = new Map<string, Vector2D[]>();
   private tourLeaders: { position: Vector2D; radius: number }[] = [];
@@ -292,6 +312,140 @@ export class SimulationEngine {
   getSpawnByNode(): ReadonlyMap<string, number> { return this._spawnByNode; }
   getExitByNode(): ReadonlyMap<string, number> { return this._exitByNode; }
   getMediaStats(): Map<string, { watchCount: number; skipCount: number; waitCount: number; totalWatchMs: number; totalWaitMs: number; peakViewers: number }> { return this._mediaStats; }
+
+  /**
+   * Phase 1 B 진단 — CONGESTED / MOVING timeout 상태 집계.
+   * 호출 시점 active visitors 중 (MOVING + speed < 5) 을 타겟 미디어/존별로 묶고,
+   * 시뮬 전체 누적 MOVING_TIMEOUT 발화 통계도 함께 반환한다.
+   * 콘솔에서: window.__simEngine.diagnoseCongestion()
+   */
+  diagnoseCongestion(): {
+    liveCongested: Array<{
+      mediaId: string; mediaName: string; intType: string;
+      count: number; avgDistPx: number; zones: string[];
+    }>;
+    cumulativeTimeouts: {
+      byMedia: Array<{ mediaId: string; mediaName: string; count: number }>;
+      byZone: Array<{ zoneId: string; zoneName: string; count: number }>;
+      byIntType: Record<string, number>;
+      total: number;
+    };
+  } {
+    const byMedia = new Map<string, {
+      count: number; sumDist: number;
+      zoneIds: Set<string>; mediaName: string; intType: string;
+    }>();
+    for (const v of this.state.visitors.values()) {
+      if (!v.isActive || v.currentAction !== VISITOR_ACTION.MOVING) continue;
+      const speed = Math.hypot(v.velocity.x, v.velocity.y);
+      if (speed >= 5) continue;
+      const key = (v.targetMediaId as string) ?? '__noMedia__';
+      const media = v.targetMediaId ? this.world.media.find(m => m.id === v.targetMediaId) : null;
+      const entry = byMedia.get(key) ?? {
+        count: 0, sumDist: 0, zoneIds: new Set<string>(),
+        mediaName: media?.name ?? '(no media target)',
+        intType: (media as any)?.interactionType ?? '-',
+      };
+      entry.count++;
+      if (v.targetPosition) {
+        entry.sumDist += Math.hypot(v.position.x - v.targetPosition.x, v.position.y - v.targetPosition.y);
+      }
+      if (v.currentZoneId) entry.zoneIds.add(v.currentZoneId as string);
+      byMedia.set(key, entry);
+    }
+    const liveCongested = Array.from(byMedia.entries())
+      .map(([mediaId, e]) => ({
+        mediaId, mediaName: e.mediaName, intType: e.intType,
+        count: e.count,
+        avgDistPx: e.count > 0 ? Math.round(e.sumDist / e.count) : 0,
+        zones: Array.from(e.zoneIds),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const byMediaCum = Array.from(this._stuckByMedia.entries())
+      .map(([mediaId, count]) => ({
+        mediaId,
+        mediaName: this.world.media.find(m => m.id === mediaId)?.name ?? mediaId,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+    const byZoneCum = Array.from(this._stuckByZone.entries())
+      .map(([zoneId, count]) => ({
+        zoneId,
+        zoneName: this.world.zones.find(z => z.id === zoneId)?.name ?? zoneId,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+    const byIntType: Record<string, number> = {};
+    for (const [k, v] of this._stuckByIntType) byIntType[k] = v;
+    const total = Array.from(this._stuckByMedia.values()).reduce((s, n) => s + n, 0);
+
+    return {
+      liveCongested,
+      cumulativeTimeouts: { byMedia: byMediaCum, byZone: byZoneCum, byIntType, total },
+    };
+  }
+
+  /**
+   * 조기이탈 원인 분석 — 퇴장한 모든 방문자를 zonesVisited 버킷으로 묶어
+   * 평균 피로도 / 평균 체류 / 마지막 존 / 엑싯 노드 분포를 반환한다.
+   * 콘솔에서: window.__simEngine.diagnoseEarlyExit()
+   */
+  diagnoseEarlyExit(): {
+    total: number;
+    buckets: Array<{
+      label: string;
+      range: [number, number];
+      count: number;
+      pct: number;
+      avgFatigue: number;
+      avgMediaVisited: number;
+      avgDwellMin: number;
+      lastZoneDist: Array<{ zoneId: string; zoneName: string; count: number }>;
+      exitNodeDist: Array<{ nodeId: string; count: number }>;
+    }>;
+    raw?: typeof this._exitLog;
+  } {
+    const log = this._exitLog;
+    const total = log.length;
+    const defs: Array<{ label: string; range: [number, number] }> = [
+      { label: '0 zones (즉시 이탈)', range: [0, 0] },
+      { label: '1-2 zones (조기 이탈)', range: [1, 2] },
+      { label: '3-4 zones (부분)', range: [3, 4] },
+      { label: '5+ zones (완주)', range: [5, Infinity] },
+    ];
+    const buckets = defs.map(({ label, range }) => {
+      const entries = log.filter(e => e.zonesVisited >= range[0] && e.zonesVisited <= range[1]);
+      const count = entries.length;
+      const avg = (sel: (e: typeof log[number]) => number) =>
+        count > 0 ? entries.reduce((s, e) => s + sel(e), 0) / count : 0;
+      const zoneCounts = new Map<string, number>();
+      const nodeCounts = new Map<string, number>();
+      for (const e of entries) {
+        const zKey = e.lastZoneId ?? '(none)';
+        zoneCounts.set(zKey, (zoneCounts.get(zKey) ?? 0) + 1);
+        if (e.exitNodeId) nodeCounts.set(e.exitNodeId, (nodeCounts.get(e.exitNodeId) ?? 0) + 1);
+      }
+      return {
+        label, range, count,
+        pct: total > 0 ? Math.round((count / total) * 1000) / 10 : 0,
+        avgFatigue: Math.round(avg(e => e.fatigue) * 100) / 100,
+        avgMediaVisited: Math.round(avg(e => e.mediaVisited) * 10) / 10,
+        avgDwellMin: Math.round(avg(e => e.totalDwellMs) / 6000) / 10,
+        lastZoneDist: Array.from(zoneCounts.entries())
+          .map(([zoneId, count]) => ({
+            zoneId,
+            zoneName: this.world.zones.find(z => z.id === zoneId)?.name ?? zoneId,
+            count,
+          }))
+          .sort((a, b) => b.count - a.count),
+        exitNodeDist: Array.from(nodeCounts.entries())
+          .map(([nodeId, count]) => ({ nodeId, count }))
+          .sort((a, b) => b.count - a.count),
+      };
+    });
+    return { total, buckets };
+  }
 
   /**
    * Snapshot per-floor cumulative density grids (visitor-seconds per cell).
@@ -843,6 +997,15 @@ export class SimulationEngine {
         const MOVING_TIMEOUT_MS = 30_000;
         if (age > MOVING_TIMEOUT_MS) {
           this.recordSkip(tMid, age, v.currentZoneId as string | null);
+          // Diagnostics: tally stuck events by media / zone / intType.
+          this._stuckByMedia.set(tMid, (this._stuckByMedia.get(tMid) ?? 0) + 1);
+          if (v.currentZoneId) {
+            const zKey = v.currentZoneId as string;
+            this._stuckByZone.set(zKey, (this._stuckByZone.get(zKey) ?? 0) + 1);
+          }
+          const mediaObj = this.world.media.find(m => m.id === tMid);
+          const intType = (mediaObj as any)?.interactionType ?? 'passive';
+          this._stuckByIntType.set(intType, (this._stuckByIntType.get(intType) ?? 0) + 1);
           this._movingSince.delete(vid);
           const skippedMediaIds = v.visitedMediaIds.includes(v.targetMediaId)
             ? v.visitedMediaIds
@@ -924,6 +1087,7 @@ export class SimulationEngine {
       if (v.currentZoneId) {
         recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
       }
+      this.recordExitContext(v, null, now);
       return { ...v, isActive: false, exitedAt: now };
     }
 
@@ -2430,6 +2594,7 @@ export class SimulationEngine {
     if (v.currentZoneId) {
       recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
     }
+    this.recordExitContext(v, xid, now);
     return {
       ...v,
       currentAction: VISITOR_ACTION.EXITING,
@@ -2437,6 +2602,20 @@ export class SimulationEngine {
       isActive: false,
       exitedAt: now,
     };
+  }
+
+  /** 에이전트 exit 시점의 컨텍스트 기록 — 조기이탈 원인 분석용. */
+  private recordExitContext(v: Visitor, exitNodeId: string | null, nowMs: number) {
+    this._exitLog.push({
+      visitorId: v.id as string,
+      zonesVisited: v.visitedZoneIds.length,
+      mediaVisited: v.visitedMediaIds.length,
+      fatigue: v.fatigue,
+      totalDwellMs: Math.max(0, nowMs - v.enteredAt),
+      lastZoneId: (v.currentZoneId as string | null) ?? null,
+      exitNodeId,
+      exitedAtMs: nowMs,
+    });
   }
 
   /** Graph mode: visitor arrived at target node */

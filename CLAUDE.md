@@ -53,19 +53,22 @@ domain ← simulation ← stores → analytics
 - flowType: free/guided/one_way
 - 전역 동선: sequential/free/hybrid (guidedUntilIndex)
 
-## 알려진 이슈 (2026-04-13 기준)
+## 알려진 이슈 (2026-04-22 기준)
 
-### 핵심 버그: Transit 중 벽 통과
-- **근본 원인**: transit 상태(`currentZoneId = null`)일 때 `stepCollision`에서 zone 벽 충돌을 안 함
-- 코드 주석: "Transit: agent follows waypoints freely" — waypoint 경로만 믿고 벽 무시
-- **결과**: waypoint가 zone을 관통하면 에이전트도 벽을 뚫고 지나감
-- **올바른 해결**: transit 에이전트도 모든 zone 벽과 충돌해야 함. gate 위치에서만 통과 허용.
-- 이건 waypoint 경로 최적화(gapY 등)로 해결할 문제가 아님 → **물리 충돌 레이어에서 해결**
-- 관련 코드: `SimEngine.ts` `stepCollision` 메서드, `getZonePolygon`/`getZoneWalls` (transit.ts)
+### 해결된 과거 이슈 (참고)
+- **Transit 중 벽 통과** → `766be73` 에서 수정. `stepCollision` transit 분기가 src/dst 제외 zone 에 대해 `pushOutsidePolygon` 수행 (line ~3071).
+  - 단 src/dst zone 내부 벽 관통 엣지 케이스는 남아있을 수 있음. 현재 관찰되는 증상 없음.
+- **0개 존 이탈 42%** → `675ae2b` + `11cd07e` 에서 polygon fallback + media-zone auto-credit 추가로 0% 로 해결.
+- **아날로그 슬롯 오버랩** → `f273cbf` 에서 nearest-free + margin 8 으로 해결.
 
-### 수정 완료 (uncommitted)
-- **게이트 드래그**: sim 후 카메라 좌표 캐시로 해결 (`CanvasPanel.tsx`)
-- **Occupancy 게이지**: currentZoneId → 위치 기반 bounds 체크 (`ZoneRenderer.ts`)
+### 현재 진행 중 이슈
+- **조기이탈 45%** (1-2개 존만 보고 exit) — 최우선 과제. 원인 데이터 수집 필요.
+- **스킵률 48%** — active 미디어(touch table, hands on model, interaction media) 에 집중. 2× cap 만으로 해결 안 됨.
+- **Entry/Exit 64:36 불균형** — 스폰 가중치 or 근접 exit 선택 로직 점검 필요.
+- **MOVING timeout 누적 95건** — active=53, staged=나머지. 라이브 CONGESTED 는 ~0 이므로 치명적은 아님.
+
+### 진단 도구
+- `window.__simEngine.diagnoseCongestion()` — 라이브 CONGESTED + 누적 timeout 집계.
 
 ## 구현 상태
 | 기능 | 상태 |

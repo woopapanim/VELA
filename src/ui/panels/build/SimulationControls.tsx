@@ -78,6 +78,7 @@ export function SimulationControls() {
     engineRef.current = engine;
     (engine as any).world.globalFlowMode = flowMode;
     (engine as any).world.guidedUntilIndex = guidedIdx;
+    if (typeof window !== 'undefined') (window as any).__simEngine = engine;
     setSpeed(store.scenario.simulationConfig.timeScale ?? 1);
 
     // ── Simulation loop — onTick handles UI updates only ──
