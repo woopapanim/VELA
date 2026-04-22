@@ -77,6 +77,7 @@ export interface ZoneConfig {
   readonly mediaIds: readonly MediaId[];
   readonly color: HexColor;
   readonly attractiveness: number; // 0-1
+  readonly mustVisit?: boolean; // true=히어로존, 모든 관람객이 반드시 방문해야 함 (피로 무시)
   readonly gatewayMode?: GatewayMode; // gateway zones only: spawn/exit/both
   readonly metadata: Readonly<Record<string, unknown>>;
 }

@@ -1,12 +1,57 @@
 import type {
   Visitor,
+  VisitorProfileType,
+  EngagementLevel,
   ZoneConfig,
   MediaPlacement,
   MediaId,
   ZoneId,
 } from '@/domain';
-import { ENGAGEMENT_LEVEL, MEDIA_PRESETS } from '@/domain';
+import { ENGAGEMENT_LEVEL, MEDIA_PRESETS, VISITOR_PROFILE_TYPE } from '@/domain';
 import type { SeededRandom } from '../utils/random';
+
+// ---- mustVisit dwell modifier matrix ----
+// 필수 관람 대상은 피로·대기 무시하고 전원 방문하지만, 체류 질은 프로필/피로에 따라 차등.
+// 반환값: base avgEngagementTimeMs에 곱할 배수 (이미 computeEngagementDuration의 fatigue 감쇄를 대체).
+// Fresh (fatigue≤0.3) → Normal (0.3<fatigue≤0.7) → Drained (fatigue>0.7) 3단계 보간.
+export function mustVisitDwellMultiplier(
+  profile: VisitorProfileType,
+  engagement: EngagementLevel,
+  fatigue: number,
+): number {
+  const freshEnd = 0.3;
+  const drainEnd = 0.7;
+  const t = fatigue <= freshEnd
+    ? 0
+    : fatigue >= drainEnd
+      ? 1
+      : (fatigue - freshEnd) / (drainEnd - freshEnd);
+
+  // [fresh, drained] per axis; engagement takes precedence over profile when set.
+  let fresh = 1.0, drained = 0.6; // general default
+  if (engagement === ENGAGEMENT_LEVEL.IMMERSIVE) { fresh = 1.0; drained = 0.9; }
+  else if (engagement === ENGAGEMENT_LEVEL.QUICK) { fresh = 0.8; drained = 0.4; }
+  else if (engagement === ENGAGEMENT_LEVEL.EXPLORER) { fresh = 1.0; drained = 0.6; }
+
+  // Profile override only for demographics that dominate engagement in reality.
+  if (profile === VISITOR_PROFILE_TYPE.VIP) { fresh = 1.0; drained = 0.9; }
+  else if (profile === VISITOR_PROFILE_TYPE.CHILD) { fresh = 0.7; drained = 0.3; }
+  else if (profile === VISITOR_PROFILE_TYPE.ELDERLY || profile === VISITOR_PROFILE_TYPE.DISABLED) {
+    fresh = 1.0; drained = 0.5;
+  }
+
+  return fresh * (1 - t) + drained * t;
+}
+
+// ---- mustVisit candidate filter ----
+// 후보 중 mustVisit+미방문이 하나라도 있으면 그것들로만 좁힘. 없으면 원본 반환.
+export function filterMustVisitCandidates<T extends { id: any; mustVisit?: boolean }>(
+  candidates: readonly T[],
+  visitedIds: ReadonlySet<string>,
+): readonly T[] {
+  const must = candidates.filter(c => c.mustVisit && !visitedIds.has(c.id as string));
+  return must.length > 0 ? must : candidates;
+}
 
 // ---- Decide next target zone based on engagement profile ----
 export function selectNextZone(
@@ -27,7 +72,10 @@ export function selectNextZone(
     (z) => !visited.has(z.id as string) &&
            z.type !== 'entrance' &&
            (z.type !== 'exit' || allExhibitionsVisited),
-  );
+  ) as ZoneConfig[];
+
+  // mustVisit 우선 — 히어로 존이 남아있으면 그것만 후보로
+  candidates = filterMustVisitCandidates(candidates, visited) as ZoneConfig[];
 
   if (candidates.length === 0) {
     // All exhibition zones visited → head to Exit
@@ -63,7 +111,10 @@ export function selectNextMedia(
   rng: SeededRandom,
 ): MediaId | null {
   const visitedMedia = new Set(visitor.visitedMediaIds.map((m) => m as string));
-  const candidates = zoneMedia.filter((m) => !visitedMedia.has(m.id as string));
+  let candidates = zoneMedia.filter((m) => !visitedMedia.has(m.id as string));
+
+  // mustVisit 우선 — 히어로 미디어가 이 존에 남아있으면 그것만 후보로
+  candidates = filterMustVisitCandidates(candidates, visitedMedia) as MediaPlacement[];
 
   if (candidates.length === 0) return null;
 
@@ -136,7 +187,18 @@ export function computeEngagementDuration(
   engagementLevel: string,
   fatigue: number,
   rng: SeededRandom,
+  opts?: { mustVisit?: boolean; profile?: VisitorProfileType },
 ): number {
+  // mustVisit 대상: 프로필×피로 dwell 매트릭스 사용 (Tier 2).
+  // 일반 fatigue 감쇄 경로를 타지 않고 결정적 테이블로 체류 질을 표현.
+  if (opts?.mustVisit) {
+    const profile = opts.profile ?? VISITOR_PROFILE_TYPE.GENERAL;
+    const mult = mustVisitDwellMultiplier(profile, engagementLevel as EngagementLevel, fatigue);
+    // 약간의 랜덤 지터 (±10%)로 동시 종료 방지
+    const jitter = 0.9 + rng.next() * 0.2;
+    return baseTimeMs * mult * jitter;
+  }
+
   let multiplier = 1.0;
 
   if (engagementLevel === ENGAGEMENT_LEVEL.QUICK) {

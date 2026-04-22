@@ -34,6 +34,24 @@ export function SpawnConfig() {
 
   const durationMin = Math.floor((config?.duration ?? 0) / 60000);
   const slotsCount = config?.timeSlots?.length ?? 0;
+  const isMultiSlot = slotsCount > 1;
+  // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
+  const rateRps = config?.timeSlots?.[0]?.spawnRatePerSecond ?? dist?.spawnRatePerSecond ?? 2;
+
+  const updateSpawnRatePerMin = (vPerMin: number) => {
+    if (!scenario || isLocked || isMultiSlot) return;
+    const rps = vPerMin / 60;
+    setScenario({
+      ...scenario,
+      visitorDistribution: { ...scenario.visitorDistribution, spawnRatePerSecond: rps },
+      simulationConfig: {
+        ...scenario.simulationConfig,
+        timeSlots: scenario.simulationConfig.timeSlots.map((s, i) =>
+          i === 0 ? { ...s, spawnRatePerSecond: rps } : s
+        ),
+      },
+    });
+  };
 
   return (
     <div>
@@ -51,17 +69,26 @@ export function SpawnConfig() {
           />
           <NumField
             label="Max Concurrent"
-            value={config?.maxVisitors ?? 500}
-            onChange={(v) => updateConfig('maxVisitors', v)}
+            // Clamp displayed value to Total — Max > Total is a dead setting
+            // (cumulative cap fires first). Intermediate keystrokes on Total
+            // would corrupt the stored Max, so we only clamp for display and
+            // on-commit here, not by rewriting maxVisitors when Total changes.
+            value={Math.min(config?.maxVisitors ?? 500, dist?.totalCount ?? 500)}
+            onChange={(v) => updateConfig('maxVisitors', Math.min(v, dist?.totalCount ?? v))}
             disabled={isLocked}
           />
-          <NumField
-            label="Spawn Rate /min"
-            value={(dist?.spawnRatePerSecond ?? 2) * 60}
-            onChange={(v) => updateDist('spawnRatePerSecond', v / 60)}
-            disabled={isLocked}
-            step={10}
-          />
+          <div>
+            <NumField
+              label={isMultiSlot ? 'Spawn Rate /min (multi-slot)' : 'Spawn Rate /min'}
+              value={Math.round(rateRps * 60 * 10) / 10}
+              onChange={updateSpawnRatePerMin}
+              disabled={isLocked || isMultiSlot}
+              step={1}
+            />
+            {isMultiSlot && (
+              <p className="text-[8px] text-muted-foreground mt-0.5">Edit in Time Slots</p>
+            )}
+          </div>
           <NumField
             label="Duration (min)"
             value={durationMin}

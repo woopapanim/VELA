@@ -49,7 +49,7 @@ import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
 import { ZoneGraph } from '../pathfinding/navigation';
 import { WaypointNavigator } from '../pathfinding/waypointGraph';
-import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration } from '../behavior/EngagementBehavior';
+import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration, filterMustVisitCandidates } from '../behavior/EngagementBehavior';
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 import { distance } from '../utils/math';
@@ -215,6 +215,10 @@ export class SimulationEngine {
     // actual zone bbox so saved scenarios with stale/wrong bounds still
     // produce a grid that covers where visitors actually walk.
     const CELL_PX = 24;
+    // Reparent orphan zones (undefined/mismatched floorId) onto the default
+    // floor so the grid covers where visitors actually walk. Prevents silent
+    // heatmap no-ops when zones were built without floorId tagging.
+    const floorIdSet = new Set(world.floors.map(f => f.id as string));
     for (const floor of world.floors) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       if (floor.bounds) {
@@ -222,8 +226,11 @@ export class SimulationEngine {
         maxX = floor.bounds.x + floor.bounds.w;
         maxY = floor.bounds.y + floor.bounds.h;
       }
+      const isDefaultFloor = (floor.id as string) === this._defaultFloorId;
       for (const z of world.zones) {
-        if (z.floorId !== floor.id) continue;
+        const zFid = z.floorId as string;
+        const belongs = zFid === floor.id || (isDefaultFloor && !floorIdSet.has(zFid));
+        if (!belongs) continue;
         minX = Math.min(minX, z.bounds.x);
         minY = Math.min(minY, z.bounds.y);
         maxX = Math.max(maxX, z.bounds.x + z.bounds.w);
@@ -745,7 +752,8 @@ export class SimulationEngine {
           const intType = (media as any).interactionType ?? 'passive';
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           const stagedOpen = intType !== 'staged' || this.isStagedSessionOpen(mid);
-          if (viewerCount < media.capacity && stagedOpen) {
+          const cap = this.effectiveMediaCapacity(media);
+          if (viewerCount < cap && stagedOpen) {
             this._tickMediaViewers.set(mid, viewerCount + 1);
             // Record: wait ended, watch started
             if (v.waitStartedAt) {
@@ -753,7 +761,7 @@ export class SimulationEngine {
               this.ensureMediaStats(mid).totalWaitMs += waitMs;
             }
             this.recordWatchStart(mid, v.id as string);
-            let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+            let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
             dur = this.applyGroupDwell(v, dur);
             this.engagementTimers.set(v.id as string, dur);
             const watchPos = (intType === 'analog')
@@ -772,11 +780,12 @@ export class SimulationEngine {
       // Skip check
       const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
       const { skipThreshold } = this.world.config;
-      const attr = v.targetMediaId
-        ? (this.world.media.find(m => m.id === v.targetMediaId)?.attractiveness ?? 0.5)
-        : 0.5;
+      const targetMedia = v.targetMediaId ? this.world.media.find(m => m.id === v.targetMediaId) : null;
+      const attr = targetMedia?.attractiveness ?? 0.5;
       const catSkipMod = getCategorySkipMod(v.category);
-      if (shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+      // mustVisit은 대기 skip 금지 — 지쳐도 끝까지 기다림 (Tier 2).
+      const isMust = !!(targetMedia as any)?.mustVisit;
+      if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
         // Record skip
         if (v.targetMediaId) this.recordSkip(v.targetMediaId as string, waitMs, v.currentZoneId as string | null);
         // Mark skipped media as visited so it won't be picked again
@@ -924,7 +933,8 @@ export class SimulationEngine {
           // Already waiting — check skip
           const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
           const { skipThreshold } = this.world.config;
-          if (shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+          const isMust = !!(media as any).mustVisit;
+          if (!isMust && shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
             this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
             return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
               visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, targetPosition: null, waitStartedAt: null });
@@ -936,24 +946,35 @@ export class SimulationEngine {
           // ── ANALOG: close-up viewing with soft capacity ──
           // Soft cap: auto-derived from physical viewing area (perimeter-based)
           // 4 sides × media size / 0.8 m² per person (or explicit capacity if set)
-          const pwM = media.size.width, phM = media.size.height;
-          const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
-          const softCap = Math.max(media.capacity || 0, autoCap);
+          const softCap = this.effectiveMediaCapacity(media);
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= softCap) {
-            // Over soft cap — skip this media, pick next target
-            this.recordSkip(mid, 0, v.currentZoneId as string | null);
-            return this.assignNextTarget({
-              ...v,
-              currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
-              targetMediaId: null,
-              targetPosition: null,
-            });
+            // Over soft cap — enter brief queue, patience decides.
+            if (!v.waitStartedAt) {
+              this.recordWaitStart(mid);
+              return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+            }
+            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
+            const { skipThreshold } = this.world.config;
+            const catSkipMod = getCategorySkipMod(v.category);
+            // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
+            const isMust = !!(media as any).mustVisit;
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+              this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              return this.assignNextTarget({
+                ...v,
+                currentAction: VISITOR_ACTION.IDLE,
+                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+                targetMediaId: null,
+                targetPosition: null,
+                waitStartedAt: null,
+              });
+            }
+            return v; // keep waiting
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           // Position: 이미 targetPosition (예약된 slot) 에 도착한 상태 — 덮어쓰지 않음
@@ -967,18 +988,32 @@ export class SimulationEngine {
           // targetPosition 불변 조건: 에이전트는 이미 정확한 viewpoint 에 도착해 있음.
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           if (viewerCount >= media.capacity) {
-            this.recordSkip(mid, 0, v.currentZoneId as string | null);
-            return this.assignNextTarget({
-              ...v,
-              currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
-              targetMediaId: null,
-              targetPosition: null,
-            });
+            // Over cap — enter brief queue, patience decides.
+            if (!v.waitStartedAt) {
+              this.recordWaitStart(mid);
+              return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
+            }
+            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
+            const { skipThreshold } = this.world.config;
+            const catSkipMod = getCategorySkipMod(v.category);
+            // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
+            const isMust = !!(media as any).mustVisit;
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+              this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              return this.assignNextTarget({
+                ...v,
+                currentAction: VISITOR_ACTION.IDLE,
+                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
+                targetMediaId: null,
+                targetPosition: null,
+                waitStartedAt: null,
+              });
+            }
+            return v; // keep waiting
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           return {
@@ -1006,7 +1041,9 @@ export class SimulationEngine {
             const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
             const { skipThreshold } = this.world.config;
             const catSkipMod = getCategorySkipMod(v.category);
-            if (shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+            // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
+            const isMust = !!(media as any).mustVisit;
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               return this.assignNextTarget({
                 ...v,
@@ -1027,7 +1064,7 @@ export class SimulationEngine {
             this.ensureMediaStats(mid).totalWaitMs += waitMs;
           }
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng);
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
 
@@ -1252,12 +1289,20 @@ export class SimulationEngine {
     return Math.max(1, m.capacity || 1);
   }
 
-  /** Filter media candidates to those with free capacity (viewers + en-route targeters). */
+  /** Filter media candidates to those with free capacity (viewers + en-route targeters).
+   * All interaction types now queue on arrival (patience-gated skip in stepBehavior),
+   * so we allow arrival up to 1.5× cap for passive/analog to let brief queues form
+   * without pile-up. Active/staged have no cap here — they always allow queueing.
+   */
   private filterAvailableMedia(zMedia: readonly MediaPlacement[]): MediaPlacement[] {
     return zMedia.filter(m => {
+      const intType = (m as any).interactionType ?? 'passive';
+      if (intType === 'active' || intType === 'staged') return true;
       const mid = m.id as string;
       const occ = this._tickMediaTargeters.get(mid) ?? 0;
-      return occ < this.effectiveMediaCapacity(m);
+      const cap = this.effectiveMediaCapacity(m);
+      // Allow up to 50% queue slack so passive/analog can form brief waits.
+      return occ < Math.ceil(cap * 1.5);
     });
   }
 
@@ -1863,8 +1908,9 @@ export class SimulationEngine {
     }
 
     // 2. Exhausted → head to last zone
+    // mustVisit (히어로) 대상이 남았으면 피로해도 exit 보류 (Tier 2).
     const allMiddleDone = middleZones.length === 0 || middleZones.every(z => visitedMiddleSet.has(z.id as string));
-    if (!isSeq && v.fatigue > 0.9 && !isInLastZone && allMiddleDone) {
+    if (!isSeq && v.fatigue > 0.9 && !isInLastZone && allMiddleDone && !this.hasUnvisitedMustVisit(v)) {
       return this.setExitTarget(v, exitZone);
     }
 
@@ -1914,6 +1960,22 @@ export class SimulationEngine {
       ...v, currentAction: VISITOR_ACTION.MOVING,
       steering: { ...v.steering, activeBehavior: STEERING_BEHAVIOR.WANDER },
     };
+  }
+
+  /**
+   * mustVisit (히어로) 대상 중 아직 미방문이 남아있는지 — Tier 2 게이팅의 핵심 조건.
+   * true면 fatigue 기반 exit / 미디어 skip / 강제 종료 로직을 모두 보류해야 한다.
+   */
+  private hasUnvisitedMustVisit(v: Visitor): boolean {
+    const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
+    for (const z of this.world.zones) {
+      if ((z as any).mustVisit && !visitedZ.has(z.id as string)) return true;
+    }
+    const visitedM = new Set(v.visitedMediaIds.map(m => m as string));
+    for (const m of this.world.media) {
+      if ((m as any).mustVisit && !visitedM.has(m.id as string)) return true;
+    }
+    return false;
   }
 
   /** Helper: set a zone as the agent's movement target */
@@ -2004,16 +2066,18 @@ export class SimulationEngine {
       }
 
       // In exit zone + media done → walk off-canvas
-      if (isInExitZone) {
+      // mustVisit (히어로) 대상이 남았으면 exit 보류 — 다시 다른 존으로 유도 (Tier 2).
+      if (isInExitZone && !this.hasUnvisitedMustVisit(v)) {
         return this.beginExit(v, curZone);
       }
     }
 
     // 2. Exhausted → head to nearest exit zone
+    // mustVisit (히어로) 대상이 남았으면 피로해도 exit 보류 (Tier 2).
     const exitZones = this.world.zones.filter(z =>
       z.type === 'exit' || (z.type === 'gateway' && (z.gatewayMode ?? 'both') !== 'spawn')
     );
-    if (v.fatigue > 0.9 && !isInExitZone && exitZones.length > 0) {
+    if (v.fatigue > 0.9 && !isInExitZone && exitZones.length > 0 && !this.hasUnvisitedMustVisit(v)) {
       const nearest = this.findNearestZone(v.position, exitZones);
       if (nearest) return this.setExitTarget(v, nearest);
     }
@@ -2033,14 +2097,16 @@ export class SimulationEngine {
         .filter((z): z is ZoneConfig => !!z && z.type !== 'entrance' && z.type !== 'gateway' && z.type !== 'corridor');
 
       if (unvisitedReachable.length > 0) {
+        // mustVisit (히어로) 존이 후보에 있으면 그것만 남김 — 가중 랜덤 단계를 건너뜀.
+        const pool = filterMustVisitCandidates(unvisitedReachable, visitedSet) as ZoneConfig[];
         // Weighted random by attractiveness
-        const totalAttr = unvisitedReachable.reduce((s, z) => s + (z.attractiveness ?? 0.5), 0);
+        const totalAttr = pool.reduce((s, z) => s + (z.attractiveness ?? 0.5), 0);
         let roll = this.rng.next() * totalAttr;
-        for (const z of unvisitedReachable) {
+        for (const z of pool) {
           roll -= z.attractiveness ?? 0.5;
           if (roll <= 0) return this.setZoneTarget(v, z);
         }
-        return this.setZoneTarget(v, unvisitedReachable[0]);
+        return this.setZoneTarget(v, pool[0]);
       }
     }
 
@@ -2235,7 +2301,21 @@ export class SimulationEngine {
     // Build zone capacity map for zone overcrowding penalty
     const zoneCapacity = new Map<string, number>();
     for (const z of this.world.zones) zoneCapacity.set(z.id as string, z.capacity);
-    const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity);
+    // mustVisit 컨텍스트 — 히어로 대상 우선 유도 + fatigue exit 보류 (Tier 2).
+    const mustZoneIds = new Set<string>();
+    const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
+    for (const z of this.world.zones) {
+      if ((z as any).mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
+    }
+    const mustMediaIds = new Set<string>();
+    const visitedM = new Set(v.visitedMediaIds.map(m => m as string));
+    for (const m of this.world.media) {
+      if ((m as any).mustVisit && !visitedM.has(m.id as string)) mustMediaIds.add(m.id as string);
+    }
+    const mustVisitCtx = (mustZoneIds.size > 0 || mustMediaIds.size > 0)
+      ? { unvisitedZoneIds: mustZoneIds, unvisitedMediaIds: mustMediaIds }
+      : undefined;
+    const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx);
     if (!nextNode) {
       // 막다른 길: wander
       return {

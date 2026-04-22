@@ -70,6 +70,7 @@ export interface MediaPlacement {
   readonly capacity: number;
   readonly avgEngagementTimeMs: number;
   readonly attractiveness: number; // 0-1
+  readonly mustVisit?: boolean; // true=히어로 전시물, 모든 관람객이 반드시 관람 (피로·큐 대기 무시)
   readonly attractionRadius: number; // meters — instance override
   readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형, analog=실물전시
   readonly omnidirectional?: boolean; // true=360도 관람 가능 (analog용, 중앙 전시물)

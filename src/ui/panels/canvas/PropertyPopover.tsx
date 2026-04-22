@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState as __useState } from 'react';
-import { Trash2, X, Plus } from 'lucide-react';
+import { Trash2, X, Plus, Star } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft } from '@/domain';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
@@ -450,6 +450,16 @@ export function PropertyPopover({ popover, onClose }: {
             className="flex-1" />
         </Row>
 
+        <Row label="Hero">
+          <button
+            onClick={() => updateZone(popover.targetId!, { mustVisit: !(zone as any).mustVisit } as any)}
+            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${(zone as any).mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
+          >
+            <Star className={`w-3 h-3 ${(zone as any).mustVisit ? 'fill-amber-400' : ''}`} />
+            {(zone as any).mustVisit ? 'Must Visit' : 'Mark'}
+          </button>
+        </Row>
+
         <div className="text-[8px] text-muted-foreground">
           {(() => { const f = floors.find((fl) => fl.id === zone.floorId) ?? floors[0]; const mpu = (f as any)?.canvas?.scale ?? 0.025; return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`; })()} · {zone.area.toFixed(1)}m² · {zone.shape}
         </div>
@@ -634,6 +644,16 @@ export function PropertyPopover({ popover, onClose }: {
           <input type="range" min={0} max={1} step={0.05} value={m.attractiveness}
             onChange={e => updateMedia(popover.targetId!, { attractiveness: parseFloat(e.target.value) })}
             className="flex-1" />
+        </Row>
+
+        <Row label="Hero">
+          <button
+            onClick={() => updateMedia(popover.targetId!, { mustVisit: !(m as any).mustVisit } as any)}
+            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${(m as any).mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
+          >
+            <Star className={`w-3 h-3 ${(m as any).mustVisit ? 'fill-amber-400' : ''}`} />
+            {(m as any).mustVisit ? 'Must Visit' : 'Mark'}
+          </button>
         </Row>
 
         {/* Queue (not for analog) */}

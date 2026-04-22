@@ -147,6 +147,27 @@ export function AnalyticsPanel() {
               </div>
             );
           })}
+          {/* CONGESTED: subset of MOVING — stuck by physics (velocity below crawl speed). */}
+          {(() => {
+            const congestedCount = visitors.filter((v) => {
+              if (!v.isActive || v.currentAction !== 'MOVING') return false;
+              const speed = Math.hypot(v.velocity.x, v.velocity.y);
+              return speed < 5;
+            }).length;
+            const pct = activeCount > 0 ? Math.round((congestedCount / activeCount) * 100) : 0;
+            return (
+              <div className="flex items-center gap-2">
+                <span className="w-14 text-muted-foreground font-data text-[10px] opacity-70">CONGESTED</span>
+                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-300 bg-[var(--status-warning)] opacity-60"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="w-7 text-right font-data text-muted-foreground text-[10px]">{congestedCount}</span>
+              </div>
+            );
+          })()}
         </div>
         {graph && (spawnByNode.size > 0 || exitByNode.size > 0) && (
           <div className="mt-2 pt-2 border-t border-border space-y-1">

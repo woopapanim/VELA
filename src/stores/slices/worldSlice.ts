@@ -526,10 +526,14 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     set((s) => {
       // Prevent duplicate zone (React StrictMode can double-invoke)
       if (s.zones.some(z => (z.id as string) === (zone.id as string))) return {};
-      const rawZones = [...s.zones, zoneToAdd];
-      const newZones = autoLinkGates(rawZones);
       // Fallback to first floor when no active floor (user may have deselected)
       const targetFloorId = s.activeFloorId ?? (s.floors[0]?.id as string | undefined) ?? null;
+      // Stamp floorId so per-floor systems (density grid, heatmap, routing)
+      // can key on it. Callers often omit the field — without this, zones
+      // end up orphaned and SimEngine silently skips them.
+      const stamped = (zoneToAdd.floorId as any) ? zoneToAdd : { ...zoneToAdd, floorId: targetFloorId as any };
+      const rawZones = [...s.zones, stamped];
+      const newZones = autoLinkGates(rawZones);
       let newFloors = s.floors.map((f) =>
         (f.id as string) === targetFloorId
           ? { ...f, zoneIds: [...f.zoneIds, zone.id] }

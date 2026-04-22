@@ -312,6 +312,25 @@ export function MediaEditor() {
         />
       </div>
 
+      {/* Must-visit (hero exhibit) — forces visit regardless of fatigue */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <label className="panel-label">Must Visit</label>
+          <InfoTooltip text="히어로 전시 — 모든 관람객이 반드시 관람. skip·대기 포기 로직 무시. 체류는 프로필×피로에 따라 단축." />
+        </div>
+        <button
+          onClick={() => handleUpdate('mustVisit', !(m as any).mustVisit)}
+          disabled={isLocked}
+          className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+            (m as any).mustVisit
+              ? 'bg-amber-500/20 text-amber-400 font-semibold'
+              : 'bg-secondary text-muted-foreground'
+          } disabled:opacity-50`}
+        >
+          {(m as any).mustVisit ? '★ Hero' : 'Off'}
+        </button>
+      </div>
+
       {/* Queue Behavior (not for analog) */}
       {interactionType !== 'analog' && (
       <div>

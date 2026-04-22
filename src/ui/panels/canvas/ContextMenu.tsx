@@ -365,9 +365,7 @@ function MenuItem({ label, icon: Icon, shortcut, danger, onClick, onMouseEnter }
     <button
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left hover:bg-secondary/50 transition-colors ${
-        danger ? 'text-[var(--status-danger)]' : ''
-      }`}
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-[10px] text-left hover:bg-secondary/50 transition-colors ${danger ? 'text-[var(--status-danger)]' : ''}`}
     >
       {Icon && <Icon className="w-3 h-3" />}
       <span className="flex-1">{label}</span>

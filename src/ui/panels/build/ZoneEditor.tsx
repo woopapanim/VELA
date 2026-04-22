@@ -231,6 +231,27 @@ export function ZoneEditor() {
             <span>High</span>
           </div>
         </div>
+        {/* Must-visit (hero zone) — forces visit regardless of fatigue */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <label className="panel-label">Must Visit</label>
+            <InfoTooltip text="히어로 존 — 모든 관람객이 반드시 방문. 피로·skip 로직 무시." />
+          </div>
+          <button
+            onClick={() => {
+              if (!selectedZoneId || isLocked) return;
+              updateZone(selectedZoneId, { mustVisit: !(zone as any).mustVisit } as any);
+            }}
+            disabled={isLocked}
+            className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+              (zone as any).mustVisit
+                ? 'bg-amber-500/20 text-amber-400 font-semibold'
+                : 'bg-secondary text-muted-foreground'
+            } disabled:opacity-50`}
+          >
+            {(zone as any).mustVisit ? '★ Hero' : 'Off'}
+          </button>
+        </div>
         {/* Gateway Mode Toggle */}
         {zone.type === 'gateway' && (
           <div className="pt-2 border-t border-border">

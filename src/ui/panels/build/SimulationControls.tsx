@@ -16,6 +16,7 @@ export function SimulationControls() {
   const { toast } = useToast();
   const milestonesHit = useRef(new Set<number>());
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [speed, setSpeed] = useState(1);
 
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
@@ -77,6 +78,7 @@ export function SimulationControls() {
     engineRef.current = engine;
     (engine as any).world.globalFlowMode = flowMode;
     (engine as any).world.guidedUntilIndex = guidedIdx;
+    setSpeed(store.scenario.simulationConfig.timeScale ?? 1);
 
     // ── Simulation loop — onTick handles UI updates only ──
     let lastSnapshotTime = 0;
@@ -301,17 +303,26 @@ export function SimulationControls() {
       {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
         <div className="flex items-center gap-1">
           <span className="text-[9px] text-muted-foreground">Speed</span>
-          {[1, 3, 5, 10, 20].map((spd) => (
-            <button
-              key={spd}
-              onClick={() => {
-                if (engineRef.current) {
-                  (engineRef.current.getWorld() as any).config.timeScale = spd;
-                }
-              }}
-              className="px-1.5 py-0.5 text-[9px] rounded bg-secondary hover:bg-accent"
-            >{spd}x</button>
-          ))}
+          {[1, 3, 5, 10, 20].map((spd) => {
+            const active = speed === spd;
+            return (
+              <button
+                key={spd}
+                onClick={() => {
+                  if (engineRef.current) {
+                    (engineRef.current.getWorld() as any).config.timeScale = spd;
+                  }
+                  setSpeed(spd);
+                }}
+                className={`px-1.5 py-0.5 text-[9px] rounded transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground font-semibold'
+                    : 'bg-secondary hover:bg-accent'
+                }`}
+                aria-pressed={active}
+              >{spd}x</button>
+            );
+          })}
         </div>
       )}
 

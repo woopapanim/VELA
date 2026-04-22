@@ -119,6 +119,7 @@ export class WaypointNavigator {
     now: number = 0,
     zoneOccupancy: ReadonlyMap<string, number> = new Map(),
     zoneCapacity: ReadonlyMap<string, number> = new Map(),
+    mustVisit?: { unvisitedZoneIds: ReadonlySet<string>; unvisitedMediaIds: ReadonlySet<string> },
   ): WaypointNode | null {
     const neighbors = this.getNeighbors(currentNodeId);
     if (neighbors.length === 0) return null;
@@ -147,10 +148,16 @@ export class WaypointNavigator {
       stuck = timeAtNode >= STUCK_AT_NODE_MS || totalDwell >= MAX_TOTAL_DWELL_MS;
     }
 
+    // mustVisit (히어로) 미방문이 남아있으면 stuck 이외엔 exit 보류 (Tier 2).
+    const mustOutstanding = !!mustVisit
+      && (mustVisit.unvisitedZoneIds.size > 0 || mustVisit.unvisitedMediaIds.size > 0);
+
     // EXIT 진입 조건 체크
     const canExit = stuck
-      || visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
-      || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD;
+      || (!mustOutstanding && (
+        visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
+        || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD
+      ));
 
     // Stuck 또는 canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
     const allEssentialDone = visitedCount >= this.essentialCount;
@@ -163,6 +170,11 @@ export class WaypointNavigator {
 
     // canExit 상태에서 EXIT 방향 이웃에 보너스 (BFS 기반)
     const exitHopId = canExit ? this.findFirstHopToExit(currentNodeId)?.id : null;
+
+    // mustVisit(히어로) 방향 이웃에 보너스 (BFS 기반 multi-hop 유도)
+    const mustHopId = mustOutstanding && mustVisit
+      ? this.findFirstHopToMustVisit(currentNodeId, mustVisit)?.id
+      : null;
 
     for (const { node: candidate, edge } of neighbors) {
       // EXIT 노드: 조건 미충족 시 후보에서 제외
@@ -193,6 +205,17 @@ export class WaypointNavigator {
       if (candidate.type === 'portal' && candidate.shaftId
           && !visitedShaftIds.has(candidate.shaftId as string)) {
         score += 2.5;
+      }
+
+      // mustVisit (히어로) 보너스 — 직접 히어로이면 +5, 히어로 방향 첫 홉이면 +4 (multi-hop 유도).
+      if (mustVisit) {
+        if (candidate.zoneId && mustVisit.unvisitedZoneIds.has(candidate.zoneId as string)) {
+          score += 5.0;
+        } else if (candidate.mediaId && mustVisit.unvisitedMediaIds.has(candidate.mediaId as string)) {
+          score += 5.0;
+        } else if (mustHopId && (candidate.id as string) === (mustHopId as string)) {
+          score += 4.0;
+        }
       }
 
       scored.push({ node: candidate, score });
@@ -265,18 +288,21 @@ export class WaypointNavigator {
     const currentNode = this.nodeMap.get(currentNodeId as string);
     if (!currentNode) return 0;
 
-    // 1. Attraction
-    const attraction = candidate.attraction * W_ATTRACTION;
-
-    // 2. Inverse distance (edge cost 사용)
+    // 1. Proximity (edge cost 기반)
     const dist = Math.max(1, edge.cost);
     const proximity = (1 / dist) * 300 * W_DISTANCE; // 300 = normalizer for px distances
 
-    // 3. Interest match (visitor의 interestMap에 해당 zone이 있으면)
+    // 2. Interest match (visitor의 interestMap에 해당 zone이 있으면)
     const zoneInterest = candidate.zoneId
       ? (visitor.profile.interestMap[candidate.zoneId as string] ?? 0.5)
       : 0.5;
     const interest = zoneInterest * W_INTEREST;
+
+    // 3. Attraction gate — 매력도를 곱셈 게이트로 적용.
+    // 매력도 0 → 0.1 floor (완전 차단 방지), 1.0 → 1.0 (영향 없음).
+    // 이게 없으면 proximity(≈4.5 for short edges)가 attraction(≤1.0)을 압도해
+    // 사용자가 매력도를 0.01로 낮춰도 가장 가까운 존이 무조건 뽑힘.
+    const attrMul = 0.1 + candidate.attraction * W_ATTRACTION * 0.9;
 
     // 4. Crowd density (노드 현재 인원 / capacity)
     const crowd = crowdMap.get(candidate.id as string) ?? 0;
@@ -287,7 +313,7 @@ export class WaypointNavigator {
     // 5. Edge passWeight 보정
     const edgeBonus = edge.passWeight;
 
-    return attraction + proximity + interest - density + edgeBonus;
+    return (proximity + interest) * attrMul - density + edgeBonus;
   }
 
   /**
@@ -343,6 +369,60 @@ export class WaypointNavigator {
       }
     }
     return null; // EXIT에 도달 불가
+  }
+
+  /**
+   * BFS로 미방문 히어로(zone/media) 노드까지의 최단 경로 첫 홉을 찾는다.
+   * 직접 neighbor가 hero가 아닌 다층 경로에서도 multi-hop 유도가 동작하도록 한다.
+   */
+  private findFirstHopToMustVisit(
+    fromId: WaypointId,
+    mustVisit: { unvisitedZoneIds: ReadonlySet<string>; unvisitedMediaIds: ReadonlySet<string> },
+  ): WaypointNode | null {
+    const isMust = (n: WaypointNode): boolean =>
+      (!!n.zoneId && mustVisit.unvisitedZoneIds.has(n.zoneId as string))
+      || (!!n.mediaId && mustVisit.unvisitedMediaIds.has(n.mediaId as string));
+
+    const shaftMembers = new Map<string, WaypointNode[]>();
+    for (const node of this.nodeMap.values()) {
+      if (node.type !== 'portal' || !node.shaftId) continue;
+      const key = node.shaftId as string;
+      const list = shaftMembers.get(key) ?? [];
+      list.push(node);
+      shaftMembers.set(key, list);
+    }
+    const virtualNeighbors = (id: WaypointId): WaypointNode[] => {
+      const out: WaypointNode[] = this.getNeighbors(id).map(n => n.node);
+      const node = this.nodeMap.get(id as string);
+      if (node?.type === 'portal' && node.shaftId) {
+        const members = shaftMembers.get(node.shaftId as string) ?? [];
+        for (const m of members) {
+          if ((m.id as string) !== (node.id as string)) out.push(m);
+        }
+      }
+      return out;
+    };
+
+    const visited = new Set<string>();
+    const queue: { nodeId: string; firstHop: WaypointNode }[] = [];
+    for (const node of virtualNeighbors(fromId)) {
+      if (isMust(node)) return node;
+      queue.push({ nodeId: node.id as string, firstHop: node });
+      visited.add(node.id as string);
+    }
+    visited.add(fromId as string);
+
+    while (queue.length > 0) {
+      const { nodeId, firstHop } = queue.shift()!;
+      for (const neighbor of virtualNeighbors(nodeId as WaypointId)) {
+        const nid = neighbor.id as string;
+        if (visited.has(nid)) continue;
+        if (isMust(neighbor)) return firstHop;
+        visited.add(nid);
+        queue.push({ nodeId: nid, firstHop });
+      }
+    }
+    return null;
   }
 
   private countVisitedEssential(pathLog: readonly PathLogEntry[]): number {
