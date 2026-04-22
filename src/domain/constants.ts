@@ -105,15 +105,33 @@ export const VISITOR_MAX_FORCE: Record<string, number> = {
   disabled: 80,
 };
 
-// ---- Fatigue Rates (per ms) ----
-// Target: general reaches ~70% fatigue at 30min, 100% at ~45min
+// ---- Fatigue Base Rates (per ms of continuous WALKING) ----
+// Action-based multipliers in FATIGUE_ACTION_MULT modulate this base rate.
+// Target: general reaches ~100% fatigue after ~2.8hr of continuous walking.
+// Real-world calibration: 평상 관람 30분 = 피로 10~20%, 2~3시간 = 포화.
 export const FATIGUE_RATES: Record<string, number> = {
-  general:  0.0000004,   // ~45min to 100%
-  vip:      0.0000003,   // ~55min (VIP = more stamina)
-  child:    0.0000006,   // ~28min (kids tire faster)
-  elderly:  0.0000008,   // ~21min
-  disabled: 0.000001,    // ~17min
+  general:  0.0000001,    // ~167min walking to 100% (~2.8hr)
+  vip:      0.00000008,   // ~208min (~3.5hr) — more stamina
+  child:    0.00000014,   // ~119min (~2hr)   — kids tire faster
+  elderly:  0.00000018,   // ~93min  (~1.5hr)
+  disabled: 0.00000022,   // ~76min  (~1.3hr)
 };
+
+// ---- Action-based Fatigue Multipliers ----
+// Applied to VisitorProfile.fatigueRate per tick.
+// Positive = accumulate fatigue; Negative = recover.
+// Category mapping comes from MEDIA_PRESETS.fatigueCategory.
+export const FATIGUE_ACTION_MULT = {
+  walking:         1.0,   // normal movement (MOVING / EXITING)
+  waiting:         1.5,   // standing in queue — more tiring than walking
+  focus_analog:    0.8,   // artifact, diorama, documents — casual viewing
+  focus_screen:    1.2,   // video/media wall, projection — passive watching
+  focus_active:    2.0,   // kiosk, touch table, hands-on — cognitive load
+  focus_immersive: 2.5,   // VR/4D/immersive room — peak load
+  resting:        -3.0,   // RESTING action (active recovery)
+  rest_passive:   -0.3,   // walking through rest zone (mild recovery)
+  idle:            0,
+} as const;
 
 // ---- Patience by Profile (0-1) ----
 export const PATIENCE_VALUES: Record<string, number> = {

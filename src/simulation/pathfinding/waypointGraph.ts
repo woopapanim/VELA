@@ -26,8 +26,9 @@ const EXIT_VISIT_RATIO = 0.9;    // 필수 노드 90% 방문 후 EXIT 허용 (st
 const EXIT_FATIGUE_THRESHOLD = 0.75; // 피로 75% 이상 (이전 0.9)
 
 // Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성
-const STUCK_AT_NODE_MS = 60_000;       // 동일 노드에 60초 이상 체류
-const MAX_TOTAL_DWELL_MS = 15 * 60_000; // 전체 체류 15분 초과
+const STUCK_AT_NODE_MS = 60_000;             // 동일 노드에 60초 이상 체류 = 실제 끼임
+const MAX_TOTAL_DWELL_MS = 3 * 60 * 60_000;  // 전체 체류 3시간 초과 (피로 스케일과 맞춤,
+                                             // 이전 15분은 관람 타임아웃이 아닌 진짜 stuck escape용)
 
 export class WaypointNavigator {
   private adjacency = new Map<string, { node: WaypointNode; edge: WaypointEdge }[]>();

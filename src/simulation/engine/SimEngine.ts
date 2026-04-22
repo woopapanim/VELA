@@ -39,7 +39,7 @@ import type {
   ElevatorShaft,
   DensityGrid,
 } from '@/domain';
-import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE } from '@/domain';
+import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
@@ -3319,7 +3319,35 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private stepFatigue(v: Visitor, dt: number): Visitor {
-    const f = Math.min(1, v.fatigue + v.profile.fatigueRate * dt);
+    const base = v.profile.fatigueRate;
+    const action = v.currentAction;
+    let mult: number = FATIGUE_ACTION_MULT.idle;
+
+    if (action === VISITOR_ACTION.MOVING || action === VISITOR_ACTION.EXITING) {
+      mult = FATIGUE_ACTION_MULT.walking;
+    } else if (action === VISITOR_ACTION.WAITING) {
+      mult = FATIGUE_ACTION_MULT.waiting;
+    } else if (action === VISITOR_ACTION.RESTING) {
+      mult = FATIGUE_ACTION_MULT.resting;
+    } else if (action === VISITOR_ACTION.WATCHING) {
+      const media = v.targetMediaId ? this.world.media.find(m => m.id === v.targetMediaId) : null;
+      const cat = media ? (MEDIA_PRESETS as any)[media.type]?.fatigueCategory : null;
+      if (cat === 'immersive') mult = FATIGUE_ACTION_MULT.focus_immersive;
+      else if (cat === 'interactive') mult = FATIGUE_ACTION_MULT.focus_active;
+      else if (cat === 'screen') mult = FATIGUE_ACTION_MULT.focus_screen;
+      else mult = FATIGUE_ACTION_MULT.focus_analog; // analog or unknown
+    }
+
+    // Passive recovery while walking through rest zone
+    if (mult > 0 && v.currentZoneId) {
+      const zone = this.world.zones.find(z => z.id === v.currentZoneId);
+      if (zone?.type === 'rest') {
+        mult = FATIGUE_ACTION_MULT.rest_passive;
+      }
+    }
+
+    const delta = base * mult * dt;
+    const f = Math.max(0, Math.min(1, v.fatigue + delta));
     return f === v.fatigue ? v : { ...v, fatigue: f };
   }
 }
