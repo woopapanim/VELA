@@ -140,6 +140,11 @@ export class SimulationEngine {
   // track per-visitor watch start time for duration calc
   private _watchStartTimes = new Map<string, number>();
 
+  // MOVING/EXITING 상태 지속 추적 — 미디어 타겟에 접근 실패한 에이전트가
+  // 영원히 MOVING 상태로 맴도는 현상을 탐지해 스킵/재배정한다.
+  // key: visitorId. value.targetMediaId 가 바뀌면 타이머 리셋.
+  private _movingSince = new Map<string, { startMs: number; targetMediaId: string | null }>();
+
   // group caches (rebuilt each tick)
   private groupMemberPositions = new Map<string, Vector2D[]>();
   private tourLeaders: { position: Vector2D; radius: number }[] = [];
@@ -591,11 +596,15 @@ export class SimulationEngine {
         const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng);
         // Deduct actual spawned count from accumulator (groups spawn multiple)
         this.spawnAccumulator -= batch.visitors.length;
+        // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
+        // 위치 기반 polygon 검사로 보강 — visitedZoneIds 첫 항목 누락 방지.
+        const resolvedZoneId = (entryNode.zoneId as string | null)
+          ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string);
         for (const v of batch.visitors) {
           const spawned: Visitor = {
             ...v,
-            currentZoneId: entryNode.zoneId ?? ('' as any),
-            visitedZoneIds: entryNode.zoneId ? [entryNode.zoneId] : [],
+            currentZoneId: (resolvedZoneId as any) ?? ('' as any),
+            visitedZoneIds: resolvedZoneId ? [resolvedZoneId as any] : [],
             zoneEnteredAtMs: elapsed,
             currentNodeId: entryNode.id,
             targetNodeId: null,
@@ -806,7 +815,40 @@ export class SimulationEngine {
 
     // --- IDLE: need a target ---
     if (action === VISITOR_ACTION.IDLE) {
+      this._movingSince.delete(v.id as string);
       return this.assignNextTarget(v);
+    }
+
+    // --- MOVING stuck timeout: 미디어 타겟을 향해 너무 오래 MOVING 상태면 강제 스킵 ---
+    // 원인: slot 이 가득 차서 targetPosition 이 이미 점유되었거나, 장애물로 도달 불가 등.
+    // 30s 이상 MOVING 만 지속되면 해당 미디어를 스킵하고 다음 목표로 재배정.
+    if (action === VISITOR_ACTION.MOVING && v.targetMediaId) {
+      const vid = v.id as string;
+      const tMid = (v.targetMediaId as string) ?? null;
+      const entry = this._movingSince.get(vid);
+      if (!entry || entry.targetMediaId !== tMid) {
+        this._movingSince.set(vid, { startMs: this.state.timeState.elapsed, targetMediaId: tMid });
+      } else {
+        const age = this.state.timeState.elapsed - entry.startMs;
+        const MOVING_TIMEOUT_MS = 30_000;
+        if (age > MOVING_TIMEOUT_MS) {
+          this.recordSkip(tMid, age, v.currentZoneId as string | null);
+          this._movingSince.delete(vid);
+          const skippedMediaIds = v.visitedMediaIds.includes(v.targetMediaId)
+            ? v.visitedMediaIds
+            : [...v.visitedMediaIds, v.targetMediaId];
+          return this.assignNextTarget({
+            ...v,
+            currentAction: VISITOR_ACTION.IDLE,
+            targetMediaId: null,
+            targetPosition: null,
+            visitedMediaIds: skippedMediaIds,
+          });
+        }
+      }
+    } else if (action !== VISITOR_ACTION.MOVING) {
+      // 타 상태로 전이되면 타이머 정리
+      this._movingSince.delete(v.id as string);
     }
 
     // --- MOVING / EXITING: check arrival ---
@@ -868,6 +910,7 @@ export class SimulationEngine {
     // ── 2. Exiting: reached exit gate → deactivate ──
     if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
       const now = this.state.timeState.elapsed;
+      this._movingSince.delete(v.id as string);
       if (v.currentZoneId) {
         recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
       }
@@ -1166,6 +1209,22 @@ export class SimulationEngine {
     const z = this.zoneMap.get(zoneId as string);
     if (!z) return { x: 0, y: 0 };
     return { x: z.bounds.x + z.bounds.w / 2, y: z.bounds.y + z.bounds.h / 2 };
+  }
+
+  /**
+   * 좌표가 속한 첫 번째 zone 의 id 를 polygon 검사로 찾는다.
+   * waypoint 노드가 L/원/polygon zone 안에 있어도 node.zoneId 가 누락된 경우
+   * 이 함수로 fallback 하여 visitedZoneIds 집계가 비지 않도록 한다.
+   */
+  private zoneIdAtPoint(pos: Vector2D, floorId?: string | null): string | null {
+    for (const zone of this.world.zones) {
+      if (floorId && zone.floorId !== floorId) continue;
+      const b = zone.bounds;
+      if (pos.x < b.x || pos.x > b.x + b.w || pos.y < b.y || pos.y > b.y + b.h) continue;
+      const poly = getZonePolygon(zone);
+      if (isPointInPolygon(pos, poly)) return zone.id as string;
+    }
+    return null;
   }
 
   /* ─── Media physics helpers ─── */
@@ -2357,6 +2416,7 @@ export class SimulationEngine {
     const xid = exitNode.id as string;
     this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
     const now = this.state.timeState.elapsed;
+    this._movingSince.delete(v.id as string);
     if (v.currentZoneId) {
       recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
     }
@@ -2376,10 +2436,14 @@ export class SimulationEngine {
     const targetNode = this.waypointNav.getNode(v.targetNodeId);
     if (!targetNode) return this.assignNextTarget(v);
 
-    // Update zone if node is in a different zone
-    const newZoneId = targetNode.zoneId ?? v.currentZoneId;
-    const newVisitedZones = targetNode.zoneId && !v.visitedZoneIds.includes(targetNode.zoneId)
-      ? [...v.visitedZoneIds, targetNode.zoneId]
+    // Update zone if node is in a different zone.
+    // attractor/hub/bend 가 zoneId 미할당인 경우가 있으므로 위치 기반 polygon 검사로 보강.
+    // (L/polygon zone 에서 bounds rect 체크로는 zoneId 가 누락되기 쉬움.)
+    const resolvedNodeZoneId = (targetNode.zoneId as any)
+      ?? (this.zoneIdAtPoint(targetNode.position, v.currentFloorId as string) as any);
+    const newZoneId = resolvedNodeZoneId ?? v.currentZoneId;
+    const newVisitedZones = resolvedNodeZoneId && !v.visitedZoneIds.includes(resolvedNodeZoneId)
+      ? [...v.visitedZoneIds, resolvedNodeZoneId]
       : v.visitedZoneIds;
 
     const now = this.state.timeState.elapsed;
