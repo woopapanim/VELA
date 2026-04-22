@@ -2578,11 +2578,10 @@ export class SimulationEngine {
       : undefined;
     const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx);
     if (!nextNode) {
-      // 막다른 길: wander
-      return {
-        ...v, currentAction: VISITOR_ACTION.MOVING,
-        steering: { ...v.steering, activeBehavior: STEERING_BEHAVIOR.WANDER },
-      };
+      // Orphan 노드 (neighbors === 0): 그래프 상 다음 노드 없음.
+      // MOVING+WANDER 로 두면 targetNodeId=null 상태로 영원히 방황 (stuck 타이머
+      // 조건인 !tMid && tNid 를 만족 못 해 회수 안 됨). 안전하게 강제 퇴장 처리.
+      return this.beginExitGraph(v, curNode);
     }
 
     // pathLog 현재 노드 종료 기록
