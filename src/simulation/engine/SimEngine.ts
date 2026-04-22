@@ -668,6 +668,16 @@ export class SimulationEngine {
    * ═══════════════════════════════════════════════ */
 
   private stepBehavior(v: Visitor, dt: number): Visitor {
+    // 미디어 타겟 zone 자동 기록 — 미디어는 항상 zone 소속이므로, 미디어 관람(또는 도달
+    // 시도)만으로도 해당 zone 을 방문한 것으로 집계한다. waypoint 노드가 zone polygon
+    // 바깥에 찍혀 visitedZoneIds 가 비는 케이스를 보강.
+    if (v.targetMediaId) {
+      const media = this.world.media.find(m => m.id === v.targetMediaId);
+      if (media && media.zoneId && !v.visitedZoneIds.includes(media.zoneId)) {
+        v = { ...v, visitedZoneIds: [...v.visitedZoneIds, media.zoneId] };
+      }
+    }
+
     const action = v.currentAction;
 
     // --- GROUP FOLLOWER: sync to leader ---
@@ -1350,18 +1360,18 @@ export class SimulationEngine {
 
   /** Filter media candidates to those with free capacity (viewers + en-route targeters).
    * All interaction types now queue on arrival (patience-gated skip in stepBehavior),
-   * so we allow arrival up to 1.5× cap for passive/analog to let brief queues form
-   * without pile-up. Active/staged have no cap here — they always allow queueing.
+   * so we allow arrival up to 1.5× cap for passive/analog and 2× cap for active/staged
+   * (slot + one waiting queue). 포화 미디어는 후보에서 제외해 다른 미디어/존으로 유도.
    */
   private filterAvailableMedia(zMedia: readonly MediaPlacement[]): MediaPlacement[] {
     return zMedia.filter(m => {
       const intType = (m as any).interactionType ?? 'passive';
-      if (intType === 'active' || intType === 'staged') return true;
       const mid = m.id as string;
       const occ = this._tickMediaTargeters.get(mid) ?? 0;
       const cap = this.effectiveMediaCapacity(m);
-      // Allow up to 50% queue slack so passive/analog can form brief waits.
-      return occ < Math.ceil(cap * 1.5);
+      // active/staged: slot + 대기 1회차 (2× cap). passive/analog: 50% slack (1.5× cap).
+      const slack = (intType === 'active' || intType === 'staged') ? 2.0 : 1.5;
+      return occ < Math.ceil(cap * slack);
     });
   }
 
