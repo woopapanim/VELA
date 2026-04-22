@@ -140,10 +140,10 @@ export class SimulationEngine {
   // track per-visitor watch start time for duration calc
   private _watchStartTimes = new Map<string, number>();
 
-  // MOVING/EXITING 상태 지속 추적 — 미디어 타겟에 접근 실패한 에이전트가
+  // MOVING/EXITING 상태 지속 추적 — 미디어/노드 타겟에 접근 실패한 에이전트가
   // 영원히 MOVING 상태로 맴도는 현상을 탐지해 스킵/재배정한다.
-  // key: visitorId. value.targetMediaId 가 바뀌면 타이머 리셋.
-  private _movingSince = new Map<string, { startMs: number; targetMediaId: string | null }>();
+  // key: visitorId. targetMediaId 또는 targetNodeId 가 바뀌면 타이머 리셋.
+  private _movingSince = new Map<string, { startMs: number; targetMediaId: string | null; targetNodeId: string | null }>();
 
   // ---- Diagnostics: cumulative stuck counters (Phase 1 B 진단) ----
   // MOVING_TIMEOUT 발화 시 mediaId / zoneId / interactionType 별 누적 카운트.
@@ -983,21 +983,22 @@ export class SimulationEngine {
       return this.assignNextTarget(v);
     }
 
-    // --- MOVING stuck timeout: 미디어 타겟을 향해 너무 오래 MOVING 상태면 강제 스킵 ---
-    // 원인: slot 이 가득 차서 targetPosition 이 이미 점유되었거나, 장애물로 도달 불가 등.
-    // 30s 이상 MOVING 만 지속되면 해당 미디어를 스킵하고 다음 목표로 재배정.
-    if (action === VISITOR_ACTION.MOVING && v.targetMediaId) {
+    // --- MOVING stuck timeout ---
+    // 미디어/노드 타겟을 향해 너무 오래 MOVING 상태면 강제 스킵 or IDLE 리셋.
+    // 원인: slot 점유, 장애물 도달 불가, 그룹 cohesion 락 등.
+    // - 미디어 타겟 stuck (30s): 해당 미디어 스킵 + 재배정.
+    // - 노드 타겟 stuck (60s): IDLE 리셋 → assignNextTarget 이 canExit(budget/fatigue) 재평가.
+    if (action === VISITOR_ACTION.MOVING) {
       const vid = v.id as string;
       const tMid = (v.targetMediaId as string) ?? null;
+      const tNid = (v.targetNodeId as string) ?? null;
       const entry = this._movingSince.get(vid);
-      if (!entry || entry.targetMediaId !== tMid) {
-        this._movingSince.set(vid, { startMs: this.state.timeState.elapsed, targetMediaId: tMid });
+      if (!entry || entry.targetMediaId !== tMid || entry.targetNodeId !== tNid) {
+        this._movingSince.set(vid, { startMs: this.state.timeState.elapsed, targetMediaId: tMid, targetNodeId: tNid });
       } else {
         const age = this.state.timeState.elapsed - entry.startMs;
-        const MOVING_TIMEOUT_MS = 30_000;
-        if (age > MOVING_TIMEOUT_MS) {
+        if (tMid && age > 30_000) {
           this.recordSkip(tMid, age, v.currentZoneId as string | null);
-          // Diagnostics: tally stuck events by media / zone / intType.
           this._stuckByMedia.set(tMid, (this._stuckByMedia.get(tMid) ?? 0) + 1);
           if (v.currentZoneId) {
             const zKey = v.currentZoneId as string;
@@ -1007,9 +1008,9 @@ export class SimulationEngine {
           const intType = (mediaObj as any)?.interactionType ?? 'passive';
           this._stuckByIntType.set(intType, (this._stuckByIntType.get(intType) ?? 0) + 1);
           this._movingSince.delete(vid);
-          const skippedMediaIds = v.visitedMediaIds.includes(v.targetMediaId)
+          const skippedMediaIds = v.visitedMediaIds.includes(v.targetMediaId as any)
             ? v.visitedMediaIds
-            : [...v.visitedMediaIds, v.targetMediaId];
+            : [...v.visitedMediaIds, v.targetMediaId as any];
           return this.assignNextTarget({
             ...v,
             currentAction: VISITOR_ACTION.IDLE,
@@ -1018,9 +1019,23 @@ export class SimulationEngine {
             visitedMediaIds: skippedMediaIds,
           });
         }
+        if (!tMid && tNid && age > 60_000) {
+          this._movingSince.delete(vid);
+          if (v.currentZoneId) {
+            const zKey = v.currentZoneId as string;
+            this._stuckByZone.set(zKey, (this._stuckByZone.get(zKey) ?? 0) + 1);
+          }
+          return this.assignNextTarget({
+            ...v,
+            currentAction: VISITOR_ACTION.IDLE,
+            targetNodeId: null,
+            targetZoneId: null,
+            targetPosition: null,
+            steering: { ...v.steering, isArrived: false },
+          });
+        }
       }
-    } else if (action !== VISITOR_ACTION.MOVING) {
-      // 타 상태로 전이되면 타이머 정리
+    } else {
       this._movingSince.delete(v.id as string);
     }
 
