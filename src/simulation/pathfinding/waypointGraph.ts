@@ -21,9 +21,9 @@ const W_VISITED = 9999;
 const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
-// EXIT 노드 진입 조건
-const EXIT_VISIT_RATIO = 0.9;    // 필수 노드 90% 방문 후 EXIT 허용 (stuck/fatigue/MAX_TOTAL_DWELL은 별개로 escape 경로 제공)
-const EXIT_FATIGUE_THRESHOLD = 0.75; // 피로 75% 이상 (이전 0.9)
+// EXIT 노드 진입 조건 — 피로 3시간 스케일 + 60~90분 평균 관람 기준으로 맞춤
+const EXIT_VISIT_RATIO = 0.65;   // 필수 노드 65% 방문 후 EXIT 허용 (이전 0.9 — 3시간 피로 모델과 맞지 않음)
+const EXIT_FATIGUE_THRESHOLD = 0.45; // 피로 45% 이상 (약 60~90분 관람 시 도달)
 
 // Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성
 const STUCK_AT_NODE_MS = 60_000;             // 동일 노드에 60초 이상 체류 = 실제 끼임
