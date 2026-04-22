@@ -359,8 +359,10 @@ export class WaypointNavigator {
     const visited = new Set<string>();
     const queue: { nodeId: string; firstHop: WaypointNode }[] = [];
 
-    // 시작: 이웃 노드들을 firstHop으로 등록
-    for (const node of virtualNeighbors(fromId)) {
+    // 시작: 실제 인접 노드만 firstHop 후보 (같은 shaft 가상 이웃은 물리적으로
+    // 걸어갈 수 없는 다른 층이므로 firstHop 이 될 수 없음 — 샤프트 이동은
+    // 에이전트가 포털 노드에 도착했을 때 assignNextTargetGraph 에서 별도 처리).
+    for (const { node } of this.getNeighbors(fromId)) {
       if (exitIds.has(node.id as string)) return node; // 직접 연결된 EXIT
       queue.push({ nodeId: node.id as string, firstHop: node });
       visited.add(node.id as string);
@@ -369,6 +371,7 @@ export class WaypointNavigator {
 
     while (queue.length > 0) {
       const { nodeId, firstHop } = queue.shift()!;
+      // 다음 층은 shaft 가상 엣지를 통해 탐색 가능 — 단 firstHop 은 고정.
       for (const neighbor of virtualNeighbors(nodeId as WaypointId)) {
         const nid = neighbor.id as string;
         if (visited.has(nid)) continue;
@@ -414,7 +417,9 @@ export class WaypointNavigator {
 
     const visited = new Set<string>();
     const queue: { nodeId: string; firstHop: WaypointNode }[] = [];
-    for (const node of virtualNeighbors(fromId)) {
+    // 시작: 실제 인접 노드만 firstHop 후보 (샤프트 가상 이웃은 물리적
+    // 걸음이 아니라 샤프트 탑승이므로 firstHop 이 될 수 없음).
+    for (const { node } of this.getNeighbors(fromId)) {
       if (isMust(node)) return node;
       queue.push({ nodeId: node.id as string, firstHop: node });
       visited.add(node.id as string);
