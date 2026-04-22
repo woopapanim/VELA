@@ -3153,15 +3153,18 @@ export class SimulationEngine {
       && this.waypointNav.getNode(v.targetNodeId)?.type === 'exit';
 
     // Agent-agent overlap: 모든 에이전트 간 겹침 방지.
-    // 같은 그룹은 겹침 허용, exit 가는 에이전트는 군중 뚫고 지나가도록 skip.
+    // 같은 그룹은 좁은 minDist(1/4 avoid)로 타이트 클러스터 유지하되 exact overlap 은 금지
+    // (그룹 cohesion + 완전 exempt 조합이 동일좌표 락 유발 — "겹침 허용 금지" 원칙).
+    // exit 가는 에이전트는 군중 뚫고 지나가도록 skip.
     if (ENABLE_AGENT_OVERLAP && !isExitingToNode) {
       const avoidR = this.world.config.physics.avoidanceRadius;
       const neighbors = this.spatialHash.queryRadius(v.id, avoidR);
       for (const n of neighbors) {
         const nv = this.state.visitors.get(n.id as string);
         if (!nv) continue;
-        if (v.groupId && nv.groupId === v.groupId) continue;
-        pos = resolveAgentOverlap(pos, n.position, avoidR * 0.5);
+        const sameGroup = v.groupId && nv.groupId === v.groupId;
+        const minDist = sameGroup ? avoidR * 0.25 : avoidR * 0.5;
+        pos = resolveAgentOverlap(pos, n.position, minDist);
       }
     }
 
