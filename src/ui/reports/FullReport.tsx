@@ -224,9 +224,8 @@ export function FullReport({ onClose }: { onClose: () => void }) {
       ? totalSkips / (totalWatches + totalSkips)
       : 0;
 
-    // Cumulative completion / total time from full visitor list.
-    const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= 3).length;
-    const completionRateCum = visitors.length > 0 ? wellVisited / visitors.length : 0;
+    // 완주율 = 퇴장한 방문자 / 총 방문자. 동선을 끝까지 마친 비율.
+    const completionRateCum = visitors.length > 0 ? exited.length / visitors.length : 0;
     let totalTimeSum = 0;
     let totalTimeCount = 0;
     for (const v of exited) {
@@ -674,7 +673,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
                   <MetaRow label="총 완료 관람객" value={`${latestSnapshot!.flowEfficiency.totalVisitorsProcessed}`} />
                   <MetaRow label="평균 전체 소요시간" value={`${(data.averageTotalTimeMs / 60000).toFixed(2)}분`} />
                   <MetaRow label="분당 처리량" value={`${data.throughputPerMinute.toFixed(2)}명/분`} />
-                  <MetaRow label="완료율 (≥3존)" value={`${Math.round(data.completionRate * 100)}%`} />
+                  <MetaRow label="완주율 (정상 퇴장)" value={`${Math.round(data.completionRate * 100)}%`} />
                   <MetaRow label="이탈률 (≤2존)" value={`${data.exitedVisitors > 0 ? Math.round(((data.completion.zero + data.completion.low) / data.exitedVisitors) * 100) : 0}%`} />
                   <MetaRow label="그룹 유발 병목 비율" value={`${data.bottleneckCount > 0 ? Math.round((data.groupInducedBottlenecks / data.bottleneckCount) * 100) : 0}%`} />
                 </tbody>
@@ -1034,7 +1033,7 @@ export function FullReport({ onClose }: { onClose: () => void }) {
             <AppendixItem term="Peak Utilization" def="관측 기간 동안 존의 최대 동시 수용 수 ÷ 설계 정원." />
             <AppendixItem term="m²/인 (공간 등급)" def="Peak 시점 존 면적 ÷ 수용 인원. 국제 기준 2.5m²/인 이상이 안전권." />
             <AppendixItem term="Bottleneck Score" def="유입-유출 차이와 대기시간으로 산출된 0–1 정체 지수. 0.5 초과 시 병목." />
-            <AppendixItem term="Completion Rate" def="3개 이상 존을 방문하고 정상 퇴장한 관람객 비율." />
+            <AppendixItem term="Completion Rate" def="정상 퇴장한 관람객 비율 (퇴장자 ÷ 전체)." />
             <AppendixItem term="Skip Rate" def="미디어 근처 도달 → 관람하지 않고 지나친 비율." />
             <AppendixItem term="참여율 (Engagement Rate)" def="미디어 관람 횟수 ÷ (관람+Skip) 총 접근." />
             <AppendixItem term="Fatigue P90 / P99" def="관람객 피로도 상위 10% / 1% 값." />
@@ -1430,11 +1429,11 @@ function deriveVerdict(d: VerdictInput): Verdict {
   if (d.completionRate < 0.3 && d.exitedVisitors >= 10) {
     return {
       tone: 'warning',
-      headline: `"3개 이상 존을 방문한 관람객은 ${pct(d.completionRate)}에 그쳤습니다."`,
+      headline: `"정상 퇴장한 관람객은 ${pct(d.completionRate)}에 그쳤습니다."`,
       body: (
         <>
-          동선 완주율 <b className="text-slate-900">{pct(d.completionRate)}</b>는 핵심 콘텐츠 도달 전 이탈이 광범위하게 발생했음을 나타냅니다.
-          초반 게이트의 분기 구조와 안내 동선의 명료성을 우선 점검하세요.
+          동선 완주율 <b className="text-slate-900">{pct(d.completionRate)}</b>는 다수 관람객이 끝까지 진행하지 못하고 멈췄음을 나타냅니다.
+          병목 구간과 출구 라우팅의 정체 여부를 우선 점검하세요.
         </>
       ),
     };

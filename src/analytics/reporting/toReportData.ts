@@ -424,9 +424,12 @@ export function toReportData(input: ToReportDataInput): ReportData {
     const avgWaitS = waits > 0 ? Math.round((stat?.totalWaitMs ?? 0) / waits / 1000) : null;
     const peakViewers = stat?.peakViewers ?? 0;
     const utilPct = m.capacity > 0 ? Math.round((peakViewers / m.capacity) * 100) : 0;
+    // Fallback: 레거시 시나리오 중 name 미설정인 경우 type 기반 보기 좋게 표시
+    const displayName = (m.name && m.name.trim())
+      || (m.type ? String(m.type).replace(/_/g, ' ') : (m.id as string));
     return {
       id: m.id as string,
-      name: m.name,
+      name: displayName,
       kind: String(m.interactionType ?? 'analog').toLowerCase(),
       zone: zone?.name ?? '—',
       peakViewers,
@@ -468,8 +471,8 @@ export function toReportData(input: ToReportDataInput): ReportData {
   });
 
   // ---- Derived top-level KPIs --------------------------------------------
-  const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= 3).length;
-  const completionRate = visitors.length > 0 ? wellVisited / visitors.length : 0;
+  // 완주율 = 퇴장한 방문자 / 총 방문자. 끼이지 않고 정상 동선을 마친 비율.
+  const completionRate = visitors.length > 0 ? exited.length / visitors.length : 0;
   // Average stay covers exited visitors (completed dwell) and active visitors (current dwell so far)
   // so the KPI is non-zero even before anyone exits.
   const avgDwellMs = visitors.length > 0

@@ -587,7 +587,7 @@ export const en: Dict = {
   'vela.gl.bottleneck.term': 'Bottleneck Score',
   'vela.gl.bottleneck.def': 'Refined 0–1 index from inflow-outflow differential and wait time. >0.5 indicates a bottleneck.',
   'vela.gl.completion.term': 'Completion Rate',
-  'vela.gl.completion.def': 'Share of visitors who visited ≥3 zones and exited normally.',
+  'vela.gl.completion.def': 'Share of visitors who exited normally (exited ÷ total visitors).',
   'vela.gl.skip.term': 'Skip Rate',
   'vela.gl.skip.def': 'Share of visitors who reached a media unit but passed without viewing.',
   'vela.gl.engagement.term': 'Engagement Rate',

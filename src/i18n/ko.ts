@@ -562,7 +562,7 @@ export const ko: Dict = {
   'vela.gl.bottleneck.term': '병목 지수 (Bottleneck Score)',
   'vela.gl.bottleneck.def': '유입-유출 차이와 대기 시간으로 산출한 0–1 정제 지수. 0.5 초과 시 병목.',
   'vela.gl.completion.term': '완주율',
-  'vela.gl.completion.def': '3개 이상의 존을 방문하고 정상 퇴장한 방문객의 비율.',
+  'vela.gl.completion.def': '정상 퇴장한 방문객 비율 (퇴장자 ÷ 전체 방문객).',
   'vela.gl.skip.term': '스킵률',
   'vela.gl.skip.def': '미디어에 도달했으나 관람하지 않고 지나친 방문객의 비율.',
   'vela.gl.engagement.term': '몰입도 (Engagement Rate)',

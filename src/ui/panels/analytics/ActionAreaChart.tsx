@@ -118,13 +118,13 @@ export function ActionAreaChart() {
       },
       y: {
         position: 'left' as const,
+        beginAtZero: true,
         ticks: { color: isDark ? '#52525b' : '#a1a1aa', font: { size: 8 } },
         grid: { color: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)' },
       },
       y1: {
         position: 'right' as const,
-        min: 0,
-        max: 120,
+        beginAtZero: true,
         ticks: { color: isDark ? '#52525b40' : '#a1a1aa40', font: { size: 8 } },
         grid: { display: false },
       },

@@ -114,12 +114,10 @@ export function TrendChart() {
         y: {
           display: true,
           position: 'left',
-          min: 0,
-          max: 150,
+          beginAtZero: true,
           ticks: {
             color: isDark ? '#52525b' : '#a1a1aa',
             font: { size: 9, family: "'JetBrains Mono', monospace" },
-            stepSize: 50,
           },
           grid: { color: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' },
         },
