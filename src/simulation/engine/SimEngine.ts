@@ -837,35 +837,46 @@ export class SimulationEngine {
     // --- GROUP FOLLOWER: sync to leader ---
     if (isFollower(v)) {
       const group = this.state.groups.get(v.groupId as string);
-      if (group) {
-        const leader = this.state.visitors.get(group.leaderId as string);
-        if (leader?.isActive) {
-          // If leader is WATCHING media, follower walks toward it then watches
-          if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
-            const media = this.world.media.find(m => m.id === leader.targetMediaId);
-            if (media) {
-              // Already watching same media → keep
-              if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
-                return v;
-              }
-              // Follower walks toward media (MOVING), not teleport
-              if (v.currentAction !== VISITOR_ACTION.MOVING || v.targetMediaId !== leader.targetMediaId) {
-                return {
-                  ...v,
-                  currentAction: VISITOR_ACTION.MOVING,
-                  targetMediaId: leader.targetMediaId,
-                  targetPosition: this.computeMediaTargetPos(media, v.position),
-                  targetZoneId: leader.currentZoneId,
-                  steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
-                };
-              }
-              // Already moving toward the media → let steering handle it
+      const leader = group ? this.state.visitors.get(group.leaderId as string) : null;
+      if (group && leader?.isActive) {
+        // If leader is WATCHING media, follower walks toward it then watches
+        if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
+          const media = this.world.media.find(m => m.id === leader.targetMediaId);
+          if (media) {
+            // Already watching same media → keep
+            if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId === leader.targetMediaId) {
               return v;
             }
+            // Follower walks toward media (MOVING), not teleport
+            if (v.currentAction !== VISITOR_ACTION.MOVING || v.targetMediaId !== leader.targetMediaId) {
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.MOVING,
+                targetMediaId: leader.targetMediaId,
+                targetPosition: this.computeMediaTargetPos(media, v.position),
+                targetZoneId: leader.currentZoneId,
+                steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+              };
+            }
+            // Already moving toward the media → let steering handle it
+            return v;
           }
-          return syncFollowerToLeader(v, leader, group);
         }
+        return syncFollowerToLeader(v, leader, group);
       }
+      // Leader gone / inactive → follower 의 상태는 마지막 sync 에서 복사된 stale
+      // 타겟이므로 그대로 두면 MOVING+stale 상태로 영원히 멈춘다. 솔로로 승격시키고
+      // currentNode 기준으로 재라우팅.
+      return this.assignNextTarget({
+        ...v,
+        groupId: undefined,
+        currentAction: VISITOR_ACTION.IDLE,
+        targetNodeId: null,
+        targetMediaId: null,
+        targetZoneId: null,
+        targetPosition: null,
+        steering: { ...v.steering, isArrived: false },
+      });
     }
 
     // --- RESTING: tick dwell timer at current waypoint node ---
