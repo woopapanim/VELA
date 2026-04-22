@@ -1639,7 +1639,7 @@ export class SimulationEngine {
    * Analog 미디어의 빈 perimeter slot 을 찾아 반환.
    * 다른 MOVING/WATCHING 에이전트의 targetPosition/position 과 충돌하지 않는 slot 선택.
    */
-  private pickAnalogSlot(m: MediaPlacement, agentPos?: Vector2D): Vector2D {
+  private pickAnalogSlot(m: MediaPlacement, agentPos?: Vector2D): Vector2D | null {
     const pwM = m.size.width, phM = m.size.height;
     const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
     const softCap = Math.max(m.capacity || 0, autoCap);
@@ -1680,7 +1680,12 @@ export class SimulationEngine {
         candidates.sort((a, b) => a.distSq - b.distSq);
         return candidates[0].pos;
       }
-      return this.getAnalogSlotWithCap(m, 0, softCap);
+      // Exhausted viewing slots → queue ring (larger margin) pass
+      for (let i = 0; i < softCap; i++) {
+        const queuePos = this.getAnalogSlotWithCap(m, i, softCap, 24);
+        if (isFree(queuePos)) return queuePos;
+      }
+      return null;
     }
 
     // Directional (or no agent context) → first free slot in perimeter order
@@ -1688,14 +1693,22 @@ export class SimulationEngine {
       const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
       if (isFree(slotPos)) return slotPos;
     }
-    return this.getAnalogSlotWithCap(m, 0, softCap);
+    // Exhausted viewing slots → queue ring (larger margin) pass
+    for (let i = 0; i < softCap; i++) {
+      const queuePos = this.getAnalogSlotWithCap(m, i, softCap, 24);
+      if (isFree(queuePos)) return queuePos;
+    }
+    return null;
   }
 
-  /** getAnalogSlotPosition 의 cap 파라미터화 버전 (softCap 기반 분산). */
-  private getAnalogSlotWithCap(m: MediaPlacement, slotIndex: number, cap: number): Vector2D {
+  /** getAnalogSlotPosition 의 cap 파라미터화 버전 (softCap 기반 분산).
+   *  marginPx 기본값 = 8 (에이전트 반경 고려 — 미디어 hitbox 와 겹치지 않게).
+   *  과밀 시 pickAnalogSlot 이 marginPx=24 로 큐 링을 만들어 분리한다.
+   */
+  private getAnalogSlotWithCap(m: MediaPlacement, slotIndex: number, cap: number, marginPx: number = 8): Vector2D {
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
-    const margin = 3; // 미디어 테두리 바로 앞 (0.15m) — analog 는 근접 관람
+    const margin = marginPx;
     const effCap = Math.max(1, cap);
     if ((m as any).omnidirectional) {
       const perimeter = 2 * (pw + ph);
