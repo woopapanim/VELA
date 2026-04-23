@@ -3,6 +3,7 @@ import { Plus, Save, FolderOpen, Trash2, Clock } from 'lucide-react';
 import { useStore } from '@/stores';
 import { useToast } from '@/ui/components/Toast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
+import { computeAutoRecommendedDurationMs } from '@/domain/constants';
 import type { Scenario } from '@/domain';
 import { useT } from '@/i18n';
 
@@ -88,6 +89,8 @@ export function ProjectManager() {
         seed: Math.floor(Math.random() * 99999),
         physics: DEFAULT_PHYSICS,
         skipThreshold: DEFAULT_SKIP_THRESHOLD,
+        recommendedDurationAuto: true,
+        recommendedDurationMs: computeAutoRecommendedDurationMs(0, 0),
         timeSlots: [{
           startTimeMs: 0, endTimeMs: 3_600_000,
           spawnRatePerSecond: 0.2,

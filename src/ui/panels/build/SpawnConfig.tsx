@@ -1,20 +1,37 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { TimeSlotEditor } from './TimeSlotEditor';
 import { VisitorPresets } from './VisitorPresets';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
+import { computeAutoRecommendedDurationMs } from '@/domain/constants';
 
 export function SpawnConfig() {
   const scenario = useStore((s) => s.scenario);
   const setScenario = useStore((s) => s.setScenario);
+  const zones = useStore((s) => s.zones);
+  const media = useStore((s) => s.media);
   const phase = useStore((s) => s.phase);
   const t = useT();
 
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
   const config = scenario?.simulationConfig;
+  const recAuto = config?.recommendedDurationAuto === true;
+  const autoRecMs = computeAutoRecommendedDurationMs(zones.length, media.length);
+
+  // When auto is on, keep stored recommendedDurationMs in sync with scenario scale.
+  // Guarded by isLocked so a running sim isn't retroactively mutated.
+  useEffect(() => {
+    if (!scenario || isLocked) return;
+    if (!recAuto) return;
+    if (config?.recommendedDurationMs === autoRecMs) return;
+    setScenario({
+      ...scenario,
+      simulationConfig: { ...scenario.simulationConfig, recommendedDurationMs: autoRecMs },
+    });
+  }, [scenario, isLocked, recAuto, autoRecMs, config?.recommendedDurationMs, setScenario]);
 
   const updateDist = useCallback((field: string, value: number) => {
     if (!scenario || isLocked) return;
@@ -143,13 +160,34 @@ export function SpawnConfig() {
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
           />
-          <NumField
-            label="Rec. Stay (min)"
-            value={recommendedMin}
-            onChange={(v) => updateConfig('recommendedDurationMs', Math.max(5, v) * 60000)}
-            disabled={isLocked}
-            step={5}
-          />
+          <div>
+            <NumField
+              label={recAuto ? t('spawn.recStay.labelAuto') : t('spawn.recStay.label')}
+              value={recommendedMin}
+              onChange={(v) => updateConfig('recommendedDurationMs', Math.max(5, v) * 60000)}
+              disabled={isLocked || recAuto}
+              step={5}
+            />
+            <button
+              onClick={() => {
+                if (!scenario || isLocked) return;
+                const nextAuto = !recAuto;
+                setScenario({
+                  ...scenario,
+                  simulationConfig: {
+                    ...scenario.simulationConfig,
+                    recommendedDurationAuto: nextAuto,
+                    recommendedDurationMs: nextAuto ? autoRecMs : scenario.simulationConfig.recommendedDurationMs,
+                  },
+                });
+              }}
+              disabled={isLocked}
+              title={t('spawn.recStay.hint', { zones: zones.length, media: media.length })}
+              className="text-[8px] text-primary mt-0.5 hover:underline disabled:opacity-50"
+            >
+              {recAuto ? t('spawn.recStay.switchManual') : t('spawn.recStay.switchAuto')}
+            </button>
+          </div>
           <div>
             <NumField
               label="Seed"

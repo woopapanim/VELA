@@ -137,6 +137,21 @@ export const FATIGUE_ACTION_MULT = {
 // 개인 관람 예산 (visitor.visitBudgetMs) 계산. recommendedDuration × profile × engagement × jitter.
 export const DEFAULT_RECOMMENDED_DURATION_MS = 60 * 60_000; // 60분
 
+// Auto-scale Rec. Stay by scenario size (zones + media). Formula:
+// base + zones*perZone + media*perMedia, capped at cap (all in minutes).
+export const VISIT_BUDGET_AUTO_BASE_MIN = 30;
+export const VISIT_BUDGET_AUTO_PER_ZONE_MIN = 3;
+export const VISIT_BUDGET_AUTO_PER_MEDIA_MIN = 2;
+export const VISIT_BUDGET_AUTO_CAP_MIN = 180;
+
+export function computeAutoRecommendedDurationMs(zoneCount: number, mediaCount: number): number {
+  const raw = VISIT_BUDGET_AUTO_BASE_MIN
+    + Math.max(0, zoneCount) * VISIT_BUDGET_AUTO_PER_ZONE_MIN
+    + Math.max(0, mediaCount) * VISIT_BUDGET_AUTO_PER_MEDIA_MIN;
+  const minutes = Math.min(raw, VISIT_BUDGET_AUTO_CAP_MIN);
+  return minutes * 60_000;
+}
+
 export const VISIT_BUDGET_PROFILE_MULT: Record<string, number> = {
   general:  1.0,
   vip:      1.2,  // thorough

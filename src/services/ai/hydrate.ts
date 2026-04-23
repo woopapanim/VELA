@@ -6,6 +6,7 @@ import {
   DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD,
   ZoneId, FloorId, ScenarioId,
 } from '@/domain';
+import { computeAutoRecommendedDurationMs } from '@/domain/constants';
 import type { DraftScenario, HydrationWarning } from './types';
 
 export interface HydrationResult {
@@ -178,6 +179,8 @@ export function hydrateDraft(
       seed: Math.floor(Math.random() * 99999),
       physics: DEFAULT_PHYSICS,
       skipThreshold: DEFAULT_SKIP_THRESHOLD,
+      recommendedDurationAuto: true,
+      recommendedDurationMs: computeAutoRecommendedDurationMs(zones.length, 0),
       timeSlots: [{
         startTimeMs: 0, endTimeMs: 3_600_000, spawnRatePerSecond: 0.2,
         profileDistribution: { general: 60, vip: 15, child: 10, elderly: 10, disabled: 5 },
