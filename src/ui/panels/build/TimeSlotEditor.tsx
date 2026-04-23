@@ -17,9 +17,11 @@ export function TimeSlotEditor() {
   const updateSlot = useCallback((index: number, updates: Partial<TimeSlotConfig>) => {
     if (!scenario || isLocked) return;
     const newSlots = slots.map((s, i) => (i === index ? { ...s, ...updates } : s));
+    const maxEnd = newSlots.reduce((m, s) => Math.max(m, s.endTimeMs), 0);
+    const nextDuration = Math.max(scenario.simulationConfig.duration, maxEnd);
     setScenario({
       ...scenario,
-      simulationConfig: { ...scenario.simulationConfig, timeSlots: newSlots },
+      simulationConfig: { ...scenario.simulationConfig, timeSlots: newSlots, duration: nextDuration },
     });
   }, [scenario, setScenario, slots, isLocked]);
 
