@@ -20,7 +20,7 @@ const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
 ];
 
 const NODE_COLORS: Record<string, string> = {
-  entry: '#22c55e', exit: '#ef4444', zone: '#3b82f6', attractor: '#f59e0b', hub: '#8b5cf6', rest: '#9ca3af', portal: '#06b6d4',
+  entry: '#22c55e', exit: '#ef4444', zone: '#3b82f6', attractor: '#f59e0b', hub: '#8b5cf6', rest: '#f59e0b', portal: '#06b6d4',
 };
 
 let _popoverShaftCounter = 1;

@@ -182,10 +182,11 @@ export const en: Dict = {
 
   // Insight engine — skip
   'insight.skip.problem': 'Consider duplicating popular media',
+  'insight.skip.problem.withNames': 'Consider duplicating high-skip media — {names}',
   'insight.skip.cause':
     'Global skip rate {pct}% — visitors abandon due to wait time',
   'insight.skip.rec.withHighSkip':
-    '→ Duplicate {count} high-skip media or raise their capacity',
+    '→ Duplicate or raise capacity for these {count} media: {names}',
   'insight.skip.rec.default':
     '→ Duplicate placement or raise media capacity',
 
@@ -196,11 +197,14 @@ export const en: Dict = {
   'insight.fatigue.rec': '→ Place midway rest zone or shorten flow',
 
   // Insight engine — flow efficiency
-  'insight.flow.problem': 'Relocate flagship content',
+  'insight.flow.problem': 'Place high-engagement content early in the flow',
+  'insight.flow.problem.withNames': 'Place high-engagement content early — {names}',
   'insight.flow.cause':
     'Completion rate {pct}% — over half leave early',
   'insight.flow.rec':
-    '→ Place key content early in the flow to maintain motivation',
+    '→ Front-load high-engagement content to sustain motivation',
+  'insight.flow.rec.withNames':
+    '→ Move high-engagement media ({names}) to the early flow to sustain motivation',
 
   // Insight engine — space ROI
   'insight.spaceRoi.low.problem': '{names}: Review downsizing or replacement',
@@ -464,7 +468,10 @@ export const en: Dict = {
   'vela.sys.kv.mediaCap': 'Media capacity',
   'vela.sys.kv.avgCrowd': 'Avg. crowding',
   'vela.sys.kv.avgDwell': 'Avg. dwell time',
-  'vela.sys.kv.throughput': 'Visitors per minute',
+  'vela.sys.kv.throughput': 'Throughput',
+  'vela.sys.kv.throughput.spawnNote': 'Spawn {rate}/min',
+  'vela.sys.kv.unitCount': '',
+  'vela.sys.kv.unitPeople': 'people',
   'vela.sys.th.zone': 'Zone',
   'vela.sys.th.areaCap': 'Area / Cap.',
   'vela.sys.th.peak': 'Peak',
@@ -491,8 +498,8 @@ export const en: Dict = {
   'vela.flow.col.dist': 'Completion distribution',
   'vela.flow.kv.completed': 'Completed visitors',
   'vela.flow.kv.avgTotal': 'Avg. total duration',
-  'vela.flow.kv.throughput': 'Visitors per minute',
-  'vela.flow.kv.completion': 'Completion rate (≥{n} zones of exited, 80%+)',
+  'vela.flow.kv.throughput': 'Throughput',
+  'vela.flow.kv.completion': 'Completion rate (≥{n} zones of exited, 70%+)',
   'vela.flow.kv.exit': 'Early-exit rate (≤{n} zones of exited, 20%-)',
   'vela.flow.kv.overallExit': 'Overall exit rate (of spawned)',
   'vela.flow.kv.group': 'Group-induced bottleneck',
@@ -596,8 +603,8 @@ export const en: Dict = {
   'vela.kpi.bottleneck.label': 'Bottleneck',
   'vela.kpi.bottleneck.note': '{count} group-induced',
   'vela.kpi.throughput.label': 'Throughput',
-  'vela.kpi.throughput.unit': '/m',
-  'vela.kpi.throughput.note': 'Visitors per minute',
+  'vela.kpi.throughput.unit': '/min',
+  'vela.kpi.throughput.note': 'Exited ÷ elapsed minutes',
 
   // VELA Report — Evidence labels
   'vela.ev.peak.label': 'Peak Utilization',

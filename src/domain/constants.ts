@@ -133,6 +133,10 @@ export const FATIGUE_ACTION_MULT = {
   idle:            0,
 } as const;
 
+// Rest 존 내부 waypoint 가 rest-type 이 아니어도 dwell/RESTING 이 발동하도록
+// 자동 승격할 때 사용하는 기본 체류 시간. 90s ≈ 일반적인 벤치 휴식.
+export const REST_ZONE_DEFAULT_DWELL_MS = 90_000;
+
 // ---- Visit Budget ----
 // 개인 관람 예산 (visitor.visitBudgetMs) 계산. recommendedDuration × profile × engagement × jitter.
 export const DEFAULT_RECOMMENDED_DURATION_MS = 60 * 60_000; // 60분
@@ -151,6 +155,12 @@ export function computeAutoRecommendedDurationMs(zoneCount: number, mediaCount: 
   const minutes = Math.min(raw, VISIT_BUDGET_AUTO_CAP_MIN);
   return minutes * 60_000;
 }
+
+// ---- Completion / Early-exit thresholds (share of total zones) ----
+// 80% 완주 기준은 자유 관람 패턴에서 비현실적이라 70% 로 완화.
+// 조기이탈 기준은 20% 유지 — 메인 컨텐츠 극히 일부만 본 이탈자를 잡기 위함.
+export const COMPLETION_ZONE_RATIO = 0.7;
+export const EARLY_EXIT_ZONE_RATIO = 0.2;
 
 export const VISIT_BUDGET_PROFILE_MULT: Record<string, number> = {
   general:  1.0,

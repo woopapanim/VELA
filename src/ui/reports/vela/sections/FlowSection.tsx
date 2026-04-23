@@ -69,13 +69,13 @@ function TransitionMatrix({
 
 function DwellHistogram({ flow }: { flow: ReportFlow }) {
   const t = useT();
-  const W = 460, H = 140;
-  const P = { t: 8, r: 8, b: 26, l: 8 };
+  const W = 460, H = 160;
+  const P = { t: 28, r: 8, b: 26, l: 8 };
   const max = Math.max(1, ...flow.dwellHist.map((d) => d.count));
   const colWidth = (W - P.l - P.r) / flow.dwellHist.length;
   const barWidth = Math.max(4, colWidth - 6);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', height: 'auto', maxHeight: 160 }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', height: 'auto', maxHeight: 180 }}>
       {flow.dwellHist.map((d, i) => {
         const h = (d.count / max) * (H - P.t - P.b);
         const x = P.l + i * colWidth;
@@ -124,7 +124,15 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
           <dl className="kv-list">
             <div className="kv-row"><dt>{t('vela.flow.kv.completed')}</dt><dd className="num">{flow.completed}</dd></div>
             <div className="kv-row"><dt>{t('vela.flow.kv.avgTotal')}</dt><dd className="num">{flow.avgTotalMin.toFixed(2)} {t('vela.sys.td.stayUnit')}</dd></div>
-            <div className="kv-row"><dt>{t('vela.flow.kv.throughput')}</dt><dd className="num">{flow.throughputPerMin.toFixed(2)} {t('vela.kpi.throughput.unit')}</dd></div>
+            <div className="kv-row">
+              <dt>{t('vela.flow.kv.throughput')}</dt>
+              <dd className="num">
+                {flow.throughputPerMin.toFixed(2)} {t('vela.kpi.throughput.unit')}
+                {flow.spawnRatePerMin > 0 && (
+                  <div className="mono-sub">{t('vela.sys.kv.throughput.spawnNote', { rate: flow.spawnRatePerMin.toFixed(1) })}</div>
+                )}
+              </dd>
+            </div>
             <div className="kv-row"><dt>{t('vela.flow.kv.completion', { n: flow.completionThreshold })}</dt><dd className="num">{completionPct}%</dd></div>
             <div className="kv-row"><dt>{t('vela.flow.kv.exit', { n: flow.earlyExitThreshold })}</dt>
               <dd className={`num ${exitRatePct >= 50 ? 's-danger' : ''}`}>{exitRatePct}%</dd>

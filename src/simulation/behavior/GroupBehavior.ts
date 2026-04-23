@@ -72,8 +72,9 @@ export function syncFollowerToLeader(
       currentAction: leaderAction,
       targetZoneId: leader.targetZoneId,
       targetNodeId: leader.targetNodeId,
-      currentZoneId: leader.currentZoneId,
-      currentNodeId: leader.currentNodeId,
+      // currentZoneId/currentNodeId 은 덮어쓰지 않는다 — follower 의 실제 물리 위치와
+      // desync 되면 stuck 트래킹/zone 집계가 틀어진다. arrival/collision 로직이
+      // follower 본인 위치 기준으로 갱신하도록 맡긴다.
       // Don't copy targetMediaId — followers just follow leader's position
       targetMediaId: null,
       waitStartedAt: null,

@@ -232,7 +232,7 @@ export function BuildTools() {
               { type: 'zone' as WaypointType, label: 'Zone', color: '#3b82f6', descKey: 'build.node.zone.desc' },
               { type: 'attractor' as WaypointType, label: 'Attractor', color: '#f59e0b', descKey: 'build.node.attractor.desc' },
               { type: 'hub' as WaypointType, label: 'Hub', color: '#8b5cf6', descKey: 'build.node.hub.desc' },
-              { type: 'rest' as WaypointType, label: 'Rest', color: '#9ca3af', descKey: 'build.node.rest.desc' },
+              { type: 'rest' as WaypointType, label: 'Rest', color: '#f59e0b', descKey: 'build.node.rest.desc' },
               { type: 'portal' as WaypointType, label: 'Portal', color: '#06b6d4', descKey: 'build.node.portal.desc' },
             ]).map(({ type, label, color, descKey }) => (
               <button

@@ -131,13 +131,26 @@ export function generateInsights(
   // ══════════════════════════════════
   if (snapshot.skipRate.globalSkipRate > 0.3) {
     const highSkipMedia = snapshot.skipRate.perMedia.filter((m) => m.rate > 0.4);
+    const mediaById = new Map((media ?? []).map((m) => [m.id as string, m]));
+    const nameOf = (id: string): string => {
+      const m = mediaById.get(id);
+      if (!m) return id.slice(0, 6);
+      const anyM = m as any;
+      return (anyM.name && String(anyM.name).trim()) || String(m.type ?? id).replace(/_/g, ' ');
+    };
+    const topNames = highSkipMedia
+      .slice(0, 3)
+      .map((m) => nameOf(m.mediaId as string));
+    const namesText = topNames.join(', ');
     insights.push({
       severity: 'warning',
       category: 'skip',
-      problem: t('insight.skip.problem'),
+      problem: topNames.length > 0
+        ? t('insight.skip.problem.withNames', { names: namesText })
+        : t('insight.skip.problem'),
       cause: t('insight.skip.cause', { pct: Math.round(snapshot.skipRate.globalSkipRate * 100) }),
       recommendation: highSkipMedia.length > 0
-        ? t('insight.skip.rec.withHighSkip', { count: highSkipMedia.length })
+        ? t('insight.skip.rec.withHighSkip', { count: highSkipMedia.length, names: namesText })
         : t('insight.skip.rec.default'),
       affectedZoneIds: [],
       affectedMediaIds: highSkipMedia.map((m) => m.mediaId),
@@ -165,14 +178,36 @@ export function generateInsights(
   // 6. Flow Efficiency
   // ══════════════════════════════════
   if (snapshot.flowEfficiency.completionRate < 0.5 && snapshot.flowEfficiency.totalVisitorsProcessed > 10) {
+    // Top-engagement media by watch/(watch+skip), filtered by minimum sample size.
+    const topEngagement: { id: string; name: string }[] = [];
+    if (media && mediaStats) {
+      const scored = media.map((m) => {
+        const stats = mediaStats.get(m.id as string);
+        const w = stats?.watchCount ?? 0;
+        const s = stats?.skipCount ?? 0;
+        const approaches = w + s;
+        const rate = approaches >= 3 ? w / approaches : -1;
+        const anyM = m as any;
+        const name = (anyM.name && String(anyM.name).trim())
+          || String(m.type ?? m.id).replace(/_/g, ' ');
+        return { id: m.id as string, name, rate };
+      }).filter((e) => e.rate >= 0.6);
+      scored.sort((a, b) => b.rate - a.rate);
+      for (const e of scored.slice(0, 3)) topEngagement.push({ id: e.id, name: e.name });
+    }
+    const namesText = topEngagement.map((e) => e.name).join(', ');
     insights.push({
       severity: 'info',
       category: 'flow',
-      problem: t('insight.flow.problem'),
+      problem: topEngagement.length > 0
+        ? t('insight.flow.problem.withNames', { names: namesText })
+        : t('insight.flow.problem'),
       cause: t('insight.flow.cause', { pct: Math.round(snapshot.flowEfficiency.completionRate * 100) }),
-      recommendation: t('insight.flow.rec'),
+      recommendation: topEngagement.length > 0
+        ? t('insight.flow.rec.withNames', { names: namesText })
+        : t('insight.flow.rec'),
       affectedZoneIds: [],
-      affectedMediaIds: [],
+      affectedMediaIds: topEngagement.map((e) => e.id as any),
       dataEvidence: { metric: 'completion_rate', value: snapshot.flowEfficiency.completionRate, threshold: 0.5 },
     });
   }

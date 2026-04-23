@@ -4,6 +4,7 @@ import type {
   InsightEntry, WaypointGraph,
 } from '@/domain';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import { COMPLETION_ZONE_RATIO, EARLY_EXIT_ZONE_RATIO } from '@/domain/constants';
 import { generateInsights, extractKeyMoments } from '@/analytics';
 
 export type Severity = 'info' | 'warning' | 'critical';
@@ -131,6 +132,8 @@ export interface ReportSystemOverview {
   readonly avgCrowdingPct: number;
   readonly avgDwellMin: number;
   readonly throughputPerMin: number;
+  /** Configured spawn rate × 60 — useful alongside throughput to see throttle vs. design. */
+  readonly spawnRatePerMin: number;
   readonly interpretation: string | null;
 }
 
@@ -173,6 +176,8 @@ export interface ReportFlow {
   readonly completed: number;
   readonly avgTotalMin: number;
   readonly throughputPerMin: number;
+  /** Configured spawn rate × 60 (same as system.spawnRatePerMin). Mirrored for convenience. */
+  readonly spawnRatePerMin: number;
   /** 완주율 = 퇴장자 중 전체 존의 80% 이상 방문한 비율 (0..1). */
   readonly completionRate: number;
   /** 조기이탈률 = 퇴장자 중 전체 존의 20% 이하 방문한 비율 (0..1). */
@@ -499,15 +504,22 @@ export function toReportData(input: ToReportDataInput): ReportData {
   });
 
   // ---- Zone-count buckets (for completion / early-exit definitions) ------
-  // 퇴장자만을 대상으로 방문한 존 수 분포 — 전체 존 개수 대비 비율 기준.
-  // nZones=15 → 조기이탈 ≤3개, 완주 ≥12개. nZones=5 → 조기이탈 ≤1, 완주 ≥4.
+  // 퇴장자만을 대상으로 방문한 essential 존 수 분포 — essential 존 수 대비 비율 기준.
+  // Rest 는 amenity 이므로 분모/분자 모두에서 제외 (완주 정의는 투어 essential 의 비율).
+  // 기준은 domain/constants.ts 의 COMPLETION_ZONE_RATIO / EARLY_EXIT_ZONE_RATIO.
   // 소규모 시나리오에서도 lowMax < highMin 이 유지되도록 clamp.
-  const nZones = zones.length;
-  const lowMax = nZones > 0 ? Math.max(1, Math.floor(nZones * 0.2)) : 0;
-  const highMin = nZones > 0 ? Math.max(lowMax + 1, Math.ceil(nZones * 0.8)) : 0;
+  const restZoneIds = new Set(
+    zones.filter((z) => (z as any).type === 'rest').map((z) => z.id as string),
+  );
+  const nZones = zones.length - restZoneIds.size;
+  const lowMax = nZones > 0 ? Math.max(1, Math.floor(nZones * EARLY_EXIT_ZONE_RATIO)) : 0;
+  const highMin = nZones > 0 ? Math.max(lowMax + 1, Math.ceil(nZones * COMPLETION_ZONE_RATIO)) : 0;
   const fb = { zero: 0, low: 0, mid: 0, high: 0 };
   for (const v of exited) {
-    const n = v.visitedZoneIds.length;
+    const n = v.visitedZoneIds.reduce(
+      (acc, id) => (restZoneIds.has(id as string) ? acc : acc + 1),
+      0,
+    );
     if (n === 0) fb.zero++;
     else if (n <= lowMax) fb.low++;
     else if (n >= highMin) fb.high++;
@@ -854,6 +866,12 @@ export function toReportData(input: ToReportDataInput): ReportData {
   } else if (peakUtilRatio > 0.85) {
     interpretation = t('vela.sys.interp.near', { zone: peakZoneName, pct: Math.round(peakUtilRatio * 100) });
   }
+  // Configured spawn rate: prefer active timeslot, fall back to the legacy distribution mirror.
+  const configuredSpawnRps =
+    scenario.simulationConfig?.timeSlots?.[0]?.spawnRatePerSecond
+    ?? scenario.visitorDistribution?.spawnRatePerSecond
+    ?? 0;
+  const spawnRatePerMin = configuredSpawnRps * 60;
   const system: ReportSystemOverview = {
     zonesCount: zones.length,
     mediaCount: media.length,
@@ -863,6 +881,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     avgCrowdingPct,
     avgDwellMin: avgDwellMs / MS_MIN,
     throughputPerMin,
+    spawnRatePerMin,
     interpretation,
   };
 
@@ -1040,6 +1059,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     completed: exited.length,
     avgTotalMin: exitedDwellMs / MS_MIN,
     throughputPerMin,
+    spawnRatePerMin,
     completionRate,
     earlyExitRate,
     completionThreshold: highMin,

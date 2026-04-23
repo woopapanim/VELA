@@ -118,14 +118,22 @@ export function SystemOverviewSection({
         <div>
           <div className="col-label">{t('vela.sys.col.composition')}</div>
           <dl className="kv-list">
-            <div className="kv-row"><dt>{t('vela.sys.kv.zones')}</dt><dd className="num">{system.zonesCount}</dd></div>
-            <div className="kv-row"><dt>{t('vela.sys.kv.media')}</dt><dd className="num">{system.mediaCount}</dd></div>
+            <div className="kv-row"><dt>{t('vela.sys.kv.zones')}</dt><dd className="num">{system.zonesCount} {t('vela.sys.kv.unitCount')}</dd></div>
+            <div className="kv-row"><dt>{t('vela.sys.kv.media')}</dt><dd className="num">{system.mediaCount} {t('vela.sys.kv.unitCount')}</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.area')}</dt><dd className="num">{system.totalAreaM2.toFixed(1)} m²</dd></div>
-            <div className="kv-row"><dt>{t('vela.sys.kv.capacity')}</dt><dd className="num">{system.totalCapacity}</dd></div>
-            <div className="kv-row"><dt>{t('vela.sys.kv.mediaCap')}</dt><dd className="num">{system.mediaCapacity}</dd></div>
+            <div className="kv-row"><dt>{t('vela.sys.kv.capacity')}</dt><dd className="num">{system.totalCapacity} {t('vela.sys.kv.unitPeople')}</dd></div>
+            <div className="kv-row"><dt>{t('vela.sys.kv.mediaCap')}</dt><dd className="num">{system.mediaCapacity} {t('vela.sys.kv.unitPeople')}</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.avgCrowd')}</dt><dd className="num">{system.avgCrowdingPct}%</dd></div>
             <div className="kv-row"><dt>{t('vela.sys.kv.avgDwell')}</dt><dd className="num">{system.avgDwellMin.toFixed(1)} {t('vela.sys.td.stayUnit')}</dd></div>
-            <div className="kv-row"><dt>{t('vela.sys.kv.throughput')}</dt><dd className="num">{system.throughputPerMin.toFixed(1)} {t('vela.kpi.throughput.unit')}</dd></div>
+            <div className="kv-row">
+              <dt>{t('vela.sys.kv.throughput')}</dt>
+              <dd className="num">
+                {system.throughputPerMin.toFixed(1)} {t('vela.kpi.throughput.unit')}
+                {system.spawnRatePerMin > 0 && (
+                  <div className="mono-sub">{t('vela.sys.kv.throughput.spawnNote', { rate: system.spawnRatePerMin.toFixed(1) })}</div>
+                )}
+              </dd>
+            </div>
           </dl>
         </div>
       </div>
