@@ -86,6 +86,9 @@ export const en: Dict = {
   'scenario.compare.recommend': 'Recommend',
   'scenario.compare.scenarioPrefix': 'Scenario',
   'scenario.compare.equal': 'tie',
+  'scenario.compare.modeMismatch': '⚠️ Comparing scenarios with different termination modes (A: {modeA}, B: {modeB}) — direct comparison unreliable. Rerun in the same mode.',
+  'scenario.compare.modeTime': 'Time-based',
+  'scenario.compare.modePerson': 'Person-based',
 
   // Config fields
   'configFields.sumRequired': 'Sum: {total}% (100% required)',
@@ -345,7 +348,7 @@ export const en: Dict = {
 
   // VELA Report — Hero
   'vela.hero.brand': 'VELA · Spatial Simulation Report',
-  'vela.hero.line': 'Report · {version} · {date}',
+  'vela.hero.line': 'Report · {runId} · {date}',
   'vela.hero.titleA': 'Spatial',
   'vela.hero.titleB': 'Report',
   'vela.hero.subtitleA': 'We measure not capacity — but the ',
@@ -355,7 +358,12 @@ export const en: Dict = {
   'vela.hero.kDuration': 'Simulated',
   'vela.hero.kVisitors': 'Visitors',
   'vela.hero.visitorsFmt': '{count}',
-  'vela.hero.kVersion': 'Version',
+  'vela.hero.kRunId': 'Run ID',
+  'vela.hero.modeTime': '🕐 Time-based',
+  'vela.hero.modePerson': '👥 Person-based',
+  'vela.hero.modeTimeHint': 'Measures throughput during operating hours',
+  'vela.hero.modePersonHint': 'Measures a fixed cohort completing the visit',
+  'vela.hero.trimWarn': '⚠️ Duration cap hit with visit in progress — last {active} visitors truncated. Average stay & completion rate may be skewed.',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': 'Key Insight',

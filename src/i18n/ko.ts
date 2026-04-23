@@ -83,6 +83,9 @@ export const ko: Dict = {
   'scenario.compare.recommend': '추천',
   'scenario.compare.scenarioPrefix': '시나리오',
   'scenario.compare.equal': '동일',
+  'scenario.compare.modeMismatch': '⚠️ 종료 기준이 다른 시나리오 비교 (A: {modeA}, B: {modeB}) — 직접 비교 어려움. 같은 모드로 재실행 권장.',
+  'scenario.compare.modeTime': '시간 기준',
+  'scenario.compare.modePerson': '사람 기준',
 
   // Config fields
   'configFields.sumRequired': '합계: {total}% (100% 필요)',
@@ -320,7 +323,7 @@ export const ko: Dict = {
 
   // VELA Report — Hero
   'vela.hero.brand': 'VELA · 공간 시뮬레이션 리포트',
-  'vela.hero.line': '리포트 · {version} · {date}',
+  'vela.hero.line': '리포트 · {runId} · {date}',
   'vela.hero.titleA': '공간',
   'vela.hero.titleB': '리포트',
   'vela.hero.subtitleA': '우리는 ‘얼마나 많이’가 아니라, ‘',
@@ -330,7 +333,12 @@ export const ko: Dict = {
   'vela.hero.kDuration': '시뮬레이션',
   'vela.hero.kVisitors': '방문객',
   'vela.hero.visitorsFmt': '{count}명',
-  'vela.hero.kVersion': '버전',
+  'vela.hero.kRunId': 'Run ID',
+  'vela.hero.modeTime': '🕐 시간 기준',
+  'vela.hero.modePerson': '👥 사람 기준',
+  'vela.hero.modeTimeHint': '운영시간 동안 방문객 수용을 측정',
+  'vela.hero.modePersonHint': '정해진 관람객 수가 완주하는 것을 측정',
+  'vela.hero.trimWarn': '⚠️ 미완료 상태로 Duration 도달 — 마지막 {active}명 관람 중 강제 종료. 평균 체류·완주율 값 주의.',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': '핵심 인사이트',

@@ -10,15 +10,18 @@ export type Severity = 'info' | 'warning' | 'critical';
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
 
 export interface ReportMeta {
-  readonly id: string;
+  readonly id: string;             // full runId, e.g. "run_20260423T143011_a1b2c3"
   readonly projectName: string;
-  readonly generated: string;   // "YYYY-MM-DD HH:mm"
-  readonly duration: string;    // "29m 51s"
+  readonly generated: string;      // "YYYY-MM-DD HH:mm"
+  readonly duration: string;       // "29m 51s"
   readonly visitors: number;
   readonly active: number;
   readonly exited: number;
-  readonly version: string;
+  readonly runId: string;          // short-form runId for display (same as id here)
   readonly peakMoment: string | null; // "28:14" or null
+  readonly mode: 'time' | 'person';    // 종료 기준 (시나리오에서 선택)
+  readonly trimmed: boolean;            // time 모드에서 미완료 상태로 Duration 도달한 경우
+  readonly totalConfigured: number;     // 시나리오의 목표 관람객 수 (visitorDistribution.totalCount)
 }
 
 export interface ReportEvidence {
@@ -266,6 +269,7 @@ export interface ToReportDataInput {
   readonly exitByNode: ReadonlyMap<string, number>;
   readonly waypointGraph: WaypointGraph | null;
   readonly totalExited: number;
+  readonly runId: string | null;
   readonly t: (k: string, params?: Record<string, string | number>) => string;
 }
 
@@ -319,7 +323,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     scenario, zones, media, floors, visitors, groups,
     timeState, latestSnapshot, kpiHistory, mediaStats,
     spawnByNode, exitByNode, waypointGraph,
-    totalExited, t,
+    totalExited, runId, t,
   } = input;
 
   const exited = visitors.filter((v) => !v.isActive);
@@ -562,16 +566,29 @@ export function toReportData(input: ToReportDataInput): ReportData {
   }
 
   // ---- Meta --------------------------------------------------------------
+  // Run ID uniquely identifies each simulation execution (timestamp + structural hash).
+  // Falls back to "run_unknown" when a report is rendered without a completed run
+  // (shouldn't happen in practice because the hero gates on hasSim).
+  const resolvedRunId = runId ?? 'run_unknown';
+  const mode = scenario.simulationConfig.simulationMode ?? 'time';
+  const totalConfigured = scenario.visitorDistribution.totalCount ?? 0;
+  // time 모드에서 "잘림" 판정: 스폰이 목표에 못 미쳤거나(입장 못한 사람) 활성 visitor 가 남아있음(관람 중 잘림).
+  const trimmed =
+    mode === 'time' &&
+    (visitors.length < totalConfigured || active.length > 0);
   const meta: ReportMeta = {
-    id: `Sim ${String(scenario.meta.version ?? 1).padStart(4, '0')}`,
+    id: resolvedRunId,
     projectName: scenario.meta.name,
     generated: fmtDateStamp(),
     duration: fmtDuration(durationMs),
     visitors: visitors.length,
     active: active.length,
     exited: exited.length,
-    version: `v${scenario.meta.version ?? 1}`,
+    runId: resolvedRunId,
     peakMoment,
+    mode,
+    trimmed,
+    totalConfigured,
   };
 
   // ---- Evidence (TL;DR) --------------------------------------------------

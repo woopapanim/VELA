@@ -18,6 +18,7 @@ export function ScenarioPanel() {
   const [savedList, setSavedList] = useState<SavedScenario[]>(() => scenarioManager.getAll());
   const [comparison, setComparison] = useState<ScenarioComparison | null>(null);
   const [, setCompareTargetId] = useState<string | null>(null);
+  const [compareModes, setCompareModes] = useState<{ a: 'time' | 'person'; b: 'time' | 'person' } | null>(null);
 
   const refreshList = useCallback(() => {
     setSavedList(scenarioManager.getAll());
@@ -67,6 +68,10 @@ export function ScenarioPanel() {
       createdAt: Date.now(),
     });
     setCompareTargetId(targetId);
+    setCompareModes({
+      a: scenario.simulationConfig.simulationMode ?? 'time',
+      b: target.scenario.simulationConfig.simulationMode ?? 'time',
+    });
   }, [latestSnapshot, scenario, zones]);
 
   return (
@@ -147,6 +152,14 @@ export function ScenarioPanel() {
             <span className="text-muted-foreground">vs</span>
             <span className="px-1.5 py-0.5 rounded bg-[var(--status-success)]/10 text-[var(--status-success)] font-data">B: {comparison.scenarioB.name}</span>
           </div>
+          {compareModes && compareModes.a !== compareModes.b && (
+            <div className="p-1.5 rounded bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/30 text-[10px] text-[var(--status-warning)] leading-tight">
+              {t('scenario.compare.modeMismatch', {
+                modeA: t(compareModes.a === 'person' ? 'scenario.compare.modePerson' : 'scenario.compare.modeTime'),
+                modeB: t(compareModes.b === 'person' ? 'scenario.compare.modePerson' : 'scenario.compare.modeTime'),
+              })}
+            </div>
+          )}
 
           <DeltaRow label="Peak Congestion" d={comparison.deltaKpis.peakCongestion} suffix="%" mult={100} />
           <DeltaRow label="Skip Rate" d={comparison.deltaKpis.globalSkipRate} suffix="%" mult={100} />

@@ -628,7 +628,17 @@ export class SimulationEngine {
     }
 
     this.state.timeState = { ...this.state.timeState, elapsed, tickCount, accumulator };
-    if (elapsed >= this.world.config.duration) this.state.phase = SIMULATION_PHASE.COMPLETED;
+
+    const mode = this.world.config.simulationMode ?? 'time';
+    const hitDurationCap = elapsed >= this.world.config.duration;
+    if (mode === 'person') {
+      const totalCap = this.world.totalVisitors ?? Infinity;
+      const spawnComplete = Number.isFinite(totalCap) && this._totalSpawned >= totalCap;
+      const allExited = spawnComplete && this._totalExited >= this._totalSpawned;
+      if (allExited || hitDurationCap) this.state.phase = SIMULATION_PHASE.COMPLETED;
+    } else if (hitDurationCap) {
+      this.state.phase = SIMULATION_PHASE.COMPLETED;
+    }
   }
 
   private tick(dt: number) {
@@ -1189,8 +1199,9 @@ export class SimulationEngine {
           const isMust = !!(media as any).mustVisit;
           if (!isMust && shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
             this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+            this.recordSkipCooldown(v.id as string, mid);
             return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
-              visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId], targetMediaId: null, targetPosition: null, waitStartedAt: null });
+              targetMediaId: null, targetPosition: null, waitStartedAt: null });
           }
           return v; // keep waiting
         }
@@ -1214,10 +1225,10 @@ export class SimulationEngine {
             const isMust = !!(media as any).mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
                 ...v,
                 currentAction: VISITOR_ACTION.IDLE,
-                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
                 targetMediaId: null,
                 targetPosition: null,
                 waitStartedAt: null,
@@ -1253,10 +1264,10 @@ export class SimulationEngine {
             const isMust = !!(media as any).mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
                 ...v,
                 currentAction: VISITOR_ACTION.IDLE,
-                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
                 targetMediaId: null,
                 targetPosition: null,
                 waitStartedAt: null,
@@ -1298,10 +1309,10 @@ export class SimulationEngine {
             const isMust = !!(media as any).mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
+              this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
                 ...v,
                 currentAction: VISITOR_ACTION.IDLE,
-                visitedMediaIds: [...v.visitedMediaIds, v.targetMediaId],
                 targetMediaId: null,
                 targetPosition: null,
                 waitStartedAt: null,
@@ -2584,11 +2595,10 @@ export class SimulationEngine {
             };
           }
         }
-        // No media picked (all over capacity or selection failed) → 쿨다운 등록 후 fall through
-        // visitedMediaIds 는 영구 제외 (관람 완료) 용이므로 건드리지 않는다.
+        // No media picked (all over capacity) → 쿨다운만 등록하고 fall through.
+        // 방문자가 실제로 approach/wait 한 적 없으니 recordSkip 은 호출하지 않는다.
+        // (기존엔 unvisited 전체에 대해 bulk-skip 을 걸어 skipCount 가 부풀어있음.)
         for (const m of unvisited) {
-          recordMediaApproach(m.id as string);
-          this.recordSkip(m.id as string, 0, curNode.zoneId as string | null);
           this.recordSkipCooldown(v.id as string, m.id as string);
         }
       }
