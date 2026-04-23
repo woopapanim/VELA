@@ -86,6 +86,9 @@ export const en: Dict = {
   'scenario.compare.recommend': 'Recommend',
   'scenario.compare.scenarioPrefix': 'Scenario',
   'scenario.compare.equal': 'tie',
+  'scenario.compare.modeMismatch': '⚠️ Comparing scenarios with different termination modes (A: {modeA}, B: {modeB}) — direct comparison unreliable. Rerun in the same mode.',
+  'scenario.compare.modeTime': 'Time-based',
+  'scenario.compare.modePerson': 'Person-based',
 
   // Config fields
   'configFields.sumRequired': 'Sum: {total}% (100% required)',

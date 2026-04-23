@@ -83,6 +83,9 @@ export const ko: Dict = {
   'scenario.compare.recommend': '추천',
   'scenario.compare.scenarioPrefix': '시나리오',
   'scenario.compare.equal': '동일',
+  'scenario.compare.modeMismatch': '⚠️ 종료 기준이 다른 시나리오 비교 (A: {modeA}, B: {modeB}) — 직접 비교 어려움. 같은 모드로 재실행 권장.',
+  'scenario.compare.modeTime': '시간 기준',
+  'scenario.compare.modePerson': '사람 기준',
 
   // Config fields
   'configFields.sumRequired': '합계: {total}% (100% 필요)',
