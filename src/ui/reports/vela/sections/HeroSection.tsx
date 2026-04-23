@@ -42,7 +42,7 @@ export function HeroSection({ meta }: { meta: ReportMeta }) {
           fontSize: '0.8em',
           lineHeight: 1.4,
         }}>
-          {t('vela.hero.trimWarn', { active: meta.active })}
+          {t(meta.mode === 'person' ? 'vela.hero.trimWarnPerson' : 'vela.hero.trimWarn', { active: meta.active })}
         </div>
       )}
       <div className="meta">

@@ -369,6 +369,7 @@ export const en: Dict = {
   'vela.hero.modeTimeHint': 'Measures throughput during operating hours',
   'vela.hero.modePersonHint': 'Measures a fixed cohort completing the visit',
   'vela.hero.trimWarn': '⚠️ Duration cap hit with visit in progress — last {active} visitors truncated. Average stay & completion rate may be skewed.',
+  'vela.hero.trimWarnPerson': '⚠️ Max Duration safety cap fired — {active} visitors never exited. Design-validation metrics may be skewed (check for stuck agents).',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': 'Key Insight',

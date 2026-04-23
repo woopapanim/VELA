@@ -572,10 +572,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const resolvedRunId = runId ?? 'run_unknown';
   const mode = scenario.simulationConfig.simulationMode ?? 'time';
   const totalConfigured = scenario.visitorDistribution.totalCount ?? 0;
-  // time 모드에서 "잘림" 판정: 스폰이 목표에 못 미쳤거나(입장 못한 사람) 활성 visitor 가 남아있음(관람 중 잘림).
-  const trimmed =
-    mode === 'time' &&
-    (visitors.length < totalConfigured || active.length > 0);
+  // "잘림" 판정: 스폰이 목표에 못 미쳤거나(입장 못한 사람) 활성 visitor 가 남아있음(관람 중 잘림).
+  // time 모드: Duration 도달로 자연 종료, person 모드: Max Duration safety cap 발동 — 둘 다 같은 증상.
+  const trimmed = visitors.length < totalConfigured || active.length > 0;
   const meta: ReportMeta = {
     id: resolvedRunId,
     projectName: scenario.meta.name,

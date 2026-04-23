@@ -172,7 +172,7 @@ export function hydrateDraft(
     },
     simulationConfig: {
       fixedDeltaTime: 1000 / 60,
-      duration: 3_600_000,
+      duration: 10_800_000,
       timeScale: 3,
       maxVisitors: 500,
       seed: Math.floor(Math.random() * 99999),
