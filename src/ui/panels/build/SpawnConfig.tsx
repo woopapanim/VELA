@@ -42,9 +42,16 @@ export function SpawnConfig() {
 
   const setMode = (next: 'time' | 'person') => {
     if (!scenario || isLocked || next === mode) return;
+    // Person 모드 전환 시 Duration이 safety cap으로 동작하므로 최소 3h는 확보.
+    // 기존 저장 시나리오(60분 디폴트 시절)가 조기 cap 발동으로 지표 왜곡되는 것 방지.
+    const MIN_PERSON_DUR_MS = 180 * 60_000;
+    const currentDur = scenario.simulationConfig.duration;
+    const nextDur = next === 'person' && currentDur < MIN_PERSON_DUR_MS
+      ? MIN_PERSON_DUR_MS
+      : currentDur;
     setScenario({
       ...scenario,
-      simulationConfig: { ...scenario.simulationConfig, simulationMode: next },
+      simulationConfig: { ...scenario.simulationConfig, simulationMode: next, duration: nextDur },
     });
   };
   // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
@@ -131,7 +138,7 @@ export function SpawnConfig() {
             )}
           </div>
           <NumField
-            label={mode === 'person' ? 'Max Duration (min)' : 'Duration (min)'}
+            label="Duration (min)"
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
