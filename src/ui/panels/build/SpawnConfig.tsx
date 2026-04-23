@@ -36,6 +36,15 @@ export function SpawnConfig() {
   const recommendedMin = Math.floor((config?.recommendedDurationMs ?? 60 * 60_000) / 60000);
   const slotsCount = config?.timeSlots?.length ?? 0;
   const isMultiSlot = slotsCount > 1;
+  const mode = config?.simulationMode ?? 'time';
+
+  const setMode = (next: 'time' | 'person') => {
+    if (!scenario || isLocked || next === mode) return;
+    setScenario({
+      ...scenario,
+      simulationConfig: { ...scenario.simulationConfig, simulationMode: next },
+    });
+  };
   // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
   const rateRps = config?.timeSlots?.[0]?.spawnRatePerSecond ?? dist?.spawnRatePerSecond ?? 2;
 
@@ -61,6 +70,38 @@ export function SpawnConfig() {
       </CollapsibleSection>
 
       <CollapsibleSection id="spawn-settings" title="Spawn Settings" defaultOpen>
+        <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
+          <div className="text-[9px] text-muted-foreground mb-1">종료 기준</div>
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              onClick={() => setMode('time')}
+              disabled={isLocked}
+              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                mode === 'time'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-transparent border-border hover:border-primary/50'
+              }`}
+            >
+              🕐 시간 기준
+            </button>
+            <button
+              onClick={() => setMode('person')}
+              disabled={isLocked}
+              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                mode === 'person'
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-transparent border-border hover:border-primary/50'
+              }`}
+            >
+              👥 사람 기준
+            </button>
+          </div>
+          <p className="text-[8px] text-muted-foreground mt-1 leading-tight">
+            {mode === 'time'
+              ? 'Duration 도달 시 종료. 운영 검토용 — 시간당 수용 인원·피크 분석.'
+              : '모든 관람객 퇴장 시 종료 (Duration은 safety cap). 설계 검증용 — 체류·완주율 분석.'}
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-2">
           <NumField
             label="Total Visitors"
@@ -91,7 +132,7 @@ export function SpawnConfig() {
             )}
           </div>
           <NumField
-            label="Duration (min)"
+            label={mode === 'person' ? 'Max Duration (min)' : 'Duration (min)'}
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}

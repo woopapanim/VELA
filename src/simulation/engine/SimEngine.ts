@@ -628,7 +628,17 @@ export class SimulationEngine {
     }
 
     this.state.timeState = { ...this.state.timeState, elapsed, tickCount, accumulator };
-    if (elapsed >= this.world.config.duration) this.state.phase = SIMULATION_PHASE.COMPLETED;
+
+    const mode = this.world.config.simulationMode ?? 'time';
+    const hitDurationCap = elapsed >= this.world.config.duration;
+    if (mode === 'person') {
+      const totalCap = this.world.totalVisitors ?? Infinity;
+      const spawnComplete = Number.isFinite(totalCap) && this._totalSpawned >= totalCap;
+      const allExited = spawnComplete && this._totalExited >= this._totalSpawned;
+      if (allExited || hitDurationCap) this.state.phase = SIMULATION_PHASE.COMPLETED;
+    } else if (hitDurationCap) {
+      this.state.phase = SIMULATION_PHASE.COMPLETED;
+    }
   }
 
   private tick(dt: number) {

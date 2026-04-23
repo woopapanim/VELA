@@ -58,6 +58,9 @@ export function SimulationControls() {
   const clearHistory = useStore((s) => s.clearHistory);
   const clearPins = useStore((s) => s.clearPins);
   const setRunId = useStore((s) => s.setRunId);
+  const simMode = useStore((s) => s.scenario?.simulationConfig.simulationMode ?? 'time');
+  const totalCount = useStore((s) => s.scenario?.visitorDistribution.totalCount ?? 0);
+  const durationMs = useStore((s) => s.scenario?.simulationConfig.duration ?? 0);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
 
@@ -261,8 +264,20 @@ export function SimulationControls() {
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
 
+  const durationMin = Math.floor(durationMs / 60000);
+  const modeBadge =
+    simMode === 'person'
+      ? `👥 사람 기준 · ${totalCount}명 · 최대 ${durationMin}분`
+      : `🕐 시간 기준 · ${durationMin}분 · 최대 ${totalCount}명`;
+
   return (
     <div className="space-y-3">
+      {/* Mode summary badge */}
+      {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
+        <div className="px-2 py-1 rounded bg-secondary/50 text-[10px] text-muted-foreground text-center font-data">
+          {modeBadge}
+        </div>
+      )}
       {/* Controls — action row (Start/Pause/Resume + Stop) */}
       <div className="flex gap-2">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
