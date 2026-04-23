@@ -105,6 +105,7 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
   });
   const exitRatePct = Math.round(flow.earlyExitRate * 100);
   const completionPct = Math.round(flow.completionRate * 100);
+  const overallExitPct = Math.round(flow.exitRate * 100);
   const groupPct = Math.round(flow.groupInducedBottleneckPct * 100);
 
   return (
@@ -128,6 +129,7 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
             <div className="kv-row"><dt>{t('vela.flow.kv.exit')}</dt>
               <dd className={`num ${exitRatePct >= 50 ? 's-danger' : ''}`}>{exitRatePct}%</dd>
             </div>
+            <div className="kv-row"><dt>{t('vela.flow.kv.overallExit')}</dt><dd className="num">{overallExitPct}%</dd></div>
             <div className="kv-row">
               <dt>
                 {t('vela.flow.kv.group')}
@@ -183,6 +185,44 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
               <div className="col-label">{t('vela.flow.exit.title')}</div>
               <p className="routes-hint">{t('vela.flow.exit.hint')}</p>
               <NodeDistList rows={flow.exitDist} empty={t('vela.flow.exit.empty')} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {flow.activeBreakdown.total > 0 && (
+        <div className="nodedist-block">
+          <div className="col-label">
+            {t('vela.flow.active.title', { n: flow.activeBreakdown.total })}
+          </div>
+          <p className="routes-hint">{t('vela.flow.active.hint')}</p>
+          <div className="two-col">
+            <div>
+              <div className="col-label">{t('vela.flow.active.action.col')}</div>
+              <div className="flowdist">
+                {flow.activeBreakdown.byAction.map((row) => (
+                  <div className="row" key={row.label}>
+                    <span className="l">{row.label}</span>
+                    <div className="bar">
+                      <div className="fill" style={{ width: `${row.pct}%` }} />
+                    </div>
+                    <span className="v">{row.count} · {row.pct}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="col-label">{t('vela.flow.active.zone.col')}</div>
+              <ol className="node-dist">
+                {flow.activeBreakdown.byZone.map((r, i) => (
+                  <li key={r.id || '__outside__'}>
+                    <span className="rank">{String(i + 1).padStart(2, '0')}</span>
+                    <span className="label">{r.name}</span>
+                    <div className="bar"><div className="fill" style={{ width: `${r.pct}%` }} /></div>
+                    <span className="v">{r.count} · {r.pct}%</span>
+                  </li>
+                ))}
+              </ol>
             </div>
           </div>
         </div>

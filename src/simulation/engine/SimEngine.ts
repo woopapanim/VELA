@@ -70,6 +70,12 @@ const ENABLE_MEDIA_HITBOX       = true;  // stepCollision 미디어 박스 push-
 const ENABLE_ZONE_CLAMP         = true;  // stepCollision zone polygon clamp (필수 — zone 이탈 방지)
 const ENABLE_FLOOR_CLAMP        = true;  // stepCollision floor bounds clamp
 
+// Skip 재시도 쿨다운 — 미디어가 혼잡해 스킵한 뒤, 일정 시간 후 재후보화.
+// 기존: 스킵 즉시 visitedMediaIds 에 영구 편입 → 존 내 모든 미디어가 동시 포화면
+// 방문자가 한 번도 관람 못한 채 존을 떠나는 버그. 쿨다운이 끝나면 `isInSkipCooldown`
+// 체크에서 해제돼 다시 후보에 포함된다. 관람 완료(`visitedMediaIds`)와 구분된 상태.
+const SKIP_COOLDOWN_MS = 45_000;
+
 /* ─── public types ─── */
 
 export interface SimulationState {
@@ -144,6 +150,11 @@ export class SimulationEngine {
   // 영원히 MOVING 상태로 맴도는 현상을 탐지해 스킵/재배정한다.
   // key: visitorId. targetMediaId 또는 targetNodeId 가 바뀌면 타이머 리셋.
   private _movingSince = new Map<string, { startMs: number; targetMediaId: string | null; targetNodeId: string | null }>();
+
+  // 스킵 쿨다운 — visitorId → (mediaId → cooldownUntilMs). `isInSkipCooldown` 체크로
+  // 후보에서 제외하며, 만료되면 자동으로 재후보가 된다. 관람 완료는 여전히
+  // `visitedMediaIds` 에 기록되어 영구 제외.
+  private _skipCooldown = new Map<string, Map<string, number>>();
 
   // ---- Diagnostics: cumulative stuck counters (Phase 1 B 진단) ----
   // MOVING_TIMEOUT 발화 시 mediaId / zoneId / interactionType 별 누적 카운트.
@@ -971,18 +982,18 @@ export class SimulationEngine {
       const isMust = !!(targetMedia as any)?.mustVisit;
       if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
         // Record skip
-        if (v.targetMediaId) this.recordSkip(v.targetMediaId as string, waitMs, v.currentZoneId as string | null);
-        // Mark skipped media as visited so it won't be picked again
-        const skippedMediaIds = v.targetMediaId
-          ? [...v.visitedMediaIds, v.targetMediaId]
-          : v.visitedMediaIds;
+        if (v.targetMediaId) {
+          this.recordSkip(v.targetMediaId as string, waitMs, v.currentZoneId as string | null);
+          // 쿨다운 등록 — visitedMediaIds 는 관람 완료 기록이므로 건드리지 않는다.
+          // 쿨다운 만료 후 재후보화 가능.
+          this.recordSkipCooldown(v.id as string, v.targetMediaId as string);
+        }
         return this.assignNextTarget({
           ...v,
           currentAction: VISITOR_ACTION.IDLE,
           targetMediaId: null,
           targetPosition: null,
           waitStartedAt: null,
-          visitedMediaIds: skippedMediaIds,
         });
       }
       return v;
@@ -1019,15 +1030,13 @@ export class SimulationEngine {
           const intType = (mediaObj as any)?.interactionType ?? 'passive';
           this._stuckByIntType.set(intType, (this._stuckByIntType.get(intType) ?? 0) + 1);
           this._movingSince.delete(vid);
-          const skippedMediaIds = v.visitedMediaIds.includes(v.targetMediaId as any)
-            ? v.visitedMediaIds
-            : [...v.visitedMediaIds, v.targetMediaId as any];
+          // 쿨다운 등록 — 도달 실패한 미디어는 일정 시간 후 재시도 가능.
+          this.recordSkipCooldown(vid, v.targetMediaId as string);
           return this.assignNextTarget({
             ...v,
             currentAction: VISITOR_ACTION.IDLE,
             targetMediaId: null,
             targetPosition: null,
-            visitedMediaIds: skippedMediaIds,
           });
         }
         if (!tMid && tNid && age > 60_000) {
@@ -1110,6 +1119,7 @@ export class SimulationEngine {
     if (v.currentAction === VISITOR_ACTION.EXITING && !v.targetZoneId) {
       const now = this.state.timeState.elapsed;
       this._movingSince.delete(v.id as string);
+      this._skipCooldown.delete(v.id as string);
       if (v.currentZoneId) {
         recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
       }
@@ -1546,6 +1556,32 @@ export class SimulationEngine {
       return Math.max(m.capacity || 0, autoCap);
     }
     return Math.max(1, m.capacity || 1);
+  }
+
+  /** 현재 시점에 이 방문자가 해당 미디어에 대해 스킵 쿨다운 중인지 */
+  private isInSkipCooldown(visitorId: string, mediaId: string): boolean {
+    const m = this._skipCooldown.get(visitorId);
+    if (!m) return false;
+    const until = m.get(mediaId);
+    if (!until) return false;
+    if (until <= this.state.timeState.elapsed) {
+      m.delete(mediaId);
+      if (m.size === 0) this._skipCooldown.delete(visitorId);
+      return false;
+    }
+    return true;
+  }
+
+  /** 스킵 발생 시 쿨다운 등록 — 기존 등록이 있으면 더 늦은 시각으로 연장 */
+  private recordSkipCooldown(visitorId: string, mediaId: string): void {
+    const until = this.state.timeState.elapsed + SKIP_COOLDOWN_MS;
+    let m = this._skipCooldown.get(visitorId);
+    if (!m) {
+      m = new Map();
+      this._skipCooldown.set(visitorId, m);
+    }
+    const prev = m.get(mediaId) ?? 0;
+    if (until > prev) m.set(mediaId, until);
   }
 
   /** Filter media candidates to those with free capacity (viewers + en-route targeters).
@@ -2153,7 +2189,9 @@ export class SimulationEngine {
     if (curZone && !isInSpawnZone) {
       const zMedia = this.mediaByZone.get(curZone.id as string) ?? [];
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
-      const unvisited = zMedia.filter(m => !visited.has(m.id as string));
+      const unvisited = zMedia.filter(m =>
+        !visited.has(m.id as string) && !this.isInSkipCooldown(v.id as string, m.id as string),
+      );
 
       if (unvisited.length > 0) {
         // Hard-cap: exclude media already at capacity (viewers + en-route targeters)
@@ -2317,7 +2355,9 @@ export class SimulationEngine {
     if (curZone && !skipMedia) {
       const zMedia = this.mediaByZone.get(curZone.id as string) ?? [];
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
-      const unvisited = zMedia.filter(m => !visited.has(m.id as string));
+      const unvisited = zMedia.filter(m =>
+        !visited.has(m.id as string) && !this.isInSkipCooldown(v.id as string, m.id as string),
+      );
 
       if (unvisited.length > 0) {
         const available = this.filterAvailableMedia(unvisited);
@@ -2505,7 +2545,8 @@ export class SimulationEngine {
       // ATTRACTOR: 직접 바인딩된 미디어 우선
       if (curNode.type === 'attractor' && curNode.mediaId) {
         const visited = new Set(v.visitedMediaIds.map(m => m as string));
-        if (!visited.has(curNode.mediaId as string)) {
+        const mid = curNode.mediaId as string;
+        if (!visited.has(mid) && !this.isInSkipCooldown(v.id as string, mid)) {
           const media = this.world.media.find(m => m.id === curNode.mediaId);
           if (media) {
             recordMediaApproach(media.id as string);
@@ -2524,7 +2565,9 @@ export class SimulationEngine {
       // ZONE/REST: zone 내 미방문 미디어 탐색
       const zMedia = this.mediaByZone.get(curNode.zoneId as string) ?? [];
       const visited = new Set(v.visitedMediaIds.map(m => m as string));
-      const unvisited = zMedia.filter(m => !visited.has(m.id as string));
+      const unvisited = zMedia.filter(m =>
+        !visited.has(m.id as string) && !this.isInSkipCooldown(v.id as string, m.id as string),
+      );
       if (unvisited.length > 0) {
         const available = this.filterAvailableMedia(unvisited);
         if (available.length > 0) {
@@ -2541,12 +2584,13 @@ export class SimulationEngine {
             };
           }
         }
-        // No media picked (all over capacity or selection failed) → skip unvisited + fall through
+        // No media picked (all over capacity or selection failed) → 쿨다운 등록 후 fall through
+        // visitedMediaIds 는 영구 제외 (관람 완료) 용이므로 건드리지 않는다.
         for (const m of unvisited) {
           recordMediaApproach(m.id as string);
           this.recordSkip(m.id as string, 0, curNode.zoneId as string | null);
+          this.recordSkipCooldown(v.id as string, m.id as string);
         }
-        v = { ...v, visitedMediaIds: [...v.visitedMediaIds, ...unvisited.map(m => m.id)] };
       }
     }
 
@@ -2616,6 +2660,7 @@ export class SimulationEngine {
     this._exitByNode.set(xid, (this._exitByNode.get(xid) ?? 0) + 1);
     const now = this.state.timeState.elapsed;
     this._movingSince.delete(v.id as string);
+    this._skipCooldown.delete(v.id as string);
     if (v.currentZoneId) {
       recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
     }
