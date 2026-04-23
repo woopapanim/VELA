@@ -153,12 +153,29 @@ export interface ReportTransitionCell {
   readonly pct: number;        // out of total transitions from `fromId`
 }
 
+export interface ReportActiveZoneRow {
+  readonly id: string;        // zoneId, or '' for '구역 밖'
+  readonly name: string;
+  readonly count: number;
+  readonly pct: number;       // out of active visitors
+}
+
+export interface ReportActiveBreakdown {
+  readonly total: number;                              // active 수 (= spawned - exited)
+  readonly byAction: readonly ReportCompositionRow[]; // MOVING / WATCHING / WAITING / RESTING / IDLE
+  readonly byZone: readonly ReportActiveZoneRow[];   // 현재 어느 존에 있는지 상위 N
+}
+
 export interface ReportFlow {
   readonly completed: number;
   readonly avgTotalMin: number;
   readonly throughputPerMin: number;
+  /** 완주율 = 퇴장자 중 3개 이상 존 방문 비율 (0..1). zone-count 기준. */
   readonly completionRate: number;
+  /** 조기이탈률 = 퇴장자 중 2개 이하 존 방문 비율 (0..1). completionRate 와 합이 100%. */
   readonly earlyExitRate: number;
+  /** 퇴장률 = 퇴장자 / 전체 스폰 (0..1). 시간 내 투어를 마친 방문자 비율 (다른 denominator). */
+  readonly exitRate: number;
   readonly groupInducedBottleneckPct: number;
   readonly completionDist: readonly ReportCompositionRow[];
   readonly bottleneckCount: number;
@@ -176,6 +193,9 @@ export interface ReportFlow {
     readonly zones: readonly { readonly id: string; readonly name: string }[];
     readonly cells: readonly ReportTransitionCell[];
   };
+  /** 비퇴장자(= 아직 장내에 남아있는 방문자) 현황. 시뮬레이션이 끝난 시점에
+   * 퇴장 못한 사람들이 왜 안 퇴장했는지(WATCHING, MOVING stuck, 등) 파악용. */
+  readonly activeBreakdown: ReportActiveBreakdown;
 }
 
 export interface ReportBehavior {
@@ -470,9 +490,23 @@ export function toReportData(input: ToReportDataInput): ReportData {
     return { bucket: `${lo}-${hi}`, n: frac };
   });
 
+  // ---- Zone-count buckets (for completion / early-exit definitions) ------
+  // 퇴장자만을 대상으로 방문한 존 수 분포. 완주율/조기이탈률 계산과 completionDist UI 에 공유.
+  const fb = { zero: 0, low: 0, mid: 0, high: 0 };
+  for (const v of exited) {
+    const n = v.visitedZoneIds.length;
+    if (n === 0) fb.zero++;
+    else if (n <= 2) fb.low++;
+    else if (n <= 4) fb.mid++;
+    else fb.high++;
+  }
+
   // ---- Derived top-level KPIs --------------------------------------------
-  // 완주율 = 퇴장한 방문자 / 총 방문자. 끼이지 않고 정상 동선을 마친 비율.
-  const completionRate = visitors.length > 0 ? exited.length / visitors.length : 0;
+  // 완주율 = 3개 이상 존 방문 / 퇴장자. 라벨 "(≥3개 존)" 과 맞춘 zone-count 기준.
+  // NOTE: 과거에는 exited / total-spawned 로 계산해 레포트 UI 의 라벨과 불일치 했음.
+  const completionRate = exited.length > 0 ? (fb.mid + fb.high) / exited.length : 0;
+  // 퇴장률 = 퇴장자 / 전체 스폰. "시뮬 시간 안에 투어를 마친 사람" 비율 (다른 차원의 정보).
+  const exitRate = visitors.length > 0 ? exited.length / visitors.length : 0;
   // Average stay covers exited visitors (completed dwell) and active visitors (current dwell so far)
   // so the KPI is non-zero even before anyone exits.
   const avgDwellMs = visitors.length > 0
@@ -809,14 +843,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
   };
 
   // ---- Flow --------------------------------------------------------------
-  const fb = { zero: 0, low: 0, mid: 0, high: 0 };
-  for (const v of exited) {
-    const n = v.visitedZoneIds.length;
-    if (n === 0) fb.zero++;
-    else if (n <= 2) fb.low++;
-    else if (n <= 4) fb.mid++;
-    else fb.high++;
-  }
+  // (fb bucket counts computed earlier alongside completionRate)
   const exTotal = Math.max(1, exited.length);
   const completionDist: ReportCompositionRow[] = [
     { label: t('vela.flow.dist.zero'), count: fb.zero, pct: Math.round((fb.zero / exTotal) * 100), tone: 'danger' },
@@ -939,6 +966,51 @@ export function toReportData(input: ToReportDataInput): ReportData {
     .filter((id) => transitionZoneSet.has(id))
     .map((id) => ({ id, name: transitionZoneNames.get(id) ?? '—' }));
 
+  // ---- Active (non-exited) breakdown ----------------------------------
+  // 시뮬 종료 시점에 아직 장내에 남아있는 방문자를 action + 현재 zone 별로 집계.
+  // "Entry 수 − Exit 수" 괴리의 실체를 드러내기 위함.
+  const activeTotal = active.length;
+  const actionCounts = new Map<string, number>();
+  const activeZoneCounts = new Map<string, number>();
+  for (const v of active) {
+    const act = v.currentAction as string;
+    actionCounts.set(act, (actionCounts.get(act) ?? 0) + 1);
+    const zid = (v.currentZoneId as string) ?? '';
+    activeZoneCounts.set(zid, (activeZoneCounts.get(zid) ?? 0) + 1);
+  }
+  const ACTION_ORDER: ReadonlyArray<[string, string]> = [
+    ['MOVING', t('vela.flow.active.action.moving')],
+    ['WATCHING', t('vela.flow.active.action.watching')],
+    ['WAITING', t('vela.flow.active.action.waiting')],
+    ['RESTING', t('vela.flow.active.action.resting')],
+    ['IDLE', t('vela.flow.active.action.idle')],
+    ['EXITING', t('vela.flow.active.action.exiting')],
+  ];
+  const activeByAction: ReportCompositionRow[] = ACTION_ORDER
+    .map(([key, label]) => {
+      const n = actionCounts.get(key) ?? 0;
+      return {
+        label,
+        count: n,
+        pct: activeTotal > 0 ? Math.round((n / activeTotal) * 100) : 0,
+      };
+    })
+    .filter((r) => r.count > 0);
+  const activeByZone: ReportActiveZoneRow[] = [...activeZoneCounts.entries()]
+    .map(([zid, count]) => ({
+      id: zid,
+      name: zid ? (zoneNameById.get(zid) ?? zid.slice(0, 6)) : t('vela.flow.active.zone.outside'),
+      count,
+      pct: activeTotal > 0 ? Math.round((count / activeTotal) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+  const activeBreakdown: ReportActiveBreakdown = {
+    total: activeTotal,
+    byAction: activeByAction,
+    byZone: activeByZone,
+  };
+
   const flowMode = (scenario.globalFlowMode ?? 'free') as 'free' | 'sequential' | 'hybrid';
   const flow: ReportFlow = {
     completed: exited.length,
@@ -946,6 +1018,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     throughputPerMin,
     completionRate,
     earlyExitRate,
+    exitRate,
     groupInducedBottleneckPct: groupInducedPct,
     completionDist,
     bottleneckCount: everBottle.size,
@@ -963,6 +1036,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
       zones: transitionZones,
       cells: transitionCells,
     },
+    activeBreakdown,
   };
 
   // ---- Behavior (visitor composition) -----------------------------------
