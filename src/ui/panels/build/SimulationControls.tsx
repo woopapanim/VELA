@@ -160,10 +160,13 @@ export function SimulationControls() {
         lastSnapshotTime = elapsed;
         setDensityGrids(eng.getDensityGrids());
         const currentStore = useStore.getState();
+        // Pass ALL visitors (active + exited) so calculateFlowEfficiency's
+        // completionRate = wellVisited/totalEver uses the full cohort; other
+        // calculators (utilization/bottleneck/fatigue) already self-filter by isActive.
         const snapshot = assembleKpiSnapshot(
           currentStore.zones,
           currentStore.media,
-          activeVisitors,
+          eng.getVisitors(),
           elapsed,
           eng.getTotalExited(),
         );
