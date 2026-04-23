@@ -168,9 +168,12 @@ export class WaypointNavigator {
         || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD
       ));
 
-    // Stuck/예산초과 또는 canExit + 모든 필수 노드 방문 완료 → EXIT 방향 강제 유도
+    // Stuck/예산초과/모든 필수노드 방문완료 → EXIT 방향 강제 유도.
+    // allEssentialDone 는 mustOutstanding(미방문 히어로 미디어)과 독립적으로 작동한다.
+    // 존을 다 돌았는데 특정 미디어만 못 본 건 스킵 포함 정상 행동이고, 계속 떠돌면
+    // hub/bend 왕복으로 예산만 낭비하므로 주 경험 완료 즉시 퇴장 유도.
     const allEssentialDone = visitedCount >= this.essentialCount;
-    if (stuck || budgetExceeded || (canExit && allEssentialDone)) {
+    if (stuck || budgetExceeded || allEssentialDone) {
       const exitFirstHop = this.findFirstHopToExit(currentNodeId);
       if (exitFirstHop) return exitFirstHop;
     }
@@ -184,6 +187,17 @@ export class WaypointNavigator {
     const mustHopId = mustOutstanding && mustVisit
       ? this.findFirstHopToMustVisit(currentNodeId, mustVisit)?.id
       : null;
+
+    // 직전 노드(방금 떠난 노드) 식별 — pathLog 의 마지막은 현재 노드(open, exitTime=0),
+    // 그 직전이 방금 닫힌 previous. hub/bend/entry 는 visited 패널티 면제이므로
+    // 즉시 U-턴으로 왕복 진동하기 쉬워 별도 소프트 패널티를 적용한다.
+    // BFS 가 U-턴을 "정답"으로 지목한 경우(exitHop/mustHop)는 면제해서
+    // 진짜 백트래킹이 필요한 상황은 방해하지 않는다.
+    let prevNodeId: string | null = null;
+    for (let i = visitor.pathLog.length - 2; i >= 0; i--) {
+      const e = visitor.pathLog[i];
+      if (e.exitTime > 0) { prevNodeId = e.nodeId as string; break; }
+    }
 
     for (const { node: candidate, edge } of neighbors) {
       // EXIT 노드: 조건 미충족 시 후보에서 제외
@@ -225,6 +239,14 @@ export class WaypointNavigator {
         } else if (mustHopId && (candidate.id as string) === (mustHopId as string)) {
           score += 4.0;
         }
+      }
+
+      // U-턴 소프트 패널티 — 방금 떠난 노드로 즉시 되돌아가는 후보에 -1.5.
+      // exitHop/mustHop 이 그 방향을 지목하면 면제(실제 백트래킹이 정답인 경우).
+      if (prevNodeId && (candidate.id as string) === prevNodeId) {
+        const bfsEndorsed = (exitHopId && (candidate.id as string) === (exitHopId as string))
+          || (mustHopId && (candidate.id as string) === (mustHopId as string));
+        if (!bfsEndorsed) score -= 1.5;
       }
 
       scored.push({ node: candidate, score });
@@ -271,6 +293,14 @@ export class WaypointNavigator {
       if (roll <= 0) return node;
     }
     return this.entryNodes[this.entryNodes.length - 1];
+  }
+
+  /**
+   * Public: 현재 노드에서 가장 가까운 EXIT 방향 첫 홉 반환.
+   * Follower 가 리더를 잃었을 때처럼 "즉시 퇴장" 라우팅이 필요할 때 사용.
+   */
+  routeToExit(fromId: WaypointId): WaypointNode | null {
+    return this.findFirstHopToExit(fromId);
   }
 
   // ── private ──

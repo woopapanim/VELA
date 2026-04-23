@@ -1,4 +1,5 @@
 import type { Visitor, FlowEfficiency } from '@/domain';
+import { COMPLETION_ZONE_RATIO } from '@/domain/constants';
 
 export function calculateFlowEfficiency(
   visitors: readonly Visitor[],
@@ -32,11 +33,11 @@ export function calculateFlowEfficiency(
   const minutesElapsed = simTimeMs / 60000;
   const throughput = minutesElapsed > 0 ? totalProcessed / minutesElapsed : 0;
 
-  // Completion rate = visitors who reached >= 80% of zones / all visitors ever (active + exited).
+  // Completion rate = visitors who reached >= COMPLETION_ZONE_RATIO of zones / all visitors ever.
   // Ratio-based threshold scales with scenario size; fallback to legacy 3-zone bar when zoneCount
   // is unknown (pre-existing callers). Matches toReportData bucket logic.
   const completionThreshold = zoneCount && zoneCount > 0
-    ? Math.max(1, Math.ceil(zoneCount * 0.8))
+    ? Math.max(1, Math.ceil(zoneCount * COMPLETION_ZONE_RATIO))
     : 3;
   const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= completionThreshold).length;
   const totalEver = visitors.length;

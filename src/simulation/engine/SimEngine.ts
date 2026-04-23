@@ -39,7 +39,7 @@ import type {
   ElevatorShaft,
   DensityGrid,
 } from '@/domain';
-import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT } from '@/domain';
+import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT, REST_ZONE_DEFAULT_DWELL_MS } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
@@ -155,6 +155,12 @@ export class SimulationEngine {
   // 후보에서 제외하며, 만료되면 자동으로 재후보가 된다. 관람 완료는 여전히
   // `visitedMediaIds` 에 기록되어 영구 제외.
   private _skipCooldown = new Map<string, Map<string, number>>();
+
+  // 연속 stuck 카운트 — 같은 currentNodeId 에서 60s 타임아웃이 반복 발화하면
+  // 재배정이 무의미 (waypointGraph 의 exit hop 도 물리적으로 도달 불가).
+  // 2회 연속 (~120s+) 이면 beginExitGraph 로 강제 퇴장 처리한다.
+  // nodeId 가 바뀌면 count 자동 리셋 (nodeId 비교로 처리).
+  private _nodeStuckCount = new Map<string, { nodeId: string; count: number }>();
 
   // ---- Diagnostics: cumulative stuck counters (Phase 1 B 진단) ----
   // MOVING_TIMEOUT 발화 시 mediaId / zoneId / interactionType 별 누적 카운트.
@@ -860,6 +866,45 @@ export class SimulationEngine {
       const group = this.state.groups.get(v.groupId as string);
       const leader = group ? this.state.visitors.get(group.leaderId as string) : null;
       if (group && leader?.isActive) {
+        // Follower stuck safety: leader 가 살아있더라도 같은 targetNodeId 로 너무 오래
+        // MOVING 이면 (leader 가 impossible path 로 간혀 있는 경우) orphan 으로 간주해
+        // 개별 exit 라우팅. solo 의 60s 보다 여유를 둬 90s.
+        if (v.currentAction === VISITOR_ACTION.MOVING) {
+          const vid = v.id as string;
+          const tNid = (v.targetNodeId as string) ?? null;
+          const entry = this._movingSince.get(vid);
+          if (!entry || entry.targetNodeId !== tNid) {
+            this._movingSince.set(vid, { startMs: this.state.timeState.elapsed, targetMediaId: null, targetNodeId: tNid });
+          } else if (tNid && this.state.timeState.elapsed - entry.startMs > 90_000) {
+            this._movingSince.delete(vid);
+            if (this.waypointNav && v.currentNodeId) {
+              const exitHop = this.waypointNav.routeToExit(v.currentNodeId);
+              if (exitHop) {
+                return {
+                  ...v,
+                  groupId: undefined,
+                  targetNodeId: exitHop.id,
+                  targetMediaId: null,
+                  targetZoneId: null,
+                  targetPosition: null,
+                  currentAction: exitHop.type === 'exit' ? VISITOR_ACTION.EXITING : VISITOR_ACTION.MOVING,
+                  steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+                };
+              }
+            }
+            return {
+              ...v,
+              groupId: undefined,
+              currentAction: VISITOR_ACTION.EXITING,
+              velocity: { x: 0, y: 0 },
+              isActive: false,
+              exitedAt: this.state.timeState.elapsed,
+            };
+          }
+        } else {
+          this._movingSince.delete(v.id as string);
+        }
+
         // If leader is WATCHING media, follower walks toward it then watches
         if (leader.currentAction === VISITOR_ACTION.WATCHING && leader.targetMediaId) {
           const media = this.world.media.find(m => m.id === leader.targetMediaId);
@@ -885,19 +930,34 @@ export class SimulationEngine {
         }
         return syncFollowerToLeader(v, leader, group);
       }
-      // Leader gone / inactive → follower 의 상태는 마지막 sync 에서 복사된 stale
-      // 타겟이므로 그대로 두면 MOVING+stale 상태로 영원히 멈춘다. 솔로로 승격시키고
-      // currentNode 기준으로 재라우팅.
-      return this.assignNextTarget({
+      // Leader gone / inactive → follower 는 "가이드를 잃은 관람 종료" 상태로 간주.
+      // 기존에는 assignNextTarget 으로 재탐색시켰으나, follower 는 개별 pathLog 가
+      // 거의 비어 있어서 새 투어를 처음부터 시작해버렸다("리더 퇴장 후 다시 내부로
+      // 들어와 배회" 버그). 대신 즉시 EXIT 방향으로 라우팅한다.
+      if (this.waypointNav && v.currentNodeId) {
+        const exitHop = this.waypointNav.routeToExit(v.currentNodeId);
+        if (exitHop) {
+          return {
+            ...v,
+            groupId: undefined,
+            targetNodeId: exitHop.id,
+            targetMediaId: null,
+            targetZoneId: null,
+            targetPosition: null,
+            currentAction: exitHop.type === 'exit' ? VISITOR_ACTION.EXITING : VISITOR_ACTION.MOVING,
+            steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+          };
+        }
+      }
+      // 그래프에 EXIT 경로가 없거나 currentNodeId 미설정 → 안전망으로 즉시 비활성화.
+      return {
         ...v,
         groupId: undefined,
-        currentAction: VISITOR_ACTION.IDLE,
-        targetNodeId: null,
-        targetMediaId: null,
-        targetZoneId: null,
-        targetPosition: null,
-        steering: { ...v.steering, isArrived: false },
-      });
+        currentAction: VISITOR_ACTION.EXITING,
+        velocity: { x: 0, y: 0 },
+        isActive: false,
+        exitedAt: this.state.timeState.elapsed,
+      };
     }
 
     // --- RESTING: tick dwell timer at current waypoint node ---
@@ -1054,6 +1114,22 @@ export class SimulationEngine {
           if (v.currentZoneId) {
             const zKey = v.currentZoneId as string;
             this._stuckByZone.set(zKey, (this._stuckByZone.get(zKey) ?? 0) + 1);
+          }
+          // 연속 stuck 감지 — 같은 currentNodeId 에서 60s 타임아웃이 2회 이상 반복
+          // 발화했다면 waypointGraph 가 제안하는 exit hop 에 물리적으로 도달 불가한
+          // 상태. 재배정을 반복해도 같은 패턴이 무한 루프되므로 즉시 퇴장 처리.
+          const curNid = (v.currentNodeId as string | null) ?? null;
+          if (curNid && this.waypointNav) {
+            const prev = this._nodeStuckCount.get(vid);
+            const nextCount = prev?.nodeId === curNid ? prev.count + 1 : 1;
+            this._nodeStuckCount.set(vid, { nodeId: curNid, count: nextCount });
+            if (nextCount >= 2) {
+              const curNode = this.waypointNav.getNode(v.currentNodeId!);
+              if (curNode) {
+                this._nodeStuckCount.delete(vid);
+                return this.beginExitGraph(v, curNode);
+              }
+            }
           }
           return this.assignNextTarget({
             ...v,
@@ -2607,15 +2683,22 @@ export class SimulationEngine {
     // 3. dwellTime 체류 — 첫 방문 시에만 (rest/attractor)
     //    ZONE 노드는 거점이므로 체류 없이 즉시 다음 타겟 선택
     //    재방문 시는 이미 관람한 노드이므로 대기 없이 통과
-    if (curNode.dwellTimeMs > 0 && (curNode.type === 'rest' || curNode.type === 'attractor')) {
+    //    rest zone 내부 waypoint 는 type 이 rest 가 아니어도 rest 로 승격
+    //    (zone.type === 'rest' 면 기본 dwell 주입 — UX 친화적)
+    const curNodeZone = curNode.zoneId ? this.zoneMap.get(curNode.zoneId as string) : null;
+    const isRestEffective = curNode.type === 'rest' || curNodeZone?.type === 'rest';
+    const effectiveDwellMs = curNode.dwellTimeMs > 0
+      ? curNode.dwellTimeMs
+      : (curNodeZone?.type === 'rest' ? REST_ZONE_DEFAULT_DWELL_MS : 0);
+    if (effectiveDwellMs > 0 && (isRestEffective || curNode.type === 'attractor')) {
       const lastLog = v.pathLog[v.pathLog.length - 1];
       const isFirstVisit = v.pathLog.filter(e => (e.nodeId as string) === (curNode.id as string)).length <= 1;
       if (isFirstVisit && lastLog && (lastLog.nodeId as string) === (curNode.id as string) && lastLog.exitTime === 0) {
         const elapsed = this.state.timeState.elapsed - lastLog.entryTime;
-        if (elapsed < curNode.dwellTimeMs) {
+        if (elapsed < effectiveDwellMs) {
           return {
             ...v,
-            currentAction: curNode.type === 'rest' ? VISITOR_ACTION.RESTING : VISITOR_ACTION.WATCHING,
+            currentAction: isRestEffective ? VISITOR_ACTION.RESTING : VISITOR_ACTION.WATCHING,
             velocity: { x: 0, y: 0 },
             steering: { ...v.steering, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } },
           };
@@ -2671,6 +2754,7 @@ export class SimulationEngine {
     const now = this.state.timeState.elapsed;
     this._movingSince.delete(v.id as string);
     this._skipCooldown.delete(v.id as string);
+    this._nodeStuckCount.delete(v.id as string);
     if (v.currentZoneId) {
       recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
     }

@@ -173,8 +173,9 @@ export const ko: Dict = {
 
   // Insight engine — skip
   'insight.skip.problem': '인기 미디어 복제 배치 검토',
+  'insight.skip.problem.withNames': '고스킵 미디어 복제 배치 검토 — {names}',
   'insight.skip.cause': '전체 스킵률 {pct}% — 대기 시간 초과로 관람 포기',
-  'insight.skip.rec.withHighSkip': '→ 고스킵 미디어 {count}개 복제 배치 또는 수용량 상향',
+  'insight.skip.rec.withHighSkip': '→ 해당 미디어 복제 배치 또는 수용량 상향 ({count}개: {names})',
   'insight.skip.rec.default': '→ 동일 미디어 복제 배치 또는 수용량 상향',
 
   // Insight engine — fatigue
@@ -183,9 +184,11 @@ export const ko: Dict = {
   'insight.fatigue.rec': '→ 중간 지점 휴식 존 배치 또는 동선 단축',
 
   // Insight engine — flow efficiency
-  'insight.flow.problem': '핵심 전시물 재배치 권장',
+  'insight.flow.problem': '고몰입 콘텐츠 초반 배치 권장',
+  'insight.flow.problem.withNames': '고몰입 콘텐츠 초반 배치 권장 — {names}',
   'insight.flow.cause': '완주율 {pct}% — 절반 이상 조기 이탈',
-  'insight.flow.rec': '→ 초반 동선에 주요 콘텐츠 배치로 관람 동기 유지',
+  'insight.flow.rec': '→ 초반 동선에 관람 동기를 유발할 고몰입 콘텐츠 배치',
+  'insight.flow.rec.withNames': '→ 고몰입 콘텐츠({names})를 초반 동선에 배치해 관람 동기 유지',
 
   // Insight engine — space ROI
   'insight.spaceRoi.low.problem': '{names}: 축소 또는 교체 검토',
@@ -439,7 +442,10 @@ export const ko: Dict = {
   'vela.sys.kv.mediaCap': '미디어 수용량',
   'vela.sys.kv.avgCrowd': '평균 혼잡도',
   'vela.sys.kv.avgDwell': '평균 체류 시간',
-  'vela.sys.kv.throughput': '분당 방문객',
+  'vela.sys.kv.throughput': '처리량',
+  'vela.sys.kv.throughput.spawnNote': '스폰 {rate}명/분',
+  'vela.sys.kv.unitCount': '개',
+  'vela.sys.kv.unitPeople': '명',
   'vela.sys.th.zone': '존',
   'vela.sys.th.areaCap': '면적 / 수용량',
   'vela.sys.th.peak': '피크',
@@ -466,8 +472,8 @@ export const ko: Dict = {
   'vela.flow.col.dist': '완주 분포',
   'vela.flow.kv.completed': '완주 방문객',
   'vela.flow.kv.avgTotal': '평균 총 체류',
-  'vela.flow.kv.throughput': '분당 방문객',
-  'vela.flow.kv.completion': '완주율 (퇴장자 중 ≥{n}개 존, 80%+)',
+  'vela.flow.kv.throughput': '처리량',
+  'vela.flow.kv.completion': '완주율 (퇴장자 중 ≥{n}개 존, 70%+)',
   'vela.flow.kv.exit': '조기 이탈률 (퇴장자 중 ≤{n}개 존, 20%-)',
   'vela.flow.kv.overallExit': '퇴장률 (전체 스폰 대비)',
   'vela.flow.kv.group': '그룹 유발 병목',
@@ -571,8 +577,8 @@ export const ko: Dict = {
   'vela.kpi.bottleneck.label': '병목',
   'vela.kpi.bottleneck.note': '그룹 유발 {count}건',
   'vela.kpi.throughput.label': '처리량',
-  'vela.kpi.throughput.unit': '/분',
-  'vela.kpi.throughput.note': '분당 방문객',
+  'vela.kpi.throughput.unit': '명/분',
+  'vela.kpi.throughput.note': '퇴장자 ÷ 경과 분',
 
   // VELA Report — Evidence labels
   'vela.ev.peak.label': '피크 점유율',

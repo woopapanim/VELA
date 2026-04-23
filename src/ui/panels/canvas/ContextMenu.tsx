@@ -75,7 +75,7 @@ const NODE_TYPES = [
   { type: 'zone', label: 'Zone', color: '#3b82f6' },
   { type: 'attractor', label: 'Attractor', color: '#f59e0b' },
   { type: 'hub', label: 'Hub', color: '#8b5cf6' },
-  { type: 'rest', label: 'Rest', color: '#9ca3af' },
+  { type: 'rest', label: 'Rest', color: '#f59e0b' },
   { type: 'portal', label: 'Portal', color: '#06b6d4' },
 ];
 

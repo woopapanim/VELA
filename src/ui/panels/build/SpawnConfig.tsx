@@ -18,7 +18,8 @@ export function SpawnConfig() {
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
   const config = scenario?.simulationConfig;
-  const recAuto = config?.recommendedDurationAuto === true;
+  // Default to auto for legacy scenarios (undefined → true). Only explicit `false` opts out.
+  const recAuto = config?.recommendedDurationAuto !== false;
   const autoRecMs = computeAutoRecommendedDurationMs(zones.length, media.length);
 
   // When auto is on, keep stored recommendedDurationMs in sync with scenario scale.
