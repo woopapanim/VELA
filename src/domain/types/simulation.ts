@@ -29,6 +29,8 @@ export interface SimulationConfig {
   readonly timeSlots: readonly TimeSlotConfig[];
   // 권장 관람 시간 — visitor.visitBudgetMs 계산의 기준. 미지정 시 DEFAULT_RECOMMENDED_DURATION_MS.
   readonly recommendedDurationMs?: number;
+  // true = 시나리오 규모(존+미디어)에 따라 자동 계산. false/undefined = 수동 입력 유지(레거시 호환).
+  readonly recommendedDurationAuto?: boolean;
   // 시뮬레이션 종료 기준. 미지정 시 'time' (레거시 호환).
   readonly simulationMode?: SimulationMode;
 }

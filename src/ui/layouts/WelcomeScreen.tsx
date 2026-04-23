@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Plus, FolderOpen, Trash2, ArrowRight, Upload, Sparkles } from 'lucide-react';
 import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
+import { computeAutoRecommendedDurationMs } from '@/domain/constants';
 import type { Scenario } from '@/domain';
 import { useT } from '@/i18n';
 import { AnalyzeFloorPlan } from '@/ui/panels/build/AnalyzeFloorPlan';
@@ -97,6 +98,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         fixedDeltaTime: 1000 / 60, duration: 10_800_000, timeScale: 3,
         maxVisitors: 500, seed: Math.floor(Math.random() * 99999),
         physics: DEFAULT_PHYSICS, skipThreshold: DEFAULT_SKIP_THRESHOLD,
+        recommendedDurationAuto: true,
+        recommendedDurationMs: computeAutoRecommendedDurationMs(0, 0),
         timeSlots: [{
           startTimeMs: 0, endTimeMs: 3_600_000, spawnRatePerSecond: 0.2,
           profileDistribution: { general: 60, vip: 15, child: 10, elderly: 10, disabled: 5 },
