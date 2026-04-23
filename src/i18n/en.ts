@@ -345,7 +345,7 @@ export const en: Dict = {
 
   // VELA Report — Hero
   'vela.hero.brand': 'VELA · Spatial Simulation Report',
-  'vela.hero.line': 'Report · {version} · {date}',
+  'vela.hero.line': 'Report · {runId} · {date}',
   'vela.hero.titleA': 'Spatial',
   'vela.hero.titleB': 'Report',
   'vela.hero.subtitleA': 'We measure not capacity — but the ',
@@ -355,7 +355,7 @@ export const en: Dict = {
   'vela.hero.kDuration': 'Simulated',
   'vela.hero.kVisitors': 'Visitors',
   'vela.hero.visitorsFmt': '{count}',
-  'vela.hero.kVersion': 'Version',
+  'vela.hero.kRunId': 'Run ID',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': 'Key Insight',

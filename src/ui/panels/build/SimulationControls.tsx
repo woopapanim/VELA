@@ -9,6 +9,29 @@ import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import type { OverlayMode } from '@/stores';
 import { useT } from '@/i18n';
 
+// djb2-style short hash → 6 hex chars. Deterministic for identical scenario shape.
+function hashSignature(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
+}
+
+function makeRunId(scenario: { zones: unknown[]; media: unknown[]; waypointGraph?: { nodes: unknown[]; edges: unknown[] }; visitorDistribution: { totalCount: number } }): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  // Structural signature — same shape → same hash, so reruns of identical scenarios
+  // share the suffix while timestamps differentiate individual runs.
+  const sig = [
+    scenario.zones.length,
+    scenario.media.length,
+    scenario.waypointGraph?.nodes.length ?? 0,
+    scenario.waypointGraph?.edges.length ?? 0,
+    scenario.visitorDistribution.totalCount,
+  ].join('|');
+  return `run_${ts}_${hashSignature(sig)}`;
+}
+
 export function SimulationControls() {
   const t = useT();
   const loopRef = useRef<SimulationLoop | null>(null);
@@ -34,6 +57,7 @@ export function SimulationControls() {
   const clearReplay = useStore((s) => s.clearReplay);
   const clearHistory = useStore((s) => s.clearHistory);
   const clearPins = useStore((s) => s.clearPins);
+  const setRunId = useStore((s) => s.setRunId);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
 
@@ -177,6 +201,7 @@ export function SimulationControls() {
     resetPeakOccupancy();
     milestonesHit.current.clear();
     loopRef.current = loop;
+    setRunId(makeRunId(store.scenario));
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
   }, [updateSimState, setPhase]);

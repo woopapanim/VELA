@@ -15,6 +15,9 @@ export interface SimSlice {
   timeState: TimeState;
   config: SimulationConfig | null;
 
+  // Run identity (unique per sim execution; null when idle/never-run)
+  runId: string | null;
+
   // Cumulative counters
   totalSpawned: number;
   totalExited: number;
@@ -27,6 +30,7 @@ export interface SimSlice {
   // Actions
   setConfig: (config: SimulationConfig) => void;
   setPhase: (phase: SimulationPhase) => void;
+  setRunId: (runId: string | null) => void;
   updateSimState: (visitors: Visitor[], groups: VisitorGroup[], timeState: TimeState, phase: SimulationPhase, totalSpawned: number, totalExited: number, mediaStats: Map<string, any>, spawnByNode: ReadonlyMap<string, number>, exitByNode: ReadonlyMap<string, number>) => void;
   setShaftQueues: (queues: ReadonlyMap<string, ShaftQueueSnapshot>) => void;
   setDensityGrids: (grids: ReadonlyMap<string, DensityGrid>) => void;
@@ -47,6 +51,7 @@ export const createSimSlice: StateCreator<SimSlice, [], [], SimSlice> = (set) =>
   phase: SIMULATION_PHASE.IDLE,
   timeState: DEFAULT_TIME_STATE,
   config: null,
+  runId: null,
   totalSpawned: 0,
   totalExited: 0,
   mediaStats: new Map(),
@@ -58,6 +63,8 @@ export const createSimSlice: StateCreator<SimSlice, [], [], SimSlice> = (set) =>
   setConfig: (config) => set({ config }),
 
   setPhase: (phase) => set({ phase }),
+
+  setRunId: (runId) => set({ runId }),
 
   updateSimState: (visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats, spawnByNode, exitByNode) =>
     set({ visitors, groups, timeState, phase, totalSpawned, totalExited, mediaStats, spawnByNode, exitByNode }),
@@ -72,6 +79,7 @@ export const createSimSlice: StateCreator<SimSlice, [], [], SimSlice> = (set) =>
       groups: [],
       phase: SIMULATION_PHASE.IDLE,
       timeState: DEFAULT_TIME_STATE,
+      runId: null,
       totalSpawned: 0,
       totalExited: 0,
       mediaStats: new Map(),

@@ -36,6 +36,7 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
   const spawnByNode = useStore((s) => s.spawnByNode);
   const exitByNode = useStore((s) => s.exitByNode);
   const waypointGraph = useStore((s) => s.waypointGraph);
+  const runId = useStore((s) => s.runId);
 
   const reportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -47,9 +48,9 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
       scenario, zones, media, floors, visitors, groups,
       timeState, latestSnapshot, kpiHistory, mediaStats,
       spawnByNode, exitByNode, waypointGraph,
-      totalExited, t,
+      totalExited, runId, t,
     });
-  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, t]);
+  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, runId, t]);
 
   const handleExport = useCallback(async () => {
     if (!pageRef.current || !scenario) return;

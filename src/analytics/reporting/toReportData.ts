@@ -10,14 +10,14 @@ export type Severity = 'info' | 'warning' | 'critical';
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'F';
 
 export interface ReportMeta {
-  readonly id: string;
+  readonly id: string;             // full runId, e.g. "run_20260423T143011_a1b2c3"
   readonly projectName: string;
-  readonly generated: string;   // "YYYY-MM-DD HH:mm"
-  readonly duration: string;    // "29m 51s"
+  readonly generated: string;      // "YYYY-MM-DD HH:mm"
+  readonly duration: string;       // "29m 51s"
   readonly visitors: number;
   readonly active: number;
   readonly exited: number;
-  readonly version: string;
+  readonly runId: string;          // short-form runId for display (same as id here)
   readonly peakMoment: string | null; // "28:14" or null
 }
 
@@ -266,6 +266,7 @@ export interface ToReportDataInput {
   readonly exitByNode: ReadonlyMap<string, number>;
   readonly waypointGraph: WaypointGraph | null;
   readonly totalExited: number;
+  readonly runId: string | null;
   readonly t: (k: string, params?: Record<string, string | number>) => string;
 }
 
@@ -319,7 +320,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
     scenario, zones, media, floors, visitors, groups,
     timeState, latestSnapshot, kpiHistory, mediaStats,
     spawnByNode, exitByNode, waypointGraph,
-    totalExited, t,
+    totalExited, runId, t,
   } = input;
 
   const exited = visitors.filter((v) => !v.isActive);
@@ -562,15 +563,19 @@ export function toReportData(input: ToReportDataInput): ReportData {
   }
 
   // ---- Meta --------------------------------------------------------------
+  // Run ID uniquely identifies each simulation execution (timestamp + structural hash).
+  // Falls back to "run_unknown" when a report is rendered without a completed run
+  // (shouldn't happen in practice because the hero gates on hasSim).
+  const resolvedRunId = runId ?? 'run_unknown';
   const meta: ReportMeta = {
-    id: `Sim ${String(scenario.meta.version ?? 1).padStart(4, '0')}`,
+    id: resolvedRunId,
     projectName: scenario.meta.name,
     generated: fmtDateStamp(),
     duration: fmtDuration(durationMs),
     visitors: visitors.length,
     active: active.length,
     exited: exited.length,
-    version: `v${scenario.meta.version ?? 1}`,
+    runId: resolvedRunId,
     peakMoment,
   };
 

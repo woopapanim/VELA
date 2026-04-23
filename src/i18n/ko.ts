@@ -320,7 +320,7 @@ export const ko: Dict = {
 
   // VELA Report — Hero
   'vela.hero.brand': 'VELA · 공간 시뮬레이션 리포트',
-  'vela.hero.line': '리포트 · {version} · {date}',
+  'vela.hero.line': '리포트 · {runId} · {date}',
   'vela.hero.titleA': '공간',
   'vela.hero.titleB': '리포트',
   'vela.hero.subtitleA': '우리는 ‘얼마나 많이’가 아니라, ‘',
@@ -330,7 +330,7 @@ export const ko: Dict = {
   'vela.hero.kDuration': '시뮬레이션',
   'vela.hero.kVisitors': '방문객',
   'vela.hero.visitorsFmt': '{count}명',
-  'vela.hero.kVersion': '버전',
+  'vela.hero.kRunId': 'Run ID',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': '핵심 인사이트',

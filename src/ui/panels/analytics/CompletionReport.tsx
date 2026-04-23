@@ -110,10 +110,11 @@ export function CompletionReport() {
 
   const handleExportJson = useCallback(() => {
     if (!report) return;
+    const runId = useStore.getState().runId ?? 'run_unknown';
     download(
-      JSON.stringify(report, null, 2),
+      JSON.stringify({ ...report, runId }, null, 2),
       'application/json',
-      `vela-report-${report.scenarioMeta.name.replace(/\s+/g, '-')}-v${report.scenarioMeta.version}.json`,
+      `vela-report-${report.scenarioMeta.name.replace(/\s+/g, '-')}-${runId}.json`,
     );
   }, [report]);
 
