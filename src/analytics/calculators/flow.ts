@@ -4,6 +4,7 @@ export function calculateFlowEfficiency(
   visitors: readonly Visitor[],
   simTimeMs: number,
   totalExited?: number,
+  zoneCount?: number,
 ): FlowEfficiency {
   const exitedFromList = visitors.filter((v) => !v.isActive);
   const totalProcessed = totalExited ?? exitedFromList.length;
@@ -31,10 +32,13 @@ export function calculateFlowEfficiency(
   const minutesElapsed = simTimeMs / 60000;
   const throughput = minutesElapsed > 0 ? totalProcessed / minutesElapsed : 0;
 
-  // Completion rate = visitors who reached >=3 zones / all visitors ever (active + exited).
-  // Pre-fix the store only held active visitors so the formula added totalProcessed as a proxy
-  // for completed; that double-counts now that exited visitors are present in the list.
-  const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= 3).length;
+  // Completion rate = visitors who reached >= 80% of zones / all visitors ever (active + exited).
+  // Ratio-based threshold scales with scenario size; fallback to legacy 3-zone bar when zoneCount
+  // is unknown (pre-existing callers). Matches toReportData bucket logic.
+  const completionThreshold = zoneCount && zoneCount > 0
+    ? Math.max(1, Math.ceil(zoneCount * 0.8))
+    : 3;
+  const wellVisited = visitors.filter((v) => v.visitedZoneIds.length >= completionThreshold).length;
   const totalEver = visitors.length;
   const completionRate = totalEver > 0 ? wellVisited / totalEver : 0;
 

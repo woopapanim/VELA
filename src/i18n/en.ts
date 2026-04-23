@@ -487,8 +487,8 @@ export const en: Dict = {
   'vela.flow.kv.completed': 'Completed visitors',
   'vela.flow.kv.avgTotal': 'Avg. total duration',
   'vela.flow.kv.throughput': 'Visitors per minute',
-  'vela.flow.kv.completion': 'Completion rate (≥3 zones of exited)',
-  'vela.flow.kv.exit': 'Early-exit rate (≤2 zones of exited)',
+  'vela.flow.kv.completion': 'Completion rate (≥{n} zones of exited, 80%+)',
+  'vela.flow.kv.exit': 'Early-exit rate (≤{n} zones of exited, 20%-)',
   'vela.flow.kv.overallExit': 'Overall exit rate (of spawned)',
   'vela.flow.kv.group': 'Group-induced bottleneck',
   'vela.flow.groupTip': 'Share of bottlenecks caused by tour groups sharing the same gate at the same time. High values suggest separating group entry windows or adding a dedicated flow.',
@@ -519,9 +519,9 @@ export const en: Dict = {
   'vela.flow.note':
     'No significant bottleneck detected — exits are attributed to content abandonment, not queue blocking.',
   'vela.flow.dist.zero': '0 zones (immediate exit)',
-  'vela.flow.dist.low': '1–2 zones (early exit)',
-  'vela.flow.dist.mid': '3–4 zones (partial)',
-  'vela.flow.dist.high': '5+ zones (complete)',
+  'vela.flow.dist.low': '1–{max} zones (early exit)',
+  'vela.flow.dist.mid': '{lo}–{hi} zones (partial)',
+  'vela.flow.dist.high': '{min}+ zones (complete)',
 
   // VELA Report — Behavior
   'vela.bhv.eyebrow': 'Behavior Analysis',

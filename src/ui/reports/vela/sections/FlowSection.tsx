@@ -125,8 +125,8 @@ export function FlowSection({ flow }: { flow: ReportFlow }) {
             <div className="kv-row"><dt>{t('vela.flow.kv.completed')}</dt><dd className="num">{flow.completed}</dd></div>
             <div className="kv-row"><dt>{t('vela.flow.kv.avgTotal')}</dt><dd className="num">{flow.avgTotalMin.toFixed(2)} {t('vela.sys.td.stayUnit')}</dd></div>
             <div className="kv-row"><dt>{t('vela.flow.kv.throughput')}</dt><dd className="num">{flow.throughputPerMin.toFixed(2)} {t('vela.kpi.throughput.unit')}</dd></div>
-            <div className="kv-row"><dt>{t('vela.flow.kv.completion')}</dt><dd className="num">{completionPct}%</dd></div>
-            <div className="kv-row"><dt>{t('vela.flow.kv.exit')}</dt>
+            <div className="kv-row"><dt>{t('vela.flow.kv.completion', { n: flow.completionThreshold })}</dt><dd className="num">{completionPct}%</dd></div>
+            <div className="kv-row"><dt>{t('vela.flow.kv.exit', { n: flow.earlyExitThreshold })}</dt>
               <dd className={`num ${exitRatePct >= 50 ? 's-danger' : ''}`}>{exitRatePct}%</dd>
             </div>
             <div className="kv-row"><dt>{t('vela.flow.kv.overallExit')}</dt><dd className="num">{overallExitPct}%</dd></div>
