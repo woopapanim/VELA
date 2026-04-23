@@ -356,6 +356,11 @@ export const en: Dict = {
   'vela.hero.kVisitors': 'Visitors',
   'vela.hero.visitorsFmt': '{count}',
   'vela.hero.kRunId': 'Run ID',
+  'vela.hero.modeTime': '🕐 Time-based',
+  'vela.hero.modePerson': '👥 Person-based',
+  'vela.hero.modeTimeHint': 'Measures throughput during operating hours',
+  'vela.hero.modePersonHint': 'Measures a fixed cohort completing the visit',
+  'vela.hero.trimWarn': '⚠️ Duration cap hit with visit in progress — last {active} visitors truncated. Average stay & completion rate may be skewed.',
 
   // VELA Report — TL;DR
   'vela.tldr.eyebrow': 'Key Insight',

@@ -3,6 +3,8 @@ import { useT } from '@/i18n';
 
 export function HeroSection({ meta }: { meta: ReportMeta }) {
   const t = useT();
+  const modeLabel = meta.mode === 'person' ? t('vela.hero.modePerson') : t('vela.hero.modeTime');
+  const modeHint = meta.mode === 'person' ? t('vela.hero.modePersonHint') : t('vela.hero.modeTimeHint');
   return (
     <section className="hero">
       <div className="topline">
@@ -14,6 +16,35 @@ export function HeroSection({ meta }: { meta: ReportMeta }) {
       <p className="subtitle">
         {t('vela.hero.subtitleA')}<em>{t('vela.hero.subtitleEm')}</em>{t('vela.hero.subtitleB')}
       </p>
+      <div className="mode-badge" title={modeHint} style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5em',
+        padding: '0.25em 0.75em',
+        borderRadius: '999px',
+        background: 'rgba(255,255,255,0.08)',
+        border: '1px solid rgba(255,255,255,0.15)',
+        fontSize: '0.75em',
+        marginTop: '0.75em',
+      }}>
+        <span>{modeLabel}</span>
+        <span style={{ opacity: 0.7 }}>·</span>
+        <span style={{ opacity: 0.8 }}>{modeHint}</span>
+      </div>
+      {meta.trimmed && (
+        <div style={{
+          marginTop: '0.75em',
+          padding: '0.5em 0.75em',
+          borderRadius: '0.5em',
+          background: 'rgba(245, 158, 11, 0.12)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          color: '#fbbf24',
+          fontSize: '0.8em',
+          lineHeight: 1.4,
+        }}>
+          {t('vela.hero.trimWarn', { active: meta.active })}
+        </div>
+      )}
       <div className="meta">
         <div className="cell"><div className="k">{t('vela.hero.kGenerated')}</div><div className="v num">{meta.generated}</div></div>
         <div className="cell"><div className="k">{t('vela.hero.kDuration')}</div><div className="v num">{meta.duration}</div></div>

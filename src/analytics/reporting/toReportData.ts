@@ -19,6 +19,9 @@ export interface ReportMeta {
   readonly exited: number;
   readonly runId: string;          // short-form runId for display (same as id here)
   readonly peakMoment: string | null; // "28:14" or null
+  readonly mode: 'time' | 'person';    // 종료 기준 (시나리오에서 선택)
+  readonly trimmed: boolean;            // time 모드에서 미완료 상태로 Duration 도달한 경우
+  readonly totalConfigured: number;     // 시나리오의 목표 관람객 수 (visitorDistribution.totalCount)
 }
 
 export interface ReportEvidence {
@@ -567,6 +570,12 @@ export function toReportData(input: ToReportDataInput): ReportData {
   // Falls back to "run_unknown" when a report is rendered without a completed run
   // (shouldn't happen in practice because the hero gates on hasSim).
   const resolvedRunId = runId ?? 'run_unknown';
+  const mode = scenario.simulationConfig.simulationMode ?? 'time';
+  const totalConfigured = scenario.visitorDistribution.totalCount ?? 0;
+  // time 모드에서 "잘림" 판정: 스폰이 목표에 못 미쳤거나(입장 못한 사람) 활성 visitor 가 남아있음(관람 중 잘림).
+  const trimmed =
+    mode === 'time' &&
+    (visitors.length < totalConfigured || active.length > 0);
   const meta: ReportMeta = {
     id: resolvedRunId,
     projectName: scenario.meta.name,
@@ -577,6 +586,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
     exited: exited.length,
     runId: resolvedRunId,
     peakMoment,
+    mode,
+    trimmed,
+    totalConfigured,
   };
 
   // ---- Evidence (TL;DR) --------------------------------------------------
