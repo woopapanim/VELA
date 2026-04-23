@@ -329,7 +329,7 @@ export function SimulationControls() {
       {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
         <div className="flex items-center gap-1">
           <span className="text-[9px] text-muted-foreground">Speed</span>
-          {[1, 3, 5, 10, 20].map((spd) => {
+          {[1, 3, 5, 10, 20, 30].map((spd) => {
             const active = speed === spd;
             return (
               <button
