@@ -19,7 +19,7 @@ export function assembleKpiSnapshot(
     zoneUtilizations: calculateZoneUtilization(zones, visitors, simTimeMs),
     bottlenecks: calculateBottleneckIndex(zones, visitors),
     visitDurations: calculateVisitDurations(zones),
-    flowEfficiency: calculateFlowEfficiency(visitors, simTimeMs, totalExited),
+    flowEfficiency: calculateFlowEfficiency(visitors, simTimeMs, totalExited, zones.length),
     fatigueDistribution: calculateFatigueDistribution(visitors),
     skipRate: calculateSkipRate(media, zones, visitors.length),
     groupBottlenecks: [], // populated by event tracking

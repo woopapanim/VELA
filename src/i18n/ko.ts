@@ -462,8 +462,8 @@ export const ko: Dict = {
   'vela.flow.kv.completed': '완주 방문객',
   'vela.flow.kv.avgTotal': '평균 총 체류',
   'vela.flow.kv.throughput': '분당 방문객',
-  'vela.flow.kv.completion': '완주율 (퇴장자 중 ≥3개 존)',
-  'vela.flow.kv.exit': '조기 이탈률 (퇴장자 중 ≤2개 존)',
+  'vela.flow.kv.completion': '완주율 (퇴장자 중 ≥{n}개 존, 80%+)',
+  'vela.flow.kv.exit': '조기 이탈률 (퇴장자 중 ≤{n}개 존, 20%-)',
   'vela.flow.kv.overallExit': '퇴장률 (전체 스폰 대비)',
   'vela.flow.kv.group': '그룹 유발 병목',
   'vela.flow.groupTip': '단체 입장 그룹이 같은 시점에 같은 게이트를 공유해 발생한 병목 비중입니다. 높을수록 그룹 진입 시간 분리 또는 전용 동선 분기가 필요합니다.',
@@ -494,9 +494,9 @@ export const ko: Dict = {
   'vela.flow.note':
     '유의미한 병목은 감지되지 않음 — 이탈은 대기 정체가 아닌 콘텐츠 이탈에 기인.',
   'vela.flow.dist.zero': '0개 존 (즉시 이탈)',
-  'vela.flow.dist.low': '1–2개 존 (조기 이탈)',
-  'vela.flow.dist.mid': '3–4개 존 (부분)',
-  'vela.flow.dist.high': '5개 이상 (완주)',
+  'vela.flow.dist.low': '1–{max}개 존 (조기 이탈)',
+  'vela.flow.dist.mid': '{lo}–{hi}개 존 (부분)',
+  'vela.flow.dist.high': '{min}개 이상 (완주)',
 
   // VELA Report — Behavior
   'vela.bhv.eyebrow': '관람객 행동',

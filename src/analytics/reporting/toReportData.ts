@@ -173,10 +173,14 @@ export interface ReportFlow {
   readonly completed: number;
   readonly avgTotalMin: number;
   readonly throughputPerMin: number;
-  /** 완주율 = 퇴장자 중 3개 이상 존 방문 비율 (0..1). zone-count 기준. */
+  /** 완주율 = 퇴장자 중 전체 존의 80% 이상 방문한 비율 (0..1). */
   readonly completionRate: number;
-  /** 조기이탈률 = 퇴장자 중 2개 이하 존 방문 비율 (0..1). completionRate 와 합이 100%. */
+  /** 조기이탈률 = 퇴장자 중 전체 존의 20% 이하 방문한 비율 (0..1). */
   readonly earlyExitRate: number;
+  /** 완주 판정에 필요한 최소 존 개수 (nZones × 0.8, 올림). UI 라벨 표기용. */
+  readonly completionThreshold: number;
+  /** 조기 이탈 판정에 걸리는 최대 존 개수 (nZones × 0.2, 내림, 최소 1). UI 라벨 표기용. */
+  readonly earlyExitThreshold: number;
   /** 퇴장률 = 퇴장자 / 전체 스폰 (0..1). 시간 내 투어를 마친 방문자 비율 (다른 denominator). */
   readonly exitRate: number;
   readonly groupInducedBottleneckPct: number;
@@ -495,20 +499,24 @@ export function toReportData(input: ToReportDataInput): ReportData {
   });
 
   // ---- Zone-count buckets (for completion / early-exit definitions) ------
-  // 퇴장자만을 대상으로 방문한 존 수 분포. 완주율/조기이탈률 계산과 completionDist UI 에 공유.
+  // 퇴장자만을 대상으로 방문한 존 수 분포 — 전체 존 개수 대비 비율 기준.
+  // nZones=15 → 조기이탈 ≤3개, 완주 ≥12개. nZones=5 → 조기이탈 ≤1, 완주 ≥4.
+  // 소규모 시나리오에서도 lowMax < highMin 이 유지되도록 clamp.
+  const nZones = zones.length;
+  const lowMax = nZones > 0 ? Math.max(1, Math.floor(nZones * 0.2)) : 0;
+  const highMin = nZones > 0 ? Math.max(lowMax + 1, Math.ceil(nZones * 0.8)) : 0;
   const fb = { zero: 0, low: 0, mid: 0, high: 0 };
   for (const v of exited) {
     const n = v.visitedZoneIds.length;
     if (n === 0) fb.zero++;
-    else if (n <= 2) fb.low++;
-    else if (n <= 4) fb.mid++;
-    else fb.high++;
+    else if (n <= lowMax) fb.low++;
+    else if (n >= highMin) fb.high++;
+    else fb.mid++;
   }
 
   // ---- Derived top-level KPIs --------------------------------------------
-  // 완주율 = 3개 이상 존 방문 / 퇴장자. 라벨 "(≥3개 존)" 과 맞춘 zone-count 기준.
-  // NOTE: 과거에는 exited / total-spawned 로 계산해 레포트 UI 의 라벨과 불일치 했음.
-  const completionRate = exited.length > 0 ? (fb.mid + fb.high) / exited.length : 0;
+  // 완주율 = ≥80% 존 방문 / 퇴장자.
+  const completionRate = exited.length > 0 ? fb.high / exited.length : 0;
   // 퇴장률 = 퇴장자 / 전체 스폰. "시뮬 시간 안에 투어를 마친 사람" 비율 (다른 차원의 정보).
   const exitRate = visitors.length > 0 ? exited.length / visitors.length : 0;
   // Average stay covers exited visitors (completed dwell) and active visitors (current dwell so far)
@@ -863,9 +871,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
   const exTotal = Math.max(1, exited.length);
   const completionDist: ReportCompositionRow[] = [
     { label: t('vela.flow.dist.zero'), count: fb.zero, pct: Math.round((fb.zero / exTotal) * 100), tone: 'danger' },
-    { label: t('vela.flow.dist.low'), count: fb.low, pct: Math.round((fb.low / exTotal) * 100), tone: 'warn' },
-    { label: t('vela.flow.dist.mid'), count: fb.mid, pct: Math.round((fb.mid / exTotal) * 100) },
-    { label: t('vela.flow.dist.high'), count: fb.high, pct: Math.round((fb.high / exTotal) * 100), tone: 'ok' },
+    { label: t('vela.flow.dist.low', { max: lowMax }), count: fb.low, pct: Math.round((fb.low / exTotal) * 100), tone: 'warn' },
+    { label: t('vela.flow.dist.mid', { lo: lowMax + 1, hi: highMin - 1 }), count: fb.mid, pct: Math.round((fb.mid / exTotal) * 100) },
+    { label: t('vela.flow.dist.high', { min: highMin }), count: fb.high, pct: Math.round((fb.high / exTotal) * 100), tone: 'ok' },
   ];
   const earlyExitRate = exited.length > 0 ? (fb.zero + fb.low) / exited.length : 0;
   const groupInducedPct = everBottle.size > 0 ? everGroupInduced.size / everBottle.size : 0;
@@ -1034,6 +1042,8 @@ export function toReportData(input: ToReportDataInput): ReportData {
     throughputPerMin,
     completionRate,
     earlyExitRate,
+    completionThreshold: highMin,
+    earlyExitThreshold: lowMax,
     exitRate,
     groupInducedBottleneckPct: groupInducedPct,
     completionDist,
