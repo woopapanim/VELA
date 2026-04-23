@@ -300,6 +300,28 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       if (migrated) graphArr = { ...graphArr, nodes };
     }
 
+    // Legacy migration: waypoint nodes with empty/missing floorId get assigned
+    // to the floor whose bounds contain the node, or the first floor as fallback.
+    // Without this, Entry/Exit nodes with empty floorId skew routing because
+    // floor-aware pathfinding (shaft matching etc.) treats them as "other floor".
+    if (graphArr) {
+      const orphans = graphArr.nodes.filter(n => !(n.floorId as string));
+      if (orphans.length > 0) {
+        const fallbackFloorId = (floorsArr[0]?.id as string) ?? 'floor_1f';
+        const nodes = graphArr.nodes.map(n => {
+          if (n.floorId as string) return n;
+          const { x, y } = n.position;
+          const hit = floorsArr.find(f => {
+            const b = f.bounds;
+            if (!b) return false;
+            return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
+          });
+          return { ...n, floorId: (hit?.id ?? fallbackFloorId) as any };
+        });
+        graphArr = { ...graphArr, nodes };
+      }
+    }
+
     const expandedFloors = expandCanvasForZones(floorsArr, zonesArr, activeFloorId);
     const shaftsArr: ElevatorShaft[] = [...(scenario.shafts ?? [])];
     set({
