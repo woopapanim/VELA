@@ -7,6 +7,7 @@ import {
   ZoneId, FloorId, ScenarioId,
 } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
+import { zonesOverlap } from '@/domain/zoneGeometry';
 import type { DraftScale, DraftScenario, HydrationWarning } from './types';
 
 /**
@@ -149,19 +150,22 @@ export function hydrateDraft(
     warnings.push({ severity: 'error', message: 'No valid zones produced — scenario cannot be loaded.' });
   }
 
-  // Overlap check — the analyzer is told zones must not overlap, but flag any
-  // that still do so the user can fix them in the editor before loading.
+  // Overlap check — zero tolerance. The analyzer is instructed not to emit
+  // overlapping zones (the prompt spells out the arithmetic). When it does
+  // anyway, we BLOCK the load via 'error' severity rather than silently
+  // accepting data we know is bad: editor overlap-guard then prevents the
+  // user from untangling the mess manually. The right recovery path is
+  // re-analysis, which the UI offers when errors are present.
+  //
+  // Uses polygon-aware `zonesOverlap` (same helper the editor uses during
+  // drag) so L-shapes and custom polygons aren't false-positived by their
+  // AABB alone.
   for (let i = 0; i < zones.length; i++) {
     for (let j = i + 1; j < zones.length; j++) {
-      const a = zones[i].bounds, b = zones[j].bounds;
-      const ox = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
-      const oy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
-      const overlapArea = ox * oy;
-      const minArea = Math.min(a.w * a.h, b.w * b.h);
-      if (minArea > 0 && overlapArea / minArea > 0.15) {
+      if (zonesOverlap(zones[i], zones[j])) {
         warnings.push({
-          severity: 'warning',
-          message: `Zones "${zones[i].name}" and "${zones[j].name}" overlap — adjust in the editor.`,
+          severity: 'error',
+          message: `Zones "${zones[i].name}" and "${zones[j].name}" overlap — the AI output is bad. Re-analyze to regenerate.`,
         });
       }
     }

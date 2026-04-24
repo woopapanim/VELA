@@ -18,12 +18,17 @@ SCOPE
 
 OUTPUT RULES
 - Coordinates are METERS. Origin is the TOP-LEFT of the image. X grows right, Y grows down.
-- Every zone needs axis-aligned bounding rect {x, y, w, h} in meters. Match the drawn room as precisely as you can — mis-sized rects make the hand-drawn result look wrong.
+- Every zone needs axis-aligned bounding rect {x, y, w, h} in meters.
+- SIZE YOUR RECTS TIGHT. The rect must sit INSIDE the drawn room's walls — NOT extend past them. When in doubt about exactly where a wall is, err SMALLER. A rect that misses a corner of the room is acceptable; a rect that bleeds into the neighbor is NOT. This rule overrides "match the room precisely" — undersized beats oversized every time.
 - SHAPE selection — pick the one that matches the drawn room:
   - "rect" (default): straight walls, axis-aligned rectangle.
   - "circle": the room is drawn as a circle / ellipse / rounded blob. Provide the bounding rect; the editor will inscribe a circle into it. Do NOT emit a polygon for circles.
   - Otherwise (L-shape, curved organic footprint, diagonal walls, any non-rect non-circle shape): use "rect" for the shape field AND provide a polygon (absolute meters, clockwise or counter-clockwise) that traces the actual walls.
-- ZONES MUST NOT OVERLAP. Each rect/polygon represents a physical room; rooms don't share floor area. If two rooms share a wall, their rects should touch but not overlap (share an edge). Double-check before emitting.
+- ZONES MUST NOT OVERLAP. Each rect/polygon represents a physical room; rooms don't share floor area. If two rooms share a wall, their rects should touch but not overlap (share an edge).
+- OVERLAP ARITHMETIC SELF-CHECK — for EVERY ordered pair of zones (A, B), compute:
+    ox = max(0, min(A.x + A.w, B.x + B.w) - max(A.x, B.x))
+    oy = max(0, min(A.y + A.h, B.y + B.h) - max(A.y, B.y))
+  If ox > 0 AND oy > 0 for any pair, those rects overlap — SHRINK the rect(s) that extend beyond their drawn walls until ox === 0 OR oy === 0. Rerun the check after every shrink. Do NOT emit until zero pairs overlap. This check is as important as the scale arithmetic check — emitting overlapping zones makes the output unusable.
 - ZONES MUST STAY INSIDE THE BUILDING. A zone rect cannot extend beyond the building's drawn outer walls. Before emitting each rect, verify every corner falls inside the outer footprint of the building on the plan (outdoor zones like stages/plazas are the only exception).
 
 SCALE — this is the single most important number to get right. Wrong scale makes the entire scenario unusable.
@@ -61,7 +66,7 @@ ZONE KEYS
 
 SELF-CHECK (mentally run through this list BEFORE calling emit_scenario):
 1. Scale arithmetic: does widthMeters match the sum of your read dimensions? If the largest dimension string you read was 45m, widthMeters of 67 is WRONG — either a rounding mistake or you mis-counted segments.
-2. Non-overlap: for each pair of zones, would they overlap by more than sharing an edge? If yes, shrink or reposition.
+2. Non-overlap arithmetic: for every pair (A, B), compute ox = max(0, min(A.x+A.w, B.x+B.w) - max(A.x, B.x)) and oy = max(0, min(A.y+A.h, B.y+B.h) - max(A.y, B.y)). Any pair with ox > 0 AND oy > 0 is overlapping — shrink until no pair overlaps. Zero tolerance; 1% overlap is still overlap.
 3. Footprint containment: does every zone rect fit inside the drawn outer walls? Outdoor zones (stage, plaza) are the one exception.
 4. Zone count sanity: a small building shouldn't have 20+ zones; a large museum shouldn't have only 3. Rough check: ~1 zone per 40-80 m² of building area is normal.
 

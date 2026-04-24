@@ -339,7 +339,11 @@ describe('hydrateDraft — golden fixtures (sampleDraft.ts)', () => {
     expect(msgs).toMatch(/Broken Zone.*dropped|dropped.*Broken Zone/i);
     expect(msgs).toMatch(/Hall A.*overlap|overlap.*Hall A/i);
     expect(msgs).toMatch(/Hall B/);
-    expect(warnings.filter((w) => w.severity === 'warning').length).toBeGreaterThanOrEqual(3);
+    // Scale-assumed and dropped-zone stay 'warning'; overlap is now 'error'
+    // (load-blocking) since we treat overlap as invalid AI output that must
+    // be regenerated rather than manually untangled.
+    expect(warnings.filter((w) => w.severity === 'warning').length).toBeGreaterThanOrEqual(2);
+    expect(warnings.filter((w) => w.severity === 'error' && /overlap/.test(w.message)).length).toBeGreaterThanOrEqual(1);
   });
 
   it('G5a: captured Art Museum baseline — 16 zones, measured confidence, known overlap pairs', () => {

@@ -27,7 +27,9 @@ export const SAMPLE_DRAFT: DraftScenario = {
     { key: 'lobby', name: 'Lobby', type: 'lobby', shape: 'rect', rect: { x: 0.5, y: 0.5, w: 6, h: 4 } },
     { key: 'gallery_a', name: 'Gallery A', type: 'exhibition', shape: 'rect', rect: { x: 7, y: 0.5, w: 6, h: 5 } },
     { key: 'gallery_b', name: 'Gallery B', type: 'exhibition', shape: 'rect', rect: { x: 13.5, y: 0.5, w: 6, h: 5 } },
-    { key: 'corridor', name: 'Corridor', type: 'corridor', shape: 'rect', rect: { x: 0.5, y: 5, w: 19, h: 1.5 } },
+    // Corridor sits tight below the galleries (y=5.5 not y=5) so edges touch
+    // but no pair overlaps — the "clean" fixture is actually clean.
+    { key: 'corridor', name: 'Corridor', type: 'corridor', shape: 'rect', rect: { x: 0.5, y: 5.5, w: 19, h: 1.5 } },
     { key: 'rest_area', name: 'Rest Area', type: 'rest', shape: 'rect', rect: { x: 0.5, y: 7, w: 5, h: 3.5 } },
     {
       key: 'theater',

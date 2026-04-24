@@ -46,6 +46,9 @@ interface ReviewData {
   readonly warnings: readonly HydrationWarning[];
   readonly previewUrl: string;
   readonly imageSize: { readonly width: number; readonly height: number };
+  /** Original upload — kept so the review screen can offer "Re-analyze" when
+   *  the hydration flags errors (e.g. overlap). Absent for sample fixtures. */
+  readonly file?: File;
 }
 
 export function AnalyzeFloorPlan({
@@ -86,7 +89,7 @@ export function AnalyzeFloorPlan({
       setProgress('Building scenario...');
       const imageSize = await measureImage(previewUrl);
       const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
-      setReview({ scenario, draft, warnings, previewUrl, imageSize });
+      setReview({ scenario, draft, warnings, previewUrl, imageSize, file });
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
       URL.revokeObjectURL(previewUrl);
@@ -152,7 +155,7 @@ export function AnalyzeFloorPlan({
       const { scenario, warnings } = hydrateDraft(draft, cvData.previewUrl, imageSize);
       // Transfer previewUrl ownership from cvData → review. Don't revoke —
       // hydrated scenario uses it as the editor background.
-      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize });
+      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize, file: cvData.file });
       setCvData(null);
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
@@ -216,8 +219,39 @@ export function AnalyzeFloorPlan({
       warnings,
       previewUrl: review.previewUrl,
       imageSize: review.imageSize,
+      file: review.file,
     });
     setStage('review');
+  }, [review]);
+
+  /**
+   * Re-run Claude Vision on the same uploaded file. Used when hydration
+   * flagged blocking errors (overlap, etc.) and the user wants a fresh
+   * attempt instead of manually fixing a scenario we've already deemed
+   * bad. Costs another API call; that's fine — it's the principled
+   * recovery path (vs. editor-side overlap tolerance, which would
+   * silently accept bad data).
+   */
+  const reanalyze = useCallback(async () => {
+    if (!review?.file) return;
+    const file = review.file;
+    const previewUrl = review.previewUrl;
+    const imageSize = review.imageSize;
+    setError('');
+    setStage('analyzing');
+    setProgress('Re-analyzing with Claude Vision...');
+    try {
+      const { base64, mediaType } = await fileToBase64(file);
+      const draft = await analyzeFloorPlan(base64, mediaType);
+      setProgress('Building scenario...');
+      const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
+      setReview({ scenario, draft, warnings, previewUrl, imageSize, file });
+      setStage(stageAfterAnalysis(draft));
+    } catch (err) {
+      const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);
+      setError(msg);
+      setStage('review');
+    }
   }, [review]);
 
   return (
@@ -458,21 +492,42 @@ export function AnalyzeFloorPlan({
                 </div>
               )}
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={load}
-                  disabled={review.scenario.zones.length === 0}
-                  className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
-                >
-                  Load into editor
-                </button>
-                <button
-                  onClick={() => { setReview(null); setStage('idle'); }}
-                  className="px-4 py-2.5 text-sm rounded-xl bg-secondary hover:bg-accent"
-                >
-                  Try another
-                </button>
-              </div>
+              {(() => {
+                const hasErrors = review.warnings.some((w) => w.severity === 'error');
+                const canReanalyze = !!review.file;
+                return (
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={load}
+                      disabled={review.scenario.zones.length === 0 || hasErrors}
+                      title={hasErrors ? 'Cannot load — AI output has overlapping zones. Re-analyze to regenerate.' : undefined}
+                      className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40"
+                    >
+                      Load into editor
+                    </button>
+                    {canReanalyze && (
+                      <button
+                        onClick={reanalyze}
+                        className={`px-4 py-2.5 text-sm rounded-xl flex items-center gap-1.5 ${
+                          hasErrors
+                            ? 'bg-primary text-primary-foreground hover:opacity-90'
+                            : 'bg-secondary hover:bg-accent'
+                        }`}
+                        title="Run Claude Vision again on the same image (uses another API credit)."
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Re-analyze
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setReview(null); setStage('idle'); }}
+                      className="px-4 py-2.5 text-sm rounded-xl bg-secondary hover:bg-accent"
+                    >
+                      Try another
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
