@@ -371,7 +371,7 @@ export function AnalyzeFloorPlan({
             </div>
           )}
 
-          {stage === 'analyzing' && (
+          {stage === 'analyzing' && !showKeyInput && (
             <div className="py-12 text-center">
               <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
               <p className="text-sm font-medium mb-1">{progress || 'Analyzing...'}</p>
@@ -379,7 +379,7 @@ export function AnalyzeFloorPlan({
             </div>
           )}
 
-          {stage === 'review' && review && (
+          {stage === 'review' && review && !showKeyInput && (
             <div className="space-y-4">
               <div className="rounded-xl overflow-hidden border border-border bg-black/20">
                 <img src={review.previewUrl} alt="Floor plan" className="w-full max-h-48 object-contain" />
@@ -476,7 +476,7 @@ export function AnalyzeFloorPlan({
             </div>
           )}
 
-          {stage === 'calibrating' && review && (
+          {stage === 'calibrating' && review && !showKeyInput && (
             <ScaleCalibrator
               imageUrl={review.previewUrl}
               imageSize={review.imageSize}
@@ -486,7 +486,7 @@ export function AnalyzeFloorPlan({
             />
           )}
 
-          {stage === 'cv_review' && cvData && (
+          {stage === 'cv_review' && cvData && !showKeyInput && (
             <CvRoomPreview
               imageUrl={cvData.previewUrl}
               result={cvData.result}
@@ -500,9 +500,18 @@ export function AnalyzeFloorPlan({
             />
           )}
 
-          {error && (
+          {error && !showKeyInput && (
             <div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/30 p-3 text-[11px] text-red-400 leading-relaxed">
-              {error}
+              <p>{error}</p>
+              {!isProxyMode() && /\b(401|403)\b|unauthorized|x-api-key|invalid.*api.*key/i.test(error) && (
+                <button
+                  onClick={() => { setApiKey(getStoredApiKey() ?? ''); setShowKeyInput(true); setError(''); }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300"
+                >
+                  <Key className="w-3 h-3" />
+                  {getStoredApiKey() ? 'Change API key' : 'Set API key'}
+                </button>
+              )}
             </div>
           )}
         </div>
