@@ -17,12 +17,26 @@ export interface DraftScenario {
   readonly notes?: string;
 }
 
+export type DraftScaleConfidence = 'measured' | 'inferred' | 'assumed';
+
 export interface DraftScale {
   /** Raw dimension text detected on plan, e.g. "40'-1\" × 70'-0\"" or "12m × 21m". */
   readonly label: string;
   /** Physical width/height of the image in meters. */
   readonly widthMeters: number;
   readonly heightMeters: number;
+  /**
+   * How confident the model is about the scale:
+   * - "measured": at least one explicit numeric dimension was read off the plan.
+   * - "inferred": estimated from a visual proxy (door ~0.9m, car, human figure).
+   * - "assumed": no cues; fell back to shorter-axis = 15m.
+   */
+  readonly confidence?: DraftScaleConfidence;
+  /**
+   * What specifically the model used to derive scale, with location on the plan
+   * (e.g. "scale bar bottom-left, '5m' label" or "overall dim label '40m × 30m' on south wall").
+   */
+  readonly evidence?: string;
 }
 
 export interface DraftZone {

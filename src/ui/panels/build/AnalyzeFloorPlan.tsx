@@ -1,15 +1,17 @@
 import { useCallback, useRef, useState } from 'react';
-import { X, Sparkles, Upload, AlertCircle, Key, Loader2 } from 'lucide-react';
+import { X, Sparkles, Upload, AlertCircle, Key, Loader2, Ruler, FlaskConical } from 'lucide-react';
 import { useStore } from '@/stores';
 import {
   analyzeFloorPlan, fileToBase64, getStoredApiKey, setStoredApiKey, isProxyMode,
   AIClientError,
 } from '@/services/ai/anthropicClient';
-import { hydrateDraft } from '@/services/ai/hydrate';
-import type { DraftScenario, HydrationWarning } from '@/services/ai/types';
+import { hydrateDraft, rescaleDraft } from '@/services/ai/hydrate';
+import type { DraftScale, DraftScenario, HydrationWarning } from '@/services/ai/types';
+import { SAMPLE_FIXTURES, SAMPLE_IMAGE_NATURAL, SAMPLE_IMAGE_PATH } from '@/services/ai/sampleDraft';
 import type { Scenario } from '@/domain';
+import { ScaleCalibrator } from './ScaleCalibrator';
 
-type Stage = 'idle' | 'analyzing' | 'review';
+type Stage = 'idle' | 'analyzing' | 'review' | 'calibrating';
 
 function measureImage(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -25,6 +27,7 @@ interface ReviewData {
   readonly draft: DraftScenario;
   readonly warnings: readonly HydrationWarning[];
   readonly previewUrl: string;
+  readonly imageSize: { readonly width: number; readonly height: number };
 }
 
 export function AnalyzeFloorPlan({
@@ -62,7 +65,7 @@ export function AnalyzeFloorPlan({
       setProgress('Building scenario...');
       const imageSize = await measureImage(previewUrl);
       const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
-      setReview({ scenario, draft, warnings, previewUrl });
+      setReview({ scenario, draft, warnings, previewUrl, imageSize });
       setStage('review');
     } catch (err) {
       URL.revokeObjectURL(previewUrl);
@@ -101,6 +104,37 @@ export function AnalyzeFloorPlan({
     setScenario(review.scenario);
     onLoaded();
   }, [review, setScenario, onLoaded]);
+
+  const loadSample = useCallback((fixtureId?: string) => {
+    setError('');
+    const fx = SAMPLE_FIXTURES.find((f) => f.id === fixtureId) ?? SAMPLE_FIXTURES[0];
+    const { scenario, warnings } = hydrateDraft(fx.draft, SAMPLE_IMAGE_PATH, {
+      width: SAMPLE_IMAGE_NATURAL.width,
+      height: SAMPLE_IMAGE_NATURAL.height,
+    });
+    setReview({
+      scenario,
+      draft: fx.draft,
+      warnings,
+      previewUrl: SAMPLE_IMAGE_PATH,
+      imageSize: { width: SAMPLE_IMAGE_NATURAL.width, height: SAMPLE_IMAGE_NATURAL.height },
+    });
+    setStage('review');
+  }, []);
+
+  const applyCalibration = useCallback((scale: DraftScale) => {
+    if (!review) return;
+    const rescaled = rescaleDraft(review.draft, scale);
+    const { scenario, warnings } = hydrateDraft(rescaled, review.previewUrl, review.imageSize);
+    setReview({
+      scenario,
+      draft: rescaled,
+      warnings,
+      previewUrl: review.previewUrl,
+      imageSize: review.imageSize,
+    });
+    setStage('review');
+  }, [review]);
 
   return (
     <div
@@ -155,15 +189,33 @@ export function AnalyzeFloorPlan({
                 <p>• Output is editable — the AI produces a starting layout, you refine it.</p>
               </div>
 
-              {!isProxyMode() && (
-                <button
-                  onClick={() => { setApiKey(getStoredApiKey() ?? ''); setShowKeyInput(true); }}
-                  className="mt-4 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
-                >
-                  <Key className="w-3 h-3" />
-                  {getStoredApiKey() ? 'Change API key' : 'Set Anthropic API key'}
-                </button>
-              )}
+              <div className="mt-4 flex items-center justify-between gap-3">
+                {!isProxyMode() && (
+                  <button
+                    onClick={() => { setApiKey(getStoredApiKey() ?? ''); setShowKeyInput(true); }}
+                    className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    <Key className="w-3 h-3" />
+                    {getStoredApiKey() ? 'Change API key' : 'Set Anthropic API key'}
+                  </button>
+                )}
+                {import.meta.env.DEV && (
+                  <div className="ml-auto flex items-center gap-1.5">
+                    <FlaskConical className="w-3 h-3 text-primary/80" />
+                    <span className="text-[10px] text-muted-foreground">Sample:</span>
+                    {SAMPLE_FIXTURES.map((fx) => (
+                      <button
+                        key={fx.id}
+                        onClick={() => loadSample(fx.id)}
+                        className="text-[11px] text-primary/80 hover:text-primary underline-offset-2 hover:underline"
+                        title={fx.label}
+                      >
+                        {fx.id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </>
           )}
 
@@ -245,11 +297,43 @@ export function AnalyzeFloorPlan({
                 </p>
               </div>
 
-              {review.draft.scale?.label && (
-                <div className="text-[10px] text-muted-foreground">
-                  Scale: {review.draft.scale.label} → {Math.round(review.draft.scale.widthMeters)}×{Math.round(review.draft.scale.heightMeters)} m
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-[10px] text-muted-foreground flex-1 min-w-0 space-y-0.5">
+                  {review.draft.scale?.label ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>
+                        Scale: {review.draft.scale.label} → {Math.round(review.draft.scale.widthMeters)}×{Math.round(review.draft.scale.heightMeters)} m
+                      </span>
+                      {review.draft.scale.confidence && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wide font-data ${
+                            review.draft.scale.confidence === 'measured' ? 'bg-emerald-500/20 text-emerald-400'
+                            : review.draft.scale.confidence === 'inferred' ? 'bg-yellow-500/20 text-yellow-400'
+                            : 'bg-red-500/20 text-red-400'
+                          }`}
+                        >
+                          {review.draft.scale.confidence}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div>Scale: not detected</div>
+                  )}
+                  {review.draft.scale?.evidence && (
+                    <div className="text-[9px] italic leading-tight truncate">
+                      Evidence: {review.draft.scale.evidence}
+                    </div>
+                  )}
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setStage('calibrating')}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] rounded-lg bg-secondary hover:bg-accent text-foreground shrink-0"
+                >
+                  <Ruler className="w-3 h-3" />
+                  Recalibrate
+                </button>
+              </div>
 
               {review.warnings.length > 0 && (
                 <div className="rounded-xl bg-secondary/50 p-3 space-y-1">
@@ -284,6 +368,16 @@ export function AnalyzeFloorPlan({
                 </button>
               </div>
             </div>
+          )}
+
+          {stage === 'calibrating' && review && (
+            <ScaleCalibrator
+              imageUrl={review.previewUrl}
+              imageSize={review.imageSize}
+              current={review.draft.scale ?? { label: '', widthMeters: 20, heightMeters: 15 }}
+              onApply={applyCalibration}
+              onCancel={() => setStage('review')}
+            />
           )}
 
           {error && (

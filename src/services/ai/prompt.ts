@@ -24,8 +24,24 @@ OUTPUT RULES
   - "circle": the room is drawn as a circle / ellipse / rounded blob. Provide the bounding rect; the editor will inscribe a circle into it. Do NOT emit a polygon for circles.
   - Otherwise (L-shape, curved organic footprint, diagonal walls, any non-rect non-circle shape): use "rect" for the shape field AND provide a polygon (absolute meters, clockwise or counter-clockwise) that traces the actual walls.
 - ZONES MUST NOT OVERLAP. Each rect/polygon represents a physical room; rooms don't share floor area. If two rooms share a wall, their rects should touch but not overlap (share an edge). Double-check before emitting.
-- Infer scale from dimension labels on the plan (e.g. "40'-1\\" × 70'-0\\"", "12m × 21m"). Convert feet to meters (1 ft = 0.3048 m).
-- If no dimensions are visible, assume the shorter image axis spans 15 meters.
+
+SCALE — this is the single most important number to get right. Wrong scale makes the entire scenario unusable.
+1. Scan the image systematically for scale cues, in this order of preference:
+   a) A scale bar / scale ruler (e.g. "|——— 5m ———|", "0  2  4  6 m"). Use its pixel length ratio to derive meters-per-pixel, then multiply by image width/height.
+   b) An overall building / floor dimension label on an outer wall or title block (e.g. "40'-1\\"" along a long side, "전체 30000" in mm).
+   c) Dimension lines with tick marks and numbers between interior walls (e.g. "3500" mm or "3.5m" between two partition lines).
+   d) Room labels that include a size (e.g. "Conference 6m × 4m", "회의실 6×4").
+   e) Door widths (~0.9 m) or a standard car footprint (~4.5 × 1.8 m) or a human figure (~1.7 m tall) — LAST RESORT only.
+2. Compute widthMeters / heightMeters for the WHOLE IMAGE (not just the building). If you read only one dimension, infer the other from visual proportion of the image.
+3. Unit conversion:
+   - Feet + inches (e.g. 40'-1"): convert to meters using 1 ft = 0.3048 m, 1 in = 0.0254 m.
+   - Millimetres (common in Korean/European plans, e.g. "3500"): divide by 1000.
+   - Centimetres: divide by 100.
+4. Set the "confidence" field:
+   - "measured" — you directly read at least one numeric dimension off the plan.
+   - "inferred" — you estimated from a visual proxy (door, car, human).
+   - "assumed" — no cues found at all; fall back to shorter image axis = 15 meters.
+5. Populate the "evidence" field with the exact cue you used, including where on the plan (e.g. "scale bar bottom-left, '5m' tick", "title block reads 40'-1\\" × 70'-0\\"", "no dimensions — used 15 m fallback").
 
 ZONE TYPING — ONLY these five types exist in the editor. Pick the closest match:
 - "lobby" — reception, waiting, lounge, entrance, vestibule, foyer, visitor's space, balcony
@@ -56,11 +72,20 @@ export const EMIT_SCENARIO_TOOL = {
       },
       scale: {
         type: 'object',
-        required: ['label', 'widthMeters', 'heightMeters'],
+        required: ['label', 'widthMeters', 'heightMeters', 'confidence', 'evidence'],
         properties: {
-          label: { type: 'string', description: 'Raw dimension text you saw on the plan.' },
+          label: { type: 'string', description: 'Raw dimension text you saw on the plan (verbatim), or a short description if only a scale bar was present.' },
           widthMeters: { type: 'number', description: 'Full image width in meters.' },
           heightMeters: { type: 'number', description: 'Full image height in meters.' },
+          confidence: {
+            type: 'string',
+            enum: ['measured', 'inferred', 'assumed'],
+            description: '"measured" — read a numeric dimension. "inferred" — estimated from a visual proxy (door/car/person). "assumed" — no cues; used 15m short-axis fallback.',
+          },
+          evidence: {
+            type: 'string',
+            description: 'Exact cue used and its location on the plan. Example: "scale bar bottom-left labelled 5m", "title block reads 40\'-1\\" × 70\'-0\\"", "estimated from door widths in corridor".',
+          },
         },
       },
       zones: {

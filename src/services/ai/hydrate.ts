@@ -7,7 +7,39 @@ import {
   ZoneId, FloorId, ScenarioId,
 } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
-import type { DraftScenario, HydrationWarning } from './types';
+import type { DraftScale, DraftScenario, HydrationWarning } from './types';
+
+/**
+ * Re-project a DraftScenario onto a new scale without distorting zone
+ * positions. Used by manual scale calibration: the user clicks 2 points of a
+ * known real-world distance on the floor plan image and supplies the meters,
+ * and we rescale zone coords so their image-relative positions are preserved
+ * while the meter interpretation updates.
+ */
+export function rescaleDraft(draft: DraftScenario, newScale: DraftScale): DraftScenario {
+  const oldW = draft.scale?.widthMeters;
+  if (!Number.isFinite(oldW) || !(oldW > 0)) {
+    return { ...draft, scale: newScale };
+  }
+  const factor = newScale.widthMeters / oldW;
+  if (!Number.isFinite(factor) || factor <= 0) {
+    return { ...draft, scale: newScale };
+  }
+  return {
+    ...draft,
+    scale: newScale,
+    zones: draft.zones.map((z) => ({
+      ...z,
+      rect: {
+        x: z.rect.x * factor,
+        y: z.rect.y * factor,
+        w: z.rect.w * factor,
+        h: z.rect.h * factor,
+      },
+      polygon: z.polygon ? z.polygon.map((p) => ({ x: p.x * factor, y: p.y * factor })) : undefined,
+    })),
+  };
+}
 
 export interface HydrationResult {
   readonly scenario: Scenario;
@@ -49,7 +81,18 @@ export function hydrateDraft(
   const imageHeightM = Number.isFinite(draft.scale?.heightMeters) && draft.scale.heightMeters > 0
     ? draft.scale.heightMeters : 15;
   if (!draft.scale || !Number.isFinite(draft.scale.widthMeters)) {
-    warnings.push({ severity: 'warning', message: 'Scale not detected — assumed 20m × 15m. Rescale via background tools if wrong.' });
+    warnings.push({ severity: 'warning', message: 'Scale not detected — assumed 20m × 15m. Click Recalibrate to set the real scale.' });
+  } else if (draft.scale.confidence === 'assumed') {
+    warnings.push({
+      severity: 'warning',
+      message: `Scale assumed (no dimensions on plan) — ${Math.round(imageWidthM)}×${Math.round(imageHeightM)} m. Click Recalibrate to set the real scale.`,
+    });
+  } else if (draft.scale.confidence === 'inferred') {
+    const src = draft.scale.evidence ? `: ${draft.scale.evidence}` : '';
+    warnings.push({
+      severity: 'info',
+      message: `Scale inferred from visual proxy${src}. Recalibrate if a known distance is available.`,
+    });
   }
 
   const canvasWidthPx = Math.round(imageWidthM * PX_PER_METER + CANVAS_MARGIN_PX * 2);
