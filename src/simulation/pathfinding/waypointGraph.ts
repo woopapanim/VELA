@@ -37,6 +37,10 @@ export class WaypointNavigator {
   private exitNodes: WaypointNode[] = [];
   private essentialCount = 0; // ZONE + ATTRACTOR 노드 수 + shaft 수 (shaft 1개 = 필수 1개)
   private essentialShaftIds: Set<string> = new Set();
+  // entryId → 기하학적으로 짝지어진 preferred exitId. "들어온 길로 나간다" 휴리스틱.
+  // 같은 floor 의 exit 중 Euclidean 최단거리 exit. 스폰 시점 visitor.spawnEntryNodeId
+  // 와 함께 작동해서 Entry 1 ↔ Exit 1 자연스러운 대칭 동선 유도.
+  private entryToPreferredExit = new Map<string, string>();
 
   buildFromGraph(graph: WaypointGraph): void {
     this.adjacency.clear();
@@ -45,6 +49,7 @@ export class WaypointNavigator {
     this.exitNodes = [];
     this.essentialCount = 0;
     this.essentialShaftIds = new Set();
+    this.entryToPreferredExit.clear();
 
     for (const node of graph.nodes) {
       this.nodeMap.set(node.id as string, node);
@@ -71,6 +76,32 @@ export class WaypointNavigator {
         this.adjacency.get(edge.toId as string)!.push({ node: fromNode, edge });
       }
     }
+
+    // 각 entry 에 대해 preferred exit 선택 — 같은 floor 우선, Euclidean 거리 최단.
+    // exit 가 하나면 pairing 무의미 (모두 그 exit), 아예 건너뜀.
+    if (this.exitNodes.length > 1) {
+      for (const entry of this.entryNodes) {
+        let best: WaypointNode | null = null;
+        let bestScore = Infinity;
+        for (const exit of this.exitNodes) {
+          const dx = exit.position.x - entry.position.x;
+          const dy = exit.position.y - entry.position.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          // same-floor 이면 원거리, different-floor 이면 큰 페널티를 더해 동층 exit 선호.
+          const sameFloor = (exit.floorId as string) === (entry.floorId as string);
+          const score = dist + (sameFloor ? 0 : 100_000);
+          if (score < bestScore) { bestScore = score; best = exit; }
+        }
+        if (best) this.entryToPreferredExit.set(entry.id as string, best.id as string);
+      }
+    }
+  }
+
+  /** entry 에 지정된 preferred exit 조회. 매핑 없거나 exit 1개뿐이면 null. */
+  getPreferredExitFor(entryId: WaypointId | null | undefined): WaypointNode | null {
+    if (!entryId) return null;
+    const eid = this.entryToPreferredExit.get(entryId as string);
+    return eid ? (this.nodeMap.get(eid) ?? null) : null;
   }
 
   getNode(id: WaypointId): WaypointNode | undefined {
@@ -121,6 +152,8 @@ export class WaypointNavigator {
     zoneOccupancy: ReadonlyMap<string, number> = new Map(),
     zoneCapacity: ReadonlyMap<string, number> = new Map(),
     mustVisit?: { unvisitedZoneIds: ReadonlySet<string>; unvisitedMediaIds: ReadonlySet<string> },
+    /** 각 exit 노드로 현재 향하는 에이전트 수 — preferred exit 과밀 fallback 판단용 */
+    exitTargetCounts?: ReadonlyMap<string, number>,
   ): WaypointNode | null {
     const neighbors = this.getNeighbors(currentNodeId);
     if (neighbors.length === 0) return null;
@@ -172,16 +205,24 @@ export class WaypointNavigator {
     // allEssentialDone 는 mustOutstanding(미방문 히어로 미디어)과 독립적으로 작동한다.
     // 존을 다 돌았는데 특정 미디어만 못 본 건 스킵 포함 정상 행동이고, 계속 떠돌면
     // hub/bend 왕복으로 예산만 낭비하므로 주 경험 완료 즉시 퇴장 유도.
+    // preferred exit 결정 — visitor.spawnEntryNodeId 기반 pre-computed 매핑.
+    // 과밀이면 nearest 로 fallback: paired exit 타겟 수가 전체 exit 평균의 1.5×
+    // 초과 시 (절대값 >= 5). 1회만 결정해두고 이후 모든 BFS 호출에 재사용.
+    const preferredExitId = this.pickPreferredExitId(
+      visitor.spawnEntryNodeId as string | null | undefined,
+      exitTargetCounts,
+    );
+
     const allEssentialDone = visitedCount >= this.essentialCount;
     if (stuck || budgetExceeded || allEssentialDone) {
-      const exitFirstHop = this.findFirstHopToExit(currentNodeId);
+      const exitFirstHop = this.findFirstHopToExit(currentNodeId, preferredExitId);
       if (exitFirstHop) return exitFirstHop;
     }
 
     const scored: { node: WaypointNode; score: number }[] = [];
 
     // canExit 상태에서 EXIT 방향 이웃에 보너스 (BFS 기반)
-    const exitHopId = canExit ? this.findFirstHopToExit(currentNodeId)?.id : null;
+    const exitHopId = canExit ? this.findFirstHopToExit(currentNodeId, preferredExitId)?.id : null;
 
     // mustVisit(히어로) 방향 이웃에 보너스 (BFS 기반 multi-hop 유도)
     const mustHopId = mustOutstanding && mustVisit
@@ -296,14 +337,51 @@ export class WaypointNavigator {
   }
 
   /**
-   * Public: 현재 노드에서 가장 가까운 EXIT 방향 첫 홉 반환.
+   * Public: 현재 노드에서 EXIT 방향 첫 홉 반환.
    * Follower 가 리더를 잃었을 때처럼 "즉시 퇴장" 라우팅이 필요할 때 사용.
+   *
+   * @param spawnEntryId "들어온 길로 나간다" 휴리스틱용 — 해당 entry 에 짝지어진
+   *   preferred exit 이 있으면 그 방향으로 BFS. 없으면 기존 "가장 가까운 exit".
+   * @param exitTargetCounts preferred exit 이 과밀이면 fallback to nearest.
    */
-  routeToExit(fromId: WaypointId): WaypointNode | null {
-    return this.findFirstHopToExit(fromId);
+  routeToExit(
+    fromId: WaypointId,
+    spawnEntryId?: WaypointId | null,
+    exitTargetCounts?: ReadonlyMap<string, number>,
+  ): WaypointNode | null {
+    const preferredExitId = this.pickPreferredExitId(
+      spawnEntryId as string | null | undefined,
+      exitTargetCounts,
+    );
+    return this.findFirstHopToExit(fromId, preferredExitId);
   }
 
   // ── private ──
+
+  /**
+   * spawn entry 에 짝지어진 preferred exit id 를 선택한다.
+   * 과밀이면 null 반환 — 호출측은 "가장 가까운 exit" fallback 으로 동작.
+   *
+   * 과밀 기준: preferred exit 타겟 수가 (전체 exit 평균 × 1.5) 초과 이고,
+   * 절대값이 5 이상 (작은 시나리오에서 1→2 같은 과잉 반응 방지).
+   */
+  private pickPreferredExitId(
+    spawnEntryId: string | null | undefined,
+    exitTargetCounts?: ReadonlyMap<string, number>,
+  ): string | undefined {
+    if (!spawnEntryId) return undefined;
+    const paired = this.entryToPreferredExit.get(spawnEntryId);
+    if (!paired) return undefined;
+    if (!exitTargetCounts || this.exitNodes.length <= 1) return paired;
+
+    const pairedCount = exitTargetCounts.get(paired) ?? 0;
+    if (pairedCount < 5) return paired; // 절대값 작으면 무조건 pairing 우선
+    let total = 0;
+    for (const exit of this.exitNodes) total += exitTargetCounts.get(exit.id as string) ?? 0;
+    const avg = total / this.exitNodes.length;
+    if (pairedCount > avg * 1.5) return undefined; // 과밀 — nearest fallback
+    return paired;
+  }
 
   private scoreNode(
     visitor: Visitor,
@@ -356,12 +434,31 @@ export class WaypointNavigator {
   }
 
   /**
-   * BFS: 현재 노드에서 가장 가까운 EXIT까지의 첫 홉 반환.
+   * BFS: 현재 노드에서 EXIT까지의 첫 홉 반환.
    * Portal shaft 노드들은 가상 엣지로 상호 연결되어 BFS가 층 경계를 넘어갈 수 있게 한다.
+   *
+   * @param preferredExitId 지정되면 해당 exit 만 목적지로 BFS. 매칭 exit 도달 실패 시
+   *   "가장 가까운 exit" 으로 자동 fallback. 지정 안 되면 기존 동작 (아무 exit).
    */
-  private findFirstHopToExit(fromId: WaypointId): WaypointNode | null {
+  private findFirstHopToExit(
+    fromId: WaypointId,
+    preferredExitId?: string,
+  ): WaypointNode | null {
     if (this.exitNodes.length === 0) return null;
+    // preferred exit 매칭 우선 시도; 실패하면 전체 exit 집합으로 재시도.
+    if (preferredExitId && this.nodeMap.has(preferredExitId)) {
+      const hop = this.bfsFirstHopToExitSet(fromId, new Set([preferredExitId]));
+      if (hop) return hop;
+    }
     const exitIds = new Set(this.exitNodes.map(n => n.id as string));
+    return this.bfsFirstHopToExitSet(fromId, exitIds);
+  }
+
+  private bfsFirstHopToExitSet(
+    fromId: WaypointId,
+    exitIds: ReadonlySet<string>,
+  ): WaypointNode | null {
+    if (exitIds.size === 0) return null;
 
     // Build shaft membership lookup (shaftId → member nodes) once per BFS call
     const shaftMembers = new Map<string, WaypointNode[]>();

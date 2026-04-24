@@ -113,6 +113,9 @@ export class SimulationEngine {
   private nodeMap = new Map<string, WaypointNode>();
   private nodeCrowd = new Map<string, number>(); // node id → current visitor count
   private zoneOccupancy = new Map<string, number>(); // zone id → current visitor count
+  // per-tick exit target counts — exit node id → # agents currently routed toward it
+  // (EXITING action 또는 targetNodeId 가 해당 exit). preferred-exit 과밀 fallback 판단용.
+  private exitTargetCounts = new Map<string, number>();
 
   // spawner
   private spawnAccumulator = 0;
@@ -180,6 +183,7 @@ export class SimulationEngine {
     lastZoneId: string | null;
     exitNodeId: string | null;
     exitedAtMs: number;
+    exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
   }> = [];
 
   // group caches (rebuilt each tick)
@@ -637,14 +641,49 @@ export class SimulationEngine {
 
     const mode = this.world.config.simulationMode ?? 'time';
     const hitDurationCap = elapsed >= this.world.config.duration;
+    let completing = false;
     if (mode === 'person') {
       const totalCap = this.world.totalVisitors ?? Infinity;
       const spawnComplete = Number.isFinite(totalCap) && this._totalSpawned >= totalCap;
       const allExited = spawnComplete && this._totalExited >= this._totalSpawned;
-      if (allExited || hitDurationCap) this.state.phase = SIMULATION_PHASE.COMPLETED;
+      if (allExited || hitDurationCap) completing = true;
     } else if (hitDurationCap) {
+      completing = true;
+    }
+    if (completing && this.state.phase !== SIMULATION_PHASE.COMPLETED) {
+      this.finalizeActiveOnCompletion();
       this.state.phase = SIMULATION_PHASE.COMPLETED;
     }
+  }
+
+  /**
+   * 시뮬 종료 시 아직 isActive=true 로 남아있는 에이전트를 sim-ended 로 마감.
+   * 'time' 모드에서는 duration 초과 시 active 가 남을 수 있고, stuck escape 도
+   * 못 탄 에이전트(visitedZoneIds<2 등)는 평생 dangling 상태가 된다.
+   * 이 함수는 _exitByNode 를 건드리지 않는다 (Entry/Bend 가 exit 으로 집계되지 않도록).
+   */
+  private finalizeActiveOnCompletion() {
+    const now = this.state.timeState.elapsed;
+    const next = new Map<string, Visitor>();
+    for (const [k, v] of this.state.visitors) {
+      if (!v.isActive) { next.set(k, v); continue; }
+      if (v.currentZoneId) {
+        recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+      }
+      this.recordExitContext(v, null, now, 'sim-ended');
+      this._totalExited++;
+      this._movingSince.delete(v.id as string);
+      this._skipCooldown.delete(v.id as string);
+      this._nodeStuckCount.delete(v.id as string);
+      next.set(k, {
+        ...v,
+        isActive: false,
+        exitedAt: now,
+        currentAction: VISITOR_ACTION.EXITING,
+        velocity: { x: 0, y: 0 },
+      });
+    }
+    this.state.visitors = next;
   }
 
   private tick(dt: number) {
@@ -659,12 +698,21 @@ export class SimulationEngine {
     this._tickMediaTargeters.clear();
     this.nodeCrowd.clear();
     this.zoneOccupancy.clear();
+    this.exitTargetCounts.clear();
+    const exitNodeIds: Set<string> = this.waypointNav
+      ? new Set(this.waypointNav.getExitNodes().map(n => n.id as string))
+      : new Set();
     for (const [, v] of this.state.visitors) {
       if (!v.isActive) continue;
       this.spatialHash.insert(v.id, v.position);
       if (v.targetMediaId) {
         const mid = v.targetMediaId as string;
         this._tickMediaTargeters.set(mid, (this._tickMediaTargeters.get(mid) ?? 0) + 1);
+      }
+      // exit 방향으로 향하고 있는 에이전트 카운트 — preferred-exit 과밀 판단용.
+      if (v.targetNodeId && exitNodeIds.has(v.targetNodeId as string)) {
+        const eid = v.targetNodeId as string;
+        this.exitTargetCounts.set(eid, (this.exitTargetCounts.get(eid) ?? 0) + 1);
       }
       if (v.currentAction === VISITOR_ACTION.WATCHING && v.targetMediaId) {
         const mid = v.targetMediaId as string;
@@ -779,8 +827,11 @@ export class SimulationEngine {
         this.spawnAccumulator -= batch.visitors.length;
         // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
         // 위치 기반 polygon 검사로 보강 — visitedZoneIds 첫 항목 누락 방지.
+        // 모두 실패하면 floor 첫 zone 으로 fallback: currentZoneId 가 빈 문자열로
+        // 남으면 recordZoneExit/_stuckByZone 집계가 '' 키로 오염된다.
         const resolvedZoneId = (entryNode.zoneId as string | null)
-          ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string);
+          ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string)
+          ?? this.fallbackZoneForFloor(nodeFloorId as string);
         for (const v of batch.visitors) {
           const spawned: Visitor = {
             ...v,
@@ -790,6 +841,7 @@ export class SimulationEngine {
             currentNodeId: entryNode.id,
             targetNodeId: null,
             pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
+            spawnEntryNodeId: entryNode.id,
           };
           this.state.visitors.set(spawned.id as string, this.assignNextTarget(spawned));
           this._totalSpawned++;
@@ -878,7 +930,7 @@ export class SimulationEngine {
           } else if (tNid && this.state.timeState.elapsed - entry.startMs > 90_000) {
             this._movingSince.delete(vid);
             if (this.waypointNav && v.currentNodeId) {
-              const exitHop = this.waypointNav.routeToExit(v.currentNodeId);
+              const exitHop = this.waypointNav.routeToExit(v.currentNodeId, v.spawnEntryNodeId, this.exitTargetCounts);
               if (exitHop) {
                 return {
                   ...v,
@@ -935,7 +987,7 @@ export class SimulationEngine {
       // 거의 비어 있어서 새 투어를 처음부터 시작해버렸다("리더 퇴장 후 다시 내부로
       // 들어와 배회" 버그). 대신 즉시 EXIT 방향으로 라우팅한다.
       if (this.waypointNav && v.currentNodeId) {
-        const exitHop = this.waypointNav.routeToExit(v.currentNodeId);
+        const exitHop = this.waypointNav.routeToExit(v.currentNodeId, v.spawnEntryNodeId, this.exitTargetCounts);
         if (exitHop) {
           return {
             ...v,
@@ -1115,20 +1167,60 @@ export class SimulationEngine {
             const zKey = v.currentZoneId as string;
             this._stuckByZone.set(zKey, (this._stuckByZone.get(zKey) ?? 0) + 1);
           }
-          // 연속 stuck 감지 — 같은 currentNodeId 에서 60s 타임아웃이 2회 이상 반복
-          // 발화했다면 waypointGraph 가 제안하는 exit hop 에 물리적으로 도달 불가한
-          // 상태. 재배정을 반복해도 같은 패턴이 무한 루프되므로 즉시 퇴장 처리.
+          // 연속 stuck 감지 — 같은 currentNodeId 에서 60s 타임아웃이 반복 발화.
+          // 1회 (count=1): IDLE 리셋으로 타겟 재선택
+          // 2회 (count=2): EXIT 방향 재라우팅 (카운터 유지)
+          // 3회 이상 (count>=3): 라우팅도 못 빠져나옴 → 물리적 stuck 확정. 데이터를
+          //   isActive=false + exitReason='physics-stuck' 로 마감해서 dangling active
+          //   를 방지한다. 단 visitedZoneIds.length>=2 일 때만 허용 — 스폰 직후
+          //   (0~1 zones) 에 stuck 이면 과거 "0개 존 이탈" 회귀가 재발한다.
+          //   _exitByNode 는 건드리지 않음 (Entry/Bend 가 exit 으로 집계되지 않도록).
           const curNid = (v.currentNodeId as string | null) ?? null;
           if (curNid && this.waypointNav) {
             const prev = this._nodeStuckCount.get(vid);
             const nextCount = prev?.nodeId === curNid ? prev.count + 1 : 1;
             this._nodeStuckCount.set(vid, { nodeId: curNid, count: nextCount });
-            if (nextCount >= 2) {
-              const curNode = this.waypointNav.getNode(v.currentNodeId!);
-              if (curNode) {
-                this._nodeStuckCount.delete(vid);
-                return this.beginExitGraph(v, curNode);
+
+            if (nextCount >= 3 && v.visitedZoneIds.length >= 2) {
+              // Emergency: physics-stuck 마감. _exitByNode 오염 없음.
+              this._nodeStuckCount.delete(vid);
+              const now = this.state.timeState.elapsed;
+              this._skipCooldown.delete(vid);
+              if (v.currentZoneId) {
+                recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
               }
+              this.recordExitContext(v, null, now, 'physics-stuck');
+              return {
+                ...v,
+                currentAction: VISITOR_ACTION.EXITING,
+                velocity: { x: 0, y: 0 },
+                isActive: false,
+                exitedAt: now,
+              };
+            }
+
+            if (nextCount >= 2) {
+              const exitHop = this.waypointNav.routeToExit(
+                v.currentNodeId!,
+                v.spawnEntryNodeId,
+                this.exitTargetCounts,
+              );
+              // 카운터는 유지 — 라우팅 후에도 못 움직이면 다음 60s 에 count=3 로 escape.
+              if (exitHop) {
+                return {
+                  ...v,
+                  targetNodeId: exitHop.id,
+                  targetMediaId: null,
+                  targetZoneId: null,
+                  targetPosition: null,
+                  currentAction: exitHop.type === 'exit' ? VISITOR_ACTION.EXITING : VISITOR_ACTION.MOVING,
+                  steering: { ...v.steering, isArrived: false, activeBehavior: STEERING_BEHAVIOR.ARRIVAL },
+                };
+              }
+              // EXIT 도달 불가 — 그래프 분리. 이 경우만 현재 노드에서 emergency deactivate.
+              this._nodeStuckCount.delete(vid);
+              const curNode = this.waypointNav.getNode(v.currentNodeId!);
+              if (curNode) return this.beginExitGraph(v, curNode);
             }
           }
           return this.assignNextTarget({
@@ -1522,6 +1614,20 @@ export class SimulationEngine {
       if (isPointInPolygon(pos, poly)) return zone.id as string;
     }
     return null;
+  }
+
+  /**
+   * 해당 floor 에 속한 zone 중 아무거나 하나 반환.
+   * currentZoneId 를 빈 문자열/null 로 두면 recordZoneExit/_stuckByZone 같은 집계가
+   * 빈 키로 오염되므로, 어떤 fallback 도 실패했을 때의 최종 안전망.
+   */
+  private fallbackZoneForFloor(floorId?: string | null): string | null {
+    if (floorId) {
+      for (const zone of this.world.zones) {
+        if ((zone.floorId as string) === (floorId as string)) return zone.id as string;
+      }
+    }
+    return (this.world.zones[0]?.id as string) ?? null;
   }
 
   /* ─── Media physics helpers ─── */
@@ -2602,14 +2708,18 @@ export class SimulationEngine {
               exitTime: 0,
               duration: 0,
             }];
+            // Reset to destination portal's zone. 이전 floor 의 zoneId 를 유지하면
+            // stepCollision 이 이전 floor polygon 으로 clamp back 한다.
+            // dest.zoneId 가 null 이면 polygon 검사 → floor fallback 순으로 채워서
+            // currentZoneId 가 null 로 내려가지 않게 (집계 오염 방지).
+            const destZoneId = (dest.zoneId as string | null)
+              ?? this.zoneIdAtPoint(dest.position, dest.floorId as string)
+              ?? this.fallbackZoneForFloor(dest.floorId as string);
             return {
               ...v,
               position: { x: dest.position.x, y: dest.position.y },
               currentFloorId: dest.floorId,
-              // Reset to destination portal's zone (or null if portal is outside any zone).
-              // Keeping the old floor's zoneId here causes stepCollision to clamp the
-              // agent back into the previous floor's polygon on the next tick.
-              currentZoneId: (dest.zoneId as any) ?? null,
+              currentZoneId: (destZoneId as any) ?? null,
               currentNodeId: dest.id,
               pathLog: newPathLog,
               velocity: { x: 0, y: 0 },
@@ -2724,7 +2834,7 @@ export class SimulationEngine {
     const mustVisitCtx = (mustZoneIds.size > 0 || mustMediaIds.size > 0)
       ? { unvisitedZoneIds: mustZoneIds, unvisitedMediaIds: mustMediaIds }
       : undefined;
-    const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx);
+    const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx, this.exitTargetCounts);
     if (!nextNode) {
       // Orphan 노드 (neighbors === 0): 그래프 상 다음 노드 없음.
       // MOVING+WANDER 로 두면 targetNodeId=null 상태로 영원히 방황 (stuck 타이머
@@ -2769,7 +2879,12 @@ export class SimulationEngine {
   }
 
   /** 에이전트 exit 시점의 컨텍스트 기록 — 조기이탈 원인 분석용. */
-  private recordExitContext(v: Visitor, exitNodeId: string | null, nowMs: number) {
+  private recordExitContext(
+    v: Visitor,
+    exitNodeId: string | null,
+    nowMs: number,
+    exitReason: 'normal' | 'physics-stuck' | 'sim-ended' = 'normal',
+  ) {
     this._exitLog.push({
       visitorId: v.id as string,
       zonesVisited: v.visitedZoneIds.length,
@@ -2779,6 +2894,7 @@ export class SimulationEngine {
       lastZoneId: (v.currentZoneId as string | null) ?? null,
       exitNodeId,
       exitedAtMs: nowMs,
+      exitReason,
     });
   }
 
@@ -3231,7 +3347,6 @@ export class SimulationEngine {
 
   private stepFollowerTether(v: Visitor): Visitor {
     if (!v.groupId || v.isGroupLeader) return v;
-    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) return v;
 
     const group = this.state.groups.get(v.groupId as string);
     if (!group) return v;
@@ -3242,28 +3357,78 @@ export class SimulationEngine {
     const dy = leader.position.y - v.position.y;
     const distSq = dx * dx + dy * dy;
 
-    // Bounding radius per group type:
-    //  - guided: effectiveCollisionRadius (visible outline)
-    //  - pair/small: maxSpread (invisible bubble)
-    const boundR = group.type === 'guided'
-      ? (group.effectiveCollisionRadius ?? 60) * 0.9
-      : Math.max(30, group.maxSpread ?? 40);
+    // Bound scales with group size. Base = max(maxSpread, effCollisionR).
+    // For a large guided tour (20명) the flat 80px floor packs everyone into
+    // a blob; area should scale with member count. Use sqrt(members) * per-
+    // member spacing so circle area grows linearly with headcount.
+    const memberCount = group.memberIds.length;
+    const sizeScale = Math.sqrt(memberCount) * 25;
+    const boundR = Math.max(
+      group.maxSpread ?? 40,
+      group.effectiveCollisionRadius ?? 0,
+      sizeScale,
+      30,
+    );
 
-    if (distSq <= boundR * boundR) return v;
+    // Per-follower personalR: deterministic distance in [0.4, 1.0] × boundR
+    // based on memberIds index. Without this, every follower steers toward
+    // the SAME target node as leader and hits tether at exactly boundR →
+    // ring-behind-leader artifact. Personal radii spread them across the
+    // interior of the bound (blob shape) while still honoring the hard cap.
+    // Steering layer is untouched — ENABLE_GROUP_STEERING stays off.
+    const followerCount = Math.max(1, memberCount - 1);
+    const idx = group.memberIds.indexOf(v.id);
+    const nonLeaderIdx = idx <= 0 ? 1 : idx; // clamp (leader=0 shouldn't reach here)
+    const personalFactor = 0.4 + 0.6 * ((nonLeaderIdx - 1 + 0.5) / followerCount);
+    const personalR = boundR * personalFactor;
+
+    if (distSq <= personalR * personalR) return v;
 
     const dist = Math.sqrt(distSq);
     const nx = dx / dist, ny = dy / dist; // v → leader unit vector
     const newPos = {
-      x: leader.position.x - nx * boundR,
-      y: leader.position.y - ny * boundR,
+      x: leader.position.x - nx * personalR,
+      y: leader.position.y - ny * personalR,
     };
+
+    // Sync graph/zone state to leader so `stepCollision` transit logic doesn't
+    // immediately push the teleported follower back out (leader's zone is not
+    // in the follower's own src/dst transit corridor). Without this sync the
+    // tether warp is reverted each tick and `currentZoneId` stays stale,
+    // which corrupts group-level analytics (bottleneck groupVisitors,
+    // InsightEngine guided-tour zone counts).
+    const mergedVisits = leader.visitedZoneIds.length > v.visitedZoneIds.length
+      ? [...new Set([...v.visitedZoneIds, ...leader.visitedZoneIds])]
+      : v.visitedZoneIds;
+    const zoneChanged = (leader.currentZoneId as string | null) !== (v.currentZoneId as string | null);
+    if (zoneChanged && v.currentZoneId) {
+      const now = this.state.timeState.elapsed;
+      recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
+    }
+    const zonePatch = zoneChanged
+      ? {
+          currentZoneId: leader.currentZoneId,
+          currentNodeId: leader.currentNodeId,
+          currentFloorId: leader.currentFloorId,
+          targetNodeId: leader.targetNodeId,
+          targetZoneId: leader.targetZoneId,
+          zoneEnteredAtMs: this.state.timeState.elapsed,
+          visitedZoneIds: mergedVisits,
+        }
+      : {};
+
+    // During WATCHING/WAITING, follower's velocity is already zero (stepPhysics
+    // skips them). Only position + zone clamp matters.
+    if (v.currentAction === VISITOR_ACTION.WATCHING || v.currentAction === VISITOR_ACTION.WAITING) {
+      return { ...v, ...zonePatch, position: newPos };
+    }
     // Remove outward velocity component so follower doesn't keep escaping
     const outX = -nx, outY = -ny;
     const vOut = v.velocity.x * outX + v.velocity.y * outY;
     const newVel = vOut > 0
       ? { x: v.velocity.x - vOut * outX, y: v.velocity.y - vOut * outY }
       : v.velocity;
-    return { ...v, position: newPos, velocity: newVel };
+    return { ...v, ...zonePatch, position: newPos, velocity: newVel };
   }
 
   /* ═══════════════════════════════════════════════
@@ -3323,8 +3488,13 @@ export class SimulationEngine {
     // Legacy agents: full zone boundary + gate crossing logic
     const isGraphAgent = !!v.currentNodeId;
     const isGraphTransit = isGraphAgent && !!v.targetNodeId;
-    if (!ENABLE_ZONE_CLAMP) {
-      // Zone 경계 체크 완전 생략 (최소 파이프라인 디버깅)
+    // Group followers skip zone wall clamp — their position is governed by the
+    // tether (bound around leader), not by their own zone. Letting wall clamp
+    // fire causes jitter: tether pulls toward leader, wall pushes back, repeat.
+    // Leader's zone tracking still covers the group's visit data (via D-3 sync).
+    const isGroupFollower = !!v.groupId && !v.isGroupLeader;
+    if (!ENABLE_ZONE_CLAMP || isGroupFollower) {
+      // Zone 경계 체크 생략
     } else if (isGraphTransit) {
       // Transit: agent traverses gap corridors between graph nodes.
       // Previously skipped ALL zone walls → tunnel bug (waypoint straight-line
