@@ -131,6 +131,9 @@ export interface Visitor {
   readonly currentNodeId: WaypointId | null;        // 현재 위치한 노드
   readonly targetNodeId: WaypointId | null;         // 다음 목표 노드
   readonly pathLog: readonly PathLogEntry[];         // 방문 기록
+  // 스폰 시 사용한 ENTRY 노드 — "들어온 길로 나간다" 휴리스틱용.
+  // 퇴장 라우팅은 기본적으로 이 entry 와 기하학적으로 짝지어진 exit 를 선호한다.
+  readonly spawnEntryNodeId: WaypointId | null;
 }
 
 // ---- Visitor Distribution (spawning config) ----

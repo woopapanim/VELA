@@ -138,6 +138,7 @@ export function spawnVisitor(
     currentNodeId: null,
     targetNodeId: null,
     pathLog: [],
+    spawnEntryNodeId: null,
   };
 }
 

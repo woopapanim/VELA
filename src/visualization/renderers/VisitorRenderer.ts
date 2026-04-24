@@ -206,7 +206,19 @@ function renderTourBoundaries(
     const leader = visitorMap.get(group.leaderId as string);
     if (!leader) continue;
 
-    const radius = group.effectiveCollisionRadius ?? 60;
+    // Draw the ACTUAL tether bound (matches stepFollowerTether in SimEngine).
+    // Previously drew only effectiveCollisionRadius (30px) which misled users
+    // into thinking followers had "burst" when in fact they were still inside
+    // the real bound (~97px for 15명 tour). Must mirror engine formula:
+    //   bound = max(maxSpread, effectiveCollisionRadius, sqrt(N)*25, 30)
+    const memberCount = group.memberIds.length;
+    const sizeScale = Math.sqrt(memberCount) * 25;
+    const radius = Math.max(
+      group.maxSpread ?? 40,
+      group.effectiveCollisionRadius ?? 0,
+      sizeScale,
+      30,
+    );
 
     ctx.save();
     ctx.beginPath();
