@@ -19,7 +19,7 @@ const API_KEY_STORAGE = 'vela-anthropic-key';
 // pattern-matching + label inference (not deep reasoning) once CV hints
 // anchor the geometry. The CV+hint pipeline makes the model's job a
 // typing/merging problem, not a spatial-reasoning problem.
-const API_MODEL = 'claude-sonnet-4-7';
+const API_MODEL = 'claude-sonnet-4-6';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
