@@ -108,6 +108,43 @@ export const SAMPLE_DRAFT_MESSY: DraftScenario = {
   ],
 };
 
+/**
+ * Captured real AI output — Art Museum floor plan run, 2026-04-24.
+ * Baseline for measuring prompt improvements. The AI pulled correct dimension
+ * strings ("15,000 × 3" = 45m) as evidence but emitted 67.5×60m as the final
+ * scale — an arithmetic hallucination. Also returned a few overlapping zones.
+ * These are the exact failure modes the prompt revision should address.
+ */
+export const SAMPLE_DRAFT_CAPTURED_ART_MUSEUM: DraftScenario = {
+  name: 'Art Museum (baseline capture)',
+  notes: 'Captured 2026-04-24 — scale math is wrong (evidence=45m, emitted=67.5m). Baseline for prompt-quality regression.',
+  scale: {
+    label: '67.5m × 60m (from 15,000 × 3 dimension strings — miscalculated)',
+    widthMeters: 67.5,
+    heightMeters: 60,
+    confidence: 'measured',
+    evidence: 'Top dimension strings read "15,000" × 3 (=45 m building width); right-side strings sum to ~44.1 m — but AI emitted 67.5×60.',
+  },
+  zones: [
+    { key: 'permanent_exhibit_1', name: '상설전시실 1', type: 'exhibition', shape: 'rect', rect: { x: 29, y: 17, w: 18, h: 10 } },
+    { key: 'permanent_exhibit_2', name: '상설전시실 2', type: 'exhibition', shape: 'rect', rect: { x: 48.5, y: 17, w: 13.5, h: 10 } },
+    { key: 'visible_storage', name: '보이는 수장고', type: 'exhibition', shape: 'rect', rect: { x: 24.5, y: 17, w: 4.5, h: 10 } },
+    { key: 'conservation_lab', name: '학예 및 다목적실', type: 'exhibition', shape: 'rect', rect: { x: 10, y: 22.5, w: 12.5, h: 8 } },
+    { key: 'archive_room', name: '잔실', type: 'exhibition', shape: 'rect', rect: { x: 22.5, y: 22.5, w: 7, h: 8 } },
+    { key: 'special_exhibit', name: '기획전시실', type: 'exhibition', shape: 'rect', rect: { x: 13, y: 30.5, w: 16.5, h: 13 } },
+    { key: 'light_courtyard', name: '빛의 중정', type: 'lobby', shape: 'rect', rect: { x: 29.5, y: 27, w: 16.5, h: 17 } },
+    { key: 'education_room', name: '교육/체험관', type: 'exhibition', shape: 'rect', rect: { x: 50, y: 27.5, w: 4.5, h: 6 } },
+    { key: 'library', name: '도서공간', type: 'rest', shape: 'rect', rect: { x: 54.5, y: 27.5, w: 4, h: 6 } },
+    { key: 'av_room', name: '시청각실', type: 'exhibition', shape: 'rect', rect: { x: 58.5, y: 27.5, w: 4.5, h: 6 } },
+    { key: 'seminar_room', name: '세미나실', type: 'exhibition', shape: 'rect', rect: { x: 50, y: 35.5, w: 8, h: 7.5 } },
+    { key: 'lobby_shop', name: '로비/아트샵', type: 'lobby', shape: 'rect', rect: { x: 29, y: 44.5, w: 16.5, h: 8 } },
+    { key: 'creation_studio', name: '창작스튜디오', type: 'exhibition', shape: 'rect', rect: { x: 50.5, y: 44.5, w: 10, h: 7 } },
+    { key: 'rehearsal_room', name: '학예실', type: 'exhibition', shape: 'rect', rect: { x: 14, y: 44.5, w: 6, h: 4.5 } },
+    { key: 'office', name: '사무실', type: 'exhibition', shape: 'rect', rect: { x: 14, y: 49, w: 6, h: 4.5 } },
+    { key: 'outdoor_stage', name: '야외공연장', type: 'stage', shape: 'rect', rect: { x: 27, y: 54.5, w: 16, h: 5 } },
+  ],
+};
+
 export interface SampleFixture {
   readonly id: string;
   readonly label: string;
@@ -118,4 +155,5 @@ export const SAMPLE_FIXTURES: readonly SampleFixture[] = [
   { id: 'measured', label: 'Measured (clean)', draft: SAMPLE_DRAFT },
   { id: 'inferred', label: 'Inferred (door proxy)', draft: SAMPLE_DRAFT_INFERRED },
   { id: 'messy', label: 'Messy (assumed + overlap + dropped)', draft: SAMPLE_DRAFT_MESSY },
+  { id: 'art_museum', label: 'Art Museum (real AI capture, 2026-04-24)', draft: SAMPLE_DRAFT_CAPTURED_ART_MUSEUM },
 ];

@@ -94,7 +94,12 @@ export async function analyzeFloorPlan(imageBase64: string, mediaType: string): 
   if (!toolUse || !toolUse.input) {
     throw new AIClientError('Model did not emit a scenario. Try a clearer image or a different plan.');
   }
-  return toolUse.input as DraftScenario;
+  const draft = toolUse.input as DraftScenario;
+  if (import.meta.env.DEV) {
+    (window as unknown as { __lastDraft: DraftScenario }).__lastDraft = draft;
+    console.log('[AI] raw DraftScenario:', draft);
+  }
+  return draft;
 }
 
 /** Read a File (from input/drag-drop) into a base64 string (no data: prefix). */

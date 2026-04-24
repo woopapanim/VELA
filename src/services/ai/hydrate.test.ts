@@ -3,6 +3,7 @@ import { hydrateDraft, rescaleDraft } from './hydrate';
 import type { DraftScenario, DraftZone } from './types';
 import {
   SAMPLE_DRAFT, SAMPLE_DRAFT_INFERRED, SAMPLE_DRAFT_MESSY,
+  SAMPLE_DRAFT_CAPTURED_ART_MUSEUM,
   SAMPLE_FIXTURES, SAMPLE_IMAGE_NATURAL, SAMPLE_IMAGE_PATH,
 } from './sampleDraft';
 
@@ -339,6 +340,16 @@ describe('hydrateDraft — golden fixtures (sampleDraft.ts)', () => {
     expect(msgs).toMatch(/Hall A.*overlap|overlap.*Hall A/i);
     expect(msgs).toMatch(/Hall B/);
     expect(warnings.filter((w) => w.severity === 'warning').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('G5a: captured Art Museum baseline — 16 zones, measured confidence, known overlap pairs', () => {
+    const { scenario, warnings } = hydrateDraft(SAMPLE_DRAFT_CAPTURED_ART_MUSEUM, SAMPLE_IMAGE_PATH, imgSize);
+    expect(scenario.zones).toHaveLength(16);
+    // Scale claims 'measured' so no scale warning, despite being arithmetically wrong.
+    expect(warnings.filter((w) => w.message.toLowerCase().includes('scale'))).toEqual([]);
+    // Documents the current AI failure: multiple overlap warnings expected.
+    const overlaps = warnings.filter((w) => w.message.includes('overlap'));
+    expect(overlaps.length).toBeGreaterThan(0);
   });
 
   it('G5: fixture scale round-trips through rescaleDraft without distortion', () => {
