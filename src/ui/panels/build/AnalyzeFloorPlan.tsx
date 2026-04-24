@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Sparkles, Upload, AlertCircle, Key, Loader2, Ruler, FlaskConical, Scan } from 'lucide-react';
 import { useStore } from '@/stores';
 import {
@@ -97,8 +97,26 @@ export function AnalyzeFloorPlan({
   const [cvData, setCvData] = useState<{ file: File; previewUrl: string; result: DetectionResult } | null>(null);
   const [boostingWithAi, setBoostingWithAi] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
   const cvFileRef = useRef<HTMLInputElement>(null);
+
+  // Elapsed-time counter during the 'analyzing' stage so the user gets a
+  // clear "still working, not stuck" signal. Sonnet vision typically returns
+  // in 10-30s; the tick rate is 200ms so the display feels live without
+  // thrashing renders.
+  useEffect(() => {
+    if (stage !== 'analyzing') {
+      setElapsedMs(0);
+      return;
+    }
+    const startedAt = performance.now();
+    setElapsedMs(0);
+    const id = window.setInterval(() => {
+      setElapsedMs(performance.now() - startedAt);
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [stage]);
 
   const needsKey = !isProxyMode() && !getStoredApiKey();
 
@@ -169,7 +187,10 @@ export function AnalyzeFloorPlan({
    * the full Claude Vision flow. Re-uses everything from runAnalysis — same
    * prompt, same hydration, same review UI — so the user lands on the same
    * "Detected N zones" screen they would have gotten from the direct AI path.
-   * On error we stay in cv_review so the CV rects are still visible.
+   *
+   * Stage transition: cv_review → analyzing (full-screen spinner with
+   * elapsed-time counter) → review | cv_review (if the call fails, bounce
+   * back so the CV rects are still visible for retry/back).
    */
   const boostWithAi = useCallback(async () => {
     if (!cvData) return;
@@ -179,6 +200,7 @@ export function AnalyzeFloorPlan({
       return;
     }
     setBoostingWithAi(true);
+    setStage('analyzing');
     setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
     try {
       const { base64, mediaType } = await fileToBase64(cvData.file);
@@ -205,7 +227,8 @@ export function AnalyzeFloorPlan({
     } catch (err) {
       const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);
       setError(msg);
-      // Stay in cv_review so the user can retry or go back.
+      // Bounce back to cv_review so CV rects stay visible for retry/back.
+      setStage('cv_review');
     } finally {
       setBoostingWithAi(false);
       setProgress('');
@@ -455,7 +478,9 @@ export function AnalyzeFloorPlan({
             <div className="py-12 text-center">
               <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
               <p className="text-sm font-medium mb-1">{progress || 'Analyzing...'}</p>
-              <p className="text-[11px] text-muted-foreground">Using Claude Opus 4.7 Vision</p>
+              <p className="text-[11px] text-muted-foreground">
+                Using Claude Sonnet 4.6 Vision · {(elapsedMs / 1000).toFixed(1)}s elapsed
+              </p>
             </div>
           )}
 
