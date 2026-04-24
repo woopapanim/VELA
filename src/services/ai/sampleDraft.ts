@@ -145,6 +145,44 @@ export const SAMPLE_DRAFT_CAPTURED_ART_MUSEUM: DraftScenario = {
   ],
 };
 
+/**
+ * Second Art Museum run — after prompt revision (explicit arithmetic, footprint
+ * containment, self-check). Same source image as V1. Improvements over V1:
+ * - widthMeters 67.5 → 58 (V1 over-scaled by ~16%)
+ * - Evidence now shows explicit arithmetic ("45m / 0.78 ≈ 58")
+ * - Zones fit inside building footprint; most previous overlaps resolved
+ *   (only Vestibule still overlaps 2 neighbours)
+ */
+export const SAMPLE_DRAFT_CAPTURED_ART_MUSEUM_V2: DraftScenario = {
+  name: 'Art Museum (미술관) — prompt v2',
+  notes: 'Captured 2026-04-24 after prompt revision. Compare against V1 for prompt-quality regression.',
+  scale: {
+    label: 'Top edge: 15,000 + 15,000 + 15,000 mm; Right edge: 5,100 + 12,000 + 15,000 + 12,000 mm',
+    widthMeters: 58,
+    heightMeters: 55,
+    confidence: 'measured',
+    evidence: 'Top dimension string reads 15,000 + 15,000 + 15,000 mm = 45 m across three bays covering the building width. Right-side string reads 5,100 + 12,000 + 15,000 + 12,000 = 44.1 m building height. Building occupies ~78% of image width and ~80% of image height → widthMeters ≈ 45/0.78 ≈ 58; heightMeters ≈ 44.1/0.80 ≈ 55.',
+  },
+  zones: [
+    { key: 'storage_viewable', name: '보이는 수장고 (Viewable Storage)', type: 'exhibition', shape: 'rect', rect: { x: 18.5, y: 17.5, w: 4, h: 6.5 } },
+    { key: 'permanent_exhibit_1', name: '상설전시실 1', type: 'exhibition', shape: 'rect', rect: { x: 22.5, y: 12.5, w: 13.5, h: 11 } },
+    { key: 'permanent_exhibit_2', name: '상설전시실 2', type: 'exhibition', shape: 'rect', rect: { x: 36.5, y: 12.5, w: 11, h: 11 } },
+    { key: 'conservation_room', name: '하역 및 다목적실 (Conservation/Multipurpose)', type: 'exhibition', shape: 'rect', rect: { x: 9, y: 18.5, w: 9.5, h: 6 } },
+    { key: 'office_room', name: '전실 (Vestibule)', type: 'lobby', shape: 'rect', rect: { x: 19, y: 18.5, w: 7, h: 6 } },
+    { key: 'special_exhibit', name: '기획전시실 (Special Exhibition)', type: 'exhibition', shape: 'rect', rect: { x: 9, y: 26, w: 17, h: 12 } },
+    { key: 'light_courtyard', name: '빛의 중정 (Light Courtyard)', type: 'lobby', shape: 'rect', rect: { x: 26, y: 26, w: 13.5, h: 12.5 } },
+    { key: 'education_room', name: '교육/체험관', type: 'exhibition', shape: 'rect', rect: { x: 39.5, y: 25, w: 3.5, h: 5.5 } },
+    { key: 'library_space', name: '도서공간 (Library)', type: 'rest', shape: 'rect', rect: { x: 43, y: 25, w: 3.5, h: 5.5 } },
+    { key: 'av_room', name: '시청각실 (AV Room)', type: 'exhibition', shape: 'rect', rect: { x: 46.5, y: 25, w: 3.5, h: 5.5 } },
+    { key: 'seminar_room', name: '세미나실 (Seminar)', type: 'exhibition', shape: 'rect', rect: { x: 39.5, y: 32, w: 6.5, h: 6.5 } },
+    { key: 'office', name: '사무실 (Office)', type: 'exhibition', shape: 'rect', rect: { x: 16.5, y: 39, w: 5.5, h: 5.5 } },
+    { key: 'staff_lounge', name: '휴게실 (Staff Lounge)', type: 'rest', shape: 'rect', rect: { x: 12, y: 38.5, w: 4.5, h: 4.5 } },
+    { key: 'lobby_shop', name: '로비/아트샵 (Lobby/Art Shop)', type: 'lobby', shape: 'rect', rect: { x: 26, y: 38.5, w: 11.5, h: 7 } },
+    { key: 'creative_studio', name: '창작스튜디오 (Creative Studio)', type: 'exhibition', shape: 'rect', rect: { x: 39.5, y: 38.5, w: 8.5, h: 6.5 } },
+    { key: 'outdoor_performance', name: '야외공연장 (Outdoor Stage)', type: 'stage', shape: 'rect', rect: { x: 25, y: 46.5, w: 13, h: 7 } },
+  ],
+};
+
 export interface SampleFixture {
   readonly id: string;
   readonly label: string;
@@ -156,4 +194,5 @@ export const SAMPLE_FIXTURES: readonly SampleFixture[] = [
   { id: 'inferred', label: 'Inferred (door proxy)', draft: SAMPLE_DRAFT_INFERRED },
   { id: 'messy', label: 'Messy (assumed + overlap + dropped)', draft: SAMPLE_DRAFT_MESSY },
   { id: 'art_museum', label: 'Art Museum (real AI capture, 2026-04-24)', draft: SAMPLE_DRAFT_CAPTURED_ART_MUSEUM },
+  { id: 'art_museum_v2', label: 'Art Museum V2 (after prompt revision)', draft: SAMPLE_DRAFT_CAPTURED_ART_MUSEUM_V2 },
 ];

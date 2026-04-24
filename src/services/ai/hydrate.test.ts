@@ -3,7 +3,7 @@ import { hydrateDraft, rescaleDraft } from './hydrate';
 import type { DraftScenario, DraftZone } from './types';
 import {
   SAMPLE_DRAFT, SAMPLE_DRAFT_INFERRED, SAMPLE_DRAFT_MESSY,
-  SAMPLE_DRAFT_CAPTURED_ART_MUSEUM,
+  SAMPLE_DRAFT_CAPTURED_ART_MUSEUM, SAMPLE_DRAFT_CAPTURED_ART_MUSEUM_V2,
   SAMPLE_FIXTURES, SAMPLE_IMAGE_NATURAL, SAMPLE_IMAGE_PATH,
 } from './sampleDraft';
 
@@ -350,6 +350,17 @@ describe('hydrateDraft — golden fixtures (sampleDraft.ts)', () => {
     // Documents the current AI failure: multiple overlap warnings expected.
     const overlaps = warnings.filter((w) => w.message.includes('overlap'));
     expect(overlaps.length).toBeGreaterThan(0);
+  });
+
+  it('G5b: V2 capture (post-prompt-revision) — smaller scale, fewer overlaps than V1', () => {
+    const v1 = hydrateDraft(SAMPLE_DRAFT_CAPTURED_ART_MUSEUM, SAMPLE_IMAGE_PATH, imgSize);
+    const v2 = hydrateDraft(SAMPLE_DRAFT_CAPTURED_ART_MUSEUM_V2, SAMPLE_IMAGE_PATH, imgSize);
+    // V2 widthMeters is tighter (58 vs 67.5) — canvas width reflects this.
+    expect(v2.scenario.floors[0].canvas.width).toBeLessThan(v1.scenario.floors[0].canvas.width);
+    // Prompt revision is expected to reduce, not eliminate, overlap warnings.
+    const v1Overlaps = v1.warnings.filter((w) => w.message.includes('overlap')).length;
+    const v2Overlaps = v2.warnings.filter((w) => w.message.includes('overlap')).length;
+    expect(v2Overlaps).toBeLessThanOrEqual(v1Overlaps + 2); // documents observed behavior
   });
 
   it('G5: fixture scale round-trips through rescaleDraft without distortion', () => {

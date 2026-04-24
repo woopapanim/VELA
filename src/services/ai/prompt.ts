@@ -24,6 +24,7 @@ OUTPUT RULES
   - "circle": the room is drawn as a circle / ellipse / rounded blob. Provide the bounding rect; the editor will inscribe a circle into it. Do NOT emit a polygon for circles.
   - Otherwise (L-shape, curved organic footprint, diagonal walls, any non-rect non-circle shape): use "rect" for the shape field AND provide a polygon (absolute meters, clockwise or counter-clockwise) that traces the actual walls.
 - ZONES MUST NOT OVERLAP. Each rect/polygon represents a physical room; rooms don't share floor area. If two rooms share a wall, their rects should touch but not overlap (share an edge). Double-check before emitting.
+- ZONES MUST STAY INSIDE THE BUILDING. A zone rect cannot extend beyond the building's drawn outer walls. Before emitting each rect, verify every corner falls inside the outer footprint of the building on the plan (outdoor zones like stages/plazas are the only exception).
 
 SCALE — this is the single most important number to get right. Wrong scale makes the entire scenario unusable.
 1. Scan the image systematically for scale cues, in this order of preference:
@@ -32,16 +33,18 @@ SCALE — this is the single most important number to get right. Wrong scale mak
    c) Dimension lines with tick marks and numbers between interior walls (e.g. "3500" mm or "3.5m" between two partition lines).
    d) Room labels that include a size (e.g. "Conference 6m × 4m", "회의실 6×4").
    e) Door widths (~0.9 m) or a standard car footprint (~4.5 × 1.8 m) or a human figure (~1.7 m tall) — LAST RESORT only.
-2. Compute widthMeters / heightMeters for the WHOLE IMAGE (not just the building). If you read only one dimension, infer the other from visual proportion of the image.
-3. Unit conversion:
+2. SHOW YOUR WORK. When you read multiple dimension segments along one edge (e.g. "15,000 + 15,000 + 15,000" along the top), SUM THEM and use the sum as the building's extent in that direction. Do NOT multiply, do NOT round to nearby "nicer" numbers, do NOT add margin unless the image clearly shows un-dimensioned space outside the building.
+3. Compute widthMeters / heightMeters for the WHOLE IMAGE (not just the building). If the building occupies only part of the image, widthMeters/heightMeters is larger than the building footprint; state this in "evidence". If you read only one dimension, infer the other from visual proportion of the image.
+4. BEFORE YOU EMIT, ARITHMETIC CHECK: pick the largest numeric dimension you read off the plan in meters. widthMeters must be within ±25% of that value (or the image-to-building ratio you explicitly noted). If it's not, recompute — you made a math error. Put the arithmetic in "evidence": e.g. "top edge segments 15000+15000+15000 = 45000mm = 45m; building fills ~95% of image width → widthMeters ≈ 47".
+5. Unit conversion:
    - Feet + inches (e.g. 40'-1"): convert to meters using 1 ft = 0.3048 m, 1 in = 0.0254 m.
    - Millimetres (common in Korean/European plans, e.g. "3500"): divide by 1000.
    - Centimetres: divide by 100.
-4. Set the "confidence" field:
-   - "measured" — you directly read at least one numeric dimension off the plan.
-   - "inferred" — you estimated from a visual proxy (door, car, human).
+6. Set the "confidence" field:
+   - "measured" — you directly read at least one numeric dimension off the plan AND your arithmetic check passed.
+   - "inferred" — you estimated from a visual proxy (door, car, human), OR you read dimensions but some segments were illegible.
    - "assumed" — no cues found at all; fall back to shorter image axis = 15 meters.
-5. Populate the "evidence" field with the exact cue you used, including where on the plan (e.g. "scale bar bottom-left, '5m' tick", "title block reads 40'-1\\" × 70'-0\\"", "no dimensions — used 15 m fallback").
+7. Populate the "evidence" field with: (a) the exact cue(s) you used, (b) the explicit arithmetic from step 4, (c) where on the plan. Example: "top edge strings '15,000 + 15,000 + 15,000' mm = 45 m building width; building occupies full image width → widthMeters = 45".
 
 ZONE TYPING — ONLY these five types exist in the editor. Pick the closest match:
 - "lobby" — reception, waiting, lounge, entrance, vestibule, foyer, visitor's space, balcony
@@ -55,6 +58,12 @@ ZONE TYPING — ONLY these five types exist in the editor. Pick the closest matc
 ZONE KEYS
 - Use short snake_case slugs: "reception", "treatment_bay", "kids_area".
 - Must be unique within the scenario.
+
+SELF-CHECK (mentally run through this list BEFORE calling emit_scenario):
+1. Scale arithmetic: does widthMeters match the sum of your read dimensions? If the largest dimension string you read was 45m, widthMeters of 67 is WRONG — either a rounding mistake or you mis-counted segments.
+2. Non-overlap: for each pair of zones, would they overlap by more than sharing an edge? If yes, shrink or reposition.
+3. Footprint containment: does every zone rect fit inside the drawn outer walls? Outdoor zones (stage, plaza) are the one exception.
+4. Zone count sanity: a small building shouldn't have 20+ zones; a large museum shouldn't have only 3. Rough check: ~1 zone per 40-80 m² of building area is normal.
 
 Focus on rooms that host visitors. Be conservative — prefer fewer, high-confidence zones over aggressive guessing. Precision of the rect matters more than breadth of labeling.`;
 
