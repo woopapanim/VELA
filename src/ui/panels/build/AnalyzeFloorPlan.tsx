@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { X, Sparkles, Upload, AlertCircle, Key, Loader2, Ruler, FlaskConical } from 'lucide-react';
+import { X, Sparkles, Upload, AlertCircle, Key, Loader2, Ruler, FlaskConical, Scan } from 'lucide-react';
 import { useStore } from '@/stores';
 import {
   analyzeFloorPlan, fileToBase64, getStoredApiKey, setStoredApiKey, isProxyMode,
@@ -8,10 +8,12 @@ import {
 import { hydrateDraft, rescaleDraft } from '@/services/ai/hydrate';
 import type { DraftScale, DraftScenario, HydrationWarning } from '@/services/ai/types';
 import { SAMPLE_FIXTURES, SAMPLE_IMAGE_NATURAL, SAMPLE_IMAGE_PATH } from '@/services/ai/sampleDraft';
+import { detectRooms, type DetectionResult } from '@/services/cv/roomDetector';
 import type { Scenario } from '@/domain';
 import { ScaleCalibrator } from './ScaleCalibrator';
+import { CvRoomPreview } from './CvRoomPreview';
 
-type Stage = 'idle' | 'analyzing' | 'review' | 'calibrating';
+type Stage = 'idle' | 'analyzing' | 'review' | 'calibrating' | 'cv_review';
 
 function measureImage(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -40,8 +42,10 @@ export function AnalyzeFloorPlan({
   const [error, setError] = useState<string>('');
   const [progress, setProgress] = useState<string>('');
   const [review, setReview] = useState<ReviewData | null>(null);
+  const [cvData, setCvData] = useState<{ previewUrl: string; result: DetectionResult } | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cvFileRef = useRef<HTMLInputElement>(null);
 
   const needsKey = !isProxyMode() && !getStoredApiKey();
 
@@ -80,6 +84,32 @@ export function AnalyzeFloorPlan({
     e.target.value = '';
     if (file) runAnalysis(file);
   }, [runAnalysis]);
+
+  const runCvOnly = useCallback(async (file: File) => {
+    setError('');
+    if (!file.type.startsWith('image/')) {
+      setError('Upload a JPG or PNG floor plan image.');
+      return;
+    }
+    setStage('analyzing');
+    setProgress('Running CV room detection...');
+    const previewUrl = URL.createObjectURL(file);
+    try {
+      const result = await detectRooms(previewUrl, { onProgress: setProgress });
+      setCvData({ previewUrl, result });
+      setStage('cv_review');
+    } catch (err) {
+      URL.revokeObjectURL(previewUrl);
+      setError(err instanceof Error ? err.message : String(err));
+      setStage('idle');
+    }
+  }, []);
+
+  const onCvFilePick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) runCvOnly(file);
+  }, [runCvOnly]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -216,6 +246,28 @@ export function AnalyzeFloorPlan({
                   </div>
                 )}
               </div>
+
+              {import.meta.env.DEV && (
+                <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Scan className="w-3 h-3" />
+                    <span>CV-only (Phase 1, no AI)</span>
+                  </div>
+                  <button
+                    onClick={() => cvFileRef.current?.click()}
+                    className="px-2.5 py-1 text-[11px] rounded-lg bg-secondary hover:bg-accent text-foreground"
+                  >
+                    Detect rooms
+                  </button>
+                  <input
+                    ref={cvFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={onCvFilePick}
+                  />
+                </div>
+              )}
             </>
           )}
 
@@ -377,6 +429,18 @@ export function AnalyzeFloorPlan({
               current={review.draft.scale ?? { label: '', widthMeters: 20, heightMeters: 15 }}
               onApply={applyCalibration}
               onCancel={() => setStage('review')}
+            />
+          )}
+
+          {stage === 'cv_review' && cvData && (
+            <CvRoomPreview
+              imageUrl={cvData.previewUrl}
+              result={cvData.result}
+              onBack={() => {
+                URL.revokeObjectURL(cvData.previewUrl);
+                setCvData(null);
+                setStage('idle');
+              }}
             />
           )}
 

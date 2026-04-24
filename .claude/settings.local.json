@@ -79,7 +79,9 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(echo \"exit=$?\")",
-      "Bash(curl -sI http://localhost:5173)"
+      "Bash(curl -sI http://localhost:5173)",
+      "Bash(identify public/sample_img.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight public/sample_img.png)"
     ]
   }
 }
