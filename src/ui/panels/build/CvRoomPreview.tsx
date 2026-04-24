@@ -1,3 +1,4 @@
+import { Sparkles } from 'lucide-react';
 import type { DetectionResult } from '@/services/cv/roomDetector';
 
 const PALETTE = [
@@ -9,29 +10,75 @@ interface Props {
   readonly imageUrl: string;
   readonly result: DetectionResult;
   readonly onBack: () => void;
+  /** When provided, the "Boost with AI" button is shown. Omit to hide. */
+  readonly onBoostWithAi?: () => void;
+  /** True while an AI boost request is in flight. */
+  readonly isBoostingWithAi?: boolean;
 }
 
-export function CvRoomPreview({ imageUrl, result, onBack }: Props) {
+/**
+ * Decide whether CV result is poor enough that we should visibly recommend
+ * the AI boost (rather than just offering it). Two triggers, derived from
+ * observed failure modes:
+ *   - 0 regions — open-plan / broken walls, CV is structurally stuck.
+ *   - ≤2 regions AND total rect coverage < 10% — CV found a handful of
+ *     tiny regions and clearly missed the bulk of the building.
+ */
+function shouldRecommendBoost(result: DetectionResult): boolean {
+  if (result.rooms.length === 0) return true;
+  if (result.rooms.length > 2) return false;
+  const imageArea = result.imageSize.width * result.imageSize.height;
+  if (imageArea <= 0) return false;
+  const rectsArea = result.rooms.reduce((sum, r) => sum + r.bounds.w * r.bounds.h, 0);
+  return rectsArea / imageArea < 0.1;
+}
+
+export function CvRoomPreview({ imageUrl, result, onBack, onBoostWithAi, isBoostingWithAi = false }: Props) {
   const { rooms, imageSize, processedScale } = result;
   const aspect = imageSize.width > 0 && imageSize.height > 0
     ? `${imageSize.width} / ${imageSize.height}`
     : '4 / 3';
+  const recommendBoost = shouldRecommendBoost(result);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">CV-only detection (Phase 1)</p>
-          <p className="text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium">CV detection</p>
+          <p className="text-[10px] text-muted-foreground truncate">
             {rooms.length} region{rooms.length === 1 ? '' : 's'} · processed at {(processedScale * 100).toFixed(0)}% scale
+            {recommendBoost && rooms.length > 0 && ' · likely missed most rooms'}
+            {recommendBoost && rooms.length === 0 && ' · no walls detected (open plan?)'}
           </p>
         </div>
-        <button
-          onClick={onBack}
-          className="px-3 py-1.5 text-xs rounded-lg bg-secondary hover:bg-accent"
-        >
-          Back
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {onBoostWithAi && (
+            <button
+              onClick={onBoostWithAi}
+              disabled={isBoostingWithAi}
+              className={`px-3 py-1.5 text-xs rounded-lg flex items-center gap-1.5 disabled:opacity-50 ${
+                recommendBoost
+                  ? 'bg-primary text-primary-foreground hover:opacity-90'
+                  : 'bg-secondary hover:bg-accent text-foreground'
+              }`}
+              title={
+                recommendBoost
+                  ? 'CV result looks weak — send the image to Claude Vision for a full layout.'
+                  : 'Send the image to Claude Vision for a full layout (uses your API credit).'
+              }
+            >
+              <Sparkles className="w-3 h-3" />
+              {isBoostingWithAi ? 'Analyzing…' : recommendBoost ? 'Boost with AI' : 'Try AI'}
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            disabled={isBoostingWithAi}
+            className="px-3 py-1.5 text-xs rounded-lg bg-secondary hover:bg-accent disabled:opacity-50"
+          >
+            Back
+          </button>
+        </div>
       </div>
 
       <div
@@ -119,7 +166,7 @@ export function CvRoomPreview({ imageUrl, result, onBack }: Props) {
       </div>
 
       <p className="text-[10px] text-muted-foreground leading-relaxed">
-        Phase 1 preview: classical CV on the uploaded image (no AI). Phase 2 will send these rects to Claude for name/type labelling.
+        Rects above were detected locally by OpenCV.js — no AI involved. If the result looks weak, press {onBoostWithAi ? '“Boost with AI”' : '“Try AI”'} to send the image to Claude Vision for a full layout with room names and scale.
       </p>
     </div>
   );

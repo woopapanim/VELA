@@ -42,7 +42,8 @@ export function AnalyzeFloorPlan({
   const [error, setError] = useState<string>('');
   const [progress, setProgress] = useState<string>('');
   const [review, setReview] = useState<ReviewData | null>(null);
-  const [cvData, setCvData] = useState<{ previewUrl: string; result: DetectionResult } | null>(null);
+  const [cvData, setCvData] = useState<{ file: File; previewUrl: string; result: DetectionResult } | null>(null);
+  const [boostingWithAi, setBoostingWithAi] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const cvFileRef = useRef<HTMLInputElement>(null);
@@ -96,7 +97,7 @@ export function AnalyzeFloorPlan({
     const previewUrl = URL.createObjectURL(file);
     try {
       const result = await detectRooms(previewUrl, { onProgress: setProgress });
-      setCvData({ previewUrl, result });
+      setCvData({ file, previewUrl, result });
       setStage('cv_review');
     } catch (err) {
       URL.revokeObjectURL(previewUrl);
@@ -110,6 +111,43 @@ export function AnalyzeFloorPlan({
     e.target.value = '';
     if (file) runCvOnly(file);
   }, [runCvOnly]);
+
+  /**
+   * Escalation path from the CV preview: re-encode the stored file and run
+   * the full Claude Vision flow. Re-uses everything from runAnalysis — same
+   * prompt, same hydration, same review UI — so the user lands on the same
+   * "Detected N zones" screen they would have gotten from the direct AI path.
+   * On error we stay in cv_review so the CV rects are still visible.
+   */
+  const boostWithAi = useCallback(async () => {
+    if (!cvData) return;
+    setError('');
+    if (needsKey) {
+      setShowKeyInput(true);
+      return;
+    }
+    setBoostingWithAi(true);
+    setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
+    try {
+      const { base64, mediaType } = await fileToBase64(cvData.file);
+      const draft = await analyzeFloorPlan(base64, mediaType);
+      setProgress('Building scenario...');
+      const imageSize = await measureImage(cvData.previewUrl);
+      const { scenario, warnings } = hydrateDraft(draft, cvData.previewUrl, imageSize);
+      // Transfer previewUrl ownership from cvData → review. Don't revoke —
+      // hydrated scenario uses it as the editor background.
+      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize });
+      setCvData(null);
+      setStage('review');
+    } catch (err) {
+      const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);
+      setError(msg);
+      // Stay in cv_review so the user can retry or go back.
+    } finally {
+      setBoostingWithAi(false);
+      setProgress('');
+    }
+  }, [cvData, needsKey]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -251,7 +289,7 @@ export function AnalyzeFloorPlan({
                 <div className="mt-3 pt-3 border-t border-border/50 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <Scan className="w-3 h-3" />
-                    <span>CV-only (Phase 1, no AI)</span>
+                    <span>CV first (AI boost optional)</span>
                   </div>
                   <button
                     onClick={() => cvFileRef.current?.click()}
@@ -441,6 +479,8 @@ export function AnalyzeFloorPlan({
                 setCvData(null);
                 setStage('idle');
               }}
+              onBoostWithAi={boostWithAi}
+              isBoostingWithAi={boostingWithAi}
             />
           )}
 
