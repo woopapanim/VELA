@@ -18,19 +18,29 @@ interface Props {
 
 /**
  * Decide whether CV result is poor enough that we should visibly recommend
- * the AI boost (rather than just offering it). Two triggers, derived from
- * observed failure modes:
+ * the AI boost (rather than just offering it). Triggers, derived from the
+ * three failure modes we've seen on real plans:
  *   - 0 regions — open-plan / broken walls, CV is structurally stuck.
- *   - ≤2 regions AND total rect coverage < 10% — CV found a handful of
- *     tiny regions and clearly missed the bulk of the building.
+ *   - ≤2 regions AND coverage < 10% — CV found a handful of tiny regions,
+ *     clearly missed the bulk of the building.
+ *   - 3+ regions AND coverage < 5% — CV latched on to noise (columns,
+ *     furniture, dimension ticks) instead of rooms. Coverage is the
+ *     giveaway: real rooms cover 20-60% of the plan, noise covers ~1%.
+ *
+ * Coverage is measured against the full image, not the building footprint,
+ * because we don't have a reliable way to extract the footprint in the CV
+ * path. That's fine — if the image is mostly margin, we'll over-promote,
+ * which is the safer error direction (user still has the subtle "Try AI"
+ * as the alternative).
  */
 function shouldRecommendBoost(result: DetectionResult): boolean {
   if (result.rooms.length === 0) return true;
-  if (result.rooms.length > 2) return false;
   const imageArea = result.imageSize.width * result.imageSize.height;
   if (imageArea <= 0) return false;
   const rectsArea = result.rooms.reduce((sum, r) => sum + r.bounds.w * r.bounds.h, 0);
-  return rectsArea / imageArea < 0.1;
+  const coverage = rectsArea / imageArea;
+  if (result.rooms.length <= 2) return coverage < 0.1;
+  return coverage < 0.05;
 }
 
 export function CvRoomPreview({ imageUrl, result, onBack, onBoostWithAi, isBoostingWithAi = false }: Props) {
