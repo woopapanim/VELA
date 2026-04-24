@@ -29,6 +29,11 @@ OUTPUT RULES
     ox = max(0, min(A.x + A.w, B.x + B.w) - max(A.x, B.x))
     oy = max(0, min(A.y + A.h, B.y + B.h) - max(A.y, B.y))
   If ox > 0 AND oy > 0 for any pair, those rects overlap — SHRINK the rect(s) that extend beyond their drawn walls until ox === 0 OR oy === 0. Rerun the check after every shrink. Do NOT emit until zero pairs overlap. This check is as important as the scale arithmetic check — emitting overlapping zones makes the output unusable.
+- OVERLAP VS COMPLETENESS TRADE-OFF (read this carefully, it's the #1 reason outputs get rejected):
+  - If you cannot resolve an overlap by shrinking (e.g. two rooms truly look too tightly packed and you can't tell exactly where the boundary is), DROP one of the two zones. Skipping a room is ALWAYS better than emitting two overlapping rooms.
+  - Zero overlap is NON-NEGOTIABLE. Room coverage is NEGOTIABLE.
+  - Target rule: 60-80% of rooms with perfect non-overlap BEATS 100% coverage with any overlap. The downstream pipeline HARD-REJECTS any scenario with even one overlap — a single overlap blocks the user's entire load.
+  - When in doubt about a boundary between two rooms, pick the larger / clearer one and skip the smaller / more ambiguous one. Mention the skipped room briefly in "notes".
 - ZONES MUST STAY INSIDE THE BUILDING. A zone rect cannot extend beyond the building's drawn outer walls. Before emitting each rect, verify every corner falls inside the outer footprint of the building on the plan (outdoor zones like stages/plazas are the only exception).
 
 SCALE — this is the single most important number to get right. Wrong scale makes the entire scenario unusable.
@@ -76,7 +81,7 @@ CV CANDIDATE RECTS (when provided)
 
 SELF-CHECK (mentally run through this list BEFORE calling emit_scenario):
 1. Scale arithmetic: does widthMeters match the sum of your read dimensions? If the largest dimension string you read was 45m, widthMeters of 67 is WRONG — either a rounding mistake or you mis-counted segments.
-2. Non-overlap arithmetic: for every pair (A, B), compute ox = max(0, min(A.x+A.w, B.x+B.w) - max(A.x, B.x)) and oy = max(0, min(A.y+A.h, B.y+B.h) - max(A.y, B.y)). Any pair with ox > 0 AND oy > 0 is overlapping — shrink until no pair overlaps. Zero tolerance; 1% overlap is still overlap.
+2. Non-overlap arithmetic: for every pair (A, B), compute ox = max(0, min(A.x+A.w, B.x+B.w) - max(A.x, B.x)) and oy = max(0, min(A.y+A.h, B.y+B.h) - max(A.y, B.y)). Any pair with ox > 0 AND oy > 0 is overlapping — shrink until no pair overlaps. If shrinking breaks a rect (makes it ≤0.5m on a side, or clearly wrong for the drawn room), DROP one of the two overlapping zones instead. Zero tolerance; 1% overlap is still overlap. Fewer zones with zero overlap is the required outcome.
 3. Footprint containment: does every zone rect fit inside the drawn outer walls? Outdoor zones (stage, plaza) are the one exception.
 4. Zone count sanity: a small building shouldn't have 20+ zones; a large museum shouldn't have only 3. Rough check: ~1 zone per 40-80 m² of building area is normal.
 
