@@ -54,6 +54,22 @@ interface ReviewData {
   readonly cvHints?: readonly CvHint[];
 }
 
+/**
+ * How many times we let Claude Vision retry before giving up and returning the
+ * least-bad result. Sonnet's per-call overlap variance on crowded plans is
+ * high — we've seen {5, 2, 5} overlaps across three manual retries on one
+ * Korean museum plan. Looping in the client converts that variance into
+ * background work: at ~$0.04/call on Sonnet, 3 attempts = $0.12 (still
+ * cheaper than a single Opus call at ~$0.17) and the expected number of
+ * clean runs across 3 tries is far above the single-shot rate.
+ *
+ * We stop early the moment we get a zero-overlap draft, so the cost is only
+ * incurred when attempts actually need to retry. If no attempt is clean, we
+ * return the best (lowest overlap count) — the user still sees the Re-analyze
+ * button as a last resort.
+ */
+const AI_MAX_ATTEMPTS = 3;
+
 /** Minimum CV rooms required before we hand the detection to the AI as anchors.
  *  Below this threshold the CV pass has almost certainly failed (no walls
  *  detected → only stray tick marks / dimension labels / artifacts in the list).
@@ -82,6 +98,51 @@ function cvHintsFromResult(result: DetectionResult): CvHint[] | null {
     nw: r.bounds.w / width,
     nh: r.bounds.h / height,
   }));
+}
+
+interface AttemptResult {
+  readonly draft: DraftScenario;
+  readonly scenario: Scenario;
+  readonly warnings: readonly HydrationWarning[];
+  readonly overlapCount: number;
+}
+
+function countOverlapErrors(warnings: readonly HydrationWarning[]): number {
+  return warnings.filter((w) => w.severity === 'error' && /overlap/.test(w.message)).length;
+}
+
+/**
+ * Run analyze→hydrate up to `AI_MAX_ATTEMPTS` times, stopping as soon as one
+ * attempt produces a zero-overlap scenario. If every attempt overlaps, return
+ * the best one (fewest overlaps). The caller still gets to decide how to
+ * present the result — the Re-analyze button is still available as a last
+ * resort if even the best attempt has overlaps.
+ */
+async function analyzeWithRetry(params: {
+  readonly base64: string;
+  readonly mediaType: string;
+  readonly previewUrl: string;
+  readonly imageSize: { readonly width: number; readonly height: number };
+  readonly cvHints: readonly CvHint[] | undefined;
+  readonly onProgress: (msg: string) => void;
+}): Promise<AttemptResult> {
+  const { base64, mediaType, previewUrl, imageSize, cvHints, onProgress } = params;
+  let best: AttemptResult | null = null;
+  for (let attempt = 1; attempt <= AI_MAX_ATTEMPTS; attempt++) {
+    onProgress(
+      AI_MAX_ATTEMPTS === 1
+        ? 'Analyzing with Claude Vision — this takes 10-30 seconds...'
+        : `Analyzing with Claude Vision — attempt ${attempt} of ${AI_MAX_ATTEMPTS}...`,
+    );
+    const draft = await analyzeFloorPlan(base64, mediaType, cvHints);
+    const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
+    const overlapCount = countOverlapErrors(warnings);
+    const result: AttemptResult = { draft, scenario, warnings, overlapCount };
+    if (overlapCount === 0) return result;
+    if (!best || overlapCount < best.overlapCount) best = result;
+  }
+  // All attempts had overlaps; return the least-bad one.
+  return best!;
 }
 
 export function AnalyzeFloorPlan({
@@ -135,11 +196,13 @@ export function AnalyzeFloorPlan({
     const previewUrl = URL.createObjectURL(file);
     try {
       const { base64, mediaType } = await fileToBase64(file);
-      setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
-      const draft = await analyzeFloorPlan(base64, mediaType);
-      setProgress('Building scenario...');
       const imageSize = await measureImage(previewUrl);
-      const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
+      const { draft, scenario, warnings } = await analyzeWithRetry({
+        base64, mediaType, previewUrl, imageSize,
+        cvHints: undefined,
+        onProgress: setProgress,
+      });
+      setProgress('Building scenario...');
       setReview({ scenario, draft, warnings, previewUrl, imageSize, file });
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
@@ -201,26 +264,29 @@ export function AnalyzeFloorPlan({
     }
     setBoostingWithAi(true);
     setStage('analyzing');
-    setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
     try {
       const { base64, mediaType } = await fileToBase64(cvData.file);
+      const imageSize = await measureImage(cvData.previewUrl);
       // Feed CV rects as anchors — the AI can't invent overlapping zones
       // if every emitted rect must back onto a disjoint CV candidate.
       // Null means CV found too little to be trustworthy; fall back to
       // AI-only (the prompt's overlap self-check + hydration hard-reject
       // are still the safety net).
-      const cvHints = cvHintsFromResult(cvData.result);
-      const draft = await analyzeFloorPlan(base64, mediaType, cvHints ?? undefined);
+      const cvHints = cvHintsFromResult(cvData.result) ?? undefined;
+      const { draft, scenario, warnings } = await analyzeWithRetry({
+        base64, mediaType,
+        previewUrl: cvData.previewUrl, imageSize,
+        cvHints,
+        onProgress: setProgress,
+      });
       setProgress('Building scenario...');
-      const imageSize = await measureImage(cvData.previewUrl);
-      const { scenario, warnings } = hydrateDraft(draft, cvData.previewUrl, imageSize);
       // Transfer previewUrl ownership from cvData → review. Don't revoke —
       // hydrated scenario uses it as the editor background.
       setReview({
         scenario, draft, warnings,
         previewUrl: cvData.previewUrl, imageSize,
         file: cvData.file,
-        cvHints: cvHints ?? undefined,
+        cvHints,
       });
       setCvData(null);
       setStage(stageAfterAnalysis(draft));
@@ -308,12 +374,13 @@ export function AnalyzeFloorPlan({
     const cvHints = review.cvHints;
     setError('');
     setStage('analyzing');
-    setProgress('Re-analyzing with Claude Vision...');
     try {
       const { base64, mediaType } = await fileToBase64(file);
-      const draft = await analyzeFloorPlan(base64, mediaType, cvHints);
+      const { draft, scenario, warnings } = await analyzeWithRetry({
+        base64, mediaType, previewUrl, imageSize, cvHints,
+        onProgress: setProgress,
+      });
       setProgress('Building scenario...');
-      const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
       setReview({ scenario, draft, warnings, previewUrl, imageSize, file, cvHints });
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
