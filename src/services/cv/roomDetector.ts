@@ -43,13 +43,18 @@ export interface DetectorOptions {
   readonly adaptiveC?: number;
   /** Iterations of 3×3 morphological closing to seal wall gaps. Default 2. */
   readonly closeIterations?: number;
-  /** Components smaller than this (processed-scale pixels) are discarded. Default 600. */
+  /** Components smaller than this (processed-scale pixels) are discarded. Default 2500.
+   *  Was 600 — raised because it let dimension-line tick marks through (~1000-2000 px²)
+   *  which then poisoned the AI hint list on plans where no actual rooms got detected.
+   *  Real rooms at 2m×2m on a 1500px-wide plan of a 30m building are ~10000 px². */
   readonly minRoomAreaPx?: number;
   /** min(w,h)/max(w,h) below this is discarded. Default 0.08. */
   readonly minAspect?: number;
   /** Regions whose bbox touches within this many px of the image edge are discarded as outdoor/margin. Default 2. */
   readonly borderMargin?: number;
-  /** Downsample any image larger than this many pixels. Default 1_000_000. */
+  /** Downsample any image larger than this many pixels. Default 2_250_000 (≈1500×1500).
+   *  Was 1M — raised because thin 1-2 px walls on moderate-res plans were getting
+   *  blurred into the hatched exterior at 66% downsample, breaking room contours. */
   readonly maxImagePixels?: number;
   /** Per-stage progress hook. */
   readonly onProgress?: (stage: string) => void;
@@ -74,7 +79,7 @@ export async function detectRooms(
   imageUrl: string,
   opts: DetectorOptions = {},
 ): Promise<DetectionResult> {
-  const { maxImagePixels = 1_000_000, onProgress, ...workerOpts } = opts;
+  const { maxImagePixels = 2_250_000, onProgress, ...workerOpts } = opts;
 
   onProgress?.('Reading image...');
   const img = await loadImage(imageUrl);

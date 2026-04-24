@@ -124,7 +124,7 @@ function detect(req: DetectRequest): WorkerRoom[] {
     adaptiveBlockSize = 21,
     adaptiveC = 7,
     closeIterations = 2,
-    minRoomAreaPx = 600,
+    minRoomAreaPx = 2500,
     minAspect = 0.08,
     borderMargin = 2,
   } = req.opts;

@@ -54,15 +54,28 @@ interface ReviewData {
   readonly cvHints?: readonly CvHint[];
 }
 
+/** Minimum CV rooms required before we hand the detection to the AI as anchors.
+ *  Below this threshold the CV pass has almost certainly failed (no walls
+ *  detected → only stray tick marks / dimension labels / artifacts in the list).
+ *  Feeding 1-3 junk rects to the AI is strictly worse than giving it nothing —
+ *  the "use these as anchors" rule would force the AI to produce 1-3 zones
+ *  backing onto artifacts instead of falling back on its own spatial reading. */
+const CV_HINT_MIN_COUNT = 4;
+
 /**
  * Project CV-detected rooms (pixel coords in the original image) into
- * image-relative 0..1 rects for the AI prompt. Inside the AI prompt the
- * model multiplies these by its detected widthMeters/heightMeters so we
- * don't have to pre-commit to a meter interpretation here.
+ * image-relative 0..1 rects for the AI prompt, OR return null when CV
+ * has clearly failed (too few rooms) — the caller then runs the AI-only
+ * path so the model can do its own spatial reading.
+ *
+ * Inside the AI prompt the model multiplies these by its detected
+ * widthMeters/heightMeters so we don't have to pre-commit to a meter
+ * interpretation here.
  */
-function cvHintsFromResult(result: DetectionResult): CvHint[] {
+function cvHintsFromResult(result: DetectionResult): CvHint[] | null {
+  if (result.rooms.length < CV_HINT_MIN_COUNT) return null;
   const { width, height } = result.imageSize;
-  if (!(width > 0) || !(height > 0)) return [];
+  if (!(width > 0) || !(height > 0)) return null;
   return result.rooms.map((r) => ({
     nx: r.bounds.x / width,
     ny: r.bounds.y / height,
@@ -171,14 +184,22 @@ export function AnalyzeFloorPlan({
       const { base64, mediaType } = await fileToBase64(cvData.file);
       // Feed CV rects as anchors — the AI can't invent overlapping zones
       // if every emitted rect must back onto a disjoint CV candidate.
+      // Null means CV found too little to be trustworthy; fall back to
+      // AI-only (the prompt's overlap self-check + hydration hard-reject
+      // are still the safety net).
       const cvHints = cvHintsFromResult(cvData.result);
-      const draft = await analyzeFloorPlan(base64, mediaType, cvHints);
+      const draft = await analyzeFloorPlan(base64, mediaType, cvHints ?? undefined);
       setProgress('Building scenario...');
       const imageSize = await measureImage(cvData.previewUrl);
       const { scenario, warnings } = hydrateDraft(draft, cvData.previewUrl, imageSize);
       // Transfer previewUrl ownership from cvData → review. Don't revoke —
       // hydrated scenario uses it as the editor background.
-      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize, file: cvData.file, cvHints });
+      setReview({
+        scenario, draft, warnings,
+        previewUrl: cvData.previewUrl, imageSize,
+        file: cvData.file,
+        cvHints: cvHints ?? undefined,
+      });
       setCvData(null);
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
