@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Ruler, RotateCcw } from 'lucide-react';
+import { Ruler, RotateCcw, AlertTriangle } from 'lucide-react';
 import type { DraftScale } from '@/services/ai/types';
 
 type Point = { readonly x: number; readonly y: number };
@@ -69,6 +69,12 @@ export function ScaleCalibrator({ imageUrl, imageSize, current, onApply, onCance
     ? `${imageSize.width} / ${imageSize.height}`
     : '4 / 3';
 
+  // When we got here because the AI couldn't read any dimension off the
+  // plan (confidence === 'assumed'), surface a banner explaining the jump.
+  // Otherwise the user — who clicked "Recalibrate" or just opened the
+  // calibrator — doesn't need the explanation.
+  const autoOpened = current.confidence === 'assumed';
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -82,6 +88,15 @@ export function ScaleCalibrator({ imageUrl, imageSize, current, onApply, onCance
           </p>
         </div>
       </div>
+
+      {autoOpened && (
+        <div className="flex items-start gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-2.5">
+          <AlertTriangle className="w-3.5 h-3.5 text-yellow-400 shrink-0 mt-0.5" />
+          <p className="text-[11px] text-yellow-100/90 leading-relaxed">
+            No dimensions were readable on this plan — the scale is a guess. Pick any known distance (a door ≈ 0.9 m, a parking stall ≈ 5 m) to set it.
+          </p>
+        </div>
+      )}
 
       <div
         className="relative w-full rounded-xl overflow-hidden border border-border bg-black/20 select-none"

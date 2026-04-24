@@ -15,6 +15,22 @@ import { CvRoomPreview } from './CvRoomPreview';
 
 type Stage = 'idle' | 'analyzing' | 'review' | 'calibrating' | 'cv_review';
 
+/**
+ * Auto-routing decision after AI analysis completes.
+ *
+ * When Claude couldn't read any dimension and fell back to the 15m guess
+ * (confidence === 'assumed'), the emitted rect sizes are almost certainly
+ * wrong. Jumping straight into the calibrator saves the user from having
+ * to (a) notice the red "assumed" badge, (b) click "Recalibrate" to get
+ * here anyway — and reduces the chance they proceed with garbage scale.
+ *
+ * The calibrator's Cancel button still returns to 'review' so the user
+ * can opt out and accept the guess if they really want to.
+ */
+function stageAfterAnalysis(draft: DraftScenario): Stage {
+  return draft.scale?.confidence === 'assumed' ? 'calibrating' : 'review';
+}
+
 function measureImage(url: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -71,7 +87,7 @@ export function AnalyzeFloorPlan({
       const imageSize = await measureImage(previewUrl);
       const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
       setReview({ scenario, draft, warnings, previewUrl, imageSize });
-      setStage('review');
+      setStage(stageAfterAnalysis(draft));
     } catch (err) {
       URL.revokeObjectURL(previewUrl);
       const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);
@@ -138,7 +154,7 @@ export function AnalyzeFloorPlan({
       // hydrated scenario uses it as the editor background.
       setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize });
       setCvData(null);
-      setStage('review');
+      setStage(stageAfterAnalysis(draft));
     } catch (err) {
       const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -187,7 +203,7 @@ export function AnalyzeFloorPlan({
       previewUrl: SAMPLE_IMAGE_PATH,
       imageSize: { width: SAMPLE_IMAGE_NATURAL.width, height: SAMPLE_IMAGE_NATURAL.height },
     });
-    setStage('review');
+    setStage(stageAfterAnalysis(fx.draft));
   }, []);
 
   const applyCalibration = useCallback((scale: DraftScale) => {
