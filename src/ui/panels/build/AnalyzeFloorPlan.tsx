@@ -3,7 +3,7 @@ import { X, Sparkles, Upload, AlertCircle, Key, Loader2, Ruler, FlaskConical, Sc
 import { useStore } from '@/stores';
 import {
   analyzeFloorPlan, fileToBase64, getStoredApiKey, setStoredApiKey, isProxyMode,
-  AIClientError,
+  AIClientError, type CvHint,
 } from '@/services/ai/anthropicClient';
 import { hydrateDraft, rescaleDraft } from '@/services/ai/hydrate';
 import type { DraftScale, DraftScenario, HydrationWarning } from '@/services/ai/types';
@@ -49,6 +49,26 @@ interface ReviewData {
   /** Original upload — kept so the review screen can offer "Re-analyze" when
    *  the hydration flags errors (e.g. overlap). Absent for sample fixtures. */
   readonly file?: File;
+  /** CV candidate rects carried over from the boost flow so Re-analyze uses
+   *  the same hints. Absent for direct-upload (non-CV) path. */
+  readonly cvHints?: readonly CvHint[];
+}
+
+/**
+ * Project CV-detected rooms (pixel coords in the original image) into
+ * image-relative 0..1 rects for the AI prompt. Inside the AI prompt the
+ * model multiplies these by its detected widthMeters/heightMeters so we
+ * don't have to pre-commit to a meter interpretation here.
+ */
+function cvHintsFromResult(result: DetectionResult): CvHint[] {
+  const { width, height } = result.imageSize;
+  if (!(width > 0) || !(height > 0)) return [];
+  return result.rooms.map((r) => ({
+    nx: r.bounds.x / width,
+    ny: r.bounds.y / height,
+    nw: r.bounds.w / width,
+    nh: r.bounds.h / height,
+  }));
 }
 
 export function AnalyzeFloorPlan({
@@ -149,13 +169,16 @@ export function AnalyzeFloorPlan({
     setProgress('Analyzing with Claude Vision — this takes 10-30 seconds...');
     try {
       const { base64, mediaType } = await fileToBase64(cvData.file);
-      const draft = await analyzeFloorPlan(base64, mediaType);
+      // Feed CV rects as anchors — the AI can't invent overlapping zones
+      // if every emitted rect must back onto a disjoint CV candidate.
+      const cvHints = cvHintsFromResult(cvData.result);
+      const draft = await analyzeFloorPlan(base64, mediaType, cvHints);
       setProgress('Building scenario...');
       const imageSize = await measureImage(cvData.previewUrl);
       const { scenario, warnings } = hydrateDraft(draft, cvData.previewUrl, imageSize);
       // Transfer previewUrl ownership from cvData → review. Don't revoke —
       // hydrated scenario uses it as the editor background.
-      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize, file: cvData.file });
+      setReview({ scenario, draft, warnings, previewUrl: cvData.previewUrl, imageSize, file: cvData.file, cvHints });
       setCvData(null);
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
@@ -220,6 +243,7 @@ export function AnalyzeFloorPlan({
       previewUrl: review.previewUrl,
       imageSize: review.imageSize,
       file: review.file,
+      cvHints: review.cvHints,
     });
     setStage('review');
   }, [review]);
@@ -237,15 +261,16 @@ export function AnalyzeFloorPlan({
     const file = review.file;
     const previewUrl = review.previewUrl;
     const imageSize = review.imageSize;
+    const cvHints = review.cvHints;
     setError('');
     setStage('analyzing');
     setProgress('Re-analyzing with Claude Vision...');
     try {
       const { base64, mediaType } = await fileToBase64(file);
-      const draft = await analyzeFloorPlan(base64, mediaType);
+      const draft = await analyzeFloorPlan(base64, mediaType, cvHints);
       setProgress('Building scenario...');
       const { scenario, warnings } = hydrateDraft(draft, previewUrl, imageSize);
-      setReview({ scenario, draft, warnings, previewUrl, imageSize, file });
+      setReview({ scenario, draft, warnings, previewUrl, imageSize, file, cvHints });
       setStage(stageAfterAnalysis(draft));
     } catch (err) {
       const msg = err instanceof AIClientError ? err.message : err instanceof Error ? err.message : String(err);

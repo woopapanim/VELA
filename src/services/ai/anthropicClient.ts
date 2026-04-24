@@ -1,8 +1,25 @@
 import type { DraftScenario } from './types';
-import { SYSTEM_PROMPT, EMIT_SCENARIO_TOOL, USER_MESSAGE_TEXT } from './prompt';
+import { SYSTEM_PROMPT, EMIT_SCENARIO_TOOL, USER_MESSAGE_TEXT, buildUserMessage } from './prompt';
+
+/**
+ * CV-detected candidate rect, in image-relative 0..1 coordinates.
+ * The AI uses these as geometric anchors so it can't invent overlapping
+ * rects — it merges adjacent CVs or skips utility ones, but doesn't
+ * produce rects outside the CV set.
+ */
+export interface CvHint {
+  readonly nx: number;
+  readonly ny: number;
+  readonly nw: number;
+  readonly nh: number;
+}
 
 const API_KEY_STORAGE = 'vela-anthropic-key';
-const API_MODEL = 'claude-opus-4-7';
+// Sonnet is ~5× cheaper than Opus and the floor-plan task is mostly
+// pattern-matching + label inference (not deep reasoning) once CV hints
+// anchor the geometry. The CV+hint pipeline makes the model's job a
+// typing/merging problem, not a spatial-reasoning problem.
+const API_MODEL = 'claude-sonnet-4-7';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
@@ -44,7 +61,11 @@ export function isProxyMode(): boolean {
  * SaaS: set VITE_AI_PROXY_URL at build time — the request then hits your
  * backend which holds the service API key and enforces auth/rate-limits.
  */
-export async function analyzeFloorPlan(imageBase64: string, mediaType: string): Promise<DraftScenario> {
+export async function analyzeFloorPlan(
+  imageBase64: string,
+  mediaType: string,
+  cvHints?: readonly CvHint[],
+): Promise<DraftScenario> {
   const body = {
     model: API_MODEL,
     max_tokens: 4096,
@@ -58,7 +79,10 @@ export async function analyzeFloorPlan(imageBase64: string, mediaType: string): 
           type: 'image',
           source: { type: 'base64', media_type: mediaType, data: imageBase64 },
         },
-        { type: 'text', text: USER_MESSAGE_TEXT },
+        {
+          type: 'text',
+          text: cvHints && cvHints.length > 0 ? buildUserMessage(cvHints) : USER_MESSAGE_TEXT,
+        },
       ],
     }],
   };

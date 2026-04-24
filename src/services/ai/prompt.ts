@@ -64,6 +64,16 @@ ZONE KEYS
 - Use short snake_case slugs: "reception", "treatment_bay", "kids_area".
 - Must be unique within the scenario.
 
+CV CANDIDATE RECTS (when provided)
+- If the user message includes a "CV CANDIDATE RECTS" list, treat those rectangles as the ANCHORS for every zone you emit. They are bounding boxes of rooms detected by a classical computer-vision pass over the same image, in image-relative coordinates (0..1 for x/y/w/h; multiply by widthMeters / heightMeters to get meters).
+- HARD RULES when CV rects are provided:
+  1. Every emitted zone's rect MUST correspond to one or more CV candidates — either a single candidate, or the union of ≥2 ADJACENT candidates that you believe are a single room the CV pass over-split (e.g. an L-shape that got cut in half by an interior wall stub). Do NOT emit a zone whose rect has no CV backing.
+  2. You MAY skip CV candidates that are utility rooms (restroom, storage, mechanical, closet) — same skip rule as without CV.
+  3. You MAY shrink a CV rect slightly (5-10%) if it visibly bleeds past the drawn wall, but do NOT grow it. CV rects are already conservative.
+  4. If you merge N CV candidates, the emitted rect is their axis-aligned union (min-x, min-y, max-x, max-y across all of them). For true L-shapes, also emit the polygon tracing the real footprint.
+  5. Zone count ≤ number of CV candidates. Usually it's fewer (you merged some or skipped utilities).
+- The overlap self-check still applies to your OUTPUT zones: two emitted zones must not overlap. CV candidates themselves are disjoint by construction, so if you obey rule (1) without inflating, you are mathematically safe.
+
 SELF-CHECK (mentally run through this list BEFORE calling emit_scenario):
 1. Scale arithmetic: does widthMeters match the sum of your read dimensions? If the largest dimension string you read was 45m, widthMeters of 67 is WRONG — either a rounding mistake or you mis-counted segments.
 2. Non-overlap arithmetic: for every pair (A, B), compute ox = max(0, min(A.x+A.w, B.x+B.w) - max(A.x, B.x)) and oy = max(0, min(A.y+A.h, B.y+B.h) - max(A.y, B.y)). Any pair with ox > 0 AND oy > 0 is overlapping — shrink until no pair overlaps. Zero tolerance; 1% overlap is still overlap.
@@ -149,3 +159,27 @@ export const EMIT_SCENARIO_TOOL = {
 
 export const USER_MESSAGE_TEXT =
   'Analyze this floor plan and emit a DraftScenario via the emit_scenario tool. Extract every visitor-facing room as a zone with an accurate rect in meters — skip utility rooms. The floor plan image will be preserved as a background overlay so the user can verify and refine zone shapes. Do NOT emit media, waypoints, or edges — those are added by the user after loading.';
+
+/**
+ * Build the user message with CV candidate rects appended. Used by the
+ * hybrid CV+AI path: CV detects rect regions from the walls (guaranteed
+ * disjoint because they're connected components of the floorplan binary
+ * image), and those rects are passed as anchors so the AI can't invent
+ * overlapping geometry.
+ *
+ * Rects are expected in image-relative 0..1 coordinates. The AI multiplies
+ * by its detected widthMeters/heightMeters to produce meter-space output.
+ */
+export function buildUserMessage(cvHints: readonly { nx: number; ny: number; nw: number; nh: number }[]): string {
+  const lines: string[] = [USER_MESSAGE_TEXT, '', 'CV CANDIDATE RECTS (image-relative 0..1; multiply by widthMeters/heightMeters for meters):'];
+  cvHints.forEach((r, i) => {
+    lines.push(
+      `  #${i + 1}  x=${r.nx.toFixed(3)}  y=${r.ny.toFixed(3)}  w=${r.nw.toFixed(3)}  h=${r.nh.toFixed(3)}`,
+    );
+  });
+  lines.push(
+    '',
+    'USE THESE AS ANCHORS. Every emitted zone must correspond to one CV candidate or the union of ≥2 adjacent candidates that are really one room. Skip utility candidates. Do NOT emit a zone whose rect has no CV backing.',
+  );
+  return lines.join('\n');
+}
