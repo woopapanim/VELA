@@ -116,9 +116,6 @@ export const ko: Dict = {
   'context.duplicate': '복제',
   'context.edit': '편집',
 
-  // Main layout — zone list
-  'mainLayout.dragHandle': '드래그하여 순서 변경',
-
   // Sensitivity panel — dynamic recommendations
   'sensitivity.rec.expandEntrance':
     '수용 인원을 {capacity}으로 확대 시 병목 {percent}% 감소 예상',
@@ -257,7 +254,7 @@ export const ko: Dict = {
   'tooltip.visitors':
     '방문객 프로필 설정 패널입니다. 시뮬레이션 인구의 인구학적 비율, 참여도, 그룹 크기 분포, 인내심과 보행 속도 같은 행동 파라미터를 조정합니다.',
   'tooltip.zones':
-    '동선 순서에 따라 정렬된 전시 존 목록입니다. 입구(Entrance)는 항상 첫 번째, 출구(Exit)는 항상 마지막에 위치합니다. 중간 존은 드래그하여 순서를 바꿀 수 있으며, 클릭하면 해당 존이 편집 대상으로 선택됩니다. 괄호 안의 숫자는 전체 존 개수를 의미합니다.',
+    '전시 존 목록입니다. 입구(Entrance)는 항상 첫 번째, 출구(Exit)는 항상 마지막에 위치합니다. 클릭하면 해당 존이 편집 대상으로 선택됩니다. 괄호 안의 숫자는 전체 존 개수를 의미합니다.',
 
   // Media editor — field tooltips
   'tooltip.media.orientation':

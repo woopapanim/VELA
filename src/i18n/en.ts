@@ -120,9 +120,6 @@ export const en: Dict = {
   'context.duplicate': 'Duplicate',
   'context.edit': 'Edit',
 
-  // Main layout — zone list
-  'mainLayout.dragHandle': 'Drag to reorder',
-
   // Sensitivity panel — dynamic recommendations
   'sensitivity.rec.expandEntrance':
     'Expanding capacity to {capacity} projected to reduce bottleneck by {percent}%',
@@ -283,7 +280,7 @@ export const en: Dict = {
   'tooltip.visitors':
     'Visitor profile configuration. Adjusts demographic proportions, engagement levels, group size distribution, and behavioral parameters such as patience and walking speed for the simulated population.',
   'tooltip.zones':
-    'List of exhibition zones in flow order. Entrance is always first and Exit is always last. Middle zones can be dragged to reorder, and clicking a zone selects it for editing. The number in parentheses is the total zone count.',
+    'List of exhibition zones. Entrance is always first and Exit is always last. Click a zone to select it for editing. The number in parentheses is the total zone count.',
 
   // Media editor — field tooltips
   'tooltip.media.orientation':
