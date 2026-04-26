@@ -9,6 +9,7 @@ import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
 import { SpawnConfig } from '../panels/build/SpawnConfig';
+import { OperationsPanel } from '../panels/build/OperationsPanel';
 import { ExperienceModePanel } from '../panels/build/ExperienceModePanel';
 import { RegionsPanel } from '../panels/build/RegionsPanel';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
@@ -108,6 +109,8 @@ export function MainLayout() {
             <MediaEditor />
 
             <ZoneListDragDrop />
+
+            <OperationsPanel />
 
             <div className="bento-box p-4">
               <h2 className="panel-section mb-3 flex items-center gap-1.5">

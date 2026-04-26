@@ -6,6 +6,7 @@ import { VisitorPresets } from './VisitorPresets';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
+import { EXPERIENCE_MODE_REGISTRY, inferExperienceMode } from '@/domain';
 
 export function SpawnConfig() {
   const scenario = useStore((s) => s.scenario);
@@ -18,6 +19,13 @@ export function SpawnConfig() {
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
   const config = scenario?.simulationConfig;
+  // Phase 1 UX (2026-04-26): 운영 tier 는 시간 모드 강제 + 토글 숨김. 검증 tier 만 노출.
+  // 운영 tier 에선 EXPERIENCE_MODE_POLICY_DEFAULTS / handleSelect 가 simulationMode='time' 강제.
+  const expMode = scenario?.experienceMode
+    ?? inferExperienceMode(scenario?.simulationConfig.operations?.entryPolicy?.mode);
+  const showModeToggle = scenario
+    ? EXPERIENCE_MODE_REGISTRY[expMode].tier === 'validation'
+    : true;
   // Default to auto for legacy scenarios (undefined → true). Only explicit `false` opts out.
   const recAuto = config?.recommendedDurationAuto !== false;
   const autoRecMs = computeAutoRecommendedDurationMs(zones.length, media.length);
@@ -97,35 +105,37 @@ export function SpawnConfig() {
       </CollapsibleSection>
 
       <CollapsibleSection id="spawn-settings" title="Spawn Settings" defaultOpen>
-        <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
-          <div className="text-[9px] text-muted-foreground mb-1">{t('spawn.mode.label')}</div>
-          <div className="grid grid-cols-2 gap-1">
-            <button
-              onClick={() => setMode('time')}
-              disabled={isLocked}
-              title={t('spawn.mode.timeHint')}
-              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
-                mode === 'time'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-transparent border-border hover:border-primary/50'
-              }`}
-            >
-              {t('spawn.mode.time')}
-            </button>
-            <button
-              onClick={() => setMode('person')}
-              disabled={isLocked}
-              title={t('spawn.mode.personHint')}
-              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
-                mode === 'person'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-transparent border-border hover:border-primary/50'
-              }`}
-            >
-              {t('spawn.mode.person')}
-            </button>
+        {showModeToggle && (
+          <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
+            <div className="text-[9px] text-muted-foreground mb-1">{t('spawn.mode.label')}</div>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                onClick={() => setMode('time')}
+                disabled={isLocked}
+                title={t('spawn.mode.timeHint')}
+                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                  mode === 'time'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-transparent border-border hover:border-primary/50'
+                }`}
+              >
+                {t('spawn.mode.time')}
+              </button>
+              <button
+                onClick={() => setMode('person')}
+                disabled={isLocked}
+                title={t('spawn.mode.personHint')}
+                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                  mode === 'person'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-transparent border-border hover:border-primary/50'
+                }`}
+              >
+                {t('spawn.mode.person')}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <NumField
             label="Total Visitors"

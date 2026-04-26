@@ -32,6 +32,7 @@ import { AgentJourney } from './AgentJourney';
 import { NodeTraffic } from './NodeTraffic';
 import { EngagementHistogram } from './EngagementHistogram';
 import { ExperienceQuality } from './ExperienceQuality';
+import { EntryQueueLive } from './EntryQueueLive';
 import { ZoneMediaPerformance } from './ZoneMediaPerformance';
 import { FlowVsExperience } from './FlowVsExperience';
 import { PinTimeline } from './PinTimeline';
@@ -234,6 +235,7 @@ export function AnalyticsPanel() {
 
       {tab === 'experience' && (
         <div className="space-y-3">
+          <EntryQueueLive />
           <EngagementHistogram />
           <ExperienceQuality />
           <ZoneMediaPerformance />
