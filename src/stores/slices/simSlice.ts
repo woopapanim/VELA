@@ -9,7 +9,7 @@ export interface ShaftQueueSnapshot {
 
 // Phase 1 (2026-04-25): 외부 입장 큐의 노드별 집계.
 // EntryController.peekQueue() 결과를 spawnEntryNodeId 별로 묶은 라이브 스냅샷.
-// OutsideQueueRenderer + OperationsPanel KPI 라이브 표시에 사용.
+// OutsideQueueRenderer + EntryQueueLive KPI 라이브 표시에 사용.
 export interface EntryQueueNodeBucket {
   /** 해당 entry node 에서 대기 중인 인원 수. */
   count: number;

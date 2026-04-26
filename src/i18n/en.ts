@@ -479,7 +479,7 @@ export const en: Dict = {
   'experience.queue.titleHint':
     'Outside-queue status when an entry policy is active.\n' +
     'Configure the policy in "Settings" (left), analyze the outcome here.',
-  'experience.queue.unlimited': 'Unlimited entry policy — no outside queue. Activate a policy in OperationsPanel (left) to see KPIs.',
+  'experience.queue.unlimited': 'Unlimited entry policy — no outside queue. Pick an Experience Mode (left) with a non-unlimited policy to see KPIs.',
   'experience.queue.idleHint': 'Pre-sim — counters fill once you press Start.',
   'experience.queue.arrived': 'Arrived',
   'experience.queue.admitted': 'Admitted',

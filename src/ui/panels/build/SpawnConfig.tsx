@@ -21,7 +21,7 @@ export function SpawnConfig() {
   const config = scenario?.simulationConfig;
   // Phase 1 (2026-04-25): non-unlimited 정책은 큐 동작 보장을 위해 time-mode 강제.
   // person-mode 는 totalCount 도달 시 generation 정지 → 정책 sweep 의미 사라짐.
-  // OperationsPanel 의 writePolicy 에서 자동 flip 도 같이 수행 (이중 안전).
+  // ExperienceModePanel 의 모드 선택 핸들러에서도 자동 flip 수행 (이중 안전).
   const policyMode = config?.operations?.entryPolicy?.mode ?? 'unlimited';
   const policyForcesTime = policyMode !== 'unlimited';
   // Phase 1 UX (2026-04-26): 운영 tier 는 시간 모드 강제 + 토글 숨김. 검증 tier 는 자유.

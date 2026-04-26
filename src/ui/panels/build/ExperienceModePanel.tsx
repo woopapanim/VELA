@@ -8,17 +8,22 @@
  * - 8 모드 (활성 5 + disabled 3) 모두 노출, disabled 는 Lock + tooltip
  * - 모드 변경 시 사용자 customization 검출 → confirm dialog
  * - 운영 tier + non-unlimited 정책 → simulationMode 'time' 강제 (큐 invariant)
+ * - 운영 tier + non-unlimited 모드 선택 시 정책 파라미터 (cap / rate / slot / patience) +
+ *   SweepLauncher 를 같은 패널 내 inline 으로 노출 (#1 입장 정책 흡수, 2026-04-26).
  *
  * 시뮬 진행 중 (phase !== 'idle') 잠금 — 정책 도중 변경 = invariant 깨짐.
  *
- * 관련 spec: docs/specs/phase-1-experience-modes.md §5
+ * 관련 spec: docs/specs/phase-1-experience-modes.md §5, docs/specs/phase-1-operations-policy.md §3
  */
 
+import { useCallback } from 'react';
 import { Lock } from 'lucide-react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
+import { NumField } from '@/ui/components/ConfigFields';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { SweepLauncher } from './SweepLauncher';
 import {
   EXPERIENCE_MODE_REGISTRY,
   EXPERIENCE_MODES_BY_TIER,
@@ -28,8 +33,6 @@ import {
   type ExperienceMode,
   type ExperienceModeTier,
 } from '@/domain';
-// operations.ts is the Phase 1 engine layer (separate prior commit). Imported via
-// explicit path to keep the experienceMode barrel addition self-contained.
 import {
   DEFAULT_OPERATIONS_CONFIG,
   type EntryPolicy,
@@ -64,12 +67,34 @@ export function ExperienceModePanel() {
   const phase = useStore((s) => s.phase);
   const isLocked = phase !== 'idle';
 
+  const setField = useCallback(<K extends keyof EntryPolicy>(key: K, value: EntryPolicy[K]) => {
+    if (!scenario || isLocked) return;
+    const ops = scenario.simulationConfig.operations ?? DEFAULT_OPERATIONS_CONFIG;
+    setScenario({
+      ...scenario,
+      simulationConfig: {
+        ...scenario.simulationConfig,
+        operations: {
+          ...ops,
+          entryPolicy: { ...ops.entryPolicy, [key]: value },
+        },
+      },
+    });
+  }, [scenario, setScenario, isLocked]);
+
   if (!scenario) return null;
 
   // 명시 저장값 우선, 없으면 기존 entryPolicy 에서 추론 (마이그레이션 경로).
   const currentMode: ExperienceMode = scenario.experienceMode
     ?? inferExperienceMode(scenario.simulationConfig.operations?.entryPolicy?.mode);
   const currentMeta = EXPERIENCE_MODE_REGISTRY[currentMode];
+  const isOperationsTier = currentMeta.tier === 'operations';
+
+  const policy = (scenario.simulationConfig.operations ?? DEFAULT_OPERATIONS_CONFIG).entryPolicy;
+  const showConcurrent = policy.mode === 'concurrent-cap' || policy.mode === 'hybrid';
+  const showRate = policy.mode === 'rate-limit';
+  const showSlot = policy.mode === 'time-slot' || policy.mode === 'hybrid';
+  const showWait = policy.mode !== 'unlimited';
 
   const handleSelect = (next: ExperienceMode) => {
     if (next === currentMode || isLocked) return;
@@ -180,6 +205,153 @@ export function ExperienceModePanel() {
           );
         })}
       </div>
+
+      {/* ── 입장 정책 파라미터 (운영 tier + non-unlimited 일 때만) ─────────────
+          이전엔 별도 OperationsPanel 이었으나, 모드 picker 가 ExperienceMode 와
+          중복돼 #1 작업 (2026-04-26) 에서 이 패널로 흡수. 모드는 위 picker 가
+          결정하고, 여기선 그 모드의 cap/slot/patience 파라미터만 노출. */}
+      {isOperationsTier && showWait && (
+        <div className="mt-3 pt-3 border-t border-border/40">
+          <CollapsibleSection
+            id="experienceMode-params"
+            title={`${t('ops.title')} — ${t(`ops.mode.${policy.mode}`)}`}
+            defaultOpen
+          >
+            <div className="grid grid-cols-2 gap-2">
+              {showConcurrent && (
+                <NumField
+                  label={t('ops.field.maxConcurrent')}
+                  value={policy.maxConcurrent ?? 200}
+                  onChange={(v) => setField('maxConcurrent', Math.max(1, Math.round(v)))}
+                  disabled={isLocked}
+                  step={10}
+                />
+              )}
+              {showRate && (
+                <NumField
+                  label={t('ops.field.maxPerHour')}
+                  value={policy.maxPerHour ?? 240}
+                  onChange={(v) => setField('maxPerHour', Math.max(1, Math.round(v)))}
+                  disabled={isLocked}
+                  step={10}
+                />
+              )}
+              {showSlot && (
+                <>
+                  <NumField
+                    label={t('ops.field.slotDurationMin')}
+                    value={Math.max(1, Math.round((policy.slotDurationMs ?? 1_800_000) / 60_000))}
+                    onChange={(v) => setField('slotDurationMs', Math.max(1, Math.round(v)) * 60_000)}
+                    disabled={isLocked}
+                    step={5}
+                  />
+                  <NumField
+                    label={t('ops.field.perSlotCap')}
+                    value={policy.perSlotCap ?? 80}
+                    onChange={(v) => setField('perSlotCap', Math.max(1, Math.round(v)))}
+                    disabled={isLocked}
+                    step={5}
+                  />
+                </>
+              )}
+              <div className="col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[9px] text-muted-foreground">{t('ops.field.maxWaitMin')}</span>
+                  <InfoTooltip text={t('ops.patienceGuide')} />
+                </div>
+                <NumField
+                  label=""
+                  value={Math.max(1, Math.round((policy.maxWaitBeforeAbandonMs ?? 1_800_000) / 60_000))}
+                  onChange={(v) => setField('maxWaitBeforeAbandonMs', Math.max(1, Math.round(v)) * 60_000)}
+                  disabled={isLocked}
+                  step={5}
+                />
+              </div>
+            </div>
+
+            {/* ── 인내심 분포 모델 토글 + σ (% of mean) 입력 ── */}
+            <div className="mt-2 px-2 py-1.5 rounded bg-secondary/30 border border-border/50">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[9px] font-medium">{t('ops.patienceModelLabel')}</span>
+                <InfoTooltip text={t('ops.patienceModelHint')} />
+              </div>
+              <div className="grid grid-cols-2 gap-1 mb-1.5">
+                <button
+                  onClick={() => setField('patienceModel', 'fixed')}
+                  disabled={isLocked}
+                  className={`px-1.5 py-1 rounded text-[10px] border transition-colors disabled:opacity-50 ${
+                    (policy.patienceModel ?? 'fixed') === 'fixed'
+                      ? 'bg-primary/15 border-primary/40 text-foreground'
+                      : 'bg-transparent border-border hover:border-primary/30'
+                  }`}
+                >
+                  {t('ops.patienceModel.fixed')}
+                </button>
+                <button
+                  onClick={() => setField('patienceModel', 'normal')}
+                  disabled={isLocked}
+                  className={`px-1.5 py-1 rounded text-[10px] border transition-colors disabled:opacity-50 ${
+                    policy.patienceModel === 'normal'
+                      ? 'bg-primary/15 border-primary/40 text-foreground'
+                      : 'bg-transparent border-border hover:border-primary/30'
+                  }`}
+                >
+                  {t('ops.patienceModel.normal')}
+                </button>
+              </div>
+              {policy.patienceModel === 'normal' && (() => {
+                const meanMs = policy.maxWaitBeforeAbandonMs ?? 1_800_000;
+                const stdMs = policy.patienceStdMs ?? Math.round(meanMs * 0.3);
+                const stdPct = Math.max(1, Math.round((stdMs / meanMs) * 100));
+                return (
+                  <NumField
+                    label={t('ops.field.patienceStdPct')}
+                    value={stdPct}
+                    onChange={(v) => {
+                      const pct = Math.max(1, Math.min(80, Math.round(v)));
+                      setField('patienceStdMs', Math.round(meanMs * (pct / 100)));
+                    }}
+                    disabled={isLocked}
+                    step={5}
+                  />
+                );
+              })()}
+            </div>
+
+            {/* ── (선택) 프로필/참여도 배수 opt-in ── */}
+            <div className="mt-2 px-2 py-1.5 rounded bg-secondary/30 border border-border/50">
+              <label className="flex items-start gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={policy.patienceUseModifiers === true}
+                  onChange={(e) => setField('patienceUseModifiers', e.target.checked)}
+                  disabled={isLocked}
+                  className="mt-0.5 cursor-pointer disabled:opacity-50"
+                />
+                <span className="text-[9px] font-medium leading-tight">
+                  {t('ops.useModifiersLabel')}
+                  <InfoTooltip text={t('ops.useModifiersHint')} />
+                </span>
+              </label>
+              {policy.patienceUseModifiers === true && (
+                <p className="text-[8px] text-muted-foreground mt-1.5 leading-tight whitespace-pre-line">
+                  {t('ops.patienceProfileNote')}
+                </p>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* ── cap sweep 도구 (자체적으로 unlimited 면 null 반환) ── */}
+          <div className="mt-3">
+            <SweepLauncher />
+          </div>
+
+          {/* ── 라이브 큐 → Experience 탭으로 이동 (Phase 1+, 2026-04-26) ── */}
+          <p className="text-[9px] text-muted-foreground italic mt-2">
+            {t('ops.liveMovedHint')}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

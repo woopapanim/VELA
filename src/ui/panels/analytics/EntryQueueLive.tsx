@@ -1,8 +1,8 @@
 /**
  * EntryQueueLive — 외부 입장 큐 라이브 KPI (Phase 1+, 2026-04-26)
  *
- * 위치: 우측 분석 패널의 Experience 탭. 좌측 OperationsPanel (셋팅) 과 분리.
- * - "셋팅" = 정책 입력 (모드/cap/인내심)
+ * 위치: 우측 분석 패널의 Experience 탭. 좌측 ExperienceModePanel (셋팅) 과 분리.
+ * - "셋팅" = 모드 선택 + 정책 파라미터 (cap/슬롯/인내심)
  * - "분석" (이 컴포넌트) = 그 정책의 결과 — 대기열, 대기시간, 포기, throughput
  *
  * 정책이 'unlimited' 이면 큐 자체가 비어 있어 placeholder 안내 표시.

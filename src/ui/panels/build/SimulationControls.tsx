@@ -143,7 +143,7 @@ export function SimulationControls() {
       setShaftQueues(eng.getShaftQueueState());
 
       // Phase 1: outside entry queue snapshot — group peeked items by spawnEntryNodeId
-      // so OutsideQueueRenderer can draw per-node dot rings + OperationsPanel can show KPIs.
+      // so OutsideQueueRenderer can draw per-node dot rings + EntryQueueLive can show KPIs.
       // Cheap when policy is 'unlimited' (queue is always empty).
       const queueItems = eng.peekEntryQueue();
       const queueSnap = eng.getEntryQueueSnapshot();

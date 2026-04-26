@@ -2,7 +2,7 @@
  * SweepLauncher — Phase 1 UX [F2b] (2026-04-26)
  *
  * 운영 tier 모드에서 cap 파라미터를 직접 sweep 해보고 만족도 최적값을
- * 추천받는 UI 패널. OperationsPanel 안에 collapsible 로 마운트.
+ * 추천받는 UI 패널. ExperienceModePanel 의 파라미터 섹션 아래에 마운트.
  *
  * 흐름:
  *   1. 사용자가 sweep 대상 파라미터 선택 (현재 policy.mode 와 호환되는 후보만 노출)

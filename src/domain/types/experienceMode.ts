@@ -131,7 +131,7 @@ export function experienceModeTier(mode: ExperienceMode): ExperienceModeTier {
 // ── 모드별 EntryPolicy default ──────────────────────────
 //
 // 모드 선택/변경 시 entryPolicy 가 이 default 로 reset.
-// 사용자가 OperationsPanel 에서 미세 조정한 값은 보호 (모드 변경 시 confirmation).
+// 사용자가 ExperienceModePanel 의 파라미터에서 미세 조정한 값은 보호 (모드 변경 시 confirmation).
 //
 // 검증 tier 는 모두 unlimited (큐 미발생, 동선/체류만 측정).
 // 운영 tier 는 모드별 의도에 맞는 정책.
@@ -174,7 +174,7 @@ export const EXPERIENCE_MODE_POLICY_DEFAULTS: Readonly<Record<ExperienceMode, En
 // ── 모드별 만족도 가중치 default ─────────────────────────
 //
 // 각 모드의 _의도_ 가 다르므로 만족도 4 요소 (혼잡 / 체류 / 대기 / 체험완주) 가중치도 다름.
-// 사용자는 OperationsPanel 의 가중치 슬라이더로 미세 조정 가능 (default 는 아래).
+// 사용자는 ExperienceModePanel 의 가중치 슬라이더로 미세 조정 가능 (default 는 아래).
 //
 // 검증 tier: wait 0 (큐 미발생). 모드별로 핵심 KPI 가중.
 // 운영 tier: wait 가중 ↑, free 계열은 crowd ↑, controlled 는 wait ↑↑.

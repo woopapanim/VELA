@@ -453,7 +453,7 @@ export const ko: Dict = {
   'experience.queue.titleHint':
     '입장 정책이 활성화된 경우의 외부 대기열 현황.\n' +
     '"셋팅"(좌측) 에서 정책을 입력하고, 그 결과를 여기서 분석합니다.',
-  'experience.queue.unlimited': '입장 정책이 무제한 — 외부 대기열 없음. 좌측 OperationsPanel 에서 정책 활성화 시 KPI 표시됨.',
+  'experience.queue.unlimited': '입장 정책이 무제한 — 외부 대기열 없음. 좌측 체험 모드에서 정책 있는 모드 선택 시 KPI 표시됨.',
   'experience.queue.idleHint': '시뮬 시작 전 — Start 누르면 도착/입장 카운터 채워집니다.',
   'experience.queue.arrived': '도착',
   'experience.queue.admitted': '입장',
