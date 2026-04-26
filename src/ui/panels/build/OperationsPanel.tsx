@@ -19,6 +19,7 @@ import { useT } from '@/i18n';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
+import { SweepLauncher } from './SweepLauncher';
 import {
   DEFAULT_OPERATIONS_CONFIG,
   DEFAULT_POLICY_PARAMS,
@@ -254,6 +255,13 @@ export function OperationsPanel() {
             </div>
           )}
         </CollapsibleSection>
+      )}
+
+      {/* ── Phase 1 UX [F2b] (2026-04-26): cap sweep 도구 — 운영 tier 전용 ── */}
+      {policy.mode !== 'unlimited' && (
+        <div className="mt-3">
+          <SweepLauncher />
+        </div>
       )}
 
       {/* ── 라이브 큐 → Experience 탭으로 이동 (Phase 1+, 2026-04-26) ── */}
