@@ -7,6 +7,7 @@ import type { SimulationConfig } from './simulation';
 import type { WaypointGraph } from './waypoint';
 import type { ElevatorShaft } from './shaft';
 import type { PinnedTimePoint } from './pinpoint';
+import type { ExperienceMode } from './experienceMode';
 
 // ---- Scenario Meta ----
 export interface ScenarioMeta {
@@ -42,6 +43,13 @@ export interface Scenario {
   readonly waypointGraph?: WaypointGraph;       // Graph-Point 동선 그래프
   readonly shafts?: readonly ElevatorShaft[];   // 엘리베이터 샤프트 (층 간 이동)
   readonly pins?: readonly PinnedTimePoint[];   // 저장된 Pinpoint 북마크 (시나리오와 함께 직렬화)
+  /**
+   * Phase 1 UX (2026-04-26): 체험 모드 — 엔진 정책 위의 페르소나 framing.
+   * 미설정 시 inferExperienceMode(simulationConfig.operations.entryPolicy.mode) 로 추론.
+   * 사용자가 ExperienceModePanel 에서 명시 선택하면 저장 → 다음 로드부터 추론 불필요.
+   * 관련 spec: docs/specs/phase-1-experience-modes.md
+   */
+  readonly experienceMode?: ExperienceMode;
 }
 
 // ---- Scenario Summary (lightweight for lists) ----
