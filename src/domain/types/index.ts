@@ -14,3 +14,4 @@ export * from './pinpoint';
 export * from './report';
 export * from './waypoint';
 export * from './shaft';
+export * from './experienceMode';

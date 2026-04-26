@@ -9,6 +9,7 @@ import { WaypointInspector } from '../panels/build/WaypointInspector';
 import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
 import { SpawnConfig } from '../panels/build/SpawnConfig';
+import { ExperienceModePanel } from '../panels/build/ExperienceModePanel';
 import { RegionsPanel } from '../panels/build/RegionsPanel';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
@@ -92,6 +93,9 @@ export function MainLayout() {
             </div>
 
             <ReplayScrubber />
+
+            {/* ── Phase 1 UX (2026-04-26): 체험 모드 = 모든 build 입력의 _상위_ 선언 ── */}
+            <ExperienceModePanel />
 
             <div className="bento-box p-4">
               <BuildTools />

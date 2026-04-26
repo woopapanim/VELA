@@ -373,6 +373,42 @@ export const en: Dict = {
   'spawn.recStay.switchAuto': 'Switch to auto',
   'spawn.recStay.switchManual': 'Switch to manual',
   'spawn.recStay.hint': 'Per-visitor stay budget. Auto: 30min + {zones} zones×3min + {media} media×2min, capped 180min.',
+
+  // ── Phase 1 UX: Experience Modes (2026-04-26) ──
+  'experienceMode.title': 'Experience Mode',
+  'experienceMode.titleHint':
+    '🎯 Pick what you want to validate or forecast first.\n\n' +
+    'Experience Mode is the _top-level_ choice that auto-aligns entry policy, satisfaction weights, and report perspective.\n\n' +
+    '• Validation: A/B/C variant comparison — no queue\n' +
+    '• Operations forecast: timeline + recommendation for a single scenario',
+  'experienceMode.question': 'What are you trying to validate or forecast?',
+  'experienceMode.lockedHint': 'Mode cannot be changed while a simulation is running.',
+  'experienceMode.changeConfirm':
+    'Changing the experience mode will reset entry policy and satisfaction weights to the new mode\u2019s defaults.\nProceed?',
+  'experienceMode.disabledHint': 'This mode unlocks in {phase}.',
+  'experienceMode.disabledLine': '🔒 Unlocks in {phase}',
+
+  // 2-tier headers
+  'experienceMode.tier.validation': 'Validation — Is this design good?',
+  'experienceMode.tier.operations': 'Operations forecast — How will it run?',
+
+  // 8 mode labels + short descriptions
+  'experienceMode.layout_validation.label': 'Layout validation',
+  'experienceMode.layout_validation.desc': 'Compare flow, zoning, and zone-shape variants (no queue; flow & dwell focus).',
+  'experienceMode.curation_validation.label': 'Curation validation',
+  'experienceMode.curation_validation.desc': 'Compare artwork placement, sequence, and series cohesion variants.',
+  'experienceMode.media_experience.label': 'Media experience validation',
+  'experienceMode.media_experience.desc': 'Compare content length, playback mode, and capacity variants.',
+  'experienceMode.free_admission.label': 'Free admission',
+  'experienceMode.free_admission.desc': 'Hourly load + crowding alerts when admitting without limit (baseline).',
+  'experienceMode.free_with_throttle.label': 'Free + throttle',
+  'experienceMode.free_with_throttle.desc': 'Free walk-in normally, high cap fires only on surge. Throttle event timeline.',
+  'experienceMode.timed_reservation.label': 'Timed reservation',
+  'experienceMode.timed_reservation.desc': 'Slot length and per-slot cap. Slot fill rate + waste rate.',
+  'experienceMode.controlled_admission.label': 'Controlled admission',
+  'experienceMode.controlled_admission.desc': 'Strict cap for comfort. Outside wait, abandonment, hourly throughput.',
+  'experienceMode.group_visit.label': 'Group visit',
+  'experienceMode.group_visit.desc': 'Mixed group + individual operation. Group conflicts and docent utilization.',
   'vela.hero.modeTime': '🕐 Time-based',
   'vela.hero.modePerson': '👥 Person-based',
   'vela.hero.modeTimeHint': 'Measures throughput during operating hours',

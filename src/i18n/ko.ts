@@ -347,6 +347,42 @@ export const ko: Dict = {
   'spawn.recStay.switchAuto': '자동 계산으로 전환',
   'spawn.recStay.switchManual': '수동 입력으로 전환',
   'spawn.recStay.hint': '방문자별 체류 시간 한도. 자동: 30분 + 존 {zones}개×3분 + 미디어 {media}개×2분, 최대 180분.',
+
+  // ── Phase 1 UX: 체험 모드 (Experience Modes, 2026-04-26) ──
+  'experienceMode.title': '체험 모드',
+  'experienceMode.titleHint':
+    '🎯 무엇을 검증/예측할지 먼저 고르세요.\n\n' +
+    '체험 모드는 입장 정책·만족도 가중치·리포트 관점을 자동으로 맞춰주는 _상위_ 설정입니다.\n\n' +
+    '• 검증 (Validation): 변형 A/B/C 비교 — 큐는 발생하지 않음\n' +
+    '• 운영 예상 (Operations): 단일 시나리오 시간대별 추이 + 권장',
+  'experienceMode.question': '무엇을 검증/예측하시나요?',
+  'experienceMode.lockedHint': '시뮬 진행 중에는 모드를 변경할 수 없습니다.',
+  'experienceMode.changeConfirm':
+    '체험 모드를 바꾸면 입장 정책과 만족도 가중치가 새 모드의 기본값으로 재설정됩니다.\n진행할까요?',
+  'experienceMode.disabledHint': '이 모드는 {phase} 에서 활성화됩니다.',
+  'experienceMode.disabledLine': '🔒 {phase} 에서 활성화 예정',
+
+  // 2-tier 헤더
+  'experienceMode.tier.validation': '검증 — 이 설계가 좋은가',
+  'experienceMode.tier.operations': '운영 예상 — 이렇게 운영하면',
+
+  // 8 모드 라벨 + 짧은 설명
+  'experienceMode.layout_validation.label': '레이아웃 검증',
+  'experienceMode.layout_validation.desc': '동선/조닝/zone 형상의 변형을 비교 (큐 미발생, 동선·체류 중심).',
+  'experienceMode.curation_validation.label': '큐레이션 검증',
+  'experienceMode.curation_validation.desc': '작품 위치·순서·시리즈 응집의 변형 비교.',
+  'experienceMode.media_experience.label': '미디어 경험 검증',
+  'experienceMode.media_experience.desc': '컨텐츠 길이·재생 방식·capacity 의 변형 비교.',
+  'experienceMode.free_admission.label': '자유 관람',
+  'experienceMode.free_admission.desc': '제한 없이 받을 때의 시간대별 부하 + 과밀 알림 (baseline).',
+  'experienceMode.free_with_throttle.label': '자유 관람 + 통제',
+  'experienceMode.free_with_throttle.desc': '평소 자유, 폭주 시만 발동하는 높은 cap. 통제 이벤트 타임라인.',
+  'experienceMode.timed_reservation.label': '시간제 예약 관람',
+  'experienceMode.timed_reservation.desc': '슬롯 길이·슬롯당 cap. 슬롯 충진율 + 낭비율.',
+  'experienceMode.controlled_admission.label': '통제 입장',
+  'experienceMode.controlled_admission.desc': '낮은 cap 으로 쾌적 유지. 외부 대기·포기율·시간당 처리량.',
+  'experienceMode.group_visit.label': '단체 관람',
+  'experienceMode.group_visit.desc': '단체 + 개인 혼합 운영. 그룹 충돌·도슨트 활용.',
   'vela.hero.modeTime': '🕐 시간 기준',
   'vela.hero.modePerson': '👥 사람 기준',
   'vela.hero.modeTimeHint': '운영시간 동안 방문객 수용을 측정',
