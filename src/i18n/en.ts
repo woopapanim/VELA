@@ -260,7 +260,7 @@ export const en: Dict = {
   'tooltip.summary':
     'Core KPI panel summarizing the current simulation state. Active is the number of visitors still in the venue; Spawned and Exited are the cumulative entries and departures since start; Fatigue is the mean fatigue across all visitors; Thru/min is the exit rate over the last minute; Elapsed is total simulation time; Peak Zone shows the zone with the highest utilization.',
   'tooltip.agentDistribution':
-    'Proportional bar chart of what active visitors are currently doing. Five states are tracked — MOVING (between zones), WATCHING (viewing media), WAITING (in queue), RESTING (on break), and EXITING (heading out) — with bar length reflecting each action\'s share of the active population.',
+    'Proportional bar chart of what active visitors are currently doing. Five states are tracked — MOVING (between waypoints), WATCHING (viewing media), WAITING (in queue), RESTING (on break), and EXITING (heading out) — with bar length reflecting each action\'s share of the active population.',
   'tooltip.insights':
     'Auto-generated recommendations derived from live simulation data. Severity is categorized into critical (red, immediate action), warning (amber, review advised), and info (blue, informational). Each card\'s action button jumps directly to the editor for the affected zone or media.',
   'tooltip.liveDashboard':
