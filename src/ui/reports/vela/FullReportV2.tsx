@@ -6,6 +6,7 @@ import { toReportData } from '@/analytics/reporting';
 import { exportElementToPdf } from '../pdfExport';
 import { HeroSection } from './sections/HeroSection';
 import { TldrSection } from './sections/TldrSection';
+import { ModePerspectiveSection } from './sections/ModePerspectiveSection';
 import { ExecutiveSection } from './sections/ExecutiveSection';
 import { DensitySection } from './sections/DensitySection';
 import { TimelineSection } from './sections/TimelineSection';
@@ -37,6 +38,8 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
   const exitByNode = useStore((s) => s.exitByNode);
   const waypointGraph = useStore((s) => s.waypointGraph);
   const runId = useStore((s) => s.runId);
+  // Phase 1 UX (2026-04-26): 외부 입장 큐 — 운영 tier ModePerspective 의 wait/abandon KPI 산정.
+  const entryQueue = useStore((s) => s.entryQueue);
 
   const reportRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -48,9 +51,17 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
       scenario, zones, media, floors, visitors, groups,
       timeState, latestSnapshot, kpiHistory, mediaStats,
       spawnByNode, exitByNode, waypointGraph,
-      totalExited, runId, t,
+      totalExited, runId,
+      entryQueueSnapshot: {
+        avgQueueWaitMs: entryQueue.avgQueueWaitMs,
+        recentAdmitAvgWaitMs: entryQueue.recentAdmitAvgWaitMs,
+        totalAbandoned: entryQueue.totalAbandoned,
+        totalArrived: entryQueue.totalArrived,
+        totalAdmitted: entryQueue.totalAdmitted,
+      },
+      t,
     });
-  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, runId, t]);
+  }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, runId, entryQueue, t]);
 
   const handleExport = useCallback(async () => {
     if (!pageRef.current || !scenario) return;
@@ -147,6 +158,8 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
             <HeroSection meta={data.meta} />
             <TldrSection evidence={data.evidence} headline={data.headline} />
           </div>
+          {/* Phase 1 UX (2026-04-26): 모드 관점 overlay. 본문 11 섹션은 모드 무관, 이 한 장만 모드별 해석. */}
+          <ModePerspectiveSection perspective={data.perspective} findings={data.findings} />
           <ExecutiveSection
             visitors={data.meta.visitors}
             kpis={data.kpis}

@@ -411,6 +411,54 @@ export const ko: Dict = {
   'vela.verdict.balanced.a': '피크 {peak}% · 활성률 {activation}% · Skip {skip}%',
   'vela.verdict.balanced.b': '주요 지표가 모두 임계치 안에 머물렀습니다.',
 
+  // VELA Report — Mode Perspective (Phase 1 UX, 2026-04-26)
+  // 본문 11 섹션 위에 덧대는 모드 관점 overlay. 모드 의도 기준 KPI/총평 클로즈업.
+  'vela.persp.title': '모드 관점',
+  'vela.persp.tier.validation': '검증 관점',
+  'vela.persp.tier.operations': '운영 예상 관점',
+  'vela.persp.verdict.eyebrow': '이 모드의 평가',
+  'vela.persp.priorityRecos': '이 모드 의도와 직결되는 권고',
+
+  // mode hint — 모드 배지 옆 1줄 설명
+  'vela.persp.modeHint.layout_validation': '공간 레이아웃이 의도한 동선을 유도하는가?',
+  'vela.persp.modeHint.curation_validation': '작품 순서가 의도대로 전달되는가?',
+  'vela.persp.modeHint.media_experience': '각 미디어 체험이 완주되는가?',
+  'vela.persp.modeHint.free_admission': '통제 없는 상태에서 혼잡이 어디에 형성되는가?',
+  'vela.persp.modeHint.free_with_throttle': '통제는 켰지만 실제로 얼마나 발동하는가?',
+  'vela.persp.modeHint.timed_reservation': '슬롯 크기가 도착 패턴에 적절한가?',
+  'vela.persp.modeHint.controlled_admission': '캡이 대기 시간을 허용 범위에 잘 잡고 있는가?',
+  'vela.persp.modeHint.group_visit': '단체 vs 개인 동선의 충돌',
+
+  // pivot KPI 라벨 + 보조 설명
+  'vela.persp.kpi.completion': '완주율',
+  'vela.persp.kpi.completion.note': '존의 80% 이상 방문',
+  'vela.persp.kpi.activation': '미디어 활성률',
+  'vela.persp.kpi.activation.note': '한 번 이상 사용된 미디어',
+  'vela.persp.kpi.skip': 'Skip 률',
+  'vela.persp.kpi.skip.note': '접근했지만 건너뜀',
+  'vela.persp.kpi.peak': '피크 점유율',
+  'vela.persp.kpi.peak.note': '최고 혼잡 존의 용량 대비',
+  'vela.persp.kpi.wait': '평균 외부 대기',
+  'vela.persp.kpi.wait.note': '최근 100명 입장 기준',
+  'vela.persp.kpi.abandon': '포기율',
+  'vela.persp.kpi.abandon.note': '입장 전 큐 이탈',
+
+  // verdict 신호 — {mode} (모드 라벨) + {pct} (해당 지표 %)
+  'vela.persp.verdict.balanced.a': '{mode}: 모든 지표가 임계치 안.',
+  'vela.persp.verdict.balanced.b': '이 모드 기준 critical 신호 없음.',
+  'vela.persp.verdict.peak.a': '피크 점유율 {pct}%.',
+  'vela.persp.verdict.peak.b': '이 모드의 핵심 이슈는 혼잡입니다.',
+  'vela.persp.verdict.fatigue.a': '상위 10% 피로도 {pct}%.',
+  'vela.persp.verdict.fatigue.b': '자유 동선이 후반부에 부하를 집중시킵니다.',
+  'vela.persp.verdict.activation.a': '전체 미디어 중 {pct}%만 사용됨.',
+  'vela.persp.verdict.activation.b': '레이아웃이 절반 이상의 콘텐츠로 시선을 안 보냅니다.',
+  'vela.persp.verdict.completion.a': '완주율 {pct}%에 그침.',
+  'vela.persp.verdict.completion.b': '의도된 동선이 실제로 따라지지 않습니다.',
+  'vela.persp.verdict.skip.a': '{pct}% 방문객이 콘텐츠를 건너뜀.',
+  'vela.persp.verdict.skip.b': '노출은 됐지만 체험으로 이어지지 않습니다.',
+  'vela.persp.verdict.abandon.a': '도착 인원의 {pct}%가 큐를 포기.',
+  'vela.persp.verdict.abandon.b': '인내심 정책이 너무 빡빡하거나 처리량이 부족합니다.',
+
   // VELA Report — Executive
   'vela.exec.eyebrow': '핵심 요약',
   'vela.exec.titleA': '핵심',

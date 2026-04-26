@@ -437,6 +437,54 @@ export const en: Dict = {
   'vela.verdict.balanced.a': 'Peak {peak}% · Activation {activation}% · Skip {skip}%',
   'vela.verdict.balanced.b': 'All key indicators stayed within thresholds.',
 
+  // VELA Report — Mode Perspective (Phase 1 UX, 2026-04-26)
+  // 본문 11 섹션 위에 덧대는 모드 관점 overlay. 모드 의도 기준 KPI/총평 클로즈업.
+  'vela.persp.title': 'Mode Lens',
+  'vela.persp.tier.validation': 'Validation lens',
+  'vela.persp.tier.operations': 'Operations lens',
+  'vela.persp.verdict.eyebrow': "This mode's read",
+  'vela.persp.priorityRecos': "Priority for this mode's intent",
+
+  // mode hint — 1 line under the mode badge
+  'vela.persp.modeHint.layout_validation': 'Does the spatial layout invite the intended flow?',
+  'vela.persp.modeHint.curation_validation': 'Does the artwork order land?',
+  'vela.persp.modeHint.media_experience': 'Does each media piece complete its arc?',
+  'vela.persp.modeHint.free_admission': 'Where does crowding form when uncontrolled?',
+  'vela.persp.modeHint.free_with_throttle': 'Throttle on, but how often does it actually fire?',
+  'vela.persp.modeHint.timed_reservation': 'Are slots well-sized for arrivals?',
+  'vela.persp.modeHint.controlled_admission': 'Is the cap holding wait times to acceptable bounds?',
+  'vela.persp.modeHint.group_visit': 'Group flow vs solo flow conflicts',
+
+  // pivot KPI labels + notes (모드 관계없이 같은 KPI 라벨, 모드별로 노출 여부만 다름)
+  'vela.persp.kpi.completion': 'Completion',
+  'vela.persp.kpi.completion.note': 'Visited ≥80% of zones',
+  'vela.persp.kpi.activation': 'Media activation',
+  'vela.persp.kpi.activation.note': 'Media touched ≥1×',
+  'vela.persp.kpi.skip': 'Skip rate',
+  'vela.persp.kpi.skip.note': 'Approached but skipped',
+  'vela.persp.kpi.peak': 'Peak utilization',
+  'vela.persp.kpi.peak.note': 'Hottest zone vs capacity',
+  'vela.persp.kpi.wait': 'Avg outside wait',
+  'vela.persp.kpi.wait.note': 'Last 100 admits',
+  'vela.persp.kpi.abandon': 'Abandonment',
+  'vela.persp.kpi.abandon.note': 'Left queue before admission',
+
+  // verdict signals — {mode} (label) + {pct} (percent for the cited metric)
+  'vela.persp.verdict.balanced.a': '{mode}: indicators within thresholds.',
+  'vela.persp.verdict.balanced.b': 'No mode-critical signal triggered.',
+  'vela.persp.verdict.peak.a': 'Peak utilization {pct}%.',
+  'vela.persp.verdict.peak.b': 'Crowding is the main story for this mode.',
+  'vela.persp.verdict.fatigue.a': 'Top 10% fatigue {pct}%.',
+  'vela.persp.verdict.fatigue.b': 'Free flow concentrates load late in the route.',
+  'vela.persp.verdict.activation.a': 'Only {pct}% of media was used.',
+  'vela.persp.verdict.activation.b': 'Layout fails to direct attention to half the content.',
+  'vela.persp.verdict.completion.a': 'Only {pct}% completed.',
+  'vela.persp.verdict.completion.b': "Designed flow isn't followed.",
+  'vela.persp.verdict.skip.a': '{pct}% skipped content.',
+  'vela.persp.verdict.skip.b': 'Exposure does not equal engagement.',
+  'vela.persp.verdict.abandon.a': '{pct}% of arrivals abandoned the queue.',
+  'vela.persp.verdict.abandon.b': 'Wait policy is too tight or throughput too low for arrival rate.',
+
   // VELA Report — Executive
   'vela.exec.eyebrow': 'Executive Summary',
   'vela.exec.titleA': 'Executive',
