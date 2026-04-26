@@ -127,9 +127,12 @@ export function CanvasPanel() {
   }, []);
 
   // Auto zoom-to-fit when scenario loads
+  // 시나리오 JSON 로드 시 한 번에 다수 zone 이 들어옴 → 화면 맞춤.
+  // 사용자가 빈 캔버스에 zone 을 하나씩 추가하는 경우는 스킵 (현재 viewport/zoom 유지).
   const prevZoneCount = useRef(0);
   useEffect(() => {
-    if (zones.length > 0 && prevZoneCount.current === 0 && managerRef.current) {
+    const isScenarioLoad = zones.length >= 2 && prevZoneCount.current === 0;
+    if (isScenarioLoad && managerRef.current) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const z of zones) {
         minX = Math.min(minX, z.bounds.x);
