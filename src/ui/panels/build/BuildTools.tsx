@@ -1,10 +1,9 @@
-import { useCallback, useState } from 'react';
-import { Plus, Monitor, MousePointer2, Circle, GitBranch, Sparkles } from 'lucide-react';
+import { useCallback } from 'react';
+import { Plus, Monitor, MousePointer2, Circle, GitBranch } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
+import type { ZoneConfig, ZoneId, MediaId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
-import { AnalyzeFloorPlan } from './AnalyzeFloorPlan';
 
 const ZONE_TYPES = [
   { type: 'lobby', label: 'Lobby', color: '#14b8a6' },
@@ -14,11 +13,12 @@ const ZONE_TYPES = [
   { type: 'stage', label: 'Stage', color: '#a855f7' },
 ] as const;
 
-const MEDIA_QUICK_CATEGORIES = [
-  { label: 'Analog', color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
-  { label: 'Passive', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
-  { label: 'Active', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
-  { label: 'Immersive', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+// Phase 0: 라벨은 i18n exhibit.kind.* 키로 매핑.
+const EXHIBIT_QUICK_CATEGORIES = [
+  { labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
+  { labelKey: 'exhibit.kind.digital',    color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { labelKey: 'exhibit.kind.interactive',color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { labelKey: 'exhibit.kind.immersive',  color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _zoneCounter = 100;
@@ -52,14 +52,14 @@ export function BuildTools() {
   const phase = useStore((s) => s.phase);
   const pendingWaypointType = useStore((s) => s.pendingWaypointType);
   const t = useT();
-  const [showAnalyzer, setShowAnalyzer] = useState(false);
 
   const isSimRunning = phase === 'running'; // paused = editable
 
   const handleCreateZone = useCallback((zoneType: string) => {
     ensureCounters();
     const id = `z_user_${_zoneCounter++}` as ZoneId;
-    const floorId = (activeFloorId ?? 'floor_1f') as FloorId;
+    // floorId 는 store 의 createZone 액션 내부에서 activeFloorId 로 자동 attach.
+    // (구 코드에서는 AI auto-setup 분기 위해 변수로 보관, 현재 미사용.)
 
     // 뷰포트 중앙 world 좌표 — canvas에서 직접 계산
     const canvasEl = document.querySelector('canvas');
@@ -280,17 +280,17 @@ export function BuildTools() {
         </div>
       )}
 
-      {/* Media Placement — categorized */}
+      {/* Exhibit Placement — categorized (Phase 0 vocabulary) */}
       {editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
         <div className="space-y-2">
           <p className="panel-label">
-            Add Media to Selected Zone
+            {t('exhibit.add')}
           </p>
-          {MEDIA_QUICK_CATEGORIES.map(({ label, color, items }) => (
-            <div key={label}>
+          {EXHIBIT_QUICK_CATEGORIES.map(({ labelKey, color, items }) => (
+            <div key={labelKey}>
               <div className="flex items-center gap-1 mb-1">
                 <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="panel-label">{label}</span>
+                <span className="panel-label">{t(labelKey)}</span>
               </div>
               <div className="grid grid-cols-2 gap-1">
                 {items.map((type) => (
@@ -311,7 +311,7 @@ export function BuildTools() {
 
       {editorMode === 'place-media' && !selectedZoneId && (
         <p className="text-[10px] text-muted-foreground">
-          Select a zone first to place media
+          Select a zone first to place exhibit
         </p>
       )}
 
@@ -321,26 +321,6 @@ export function BuildTools() {
         </p>
       )}
 
-      {/* AI Auto-Setup */}
-      {!isSimRunning && (
-        <div>
-          <p className="panel-label mb-1.5">AI Auto-Setup</p>
-          <button
-            onClick={() => setShowAnalyzer(true)}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded-xl bg-primary/15 hover:bg-primary/25 text-primary transition-colors ring-1 ring-primary/30"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            Analyze Floor Plan (AI)
-          </button>
-        </div>
-      )}
-
-      {showAnalyzer && (
-        <AnalyzeFloorPlan
-          onClose={() => setShowAnalyzer(false)}
-          onLoaded={() => setShowAnalyzer(false)}
-        />
-      )}
     </div>
   );
 }

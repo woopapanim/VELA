@@ -368,11 +368,78 @@ export const en: Dict = {
   'spawn.mode.person': 'Person-based',
   'spawn.mode.timeHint': 'Ends at Duration. For operations review — hourly capacity & peak analysis.',
   'spawn.mode.personHint': 'Ends when all visitors exit (Duration is safety cap). For design validation — dwell & completion rate.',
+  'spawn.mode.lockedByPolicy': 'Time mode is required when an entry policy is active (Person mode stops spawning at totalCount → cap-sweep infeasible).',
+  'spawn.policyActiveHint': 'Entry policy active — continuous arrivals mode (Total/Max Concurrent ignored). Unlimited arrivals during Duration; policy concurrent-cap/slot is the true cap.',
   'spawn.recStay.label': 'Visit Budget (min)',
   'spawn.recStay.labelAuto': 'Visit Budget (min, auto)',
   'spawn.recStay.switchAuto': 'Switch to auto',
   'spawn.recStay.switchManual': 'Switch to manual',
   'spawn.recStay.hint': 'Per-visitor stay budget. Auto: 30min + {zones} zones×3min + {media} media×2min, capped 180min.',
+
+  // Operations Policy (Phase 1)
+  'ops.title': 'Entry Policy',
+  'ops.modeLabel': 'Mode',
+  'ops.mode.unlimited': 'Unlimited',
+  'ops.mode.unlimited.desc': 'Admit on arrival. No throttle (default).',
+  'ops.mode.concurrent-cap': 'Concurrent Cap',
+  'ops.mode.concurrent-cap.desc': 'Admit only while interior count < N.',
+  'ops.mode.rate-limit': 'Rate Limit',
+  'ops.mode.rate-limit.desc': 'At most N admits per rolling 1 hour.',
+  'ops.mode.time-slot': 'Time Slot',
+  'ops.mode.time-slot.desc': 'K admits per slot (e.g. 30 min); resets each slot.',
+  'ops.mode.hybrid': 'Hybrid',
+  'ops.mode.hybrid.desc': 'Concurrent cap + time slot combined (large venues).',
+  'ops.field.maxConcurrent': 'Max Concurrent',
+  'ops.field.maxPerHour': 'Max per Hour',
+  'ops.field.slotDurationMin': 'Slot Length (min)',
+  'ops.field.perSlotCap': 'Per-Slot Cap',
+  'ops.field.maxWaitMin': 'Patience (min, abandon after)',
+  'ops.live.title': 'Live Queue',
+  'ops.live.queueLength': 'Waiting',
+  'ops.live.oldestWait': 'Oldest Wait',
+  'ops.live.totalAbandoned': 'Abandoned',
+  'ops.live.empty': '0 waiting — admitting on arrival.',
+  'ops.lockedHint': 'Policy is locked while simulation is running.',
+  'ops.liveMovedHint': 'Live queue status → see "Entry Queue" card in the Experience tab.',
+
+  'ops.patienceGuide':
+    '🎟️ Patience = max time an individual will tolerate in the outside queue.\n\n' +
+    'Reality benchmarks (Wharton queueing research + museum averages):\n' +
+    '• Free walk-in: 10–15 min\n' +
+    '• Paid general exhibition: 30–45 min ← standard\n' +
+    '• Blockbuster (Klimt, Van Gogh): 45–60 min\n' +
+    '• Theme park headliner: 60–90 min\n' +
+    '• Pre-booked timed-entry: 30–60 min\n\n' +
+    '⚠️ Too short (e.g. 3min) → all caps saturate → sweep loses meaning.',
+  'ops.patienceModelLabel': 'Patience Distribution',
+  'ops.patienceModelHint':
+    '🎲 Distribution model:\n\n' +
+    '• Fixed: everyone has the same patience — for quick comparisons\n' +
+    '• Normal: per-person variation (realistic model)\n\n' +
+    '📏 σ (std dev) sizing guide — pick based on exhibition type:\n' +
+    '• Free walk-in: σ ≈ 50% of mean (wide commitment range)\n' +
+    '• Paid general exhibition: σ ≈ 30% of mean (some commitment)\n' +
+    '• Blockbuster: σ ≈ 20% of mean (everyone prepared to wait)\n' +
+    '• Children\u2019s hands-on: σ ≈ 50% of mean (mood swings)\n' +
+    '• Tech/conference: σ ≈ 30% of mean\n\n' +
+    '※ σ is independent of mean — changing mean does not auto-update σ.',
+  'ops.patienceModel.fixed': 'Fixed',
+  'ops.patienceModel.normal': 'Normal',
+  'ops.field.patienceStdMin': 'Std Dev σ (min)',
+  'ops.field.patienceStdPct': 'Std Dev σ (% of mean)',
+  'ops.useModifiersLabel': 'Per-profile / engagement variation (optional)',
+  'ops.useModifiersHint':
+    'When checked, mean patience varies by visitor profile mix.\n' +
+    'VIP / child / immersive etc. — each person\u2019s mean shifts.\n\n' +
+    '⚠️ If your exhibition has near-zero of these profiles (e.g. tech conference → no children), effect is negligible. Recommend leaving unchecked (simple model).',
+  'ops.patienceProfileNote':
+    'Profile multipliers (only fire if visitor mix includes them):\n' +
+    '• VIP ×1.3 (pre-committed, paid)\n' +
+    '• General ×1.0 (baseline)\n' +
+    '• Child ×0.6 (bores quickly) ※ for child-focused venues, treat as ×1.0\n' +
+    '• Elderly/disabled ×0.85 (limited standing)\n\n' +
+    'Engagement multipliers: immersive ×1.4 / explorer ×1.0 / quick ×0.7.\n\n' +
+    '※ Ignore rows for profiles not in your exhibition. If multipliers don\u2019t match your context, adjust the visitor mix ratios in the spawn panel.',
 
   // ── Phase 1 UX: Experience Modes (2026-04-26) ──
   'experienceMode.title': 'Experience Mode',
@@ -409,6 +476,34 @@ export const en: Dict = {
   'experienceMode.controlled_admission.desc': 'Strict cap for comfort. Outside wait, abandonment, hourly throughput.',
   'experienceMode.group_visit.label': 'Group visit',
   'experienceMode.group_visit.desc': 'Mixed group + individual operation. Group conflicts and docent utilization.',
+
+  // ── Experience tab — Entry Queue card (Phase 1+, 2026-04-26) ──
+  'experience.queue.title': 'Entry Queue (Outside)',
+  'experience.queue.titleHint':
+    'Outside-queue status when an entry policy is active.\n' +
+    'Configure the policy in "Settings" (left), analyze the outcome here.',
+  'experience.queue.unlimited': 'Unlimited entry policy — no outside queue. Activate a policy in OperationsPanel (left) to see KPIs.',
+  'experience.queue.idleHint': 'Pre-sim — counters fill once you press Start.',
+  'experience.queue.arrived': 'Arrived',
+  'experience.queue.admitted': 'Admitted',
+  'experience.queue.abandoned': 'Abandoned',
+  'experience.queue.queued': 'Waiting',
+  'experience.queue.avgQueueWait': 'Avg Wait',
+  'experience.queue.avgQueueWaitHint':
+    'Mean wait time of everyone currently queued.\n' +
+    'Live load indicator — rising = cap/throughput shortage.',
+  'experience.queue.recentAdmitWait': 'Recent Admit Avg',
+  'experience.queue.recentAdmitWaitHint':
+    'Mean outside wait of the last 100 admits (rolling).\n' +
+    'Key operational KPI: "with this policy, average X min wait."',
+  'experience.queue.oldestWait': 'Oldest Wait',
+  'experience.queue.abandonRate': 'Abandon Rate',
+  'experience.queue.abandonRateHint':
+    'Fraction of arrivals who left due to patience exceeded.\n' +
+    '> 20%: red (policy too tight), 10-20%: yellow, < 10%: green.',
+  'experience.queue.throughputPerHour': 'Admits/h',
+  'experience.queue.throughputPerHourHint': 'Cumulative admits / elapsed → per-hour estimate.',
+
   'vela.hero.modeTime': '🕐 Time-based',
   'vela.hero.modePerson': '👥 Person-based',
   'vela.hero.modeTimeHint': 'Measures throughput during operating hours',
@@ -820,4 +915,57 @@ export const en: Dict = {
   'sweep.col.complete': 'Compl.%',
   'sweep.elapsed': 'Sweep took {sec}s',
   'sweep.abortedNote': 'aborted by user',
+
+  // ── Phase 0 (2026-04-25): Exhibit vocabulary ─────
+  // Top-level concept
+  'exhibit.label': 'Exhibit',
+  'exhibit.label.plural': 'Exhibits',
+  'exhibit.add': 'Add Exhibit',
+  'exhibit.outOfSpace': 'No room — zone is full',
+
+  // Categories (curator-facing)
+  'exhibit.kind.artwork': 'Artwork',
+  'exhibit.kind.artwork.desc': 'Static works — paintings, sculpture, photos, artifacts',
+  'exhibit.kind.digital': 'Digital Media',
+  'exhibit.kind.digital.desc': 'Video, projection, media walls',
+  'exhibit.kind.interactive': 'Interactive',
+  'exhibit.kind.interactive.desc': 'Touch tables, kiosks, hands-on',
+  'exhibit.kind.immersive': 'Immersive',
+  'exhibit.kind.immersive.desc': 'VR/AR, immersive rooms, 4D',
+
+  // Artwork props
+  'exhibit.artwork.section': 'Artwork properties',
+  'exhibit.artwork.curatorialOrder': 'Order in series',
+  'exhibit.artwork.curatorialOrder.hint': 'Intended viewing order (1, 2, 3...)',
+  'exhibit.artwork.series': 'Series',
+  'exhibit.artwork.series.placeholder': 'e.g. Joseon paintings',
+  'exhibit.artwork.series.none': 'No series',
+  'exhibit.artwork.significance': 'Significance',
+  'exhibit.artwork.significance.hero': 'Hero',
+  'exhibit.artwork.significance.support': 'Support',
+  'exhibit.artwork.significance.context': 'Context',
+  'exhibit.artwork.significance.hint': 'Hero pieces get KPI weight + canvas emphasis',
+
+  // Digital Media props
+  'exhibit.digital.section': 'Digital media properties',
+  'exhibit.digital.contentDuration': 'Content duration',
+  'exhibit.digital.contentDuration.hint': 'Full playback length of video/projection',
+  'exhibit.digital.minWatch': 'Meaningful watch',
+  'exhibit.digital.minWatch.hint': 'Minimum dwell time to count as meaningful engagement',
+  'exhibit.digital.loopable': 'Loopable',
+  'exhibit.digital.loopable.hint': 'Visitors can join at any point in playback',
+  'exhibit.digital.interactivityLevel': 'Interactivity level',
+  'exhibit.digital.interactivityLevel.viewOnly': 'View-only',
+  'exhibit.digital.interactivityLevel.chapterSelect': 'Chapter select',
+  'exhibit.digital.interactivityLevel.fullInteractive': 'Full interactive',
+  'exhibit.digital.warning.shortMinWatch': 'Meaningful watch < 20% of content length — questionable impact',
+
+  // Interactive props
+  'exhibit.interactive.section': 'Interactive properties',
+  'exhibit.interactive.sessionMode': 'Session mode',
+  'exhibit.interactive.sessionMode.slot': 'Slot (time-divided)',
+  'exhibit.interactive.sessionMode.queue': 'Queue',
+  'exhibit.interactive.sessionMode.free': 'Free',
+  'exhibit.interactive.interactionDepth': 'Interaction depth',
+  'exhibit.interactive.interactionDepth.hint': '0 = simple touch, 1 = full interaction',
 };

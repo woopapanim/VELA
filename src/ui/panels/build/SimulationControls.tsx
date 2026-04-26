@@ -6,7 +6,7 @@ import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
 import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
-import type { OverlayMode } from '@/stores';
+import type { OverlayMode, EntryQueueState, EntryQueueNodeBucket } from '@/stores';
 import { useT } from '@/i18n';
 
 // djb2-style short hash → 6 hex chars. Deterministic for identical scenario shape.
@@ -16,7 +16,12 @@ function hashSignature(s: string): string {
   return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
 }
 
-function makeRunId(scenario: { zones: unknown[]; media: unknown[]; waypointGraph?: { nodes: unknown[]; edges: unknown[] }; visitorDistribution: { totalCount: number } }): string {
+function makeRunId(scenario: {
+  readonly zones: readonly unknown[];
+  readonly media: readonly unknown[];
+  readonly waypointGraph?: { readonly nodes: readonly unknown[]; readonly edges: readonly unknown[] };
+  readonly visitorDistribution: { readonly totalCount: number };
+}): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
@@ -48,6 +53,7 @@ export function SimulationControls() {
   const updateSimState = useStore((s) => s.updateSimState);
   const setShaftQueues = useStore((s) => s.setShaftQueues);
   const setDensityGrids = useStore((s) => s.setDensityGrids);
+  const setEntryQueue = useStore((s) => s.setEntryQueue);
   const setPhase = useStore((s) => s.setPhase);
   const resetSim = useStore((s) => s.resetSim);
   const overlayMode = useStore((s) => s.overlayMode);
@@ -136,6 +142,40 @@ export function SimulationControls() {
       );
       setShaftQueues(eng.getShaftQueueState());
 
+      // Phase 1: outside entry queue snapshot — group peeked items by spawnEntryNodeId
+      // so OutsideQueueRenderer can draw per-node dot rings + OperationsPanel can show KPIs.
+      // Cheap when policy is 'unlimited' (queue is always empty).
+      const queueItems = eng.peekEntryQueue();
+      const queueSnap = eng.getEntryQueueSnapshot();
+      const totalAbandonedNow = eng.getTotalAbandoned();
+      const elapsedNow = state.timeState.elapsed;
+      const byNode = new Map<string, EntryQueueNodeBucket>();
+      for (const item of queueItems) {
+        const nodeId = (item.payload as any).spawnEntryNodeId as string | null;
+        if (!nodeId) continue;
+        const wait = Math.max(0, elapsedNow - item.arrivedAt);
+        const cur = byNode.get(nodeId);
+        if (cur) {
+          byNode.set(nodeId, {
+            count: cur.count + 1,
+            oldestWaitMs: Math.max(cur.oldestWaitMs, wait),
+          });
+        } else {
+          byNode.set(nodeId, { count: 1, oldestWaitMs: wait });
+        }
+      }
+      const entryQueueState: EntryQueueState = {
+        byNode,
+        totalQueueLength: queueSnap.queueLength,
+        oldestWaitMs: queueSnap.oldestWaitMs,
+        totalAbandoned: totalAbandonedNow,
+        avgQueueWaitMs: queueSnap.avgQueueWaitMs,
+        recentAdmitAvgWaitMs: queueSnap.recentAdmitAvgWaitMs,
+        totalAdmitted: queueSnap.totalAdmitted,
+        totalArrived: queueSnap.totalArrived,
+      };
+      setEntryQueue(entryQueueState);
+
       // Completion detection
       if (state.phase === 'completed' || state.phase !== 'running') {
         if (state.phase === 'completed' && !milestonesHit.current.has(-1)) {
@@ -210,7 +250,7 @@ export function SimulationControls() {
     setRunId(makeRunId(store.scenario));
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
-  }, [updateSimState, setPhase]);
+  }, [updateSimState, setPhase, setEntryQueue, setShaftQueues, setDensityGrids, pushSnapshot, pushReplayFrame, setRunId, toast, t]);
 
   const handlePause = useCallback(() => {
     loopRef.current?.stop();

@@ -19,8 +19,13 @@ export function SpawnConfig() {
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
   const config = scenario?.simulationConfig;
-  // Phase 1 UX (2026-04-26): 운영 tier 는 시간 모드 강제 + 토글 숨김. 검증 tier 만 노출.
-  // 운영 tier 에선 EXPERIENCE_MODE_POLICY_DEFAULTS / handleSelect 가 simulationMode='time' 강제.
+  // Phase 1 (2026-04-25): non-unlimited 정책은 큐 동작 보장을 위해 time-mode 강제.
+  // person-mode 는 totalCount 도달 시 generation 정지 → 정책 sweep 의미 사라짐.
+  // OperationsPanel 의 writePolicy 에서 자동 flip 도 같이 수행 (이중 안전).
+  const policyMode = config?.operations?.entryPolicy?.mode ?? 'unlimited';
+  const policyForcesTime = policyMode !== 'unlimited';
+  // Phase 1 UX (2026-04-26): 운영 tier 는 시간 모드 강제 + 토글 숨김. 검증 tier 는 자유.
+  // (policyForcesTime 은 person 버튼 disable 만 — UX 토글 자체 노출은 tier 로 결정)
   const expMode = scenario?.experienceMode
     ?? inferExperienceMode(scenario?.simulationConfig.operations?.entryPolicy?.mode);
   const showModeToggle = scenario
@@ -42,6 +47,24 @@ export function SpawnConfig() {
     });
   }, [scenario, isLocked, recAuto, autoRecMs, config?.recommendedDurationMs, setScenario]);
 
+  // Phase 1 (2026-04-25): 레거시 시나리오 방어 — single-slot 의 endTimeMs 가 duration 보다
+  // 작으면 자동으로 duration 까지 확장. 안 그러면 slot 만료 후 spawn rate=0 으로 멈춤.
+  // multi-slot 은 사용자 의도 (예: 9-10am 만 운영) 존중 → no-op.
+  useEffect(() => {
+    if (!scenario || isLocked) return;
+    const slots = scenario.simulationConfig.timeSlots;
+    if (!slots || slots.length !== 1) return;
+    const dur = scenario.simulationConfig.duration;
+    if (slots[0].endTimeMs >= dur) return;
+    setScenario({
+      ...scenario,
+      simulationConfig: {
+        ...scenario.simulationConfig,
+        timeSlots: [{ ...slots[0], endTimeMs: dur }],
+      },
+    });
+  }, [scenario, isLocked, setScenario]);
+
   const updateDist = useCallback((field: string, value: number) => {
     if (!scenario || isLocked) return;
     setScenario({
@@ -52,9 +75,18 @@ export function SpawnConfig() {
 
   const updateConfig = useCallback((field: string, value: number) => {
     if (!scenario || isLocked) return;
+    // Phase 1 (2026-04-25): single-slot 시 Duration 변경 시 timeSlots[0].endTimeMs 도 함께 sync.
+    // 이전엔 60분 default endTimeMs 가 그대로 남아 Duration 110분이어도 60분 후 spawn rate=0
+    // (getActiveTimeSlot 이 null 반환). multi-slot 은 사용자 의도 존중 → no-op.
+    const slots = scenario.simulationConfig.timeSlots;
+    const isSingleSlot = (slots?.length ?? 0) === 1;
+    let nextSlots = slots;
+    if (field === 'duration' && isSingleSlot && slots && slots[0]) {
+      nextSlots = [{ ...slots[0], endTimeMs: value }];
+    }
     setScenario({
       ...scenario,
-      simulationConfig: { ...scenario.simulationConfig, [field]: value },
+      simulationConfig: { ...scenario.simulationConfig, [field]: value, timeSlots: nextSlots },
     });
   }, [scenario, setScenario, isLocked]);
 
@@ -123,35 +155,41 @@ export function SpawnConfig() {
               </button>
               <button
                 onClick={() => setMode('person')}
-                disabled={isLocked}
-                title={t('spawn.mode.personHint')}
-                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                disabled={isLocked || policyForcesTime}
+                title={policyForcesTime ? t('spawn.mode.lockedByPolicy') : t('spawn.mode.personHint')}
+                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   mode === 'person'
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'bg-transparent border-border hover:border-primary/50'
                 }`}
               >
                 {t('spawn.mode.person')}
+                {policyForcesTime && <span className="ml-1 text-[8px]">🔒</span>}
               </button>
             </div>
           </div>
         )}
+        {policyForcesTime && (
+          <div className="mb-2 px-2 py-1.5 rounded bg-primary/5 border border-primary/20 text-[9px] text-muted-foreground leading-tight">
+            {t('spawn.policyActiveHint')}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <NumField
-            label="Total Visitors"
+            label={policyForcesTime ? `Total Visitors (∞)` : 'Total Visitors'}
             value={dist?.totalCount ?? 200}
             onChange={(v) => updateDist('totalCount', v)}
-            disabled={isLocked}
+            disabled={isLocked || policyForcesTime}
           />
           <NumField
-            label="Max Concurrent"
+            label={policyForcesTime ? `Max Concurrent (∞)` : 'Max Concurrent'}
             // Clamp displayed value to Total — Max > Total is a dead setting
             // (cumulative cap fires first). Intermediate keystrokes on Total
             // would corrupt the stored Max, so we only clamp for display and
             // on-commit here, not by rewriting maxVisitors when Total changes.
             value={Math.min(config?.maxVisitors ?? 500, dist?.totalCount ?? 500)}
             onChange={(v) => updateConfig('maxVisitors', Math.min(v, dist?.totalCount ?? v))}
-            disabled={isLocked}
+            disabled={isLocked || policyForcesTime}
           />
           <div>
             <NumField

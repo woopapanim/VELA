@@ -16,7 +16,7 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
 
   return (
     <div>
-      <label className="panel-label">{label}</label>
+      <label className="panel-label whitespace-nowrap overflow-hidden text-ellipsis block" title={label}>{label}</label>
       <input
         type="number"
         value={raw}

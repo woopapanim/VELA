@@ -342,11 +342,78 @@ export const ko: Dict = {
   'spawn.mode.person': '사람 기준',
   'spawn.mode.timeHint': 'Duration 도달 시 종료. 운영 검토용 — 시간당 수용 인원·피크 분석.',
   'spawn.mode.personHint': '모든 관람객 퇴장 시 종료 (Duration은 safety cap). 설계 검증용 — 체류·완주율 분석.',
+  'spawn.mode.lockedByPolicy': '입장 정책 활성 시 시간 모드만 사용 가능 (사람 모드는 totalCount 도달 시 스폰 정지 → 정책 sweep 불가).',
+  'spawn.policyActiveHint': '입장 정책 활성 — 지속 도착 모드 (Total/Max Concurrent 무시). Duration 동안 무한 도착, 정책의 동시수용/슬롯이 실제 cap.',
   'spawn.recStay.label': '관람 예산 (분)',
   'spawn.recStay.labelAuto': '관람 예산 (분, 자동)',
   'spawn.recStay.switchAuto': '자동 계산으로 전환',
   'spawn.recStay.switchManual': '수동 입력으로 전환',
   'spawn.recStay.hint': '방문자별 체류 시간 한도. 자동: 30분 + 존 {zones}개×3분 + 미디어 {media}개×2분, 최대 180분.',
+
+  // ── Phase 1: 운영 정책 (Operations Policy) ──
+  'ops.title': '입장 정책',
+  'ops.modeLabel': '정책 모드',
+  'ops.mode.unlimited': '무제한',
+  'ops.mode.unlimited.desc': '도착 즉시 입장. 정책 미적용 (기본).',
+  'ops.mode.concurrent-cap': '동시 수용 제한',
+  'ops.mode.concurrent-cap.desc': '내부 인원 < N 일 때만 입장.',
+  'ops.mode.rate-limit': '시간당 입장 제한',
+  'ops.mode.rate-limit.desc': '롤링 1시간 동안 N 명까지만.',
+  'ops.mode.time-slot': '예약 슬롯',
+  'ops.mode.time-slot.desc': '슬롯 (예: 30분) 당 K 명, 슬롯 만료 시 reset.',
+  'ops.mode.hybrid': '하이브리드',
+  'ops.mode.hybrid.desc': '동시 수용 + 슬롯 동시 적용 (대형 시설).',
+  'ops.field.maxConcurrent': '동시 수용 (명)',
+  'ops.field.maxPerHour': '시간당 입장 (명/h)',
+  'ops.field.slotDurationMin': '슬롯 길이 (분)',
+  'ops.field.perSlotCap': '슬롯당 입장 (명)',
+  'ops.field.maxWaitMin': '인내심 (분, 초과 시 포기)',
+  'ops.live.title': '라이브 큐',
+  'ops.live.queueLength': '대기 인원',
+  'ops.live.oldestWait': '최장 대기',
+  'ops.live.totalAbandoned': '누적 포기',
+  'ops.live.empty': '대기 0명 — 도착 즉시 입장 중.',
+  'ops.lockedHint': '시뮬 진행 중에는 정책을 변경할 수 없습니다.',
+  'ops.liveMovedHint': '실시간 큐 현황은 → Experience 탭의 "입장 대기" 카드에서 확인하세요.',
+
+  'ops.patienceGuide':
+    '🎟️ 인내심 = 한 사람이 외부 큐에서 견디는 한계 시간.\n\n' +
+    '현실 기준 (Wharton 큐잉 연구 + 미술관 평균):\n' +
+    '• 무료 walk-in: 10–15분\n' +
+    '• 유료 일반 전시: 30–45분 ← 표준\n' +
+    '• 블록버스터 (Klimt, Van Gogh 류): 45–60분\n' +
+    '• 테마파크 헤드라이너: 60–90분\n' +
+    '• 사전예약 timed-entry: 30–60분\n\n' +
+    '⚠️ 너무 짧으면 (예: 3분) 모든 cap 케이스가 saturated → sweep 의미 사라짐.',
+  'ops.patienceModelLabel': '인내심 분포',
+  'ops.patienceModelHint':
+    '🎲 분포 모델:\n\n' +
+    '• 균일 (fixed): 모두 같은 인내심 — 빠른 비교용\n' +
+    '• 정규분포 (normal): 사람마다 다름 (현실 모델)\n\n' +
+    '📏 σ (표준편차) 설정 가이드 — 전시 성격에 맞게 직접 결정:\n' +
+    '• 무료 walk-in: σ ≈ 평균의 50% (commitment 폭 큼)\n' +
+    '• 유료 일반 전시: σ ≈ 평균의 30% (어느정도 commit)\n' +
+    '• 블록버스터: σ ≈ 평균의 20% (모두 줄설 각오)\n' +
+    '• 어린이 체험: σ ≈ 평균의 50% (컨디션 변동 큼)\n' +
+    '• 기술/컨퍼런스: σ ≈ 평균의 30%\n\n' +
+    '※ σ 는 평균과 독립 — 평균을 바꿔도 자동 변경 안 됨.',
+  'ops.patienceModel.fixed': '균일',
+  'ops.patienceModel.normal': '정규분포',
+  'ops.field.patienceStdMin': '표준편차 σ (분)',
+  'ops.field.patienceStdPct': '표준편차 σ (평균의 %)',
+  'ops.useModifiersLabel': '프로필/참여도별 다르게 (선택)',
+  'ops.useModifiersHint':
+    '체크하면 visitor mix 의 프로필 분포에 따라 평균 인내심이 달라짐.\n' +
+    'VIP / 어린이 / 깊은체험 등 사람마다 평균 자체가 이동.\n\n' +
+    '⚠️ 자기 전시에 해당 프로필이 거의 없으면 (예: 기술 컨퍼런스 → 어린이 0%) 효과 미미. 단순 모델 (체크 해제) 권장.',
+  'ops.patienceProfileNote':
+    '프로필 배수 (visitor mix 에 해당 프로필 있을 때만 발동):\n' +
+    '• VIP ×1.3 (사전 commit, 유료)\n' +
+    '• 일반 ×1.0 (기준)\n' +
+    '• 어린이 ×0.6 (지루함 빨리 느낌) ※ 어린이 전용 시설은 ×1.0 권장\n' +
+    '• 노약자/장애 ×0.85 (서있기 어려움)\n\n' +
+    '참여도 배수: 깊은체험 ×1.4 / 둘러보기 ×1.0 / 가벼운 ×0.7.\n\n' +
+    '※ 자기 전시에 없는 프로필 줄은 무시. 배수가 안 맞다고 판단되면 spawn 패널의 visitor mix 비율로 조정.',
 
   // ── Phase 1 UX: 체험 모드 (Experience Modes, 2026-04-26) ──
   'experienceMode.title': '체험 모드',
@@ -383,6 +450,33 @@ export const ko: Dict = {
   'experienceMode.controlled_admission.desc': '낮은 cap 으로 쾌적 유지. 외부 대기·포기율·시간당 처리량.',
   'experienceMode.group_visit.label': '단체 관람',
   'experienceMode.group_visit.desc': '단체 + 개인 혼합 운영. 그룹 충돌·도슨트 활용.',
+
+  // ── Experience 탭의 입장 대기 카드 (Phase 1+, 2026-04-26) ──
+  'experience.queue.title': '입장 대기 (외부 큐)',
+  'experience.queue.titleHint':
+    '입장 정책이 활성화된 경우의 외부 대기열 현황.\n' +
+    '"셋팅"(좌측) 에서 정책을 입력하고, 그 결과를 여기서 분석합니다.',
+  'experience.queue.unlimited': '입장 정책이 무제한 — 외부 대기열 없음. 좌측 OperationsPanel 에서 정책 활성화 시 KPI 표시됨.',
+  'experience.queue.idleHint': '시뮬 시작 전 — Start 누르면 도착/입장 카운터 채워집니다.',
+  'experience.queue.arrived': '도착',
+  'experience.queue.admitted': '입장',
+  'experience.queue.abandoned': '포기',
+  'experience.queue.queued': '대기 중',
+  'experience.queue.avgQueueWait': '평균 대기',
+  'experience.queue.avgQueueWaitHint':
+    '지금 큐에 서 있는 모든 사람의 대기 시간 평균.\n' +
+    '큐 부하의 라이브 지표 — 늘어나면 cap/처리량 부족 신호.',
+  'experience.queue.recentAdmitWait': '최근 입장 평균',
+  'experience.queue.recentAdmitWaitHint':
+    '최근 100명 입장자의 외부 대기 시간 평균 (rolling).\n' +
+    '운영 결정의 핵심 KPI: "이 정책이면 평균 X분 기다린다."',
+  'experience.queue.oldestWait': '최장 대기',
+  'experience.queue.abandonRate': '포기율',
+  'experience.queue.abandonRateHint':
+    '도착 인원 중 인내심 초과로 떠난 비율.\n' +
+    '> 20%: 빨강 (정책 너무 빡빡), 10-20%: 노랑, < 10%: 녹색.',
+  'experience.queue.throughputPerHour': '시간당 입장',
+  'experience.queue.throughputPerHourHint': '누적 입장 / 경과 시간 → 시간당 환산. 처리량 추정.',
   'vela.hero.modeTime': '🕐 시간 기준',
   'vela.hero.modePerson': '👥 사람 기준',
   'vela.hero.modeTimeHint': '운영시간 동안 방문객 수용을 측정',
@@ -794,4 +888,57 @@ export const ko: Dict = {
   'sweep.col.complete': '완주%',
   'sweep.elapsed': 'Sweep {sec}s 소요',
   'sweep.abortedNote': '사용자 중단',
+
+  // ── Phase 0 (2026-04-25): Exhibit 용어 ───────────
+  // 상위 개념
+  'exhibit.label': '전시물',
+  'exhibit.label.plural': '전시물',
+  'exhibit.add': '전시물 추가',
+  'exhibit.outOfSpace': '공간 부족 — 존이 가득 찼습니다',
+
+  // 카테고리 (큐레이터 관점)
+  'exhibit.kind.artwork': '작품',
+  'exhibit.kind.artwork.desc': '회화, 조각, 사진 등 정적 전시물',
+  'exhibit.kind.digital': '디지털 미디어',
+  'exhibit.kind.digital.desc': '영상, 프로젝션, 미디어월',
+  'exhibit.kind.interactive': '인터랙티브',
+  'exhibit.kind.interactive.desc': '터치테이블, 키오스크, 핸즈온',
+  'exhibit.kind.immersive': '이머시브',
+  'exhibit.kind.immersive.desc': 'VR/AR, 몰입형 룸, 4D',
+
+  // Artwork 속성
+  'exhibit.artwork.section': '작품 속성',
+  'exhibit.artwork.curatorialOrder': '시리즈 내 순서',
+  'exhibit.artwork.curatorialOrder.hint': '의도된 관람 순서 (1, 2, 3...)',
+  'exhibit.artwork.series': '시리즈',
+  'exhibit.artwork.series.placeholder': '예: 조선시대 회화',
+  'exhibit.artwork.series.none': '시리즈 없음',
+  'exhibit.artwork.significance': '비중',
+  'exhibit.artwork.significance.hero': '대표작 (Hero)',
+  'exhibit.artwork.significance.support': '핵심 지지',
+  'exhibit.artwork.significance.context': '보조 맥락',
+  'exhibit.artwork.significance.hint': '대표작은 KPI 가중 + 캔버스 강조',
+
+  // Digital Media 속성
+  'exhibit.digital.section': '디지털 미디어 속성',
+  'exhibit.digital.contentDuration': '컨텐츠 길이',
+  'exhibit.digital.contentDuration.hint': '영상/프로젝션 전체 재생 시간',
+  'exhibit.digital.minWatch': '의미있는 체험',
+  'exhibit.digital.minWatch.hint': '이 시간 이상 머물러야 의미있는 체험으로 인정',
+  'exhibit.digital.loopable': '루프 재생',
+  'exhibit.digital.loopable.hint': '관람객이 들어오는 어느 시점에든 재생 시작',
+  'exhibit.digital.interactivityLevel': '인터랙션 수준',
+  'exhibit.digital.interactivityLevel.viewOnly': '시청 전용',
+  'exhibit.digital.interactivityLevel.chapterSelect': '챕터 선택 가능',
+  'exhibit.digital.interactivityLevel.fullInteractive': '풀 인터랙티브',
+  'exhibit.digital.warning.shortMinWatch': '의미있는 체험이 컨텐츠 길이의 20% 이하 — 실 효과 의문',
+
+  // Interactive 속성
+  'exhibit.interactive.section': '인터랙티브 속성',
+  'exhibit.interactive.sessionMode': '세션 모드',
+  'exhibit.interactive.sessionMode.slot': '슬롯 (시간 분할)',
+  'exhibit.interactive.sessionMode.queue': '대기열',
+  'exhibit.interactive.sessionMode.free': '자유',
+  'exhibit.interactive.interactionDepth': '인터랙션 깊이',
+  'exhibit.interactive.interactionDepth.hint': '0=단순 터치, 1=풀 인터랙션',
 };

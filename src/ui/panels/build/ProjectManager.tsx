@@ -92,7 +92,8 @@ export function ProjectManager() {
         recommendedDurationAuto: true,
         recommendedDurationMs: computeAutoRecommendedDurationMs(0, 0),
         timeSlots: [{
-          startTimeMs: 0, endTimeMs: 3_600_000,
+          // endTimeMs 를 duration 과 일치 — 그렇지 않으면 60분 후 spawn rate=0 으로 멈춤.
+          startTimeMs: 0, endTimeMs: 10_800_000,
           spawnRatePerSecond: 0.2,
           profileDistribution: { general: 60, vip: 15, child: 10, elderly: 10, disabled: 5 },
           engagementDistribution: { quick: 30, explorer: 40, immersive: 30 },

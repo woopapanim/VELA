@@ -1,16 +1,25 @@
 import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
-import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
-import type { Vector2D } from '@/domain';
+import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON, EXHIBIT_KIND } from '@/domain';
+import type {
+  Vector2D,
+  ArtworkProps,
+  DigitalMediaProps,
+  InteractiveProps,
+  ArtworkSignificance,
+  InteractivityLevel,
+  InteractiveSessionMode,
+} from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import { useT } from '@/i18n';
 
-const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
-  analog: { label: 'Analog', color: '#a78bfa' },
-  passive_media: { label: 'Passive', color: '#3b82f6' },
-  active: { label: 'Active', color: '#f59e0b' },
-  immersive: { label: 'Immersive', color: '#ec4899' },
+// Phase 0: 큐레이터 관점 라벨 (i18n exhibit.kind.* 키) 사용.
+const CATEGORY_BADGE: Record<string, { labelKey: string; color: string }> = {
+  analog: { labelKey: 'exhibit.kind.artwork', color: '#a78bfa' },
+  passive_media: { labelKey: 'exhibit.kind.digital', color: '#3b82f6' },
+  active: { labelKey: 'exhibit.kind.interactive', color: '#f59e0b' },
+  immersive: { labelKey: 'exhibit.kind.immersive', color: '#ec4899' },
 };
 
 export function MediaEditor() {
@@ -34,6 +43,31 @@ export function MediaEditor() {
     [selectedMediaId, updateMedia, isLocked],
   );
 
+  // Phase 0: nested 카테고리 속성 업데이트 (artwork/digital/interactive 의 sub-field).
+  // 값이 빈 문자열/null/undefined 이면 해당 sub-field 를 제거 (default 동작 복원).
+  const handleNestedUpdate = useCallback(
+    (
+      key: 'artwork' | 'digital' | 'interactive',
+      field: string,
+      value: unknown,
+    ) => {
+      if (!selectedMediaId || isLocked) return;
+      const current = (m as any)?.[key] ?? {};
+      const next = { ...current };
+      if (value === undefined || value === null || value === '') {
+        delete next[field];
+      } else {
+        next[field] = value;
+      }
+      // 객체가 비면 카테고리 props 자체를 undefined 로 (시나리오 파일 깨끗 유지)
+      const isEmpty = Object.keys(next).length === 0;
+      updateMedia(selectedMediaId, {
+        [key]: isEmpty ? undefined : next,
+      } as any);
+    },
+    [selectedMediaId, updateMedia, isLocked, m],
+  );
+
   if (!m) return null;
 
   const interactionType = (m as any).interactionType || 'passive';
@@ -50,13 +84,13 @@ export function MediaEditor() {
             const badge = CATEGORY_BADGE[cat];
             return badge ? (
               <span className="px-1.5 py-0.5 rounded text-[8px] font-medium text-white" style={{ backgroundColor: badge.color }}>
-                {badge.label}
+                {t(badge.labelKey)}
               </span>
             ) : (
               <div className={`w-2 h-2 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
             );
           })()}
-          Edit Media
+          {t('exhibit.label')}
         </h3>
         {!isLocked && (
           <button onClick={() => removeMedia(selectedMediaId!)} className="text-muted-foreground hover:text-destructive">
@@ -367,6 +401,334 @@ export function MediaEditor() {
           {(m as any).groupFriendly ? 'Yes' : 'No'}
         </button>
       </div>
+
+      {/* ── Phase 0: 카테고리별 큐레이션 속성 ───────────── */}
+      <CategoryProps
+        category={(m as any).category}
+        artwork={(m as any).artwork as ArtworkProps | undefined}
+        digital={(m as any).digital as DigitalMediaProps | undefined}
+        interactive={(m as any).interactive as InteractiveProps | undefined}
+        onArtworkChange={(field, value) => handleNestedUpdate('artwork', field, value)}
+        onDigitalChange={(field, value) => handleNestedUpdate('digital', field, value)}
+        onInteractiveChange={(field, value) => handleNestedUpdate('interactive', field, value)}
+        isLocked={isLocked}
+        t={t}
+      />
     </div>
+  );
+}
+
+// ── Phase 0: 카테고리별 입력 섹션 ──────────────────────────
+// EXHIBIT_KIND 분기로 작품/디지털/인터랙티브/이머시브 각각의 큐레이션 속성을 입력.
+// Immersive 는 본 Phase 에서 별도 UI 없이 Digital props 활용 (spec Phase 3B 결정).
+
+interface CategoryPropsProps {
+  category: string;
+  artwork?: ArtworkProps;
+  digital?: DigitalMediaProps;
+  interactive?: InteractiveProps;
+  onArtworkChange: (field: string, value: unknown) => void;
+  onDigitalChange: (field: string, value: unknown) => void;
+  onInteractiveChange: (field: string, value: unknown) => void;
+  isLocked: boolean;
+  t: (key: string) => string;
+}
+
+function CategoryProps({
+  category,
+  artwork,
+  digital,
+  interactive,
+  onArtworkChange,
+  onDigitalChange,
+  onInteractiveChange,
+  isLocked,
+  t,
+}: CategoryPropsProps) {
+  if (category === EXHIBIT_KIND.ARTWORK) {
+    return (
+      <ArtworkSection
+        props={artwork}
+        onChange={onArtworkChange}
+        isLocked={isLocked}
+        t={t}
+      />
+    );
+  }
+  if (category === EXHIBIT_KIND.DIGITAL || category === EXHIBIT_KIND.IMMERSIVE) {
+    return (
+      <DigitalMediaSection
+        props={digital}
+        onChange={onDigitalChange}
+        isLocked={isLocked}
+        t={t}
+      />
+    );
+  }
+  if (category === EXHIBIT_KIND.INTERACTIVE) {
+    return (
+      <InteractiveSection
+        props={interactive}
+        onChange={onInteractiveChange}
+        isLocked={isLocked}
+        t={t}
+      />
+    );
+  }
+  return null;
+}
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="pt-2 mt-2 border-t border-border/40">
+      <h4 className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">
+        {label}
+      </h4>
+    </div>
+  );
+}
+
+function ArtworkSection({
+  props,
+  onChange,
+  isLocked,
+  t,
+}: {
+  props?: ArtworkProps;
+  onChange: (field: string, value: unknown) => void;
+  isLocked: boolean;
+  t: (key: string) => string;
+}) {
+  const sig = props?.significance;
+  const SIG_OPTIONS: Array<{ value: ArtworkSignificance; labelKey: string; color: string }> = [
+    { value: 'context', labelKey: 'exhibit.artwork.significance.context', color: 'bg-secondary text-muted-foreground' },
+    { value: 'support', labelKey: 'exhibit.artwork.significance.support', color: 'bg-blue-500/20 text-blue-400' },
+    { value: 'hero',    labelKey: 'exhibit.artwork.significance.hero',    color: 'bg-amber-500/30 text-amber-300 font-semibold' },
+  ];
+
+  return (
+    <>
+      <SectionHeader label={t('exhibit.artwork.section')} />
+
+      {/* Series */}
+      <div>
+        <label className="panel-label">{t('exhibit.artwork.series')}</label>
+        <input
+          value={props?.series ?? ''}
+          onChange={(e) => onChange('series', e.target.value)}
+          disabled={isLocked}
+          placeholder={t('exhibit.artwork.series.placeholder')}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        />
+      </div>
+
+      {/* Curatorial Order */}
+      <div>
+        <div className="flex items-center gap-1">
+          <label className="panel-label">{t('exhibit.artwork.curatorialOrder')}</label>
+          <InfoTooltip text={t('exhibit.artwork.curatorialOrder.hint')} />
+        </div>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={props?.curatorialOrder ?? ''}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('curatorialOrder', Number.isFinite(v) && v > 0 ? v : undefined);
+          }}
+          disabled={isLocked || !props?.series}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        />
+        {!props?.series && (
+          <p className="text-[9px] text-muted-foreground mt-0.5">
+            {t('exhibit.artwork.series')} →
+          </p>
+        )}
+      </div>
+
+      {/* Significance */}
+      <div>
+        <div className="flex items-center gap-1">
+          <label className="panel-label">{t('exhibit.artwork.significance')}</label>
+          <InfoTooltip text={t('exhibit.artwork.significance.hint')} />
+        </div>
+        <div className="flex gap-1 mt-0.5">
+          {SIG_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onChange('significance', sig === opt.value ? undefined : opt.value)}
+              disabled={isLocked}
+              className={`flex-1 px-1 py-1 text-[9px] rounded-lg transition-colors ${
+                sig === opt.value ? opt.color : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
+              } disabled:opacity-50`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function DigitalMediaSection({
+  props,
+  onChange,
+  isLocked,
+  t,
+}: {
+  props?: DigitalMediaProps;
+  onChange: (field: string, value: unknown) => void;
+  isLocked: boolean;
+  t: (key: string) => string;
+}) {
+  const contentSec = props?.contentDurationMs ? Math.round(props.contentDurationMs / 1000) : '';
+  const minWatchSec = props?.minWatchMs ? Math.round(props.minWatchMs / 1000) : '';
+
+  // 의미있는 체험이 컨텐츠 길이의 20% 이하면 경고
+  const showShortMinWatchWarning =
+    typeof contentSec === 'number' &&
+    typeof minWatchSec === 'number' &&
+    contentSec > 0 &&
+    minWatchSec / contentSec < 0.2;
+
+  const INTERACTIVITY_OPTIONS: Array<{ value: InteractivityLevel; labelKey: string }> = [
+    { value: 'view-only', labelKey: 'exhibit.digital.interactivityLevel.viewOnly' },
+    { value: 'chapter-select', labelKey: 'exhibit.digital.interactivityLevel.chapterSelect' },
+    { value: 'full-interactive', labelKey: 'exhibit.digital.interactivityLevel.fullInteractive' },
+  ];
+
+  return (
+    <>
+      <SectionHeader label={t('exhibit.digital.section')} />
+
+      {/* Content Duration */}
+      <div>
+        <div className="flex items-center gap-1">
+          <label className="panel-label">{t('exhibit.digital.contentDuration')} (s)</label>
+          <InfoTooltip text={t('exhibit.digital.contentDuration.hint')} />
+        </div>
+        <input
+          type="number"
+          min={0}
+          step={5}
+          value={contentSec}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('contentDurationMs', Number.isFinite(v) && v > 0 ? v * 1000 : undefined);
+          }}
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        />
+      </div>
+
+      {/* Minimum Meaningful Watch */}
+      <div>
+        <div className="flex items-center gap-1">
+          <label className="panel-label">{t('exhibit.digital.minWatch')} (s)</label>
+          <InfoTooltip text={t('exhibit.digital.minWatch.hint')} />
+        </div>
+        <input
+          type="number"
+          min={0}
+          step={5}
+          value={minWatchSec}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('minWatchMs', Number.isFinite(v) && v > 0 ? v * 1000 : undefined);
+          }}
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        />
+        {showShortMinWatchWarning && (
+          <p className="text-[9px] text-amber-400 mt-0.5">
+            ⚠ {t('exhibit.digital.warning.shortMinWatch')}
+          </p>
+        )}
+      </div>
+
+      {/* Loopable */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          <label className="panel-label">{t('exhibit.digital.loopable')}</label>
+          <InfoTooltip text={t('exhibit.digital.loopable.hint')} />
+        </div>
+        <button
+          onClick={() => onChange('loopable', !props?.loopable)}
+          disabled={isLocked}
+          className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
+            props?.loopable ? 'bg-blue-500/20 text-blue-400' : 'bg-secondary text-muted-foreground'
+          } disabled:opacity-50`}
+        >
+          {props?.loopable ? 'On' : 'Off'}
+        </button>
+      </div>
+
+      {/* Interactivity Level */}
+      <div>
+        <label className="panel-label">{t('exhibit.digital.interactivityLevel')}</label>
+        <select
+          value={props?.interactivityLevel ?? 'view-only'}
+          onChange={(e) =>
+            onChange(
+              'interactivityLevel',
+              e.target.value === 'view-only' ? undefined : e.target.value,
+            )
+          }
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        >
+          {INTERACTIVITY_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {t(opt.labelKey)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+}
+
+function InteractiveSection({
+  props,
+  onChange,
+  isLocked,
+  t,
+}: {
+  props?: InteractiveProps;
+  onChange: (field: string, value: unknown) => void;
+  isLocked: boolean;
+  t: (key: string) => string;
+}) {
+  const SESSION_OPTIONS: Array<{ value: InteractiveSessionMode; labelKey: string }> = [
+    { value: 'free',  labelKey: 'exhibit.interactive.sessionMode.free' },
+    { value: 'queue', labelKey: 'exhibit.interactive.sessionMode.queue' },
+    { value: 'slot',  labelKey: 'exhibit.interactive.sessionMode.slot' },
+  ];
+
+  return (
+    <>
+      <SectionHeader label={t('exhibit.interactive.section')} />
+
+      {/* Session Mode */}
+      <div>
+        <label className="panel-label">{t('exhibit.interactive.sessionMode')}</label>
+        <select
+          value={props?.sessionMode ?? 'free'}
+          onChange={(e) =>
+            onChange('sessionMode', e.target.value === 'free' ? undefined : e.target.value)
+          }
+          disabled={isLocked}
+          className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        >
+          {SESSION_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {t(opt.labelKey)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
   );
 }
