@@ -177,7 +177,11 @@ function pickPeakUtilRatio(snap: KpiSnapshot): number {
  * dangling 은 dwell/wait 가 부정확하므로 제외.
  */
 function collectSatisfactionScores(
-  visitors: readonly { admittedAt?: number; enteredAt: number; exitedAt?: number }[],
+  // 입력은 SimEngine.getVisitors() → Visitor[] 가 흘러옴. 모듈 경계 가벼움 위해
+  // 필요한 슬롯만 구조적으로 선언 (admittedAt: number | undefined, enteredAt:
+  // number, exitedAt: number | null). exitedAt 의 null 허용이 핵심 — Visitor 는
+  // exit 전 null 로 보관, exit 후 number 로 확정. 좁히면 non-exited 도 안전.
+  visitors: readonly { admittedAt?: number; enteredAt: number; exitedAt: number | null }[],
   weights: SatisfactionWeights,
   nowMs: number,
 ): number[] {
