@@ -196,6 +196,7 @@ export function CanvasPanel() {
             activeFloorId: store.activeFloorId,
             shaftQueues: store.shaftQueues,
             densityGrids: store.densityGrids,
+            entryQueue: store.entryQueue,
           });
         }
       }
