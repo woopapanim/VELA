@@ -19,8 +19,31 @@ import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
 import { InfoTooltip } from '../components/InfoTooltip';
 import { useStore } from '@/stores';
-import { useRef } from 'react';
+import { useRef, useState, useCallback } from 'react';
+import { ChevronRight } from 'lucide-react';
 import { useT } from '@/i18n';
+
+const PANEL_STATE_KEY = 'vela-panel-state';
+const ZONES_PANEL_ID = 'mainLayout.zoneList';
+
+function readPanelOpen(id: string, defaultOpen: boolean): boolean {
+  try {
+    const s = JSON.parse(localStorage.getItem(PANEL_STATE_KEY) || '{}');
+    return s[id] !== undefined ? !!s[id] : defaultOpen;
+  } catch {
+    return defaultOpen;
+  }
+}
+
+function writePanelOpen(id: string, open: boolean) {
+  try {
+    const cur = JSON.parse(localStorage.getItem(PANEL_STATE_KEY) || '{}');
+    cur[id] = open;
+    localStorage.setItem(PANEL_STATE_KEY, JSON.stringify(cur));
+  } catch {
+    // ignore
+  }
+}
 
 export function MainLayout() {
   const visitors = useStore((s) => s.visitors);
@@ -157,39 +180,60 @@ function ZoneListDragDrop() {
   const zones = useStore((s) => s.zones);
   const selectedZoneId = useStore((s) => s.selectedZoneId);
   const t = useT();
+  const [open, setOpen] = useState<boolean>(() => readPanelOpen(ZONES_PANEL_ID, false));
+
+  const toggle = useCallback(() => {
+    setOpen((prev) => {
+      const next = !prev;
+      writePanelOpen(ZONES_PANEL_ID, next);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="bento-box p-4">
-      <h2 className="panel-section mb-3 flex items-center gap-1.5">
-        Zones ({zones.length})
-        <InfoTooltip text={t('tooltip.zones')} />
-      </h2>
-      <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
-        {zones.map((zone) => {
-          const isSelected = (zone.id as string) === selectedZoneId;
-          const isEntrance = zone.type === 'entrance';
-          const isExit = zone.type === 'exit';
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className={`w-full flex items-center gap-1.5 text-left ${open ? 'mb-3' : ''}`}
+      >
+        <ChevronRight
+          className={`w-3 h-3 text-muted-foreground transition-transform ${open ? 'rotate-90' : ''}`}
+        />
+        <h2 className="panel-section flex-1 flex items-center gap-1.5">
+          Zones ({zones.length})
+          <InfoTooltip text={t('tooltip.zones')} />
+        </h2>
+      </button>
+      {open && (
+        <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
+          {zones.map((zone) => {
+            const isSelected = (zone.id as string) === selectedZoneId;
+            const isEntrance = zone.type === 'entrance';
+            const isExit = zone.type === 'exit';
 
-          return (
-            <div
-              key={zone.id as string}
-              onClick={(e) => { useStore.getState().selectZone(zone.id as string); (e.currentTarget as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all
-                ${isSelected ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-secondary/50'}
-              `}
-            >
-              <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: zone.color }} />
-              <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`}>{zone.name}</span>
-              <span className="text-muted-foreground font-data text-[9px]">
-                {isEntrance ? '⬆entrance' : isExit ? '⬇exit' : zone.type}
-              </span>
-            </div>
-          );
-        })}
-        {zones.length === 0 && (
-          <p className="text-xs text-muted-foreground">Load a scenario or add zones</p>
-        )}
-      </div>
+            return (
+              <div
+                key={zone.id as string}
+                onClick={(e) => { useStore.getState().selectZone(zone.id as string); (e.currentTarget as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all
+                  ${isSelected ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-secondary/50'}
+                `}
+              >
+                <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: zone.color }} />
+                <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`}>{zone.name}</span>
+                <span className="text-muted-foreground font-data text-[9px]">
+                  {isEntrance ? '⬆entrance' : isExit ? '⬇exit' : zone.type}
+                </span>
+              </div>
+            );
+          })}
+          {zones.length === 0 && (
+            <p className="text-xs text-muted-foreground">Load a scenario or add zones</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
