@@ -19,7 +19,7 @@ export function generateInsights(
   snapshot: KpiSnapshot,
   zones: readonly ZoneConfig[],
   media?: readonly MediaPlacement[],
-  mediaStats?: Map<string, MediaStatsEntry>,
+  mediaStats?: ReadonlyMap<string, MediaStatsEntry>,
   visitors?: readonly Visitor[],
   groups?: readonly VisitorGroup[],
   t: TFn = identityT,
@@ -233,7 +233,7 @@ export function generateInsights(
 function generateSpaceRoiInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
-  mediaStats: Map<string, MediaStatsEntry>,
+  mediaStats: ReadonlyMap<string, MediaStatsEntry>,
   t: TFn,
 ) {
   // engagement density = totalWatchMs / area(m²)
@@ -300,7 +300,7 @@ function generateSpaceRoiInsights(
 function generateContentMixInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
-  mediaStats: Map<string, MediaStatsEntry>,
+  mediaStats: ReadonlyMap<string, MediaStatsEntry>,
   t: TFn,
 ) {
   const catStats = new Map<string, { totalWatch: number; totalSkip: number; totalWatchMs: number; count: number }>();
@@ -447,7 +447,7 @@ function generateGroupImpactInsights(
 function generateContentFatigueInsights(
   insights: InsightEntry[],
   media: readonly MediaPlacement[],
-  mediaStats: Map<string, MediaStatsEntry>,
+  mediaStats: ReadonlyMap<string, MediaStatsEntry>,
   t: TFn,
 ) {
   // Check fatigue categories: if same fatigueCategory media have high skip rates

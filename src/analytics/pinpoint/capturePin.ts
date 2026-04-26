@@ -135,7 +135,10 @@ function buildMediaAnalysis(
 
     return {
       mediaId: m.id,
-      mediaType: m.interactionType,
+      // MediaPointAnalysis.mediaType 은 15종 catalog (MediaType). interactionType
+      // (passive/active/staged/analog 4종 거동) 과 혼동 금지 — Phase 0 카테고리
+      // 분리 후 명확해짐.
+      mediaType: m.type,
       currentViewers,
       queueLength,
       avgWaitTimeMs,
