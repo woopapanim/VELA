@@ -96,9 +96,12 @@ export function MainLayout() {
 
       {/* 3-Panel Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel — Build / Control */}
+        {/* Left Panel — Session / Build / Operations 3 도메인 ─────────────────
+            세션(Project/Simulation/Replay) 다음 빌드(공간) → 운영(시나리오)
+            순. 같은 도메인끼리 묶고 그룹 헤더로 시각적 분리. (2026-04-26 #5) */}
         <aside className="w-72 border-r border-border bg-[var(--surface)] overflow-y-auto">
           <div className="p-3 space-y-3">
+            {/* ── Session ────────────────────────── */}
             <div className="bento-box p-4">
               <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Project
@@ -117,8 +120,8 @@ export function MainLayout() {
 
             <ReplayScrubber />
 
-            {/* ── Phase 1 UX (2026-04-26): 체험 모드 = 모든 build 입력의 _상위_ 선언 ── */}
-            <ExperienceModePanel />
+            {/* ── Build (공간) ───────────────────── */}
+            <SectionHeader label={t('mainLayout.section.build')} />
 
             <div className="bento-box p-4">
               <BuildTools />
@@ -130,7 +133,12 @@ export function MainLayout() {
             <WaypointInspector />
             <MediaEditor />
 
-            <ZoneListDragDrop />
+            <ZoneList />
+
+            {/* ── Operations (운영 시나리오) ───── */}
+            <SectionHeader label={t('mainLayout.section.operations')} />
+
+            <ExperienceModePanel />
 
             <div className="bento-box p-4">
               <h2 className="panel-section mb-3 flex items-center gap-1.5">
@@ -170,10 +178,19 @@ export function MainLayout() {
   );
 }
 
+// ── Domain group header (좌측 패널 도메인 구분 라벨) ──
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="px-1 pt-2 pb-0.5 text-[9px] uppercase tracking-wider text-muted-foreground/70 font-medium select-none">
+      {label}
+    </div>
+  );
+}
+
 // ── Zone List (click-to-select) ──
-// Note: 동선은 waypoint graph 가 결정. zone 배열 순서는 [0]=spawn / [last]=exit 약속만 유의미하므로
+// 동선은 waypoint graph 가 결정. zone 배열 순서는 [0]=spawn / [last]=exit 약속만 유의미하므로
 // 중간 zone 의 reorder UI 는 제거 (Graph-Point 시스템 도입 이후 dead).
-function ZoneListDragDrop() {
+function ZoneList() {
   const zones = useStore((s) => s.zones);
   const selectedZoneId = useStore((s) => s.selectedZoneId);
   const t = useT();

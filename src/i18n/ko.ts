@@ -256,6 +256,10 @@ export const ko: Dict = {
   'tooltip.zones':
     '전시 존 목록입니다. 입구(Entrance)는 항상 첫 번째, 출구(Exit)는 항상 마지막에 위치합니다. 클릭하면 해당 존이 편집 대상으로 선택됩니다. 괄호 안의 숫자는 전체 존 개수를 의미합니다.',
 
+  // Left panel — domain section headers
+  'mainLayout.section.build': '공간 빌드',
+  'mainLayout.section.operations': '운영 시나리오',
+
   // Media editor — field tooltips
   'tooltip.media.orientation':
     '미디어의 정면 방향입니다(0°=위, 90°=오른쪽, 180°=아래, 270°=왼쪽). 방문객이 모여 관람하는 영역의 위치를 결정합니다.',

@@ -282,6 +282,10 @@ export const en: Dict = {
   'tooltip.zones':
     'List of exhibition zones. Entrance is always first and Exit is always last. Click a zone to select it for editing. The number in parentheses is the total zone count.',
 
+  // Left panel — domain section headers
+  'mainLayout.section.build': 'Build',
+  'mainLayout.section.operations': 'Operations',
+
   // Media editor — field tooltips
   'tooltip.media.orientation':
     'Front-facing direction of the media (0°=up, 90°=right, 180°=down, 270°=left). Determines the viewing area where visitors gather to watch.',
