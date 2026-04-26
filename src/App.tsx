@@ -4,20 +4,33 @@ import { ToastProvider } from '@/ui/components/Toast';
 import { CompletionModal } from '@/ui/components/CompletionModal';
 import { MainLayout } from '@/ui/layouts/MainLayout';
 import { WelcomeScreen } from '@/ui/layouts/WelcomeScreen';
+import { ModeSelectionScreen } from '@/ui/layouts/ModeSelectionScreen';
+
+type Step = 'welcome' | 'mode' | 'ready';
 
 function App() {
-  const [projectReady, setProjectReady] = useState(false);
+  const [step, setStep] = useState<Step>('welcome');
 
   return (
     <ThemeProvider>
       <ToastProvider>
-        {projectReady ? (
+        {step === 'ready' && (
           <>
             <MainLayout />
             <CompletionModal />
           </>
-        ) : (
-          <WelcomeScreen onEnter={() => setProjectReady(true)} />
+        )}
+        {step === 'mode' && (
+          <ModeSelectionScreen
+            onPicked={() => setStep('ready')}
+            onBack={() => setStep('welcome')}
+          />
+        )}
+        {step === 'welcome' && (
+          <WelcomeScreen
+            onNewProjectCreated={() => setStep('mode')}
+            onLoaded={() => setStep('ready')}
+          />
         )}
       </ToastProvider>
     </ThemeProvider>

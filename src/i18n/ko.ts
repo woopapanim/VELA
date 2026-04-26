@@ -416,6 +416,12 @@ export const ko: Dict = {
     '참여도 배수: 깊은체험 ×1.4 / 둘러보기 ×1.0 / 가벼운 ×0.7.\n\n' +
     '※ 자기 전시에 없는 프로필 줄은 무시. 배수가 안 맞다고 판단되면 spawn 패널의 visitor mix 비율로 조정.',
 
+  // 모드 선택 화면 — 새 프로젝트 만든 직후 첫 진입 설문
+  'modeSelect.title': '어떤 시나리오로 시작할까요?',
+  'modeSelect.subtitle': '체험 모드를 고르면 입장 정책·만족도 가중치·리포트 관점이 자동으로 맞춰집니다. 나중에 좌측 패널에서 변경할 수 있어요.',
+  'modeSelect.skip': '건너뛰기 — 기본값(자유 관람)으로 시작',
+  'modeSelect.back': '← 뒤로',
+
   // ── Phase 1 UX: 체험 모드 (Experience Modes, 2026-04-26) ──
   'experienceMode.title': '체험 모드',
   'experienceMode.titleHint':

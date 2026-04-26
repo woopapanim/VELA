@@ -94,6 +94,12 @@ export const en: Dict = {
   'configFields.sumRequired': 'Sum: {total}% (100% required)',
 
   // Welcome screen
+  // Mode selection screen — first-run survey after creating a new project
+  'modeSelect.title': 'What scenario should we start with?',
+  'modeSelect.subtitle': 'Pick an experience mode — it pre-sets entry policy, satisfaction weights, and the report perspective. You can change it later in the left panel.',
+  'modeSelect.skip': 'Skip — start with default (Free admission)',
+  'modeSelect.back': '← Back',
+
   'welcome.error.invalidFile':
     'Invalid file (missing meta / zones / simulationConfig)',
   'welcome.error.parseError': 'Parse error: {message}',

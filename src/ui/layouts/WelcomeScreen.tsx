@@ -30,7 +30,14 @@ function deleteFromHistory(id: string) {
   } catch {}
 }
 
-export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
+interface WelcomeScreenProps {
+  /** New Project 직후 호출 — App 이 mode 단계로 전환. */
+  onNewProjectCreated: () => void;
+  /** Open File / Recent Projects — 저장된 시나리오에 모드 이미 있으므로 ready 로 직행. */
+  onLoaded: () => void;
+}
+
+export function WelcomeScreen({ onNewProjectCreated, onLoaded }: WelcomeScreenProps) {
   const setScenario = useStore((s) => s.setScenario);
   const [showNameInput, setShowNameInput] = useState(false);
   const [projectName, setProjectName] = useState('');
@@ -61,8 +68,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       else existing.push(entry);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(-20)));
     } catch {}
-    onEnter();
-  }, [setScenario, onEnter, t]);
+    onLoaded();
+  }, [setScenario, onLoaded, t]);
 
   // ── New blank project ──
   const handleNew = useCallback(() => {
@@ -108,8 +115,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       // globalFlowMode intentionally omitted — user must choose before adding zones
     };
     setScenario(scenario);
-    onEnter();
-  }, [projectName, setScenario, onEnter]);
+    onNewProjectCreated();
+  }, [projectName, setScenario, onNewProjectCreated]);
 
   // ── Open File — showOpenFilePicker (모던 API) + fallback input ──
   const handleOpenFile = useCallback(async () => {
@@ -181,8 +188,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   // ── Load from history ──
   const handleLoad = useCallback((entry: ProjectEntry) => {
     setScenario(entry.scenario);
-    onEnter();
-  }, [setScenario, onEnter]);
+    onLoaded();
+  }, [setScenario, onLoaded]);
 
   const handleDelete = useCallback((id: string) => {
     deleteFromHistory(id);
