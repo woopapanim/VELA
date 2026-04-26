@@ -1,5 +1,5 @@
 import type { ZoneConfig, Visitor, VisitorGroup, MediaPlacement, WaypointGraph, FloorConfig, DensityGrid } from '@/domain';
-import type { OverlayMode, ShaftQueueSnapshot } from '@/stores';
+import type { OverlayMode, ShaftQueueSnapshot, EntryQueueState } from '@/stores';
 import { Camera } from './Camera';
 import { renderGrid } from '../renderers/GridRenderer';
 import { renderZones } from '../renderers/ZoneRenderer';
@@ -13,6 +13,7 @@ import { renderRuler } from '../renderers/RulerRenderer';
 import { renderFlowArrows } from '../renderers/FlowArrowRenderer';
 import { renderPathTrails, updateTrails } from '../renderers/PathTrailRenderer';
 import { renderWaypoints } from '../renderers/WaypointRenderer';
+import { renderOutsideQueue } from '../renderers/OutsideQueueRenderer';
 // minimap removed
 import { HeatmapRenderer } from '../renderers/HeatmapRenderer';
 
@@ -44,6 +45,8 @@ export interface RenderState {
   activeFloorId?: string | null;
   shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>;
   densityGrids?: ReadonlyMap<string, DensityGrid>;
+  /** Phase 1: 외부 입장 대기 큐 (entry node 별 인원 + oldestWait). */
+  entryQueue?: EntryQueueState;
 }
 
 export class CanvasManager {
@@ -228,6 +231,12 @@ export class CanvasManager {
       renderWaypoints(ctx, visibleGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels, state.shaftQueues);
     } else if (state.ghostNode) {
       renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
+    }
+
+    // 4d. Outside entry queue — Phase 1 입장 정책으로 throttle 된 대기자 표시.
+    // unlimited 모드면 entryQueue.totalQueueLength === 0 이라 즉시 return (no-op).
+    if (visibleGraph && state.entryQueue) {
+      renderOutsideQueue(ctx, visibleGraph, state.entryQueue, isDark, this.camera.zoom);
     }
 
     // 5. Flow lines (between zones) — explicit overlay toggle only, so the
