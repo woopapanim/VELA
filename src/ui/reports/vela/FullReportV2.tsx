@@ -2,11 +2,14 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { X, Download, Loader2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
-import { toReportData } from '@/analytics/reporting';
+import { toReportData, buildVariantComparison } from '@/analytics/reporting';
+import { assembleKpiSnapshot } from '@/analytics/aggregator';
+import { scenarioManager } from '@/scenario/ScenarioManager';
 import { exportElementToPdf } from '../pdfExport';
 import { HeroSection } from './sections/HeroSection';
 import { TldrSection } from './sections/TldrSection';
 import { ModePerspectiveSection } from './sections/ModePerspectiveSection';
+import { ComparisonSection } from './sections/ComparisonSection';
 import { ExecutiveSection } from './sections/ExecutiveSection';
 import { DensitySection } from './sections/DensitySection';
 import { TimelineSection } from './sections/TimelineSection';
@@ -62,6 +65,51 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
       t,
     });
   }, [scenario, zones, media, floors, visitors, groups, timeState, latestSnapshot, kpiHistory, mediaStats, spawnByNode, exitByNode, waypointGraph, totalExited, runId, entryQueue, t]);
+
+  /**
+   * Phase 1 UX [F1] (2026-04-26): 검증 tier 변형 비교.
+   * 현재 시나리오의 sibling (같은 parentId 또는 자기 parent) 을 ScenarioManager 에서 찾아
+   * 마지막 KpiSnapshot 으로 KPI 매트릭스 + winner 산출.
+   * 운영 tier 에서는 sweep 도구 사용을 가정하므로 미렌더 (호출 측 분기).
+   */
+  const comparison = useMemo(() => {
+    if (!data || !scenario) return null;
+    if (data.perspective.tier !== 'validation') return null;
+
+    const parentId = scenario.meta.parentId;
+    const myId = scenario.meta.id;
+    // sibling 후보: 같은 parentId 를 가진 다른 시나리오 + 자기 parent (있다면).
+    // parentId 가 null 이면 sibling 없음 (root 시나리오).
+    if (!parentId) return null;
+
+    const all = scenarioManager.getAll();
+    const siblings = all.filter((s) =>
+      s.scenario.meta.id !== myId && (
+        s.scenario.meta.parentId === parentId || s.scenario.meta.id === parentId
+      ),
+    );
+    if (siblings.length === 0) return null;
+
+    // 현재 시나리오의 라이브 KpiSnapshot 산정.
+    const currentKpi = assembleKpiSnapshot(zones, media, visitors, timeState.elapsed, totalExited);
+
+    const variants = [
+      { scenario, kpiSnapshot: currentKpi, isCurrent: true },
+      ...siblings.slice(0, 2).map((s) => ({
+        scenario: s.scenario,
+        kpiSnapshot: s.kpiHistory.length > 0
+          ? s.kpiHistory[s.kpiHistory.length - 1].snapshot
+          : null,
+        isCurrent: false,
+      })),
+    ];
+
+    return buildVariantComparison({
+      variants,
+      mode: data.perspective.mode,
+      t,
+    });
+  }, [data, scenario, zones, media, visitors, timeState.elapsed, totalExited, t]);
 
   const handleExport = useCallback(async () => {
     if (!pageRef.current || !scenario) return;
@@ -160,6 +208,8 @@ export function FullReportV2({ onClose }: { onClose: () => void }) {
           </div>
           {/* Phase 1 UX (2026-04-26): 모드 관점 overlay. 본문 11 섹션은 모드 무관, 이 한 장만 모드별 해석. */}
           <ModePerspectiveSection perspective={data.perspective} findings={data.findings} />
+          {/* Phase 1 UX [F1] (2026-04-26): 검증 tier 변형 비교 overlay. sibling 없으면 미렌더. */}
+          {comparison && <ComparisonSection comparison={comparison} />}
           <ExecutiveSection
             visitors={data.meta.visitors}
             kpis={data.kpis}

@@ -459,6 +459,23 @@ export const ko: Dict = {
   'vela.persp.verdict.abandon.a': '도착 인원의 {pct}%가 큐를 포기.',
   'vela.persp.verdict.abandon.b': '인내심 정책이 너무 빡빡하거나 처리량이 부족합니다.',
 
+  // ── VELA Report — Comparison [F1] (검증 tier 변형 매트릭스) ──
+  'vela.compare.title': '변형 비교',
+  'vela.compare.variantCount': '변형 {count}개',
+  'vela.compare.recommended': '추천',
+  'vela.compare.recommendedHint': '— 모드 가중 점수에서 1위.',
+  'vela.compare.tied': '변형 간 격차가 미미합니다 — 명확한 우위 없음.',
+  'vela.compare.col.metric': '지표',
+  'vela.compare.currentBadge': '현재',
+  'vela.compare.unrunBadge': '시뮬레이션 결과 없음',
+  'vela.compare.higherBetter': '높을수록 좋음',
+  'vela.compare.lowerBetter': '낮을수록 좋음',
+  'vela.compare.metric.completion': '완주율',
+  'vela.compare.metric.peak': '피크 점유',
+  'vela.compare.metric.skip': '스킵률',
+  'vela.compare.metric.fatigue': '상위 10% 피로도',
+  'vela.compare.note.unrun': '변형 {count}개에 시뮬 결과가 없습니다 — 실행해서 비교하세요.',
+
   // VELA Report — Executive
   'vela.exec.eyebrow': '핵심 요약',
   'vela.exec.titleA': '핵심',

@@ -485,6 +485,23 @@ export const en: Dict = {
   'vela.persp.verdict.abandon.a': '{pct}% of arrivals abandoned the queue.',
   'vela.persp.verdict.abandon.b': 'Wait policy is too tight or throughput too low for arrival rate.',
 
+  // ── VELA Report — Comparison [F1] (validation tier variant matrix) ──
+  'vela.compare.title': 'Variant Comparison',
+  'vela.compare.variantCount': '{count} variants',
+  'vela.compare.recommended': 'Recommended',
+  'vela.compare.recommendedHint': 'wins on the mode-weighted score.',
+  'vela.compare.tied': 'Variants are within margin of error — no clear winner.',
+  'vela.compare.col.metric': 'Metric',
+  'vela.compare.currentBadge': 'NOW',
+  'vela.compare.unrunBadge': 'No simulation result yet',
+  'vela.compare.higherBetter': 'higher is better',
+  'vela.compare.lowerBetter': 'lower is better',
+  'vela.compare.metric.completion': 'Completion',
+  'vela.compare.metric.peak': 'Peak utilization',
+  'vela.compare.metric.skip': 'Skip rate',
+  'vela.compare.metric.fatigue': 'P90 fatigue',
+  'vela.compare.note.unrun': '{count} variant(s) lack simulation results — run them to compare.',
+
   // VELA Report — Executive
   'vela.exec.eyebrow': 'Executive Summary',
   'vela.exec.titleA': 'Executive',
