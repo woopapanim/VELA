@@ -3,6 +3,7 @@ export * from './floor';
 export * from './physics';
 export * from './zone';
 export * from './media';
+export * from './exhibit';
 export * from './visitor';
 export * from './simulation';
 export * from './scenario';
