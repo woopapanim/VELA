@@ -668,3 +668,131 @@ function inferExperienceMode(scenario: Scenario): ExperienceMode {
 - "체험 모드는 레이아웃 검증, 큐레이션 검증, 미디어 경험 검증이 같은 성격"
 - "운영 예상 시뮬레이션은 자유관람, 자유관람인데 동시 수용인원이 넘으면 통제, 시간제 예약 관람, 통제 입장, 단체 관람"
 - "레이아웃 디자인하는 사람이 레이아웃 검증하고 싶은데, 동시수용제한에 인내심과 균일·정규분포까지 알아가서 설정해야 하는 건 아니니까"
+
+---
+
+## 부록 — 구현 진행 상황 (2026-04-26 완료)
+
+본 spec 의 [A] ~ [F2] 작업 항목은 다음 commit 으로 완료. [G] 정합성 패스 + [H] 문서화도 함께.
+
+| # | 항목 | Commit | 비고 |
+|---|------|--------|-----|
+| [A] | ExperienceMode enum + REGISTRY + Scenario 확장 + 마이그레이션 | `3132fc8` + `16eea90` | `SimulationConfig.operations` 슬롯 보충 후속 commit. |
+| [B] | ExperienceModePanel UI + i18n + MainLayout | `70da95b` | 8 모드 (active 5 + disabled 3) tier 별 그룹. |
+| [C] | 하위 패널 conditional + EntryQueueLive | `ebb3ae5` | 검증 tier 에서 OperationsPanel/EntryQueueLive 자동 숨김. |
+| [D] | 만족도 계산기 + 단위 테스트 | `c5be9dd` | 4-component 가중합 + 5 라벨, mode 별 weights matrix. |
+| [E] | ModePerspectiveSection (additive overlay) | `7cfb5f4` | Hero 직후 삽입, 기존 11 섹션 그대로. mode-aware verdict (good/caution/concern). |
+| [F1] | ComparisonSection — 검증 tier 변형 비교 | `dfef2e6` | parentId chain → siblings → A/B/C 매트릭스. tier-weighted winner + recommended 배너. |
+| [F2a] | SweepRunner — 헤드리스 cap 탐색 | `8e54cec` | AbortController, 600-tick 배치 yield, capex tiebreak. 13 unit tests. |
+| [F2b] | SweepLauncher UI 패널 | `3347165` | OperationsPanel 내부, mode 에 맞는 sweepable param 자동 선택, "적용" 으로 즉시 정책 반영. |
+| [G] | 정합성 / 통합 | `c6d813c` | tsc --noEmit 통과 (내 코드 0 error), 109 unit tests pass, i18n 686-key parity (en/ko). |
+| [H] | 문서화 | (this section) | spec 부록 + CLAUDE.md 갱신 + 백서 노트. |
+
+### Definition of Done — 결과
+
+- [x] ExperienceMode enum + 8 모드 정의
+- [x] 활성 5 모드 (레이아웃 검증 + 운영 4종) 모두 시뮬 가능
+- [x] disabled 3 모드 (큐레이션/미디어/단체) UI 표시 + 클릭 차단
+- [x] 패널 conditional 노출 (검증/운영 tier 별)
+- [x] 만족도 계산 + 모드별 가중치 적용
+- [x] 리포트 overlay 3 종 (ModePerspectiveSection, ComparisonSection, RecosSection findings 모드 align) — 기존 11 섹션은 그대로
+- [x] 비교 UI (검증 tier 의 A/B/C, 운영 tier 의 정책 sweep)
+- [x] 회귀 0 (기존 시나리오 = `experienceMode` 미설정 시 `inferExperienceMode(operations.entryPolicy.mode)` 로 polyfill — 동작 변경 없음)
+- [x] 단위 + 통합 테스트 pass (109/109)
+- [x] CLAUDE.md 업데이트, 백서 만족도 섹션 초안
+
+### 후속 작업 (Phase 1 외)
+
+본 commit 체인 외부에 prior session 의 _Phase 0 (Exhibit 용어)_ 작업이 working tree 에 미커밋 상태로 존재. tsc -b 시 발생하는 ~85 errors 는 모두 그쪽 (toReportData.ts SimulationSnapshot vs KpiSnapshot 마이그레이션 미완성, MediaConfig deprecation 등) — Phase 1 UX 와 독립.
+
+→ 별도 fix-up session 에서 Exhibit 마이그레이션 마무리 권장.
+
+---
+
+## 부록 — 백서 수록 항목 (요약)
+
+본 spec 의 _수학적 / 메커니즘적_ 핵심을 향후 VELA 백서에 옮길 수 있도록 한 곳에 정리.
+
+### A. 만족도 함수 (Satisfaction Score)
+
+방문객 1 인의 만족도 `s ∈ [0, 1]` 는 4 component 의 가중합:
+
+```
+s = w_crowd      · (1 − crowd_score)
+  + w_dwell      · clamp01(actual_dwell / recommended_dwell)
+  + w_wait       · (1 − min(total_wait / W_max, 1))
+  + w_engagement · clamp01(media_completed / media_visited)
+
+invariant:  Σ w_i = 1  (검증: isSatisfactionWeightsValid)
+W_max     = 30 min  (외부 큐 + 내부 대기 합산 천장; 인내심 분포와 무관한 normalize 상수)
+```
+
+5 라벨 매핑 (단순 임계):
+
+| 라벨 | 점수 |
+|------|------|
+| excellent | s ≥ 0.85 |
+| good | 0.70 ≤ s < 0.85 |
+| fair | 0.55 ≤ s < 0.70 |
+| poor | 0.40 ≤ s < 0.55 |
+| bad | s < 0.40 |
+
+### B. 모드별 가중치 (Why per-mode)
+
+체험 모드는 _무엇을 좋게 평가할지_ 가 다르므로 같은 4 component 에 다른 가중치를 건다 (`SATISFACTION_WEIGHTS_BY_MODE` 매트릭스). 예:
+
+- **레이아웃 검증**: dwell 0.5, engagement 0.3 — "관람을 충분히 하는가" 가 핵심.
+- **자유 관람**: crowd 0.4, dwell 0.3 — "쾌적함" 이 우위.
+- **통제 입장**: wait 0.5 — "기다리는 사람이 많아도 OK 한가" 가 KPI.
+- **시간제 예약**: dwell 0.4, engagement 0.3 — 슬롯 안에서 충분히 봤는가.
+
+같은 시뮬 결과로도 모드에 따라 다른 verdict 를 내리는 게 정당화되는 근거.
+
+### C. Cap Sweep (Operations Tier 추천 도구)
+
+문제: 운영자는 "동시 수용 인원 N 을 몇으로 잡아야 만족도가 가장 좋은가" 를 알고 싶지만, 단일 시뮬로는 답이 안 나옴 (_what-if_ 가 필요).
+
+해결: 같은 시나리오를 N ∈ [from, to] 범위에서 step 간격으로 헤드리스 시뮬, 각 변형의 평균 만족도 + 부가 KPI 를 row 로 모아 비교 → 추천.
+
+추천 규칙:
+
+```
+1) row.satisfactionAvg 가 최대인 row 찾기 (top)
+2) top.score 와 1e-3 이내인 row 들을 winners 로 모음
+3) winners 가 1개 → key='best-satisfaction', value=winner.paramValue
+4) winners 가 2+ → key='tied' (점수 동률), value=min(winners.paramValue) (capex tiebreak)
+5) winners 모두 sample=0 → key='no-data'
+6) AbortSignal 발화 → key='aborted'
+```
+
+`tied` 는 _점수_ 가 동률이라는 의미이지 capex tiebreak 가 적용된 모든 결과가 아님 — clear winner 면 paramValue 가 더 작아도 `best-satisfaction`. 사용자 의사결정 신뢰를 위한 의도적 구분.
+
+### D. 검증 tier 변형 비교 (Validation Tier Compare)
+
+검증 tier (예: 레이아웃 변형 A/B/C) 는 큐가 발생하지 않으므로 wait/abandon KPI 가 무의미. 그래서 5 metric 만 비교, tier 별 가중치로 winner 산출:
+
+| Metric | validation 가중치 | operations 가중치 |
+|--------|-----------------|-----------------|
+| 완주율 | 1.0 | 1.0 |
+| 글로벌 스킵률 | 1.0 | 0.5 |
+| 피크 활용률 | 0.5 | 1.0 |
+| P90 피로도 | 0.5 | 1.0 |
+| 평균 만족도 | 1.0 | 1.0 |
+
+검증 tier 는 _컨텐츠 도달 / 회피_ 가 핵심, 운영 tier 는 _혼잡 / 피로_ 가 핵심 → 같은 metric 도 가중치를 달리 둠.
+
+### E. 인내심 분포 (Patience Distribution)
+
+외부 큐에서 방문객이 견디는 한계 시간 (`patienceModel`):
+
+- **fixed**: 모두 동일 (빠른 비교용, deterministic)
+- **normal**: 평균 `maxWaitBeforeAbandonMs`, σ = `patienceStdMs` (UI 에서는 평균의 % 로 입력) 의 정규분포
+
+근거 (Wharton 큐잉 연구 + 미술관 평균):
+- 무료 walk-in: 10–15분
+- 유료 일반 전시: 30–45분 (표준)
+- 블록버스터 (Klimt, Van Gogh): 45–60분
+- 테마파크 헤드라이너: 60–90분
+- 사전예약 timed-entry: 30–60분
+
+너무 짧게 잡으면 모든 cap 케이스가 saturated → sweep 의미 사라짐 (UI 경고).
