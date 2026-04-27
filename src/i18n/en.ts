@@ -95,9 +95,9 @@ export const en: Dict = {
 
   // Welcome screen
   // Mode selection screen — first-run survey after creating a new project
-  'modeSelect.title': 'What scenario should we start with?',
-  'modeSelect.subtitle': 'Pick an experience mode — it pre-sets entry policy, satisfaction weights, and the report perspective. You can change it later in the left panel.',
-  'modeSelect.skip': 'Skip — start with default (Free admission)',
+  'modeSelect.title': 'What scenario should we simulate?',
+  'modeSelect.subtitle': 'Your direction shapes the inputs and the report you will see.',
+  'modeSelect.skip': 'Skip — start with the default',
   'modeSelect.back': '← Back',
 
   'welcome.error.invalidFile':
@@ -535,8 +535,43 @@ export const en: Dict = {
   'modeSelect.previewKpiLabel': 'Key analysis outputs',
   'modeSelect.lockedCta': 'Preview',
   'modeSelect.lockedModalTitle': 'Unlocks in {phase}',
+
+  // 4-step workflow indicator
+  'workflow.step1': 'Setup',
+  'workflow.step1.sub': 'Choose scenario',
+  'workflow.step2': 'Build',
+  'workflow.step2.sub': 'Compose space',
+  'workflow.step3': 'Simulate',
+  'workflow.step3.sub': 'Run simulation',
+  'workflow.step4': 'Analyze',
+  'workflow.step4.sub': 'Review results',
+
+  // Setup 1단계: binary branch
+  'modeSelect.branch.validation.label': 'Evaluate space design',
+  'modeSelect.branch.validation.tagline': 'Is the layout / flow effective?',
+  'modeSelect.branch.operations.label': 'Operations simulation',
+  'modeSelect.branch.operations.tagline': 'What will happen with real visitors?',
+  'modeSelect.branch.pickOne': 'Pick one direction',
+  'modeSelect.branch.changeBranch': '← Choose different direction',
+
+  // Setup 2단계: washed sub-mode copy
+  'modeSelect.sub.layout_validation': 'Is the space design good?',
+  'modeSelect.sub.curation_validation': 'Is the exhibit order effective?',
+  'modeSelect.sub.media_experience': 'Is media being consumed well?',
+  'modeSelect.sub.free_admission': 'Free entry — what happens?',
+  'modeSelect.sub.free_with_throttle': 'Free normally, throttle on surge',
+  'modeSelect.sub.timed_reservation': 'Timed reservation operations',
+  'modeSelect.sub.controlled_admission': 'Capped concurrent admission',
+  'modeSelect.sub.group_visit': 'Mixed group + individual',
+  'modeSelect.sub.lockedSoon': 'soon',
+
+  // Setup right-side guide
+  'modeSelect.guide.firstTime': 'First time?',
+  'modeSelect.guide.watchIntro': '1-min intro ▶',
+  'modeSelect.guide.comingSoon': 'Intro video coming soon',
   'modeSelect.lockedModalIntro': 'Once this mode is enabled you will see:',
   'modeSelect.lockedModalClose': 'Close',
+  'modeSelect.lockedModalShortIntro': 'This scenario is still in preparation.',
 
   // ── Experience tab — Entry Queue card (Phase 1+, 2026-04-26) ──
   'experience.queue.title': 'Entry Queue (Outside)',

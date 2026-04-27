@@ -415,11 +415,45 @@ export const ko: Dict = {
     '참여도 배수: 깊은체험 ×1.4 / 둘러보기 ×1.0 / 가벼운 ×0.7.\n\n' +
     '※ 자기 전시에 없는 프로필 줄은 무시. 배수가 안 맞다고 판단되면 spawn 패널의 visitor mix 비율로 조정.',
 
-  // 모드 선택 화면 — 새 프로젝트 만든 직후 첫 진입 설문
-  'modeSelect.title': '어떤 시나리오로 시작할까요?',
-  'modeSelect.subtitle': '체험 모드를 고르면 입장 정책·만족도 가중치·리포트 관점이 자동으로 맞춰집니다. 나중에 좌측 패널에서 변경할 수 있어요.',
-  'modeSelect.skip': '건너뛰기 — 기본값(자유 관람)으로 시작',
+  // 모드 선택 화면 — 새 프로젝트 만든 직후 첫 진입 설문 (v2 IA 재구성 2026-04-28)
+  'modeSelect.title': '어떤 시나리오를 시뮬레이션할까요?',
+  'modeSelect.subtitle': '선택한 방향에 따라 입력해야 할 정보와 결과 리포트가 달라집니다.',
+  'modeSelect.skip': '건너뛰기 — 기본값으로 시작',
   'modeSelect.back': '← 뒤로',
+
+  // 4-step 워크플로우 indicator
+  'workflow.step1': 'Setup',
+  'workflow.step1.sub': '시나리오 선택',
+  'workflow.step2': 'Build',
+  'workflow.step2.sub': '공간 구성',
+  'workflow.step3': 'Simulate',
+  'workflow.step3.sub': '시뮬레이션 실행',
+  'workflow.step4': 'Analyze',
+  'workflow.step4.sub': '결과 분석',
+
+  // Setup 1단계: 큰 binary 분기
+  'modeSelect.branch.validation.label': '공간 디자인 평가',
+  'modeSelect.branch.validation.tagline': '동선·배치가 효과적인지',
+  'modeSelect.branch.operations.label': '운영 시뮬레이션',
+  'modeSelect.branch.operations.tagline': '실제 방문 시 무슨 일이 벌어질지',
+  'modeSelect.branch.pickOne': '둘 중 하나를 골라주세요',
+  'modeSelect.branch.changeBranch': '← 다른 방향 선택',
+
+  // Setup 2단계: 워싱된 sub-mode 한 줄 카피 (jargon 없음)
+  'modeSelect.sub.layout_validation': '공간 디자인이 좋은지',
+  'modeSelect.sub.curation_validation': '전시 순서가 효과적인지',
+  'modeSelect.sub.media_experience': '미디어가 잘 소비되는지',
+  'modeSelect.sub.free_admission': '그냥 자유 입장하면 어떻게 될지',
+  'modeSelect.sub.free_with_throttle': '평소 자유, 폭주 시만 통제',
+  'modeSelect.sub.timed_reservation': '시간 예약제로 운영',
+  'modeSelect.sub.controlled_admission': '동시 인원 제한',
+  'modeSelect.sub.group_visit': '단체 + 개인 섞임',
+  'modeSelect.sub.lockedSoon': '곧',
+
+  // Setup 우측 가이드
+  'modeSelect.guide.firstTime': '처음이세요?',
+  'modeSelect.guide.watchIntro': '1분 가이드 ▶',
+  'modeSelect.guide.comingSoon': '가이드 영상 준비 중',
 
   // ── Phase 1 UX: 체험 모드 (Experience Modes, 2026-04-26) ──
   'experienceMode.title': '체험 모드',
@@ -511,6 +545,7 @@ export const ko: Dict = {
   'modeSelect.lockedModalTitle': '{phase} 에서 활성화 예정',
   'modeSelect.lockedModalIntro': '이 모드가 켜지면 다음을 보게 됩니다:',
   'modeSelect.lockedModalClose': '닫기',
+  'modeSelect.lockedModalShortIntro': '아직 준비 중인 시나리오입니다.',
 
   // ── Experience 탭의 입장 대기 카드 (Phase 1+, 2026-04-26) ──
   'experience.queue.title': '입장 대기 (외부 큐)',
