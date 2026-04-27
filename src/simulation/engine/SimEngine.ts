@@ -825,7 +825,7 @@ export class SimulationEngine {
 
     const activeCount = Array.from(this.state.visitors.values()).filter(v => v.isActive).length;
     // Phase 1 (2026-04-25): non-unlimited 정책 active 시 engine 측 totalVisitors / maxVisitors
-    // 무력화 — 캡 sweep 의 본질("얼마나 들어올 때 어느 정책이 효율적인가") 을 위해 지속 도착이 필수.
+    // 무력화 — A/B/C 정책 비교의 본질("얼마나 들어올 때 어느 정책이 효율적인가") 을 위해 지속 도착이 필수.
     // 정책의 maxConcurrent (concurrent-cap/hybrid) 가 동시 cap 역할을 자연스럽게 수행.
     // 메모리 안전망: rate-limit/time-slot 도 admit throttle 자체가 active 폭발 방지.
     const policyActive = (this.world.config.operations?.entryPolicy?.mode ?? 'unlimited') !== 'unlimited';

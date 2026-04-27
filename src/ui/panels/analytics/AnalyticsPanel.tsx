@@ -1,13 +1,8 @@
 import { useState } from 'react';
 import { useStore } from '@/stores';
-import { generateInsights } from '@/analytics';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import {
-  AlertTriangle,
-  Info,
-  AlertCircle,
-  ArrowRight,
   GitBranch,
   Users,
   Sparkles,
@@ -15,13 +10,11 @@ import {
   FileText,
   Pin,
 } from 'lucide-react';
-import type { InsightEntry } from '@/domain';
 import { TrendChart } from './TrendChart';
 import { ZoneDetail } from './ZoneDetail';
 import { ProfileLegend } from './ProfileLegend';
 import { CompletionReport } from './CompletionReport';
 import { SensitivityPanel } from './SensitivityPanel';
-import { StatsDashboard } from './StatsDashboard';
 import { HeatRanking } from './HeatRanking';
 import { FollowedAgentCard } from './FollowedAgentCard';
 import { EventLog } from './EventLog';
@@ -55,27 +48,18 @@ export function AnalyticsPanel() {
 
   const visitors = useStore((s) => s.visitors);
   const zones = useStore((s) => s.zones);
-  const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
-  const staticInsights = useStore((s) => s.staticInsights);
   const totalSpawned = useStore((s) => s.totalSpawned);
   const totalExited = useStore((s) => s.totalExited);
   const spawnByNode = useStore((s) => s.spawnByNode);
   const exitByNode = useStore((s) => s.exitByNode);
   const graph = useStore((s) => s.waypointGraph);
-  const media = useStore((s) => s.media);
-  const mediaStats = useStore((s) => s.mediaStats);
-  const groups = useStore((s) => s.groups);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
-
-  const liveInsights = latestSnapshot
-    ? generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t)
-    : [];
 
   const avgFatigue = latestSnapshot?.fatigueDistribution.mean ?? 0;
   const peakZone = latestSnapshot?.zoneUtilizations
@@ -243,58 +227,7 @@ export function AnalyticsPanel() {
 
       {tab === 'action' && (
         <div className="space-y-3">
-          <div className="bento-box p-3">
-            <h2 className="panel-section mb-2 flex items-center gap-1.5">
-              Insights
-              <InfoTooltip text={t('tooltip.insights')} />
-            </h2>
-            {phase === 'idle' && staticInsights.length > 0 && (
-              <div className="space-y-2 mb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Pre-Simulation Analysis</p>
-                {staticInsights
-                  .filter((si) => si.bottleneckRisk === 'high' || si.bottleneckRisk === 'critical')
-                  .map((si) => {
-                    const zone = zones.find((z) => z.id === si.zoneId);
-                    return (
-                      <div key={si.zoneId as string} className="flex items-start gap-2 p-2 rounded-lg bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/20">
-                        <AlertTriangle className="w-3.5 h-3.5 text-[var(--status-warning)] mt-0.5 shrink-0" />
-                        <div className="text-[10px]">
-                          <p className="font-medium">
-                            {t('analytics.staticInsight.title', { zone: zone?.name ?? '' })}
-                          </p>
-                          <p className="text-muted-foreground mt-0.5">
-                            {t('analytics.staticInsight.cause', {
-                              density: si.areaPerPerson.toFixed(1),
-                              risk: si.bottleneckRisk,
-                            })}
-                          </p>
-                          <p className="text-primary mt-1">
-                            {t('analytics.staticInsight.rec')}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
-            {liveInsights.length > 0 ? (
-              <div className="space-y-2">
-                {liveInsights.slice(0, 5).map((insight, i) => (
-                  <InsightCard key={i} insight={insight} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {phase === 'idle'
-                  ? 'Start simulation to see real-time insights'
-                  : 'Collecting data...'}
-              </p>
-            )}
-          </div>
-
           <SensitivityPanel />
-          <StatsDashboard />
         </div>
       )}
 
@@ -342,86 +275,3 @@ function KpiTile({
   );
 }
 
-/** Map insight category → store action + i18n key for the button label */
-function resolveInsightAction(insight: InsightEntry): { labelKey: string; run: () => void } | null {
-  const zoneId = insight.affectedZoneIds[0];
-  const mediaId = insight.affectedMediaIds[0];
-  const s = useStore.getState();
-
-  switch (insight.category) {
-    case 'congestion':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'capacity':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editCapacity', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'skip':
-      if (!mediaId) return null;
-      return { labelKey: 'analytics.action.editMedia', run: () => { s.selectMedia(mediaId); scrollEditorIntoView('media'); } };
-    case 'fatigue':
-      return { labelKey: 'analytics.action.viewHeatmap', run: () => s.setOverlayMode('heatmap') };
-    case 'flow':
-      return { labelKey: 'analytics.action.viewFlow', run: () => s.setOverlayMode('flow') };
-    case 'space_roi':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'content_mix':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'group_impact':
-      if (zoneId) return { labelKey: 'analytics.action.checkZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-      return null;
-    case 'content_fatigue':
-      return {
-        labelKey: 'analytics.action.viewDensity',
-        run: () => {
-          s.setOverlayMode('density');
-          if (mediaId) { s.selectMedia(mediaId); scrollEditorIntoView('media'); }
-        },
-      };
-    default:
-      return null;
-  }
-}
-
-function scrollEditorIntoView(kind: 'zone' | 'media') {
-  requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(
-      kind === 'zone' ? '[data-editor="zone"]' : '[data-editor="media"]',
-    );
-    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  });
-}
-
-function InsightCard({ insight }: { insight: InsightEntry }) {
-  const t = useT();
-  const severityConfig = {
-    critical: { icon: AlertCircle, bgClass: 'bg-[var(--status-danger)]/10', borderClass: 'border-[var(--status-danger)]/20', iconClass: 'text-[var(--status-danger)]' },
-    warning: { icon: AlertTriangle, bgClass: 'bg-[var(--status-warning)]/10', borderClass: 'border-[var(--status-warning)]/20', iconClass: 'text-[var(--status-warning)]' },
-    info: { icon: Info, bgClass: 'bg-[var(--status-info)]/10', borderClass: 'border-[var(--status-info)]/20', iconClass: 'text-[var(--status-info)]' },
-  };
-
-  const cfg = severityConfig[insight.severity];
-  const Icon = cfg.icon;
-  const action = resolveInsightAction(insight);
-
-  return (
-    <div className={`flex items-start gap-2 p-2 rounded-lg ${cfg.bgClass} border ${cfg.borderClass}`}>
-      <Icon className={`w-3.5 h-3.5 ${cfg.iconClass} mt-0.5 shrink-0`} />
-      <div className="text-[10px] min-w-0 flex-1">
-        <p className="font-medium">{insight.problem}</p>
-        <p className="text-muted-foreground mt-0.5">{insight.cause}</p>
-        <p className="text-primary mt-1">{insight.recommendation}</p>
-        {action && (
-          <button
-            onClick={action.run}
-            className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium transition-colors"
-          >
-            {t(action.labelKey)}
-            <ArrowRight className="w-2.5 h-2.5" />
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
