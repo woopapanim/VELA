@@ -546,6 +546,21 @@ export const en: Dict = {
   'workflow.step4': 'Analyze',
   'workflow.step4.sub': 'Review results',
 
+  // Build step (compose space) — task accordion 4
+  'build.task.floor.label': 'Floor plan',
+  'build.task.floor.sub': 'Upload your floor plan to start',
+  'build.task.zones.label': 'Areas',
+  'build.task.zones.sub': 'Draw visitor areas',
+  'build.task.exhibits.label': 'Exhibits',
+  'build.task.exhibits.sub': 'Place artworks and media',
+  'build.task.flow.label': 'Flow',
+  'build.task.flow.sub': 'Connect the visitor path',
+  'build.bottom.empty': 'Select something on the canvas to edit it here',
+  'build.bottom.statsZones': '{z} areas',
+  'build.bottom.statsExhibits': '{m} exhibits',
+  'build.bottom.statsFloors': '{f} floors',
+  'build.next': 'Continue to simulation →',
+
   // Setup 1단계: binary branch
   'modeSelect.branch.validation.label': 'Evaluate space design',
   'modeSelect.branch.validation.tagline': 'Is the layout / flow effective?',

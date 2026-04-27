@@ -431,6 +431,21 @@ export const ko: Dict = {
   'workflow.step4': 'Analyze',
   'workflow.step4.sub': '결과 분석',
 
+  // Build 단계 (공간 구성) — task accordion 4개
+  'build.task.floor.label': '도면',
+  'build.task.floor.sub': '바닥 도면을 올려서 시작',
+  'build.task.zones.label': '영역',
+  'build.task.zones.sub': '관람 공간을 그리기',
+  'build.task.exhibits.label': '전시물',
+  'build.task.exhibits.sub': '작품·미디어 배치',
+  'build.task.flow.label': '동선',
+  'build.task.flow.sub': '관람 흐름 연결',
+  'build.bottom.empty': '캔버스에서 객체를 선택하면 여기서 편집',
+  'build.bottom.statsZones': '영역 {z}개',
+  'build.bottom.statsExhibits': '전시물 {m}개',
+  'build.bottom.statsFloors': '도면 {f}개',
+  'build.next': '시뮬레이션으로 →',
+
   // Setup 1단계: 큰 binary 분기
   'modeSelect.branch.validation.label': '공간 디자인 평가',
   'modeSelect.branch.validation.tagline': '동선·배치가 효과적인지',
