@@ -41,7 +41,7 @@ export const en: Dict = {
   // Simulation — stop dialog
   'sim.stop.title': 'Stop Simulation',
   'sim.stop.body':
-    'All agents, media stats, KPI history, and replay frames will be cleared.\nThis action cannot be undone.',
+    'All agents, media stats, KPI records, and replay data for this project will be cleared.\nOnce reset, the data cannot be recovered. Continue?',
   'sim.stop.cancel': 'Cancel',
   'sim.stop.confirm': 'Reset',
 
@@ -282,11 +282,11 @@ export const en: Dict = {
   'tooltip.simulation':
     'Simulation control panel. Starts, pauses, and stops the agent-based simulation and toggles the heatmap overlay. During a run, the current Phase and Elapsed time are displayed alongside the active agent count.',
   'tooltip.spawn':
-    'Visitor spawn configuration. Defines time slots, per-second spawn rates, and the mix of visitor profiles entering the venue over the simulation duration.',
+    'Visitor spawn configuration.\n• Spawn Rate /min: average new visitors per minute at Entry nodes.\n• Duration (min): total simulation length. Termination criterion in time-mode.\n• Stay budget (min, auto): average recommended stay per visitor. Auto mode estimates from zone/media count.\n• Time slots: define different spawn rates / profile mixes per hour band.',
   'tooltip.visitors':
     'Visitor profile configuration. Adjusts demographic proportions, engagement levels, group size distribution, and behavioral parameters such as patience and walking speed for the simulated population.',
   'tooltip.zones':
-    'List of exhibition zones. Entrance is always first and Exit is always last. Click a zone to select it for editing. The number in parentheses is the total zone count.',
+    'List of zones. Click to select for editing. Entry/Exit are no longer zones — they are Entry/Exit nodes in the waypoint graph (add via the Node tool in Build). The number in parentheses is the total zone count.',
 
   // Left panel — domain section headers
   'mainLayout.section.build': 'Build',
@@ -400,14 +400,13 @@ export const en: Dict = {
   'ops.field.maxPerHour': 'Max per Hour',
   'ops.field.slotDurationMin': 'Slot Length (min)',
   'ops.field.perSlotCap': 'Per-Slot Cap',
-  'ops.field.maxWaitMin': 'Patience (min, abandon after)',
+  'ops.field.maxWaitMin': 'Patience (max wait; abandon if exceeded)',
   'ops.live.title': 'Live Queue',
   'ops.live.queueLength': 'Waiting',
   'ops.live.oldestWait': 'Oldest Wait',
   'ops.live.totalAbandoned': 'Abandoned',
   'ops.live.empty': '0 waiting — admitting on arrival.',
   'ops.lockedHint': 'Policy is locked while simulation is running.',
-  'ops.liveMovedHint': 'Live queue status → see "Entry Queue" card in the Experience tab.',
 
   'ops.patienceGuide':
     '🎟️ Patience = max time an individual will tolerate in the outside queue.\n\n' +
@@ -453,7 +452,7 @@ export const en: Dict = {
   'experienceMode.titleHint':
     '🎯 Pick what you want to validate or forecast first.\n\n' +
     'Experience Mode is the _top-level_ choice that auto-aligns entry policy, satisfaction weights, and report perspective.\n\n' +
-    '• Validation: A/B/C variant comparison — no queue\n' +
+    '• Validation: baseline for comparing design variants (no queue)\n' +
     '• Operations forecast: timeline + recommendation for a single scenario',
   'experienceMode.question': 'What are you trying to validate or forecast?',
   'experienceMode.lockedHint': 'Mode cannot be changed while a simulation is running.',
@@ -463,24 +462,24 @@ export const en: Dict = {
   'experienceMode.disabledLine': '🔒 Unlocks in {phase}',
 
   // 2-tier headers
-  'experienceMode.tier.validation': 'Validation — Is this design good?',
+  'experienceMode.tier.validation': 'Analysis — Is this design good?',
   'experienceMode.tier.operations': 'Operations forecast — How will it run?',
 
   // 8 mode labels + short descriptions
-  'experienceMode.layout_validation.label': 'Layout validation',
-  'experienceMode.layout_validation.desc': 'Compare flow, zoning, and zone-shape variants (no queue; flow & dwell focus).',
-  'experienceMode.curation_validation.label': 'Curation validation',
+  'experienceMode.layout_validation.label': 'Spatial design analysis',
+  'experienceMode.layout_validation.desc': 'Analyze design quality based on flow, spatial composition, and dwell patterns.',
+  'experienceMode.curation_validation.label': 'Curation analysis',
   'experienceMode.curation_validation.desc': 'Compare artwork placement, sequence, and series cohesion variants.',
-  'experienceMode.media_experience.label': 'Media experience validation',
+  'experienceMode.media_experience.label': 'Media experience analysis',
   'experienceMode.media_experience.desc': 'Compare content length, playback mode, and capacity variants.',
   'experienceMode.free_admission.label': 'Free admission',
-  'experienceMode.free_admission.desc': 'Hourly load + crowding alerts when admitting without limit (baseline).',
+  'experienceMode.free_admission.desc': 'Analyze hourly congestion and density patterns from visitor inflow.',
   'experienceMode.free_with_throttle.label': 'Free + throttle',
-  'experienceMode.free_with_throttle.desc': 'Free walk-in normally, high cap fires only on surge. Throttle event timeline.',
+  'experienceMode.free_with_throttle.desc': 'Free walk-in normally; simulate admission limit when capacity is exceeded.',
   'experienceMode.timed_reservation.label': 'Timed reservation',
-  'experienceMode.timed_reservation.desc': 'Slot length and per-slot cap. Slot fill rate + waste rate.',
+  'experienceMode.timed_reservation.desc': 'Analyze visitor distribution and space utilization under hourly reservation operations.',
   'experienceMode.controlled_admission.label': 'Controlled admission',
-  'experienceMode.controlled_admission.desc': 'Strict cap for comfort. Outside wait, abandonment, hourly throughput.',
+  'experienceMode.controlled_admission.desc': 'Simulate operations that cap admission to maintain comfort.',
   'experienceMode.group_visit.label': 'Group visit',
   'experienceMode.group_visit.desc': 'Mixed group + individual operation. Group conflicts and docent utilization.',
 
@@ -542,7 +541,7 @@ export const en: Dict = {
   // VELA Report — Mode Perspective (Phase 1 UX, 2026-04-26)
   // 본문 11 섹션 위에 덧대는 모드 관점 overlay. 모드 의도 기준 KPI/총평 클로즈업.
   'vela.persp.title': 'Mode Lens',
-  'vela.persp.tier.validation': 'Validation lens',
+  'vela.persp.tier.validation': 'Analysis lens',
   'vela.persp.tier.operations': 'Operations lens',
   'vela.persp.verdict.eyebrow': "This mode's read",
   'vela.persp.priorityRecos': "Priority for this mode's intent",
@@ -841,6 +840,17 @@ export const en: Dict = {
   // Completion modal
   'completionModal.title': 'Simulation Complete',
   'completionModal.duration': '{mins} minutes simulated',
+  'completionModal.close': 'Close',
+  'completionModal.dismiss': 'Maybe later',
+  'completionModal.nextStep': 'What would you like to do next?',
+  'completionModal.viewReport': 'View detailed report',
+  'completionModal.viewReportHint': 'KPI analysis, insights, and space grading',
+  'completionModal.viewCompare': 'Compare A/B/C policies ({count} results)',
+  'completionModal.viewCompareHint': 'See saved slot results side by side',
+  'completionModal.compareDisabled': 'Policy comparison (need more slots)',
+  'completionModal.compareNeedMore': 'Save {remaining} more result(s) to compare',
+  'completionModal.continueAnalysis': 'Continue with slot {slot} (cap={cap})',
+  'completionModal.continueAnalysisHint': 'Auto-activates next slot with recommended cap — just press Start',
 
   // Completion Report panel
   'completionReport.title': 'Report',
@@ -890,38 +900,46 @@ export const en: Dict = {
   'pinpoint.compare.metric.peakZone': 'Peak zone',
   'pinpoint.compare.metric.avgComfort': 'Avg comfort',
 
-  // ── Sweep tool [F2] (cap parameter exploration) ──
-  'sweep.title': 'Cap Sweep',
-  'sweep.intro':
-    'Run the same scenario across a range of cap values to find the satisfaction-optimal setting.\n' +
-    'Each variant is simulated headless; quick mode uses 5min sim time per variant.',
-  'sweep.noParamForMode': 'Current policy mode has no sweepable parameter. Switch to concurrent-cap, time-slot, rate-limit, or hybrid.',
-  'sweep.paramLabel': 'Parameter',
-  'sweep.from': 'From',
-  'sweep.to': 'To',
-  'sweep.step': 'Step',
-  'sweep.preview': '{count} values: {list}',
-  'sweep.quickDuration': 'Quick (5min sim per variant)',
-  'sweep.runBtn': 'Run sweep ({count} variants)',
-  'sweep.stopBtn': 'Stop',
-  'sweep.progress.variant': 'Variant {idx}/{total} — {label}',
-  'sweep.progress.phase.starting': 'starting',
-  'sweep.progress.phase.running': 'running',
-  'sweep.progress.phase.finalizing': 'finalizing',
-  'sweep.progress.phase.done': 'done',
-  'sweep.recommended': 'Recommended',
-  'sweep.recommendKey.best-satisfaction': 'best satisfaction',
-  'sweep.recommendKey.tied': 'tied — smaller cap chosen for capex',
-  'sweep.recommendKey.no-data': 'no valid result — try longer sim duration',
-  'sweep.recommendKey.aborted': 'aborted',
-  'sweep.apply': 'Apply',
-  'sweep.col.satisfaction': 'Sat.',
-  'sweep.col.wait': 'Wait',
-  'sweep.col.abandon': 'Abandon%',
-  'sweep.col.peak': 'Peak%',
-  'sweep.col.complete': 'Compl.%',
-  'sweep.elapsed': 'Sweep took {sec}s',
-  'sweep.abortedNote': 'aborted by user',
+  // ── Policy A/B/C comparison (manual cap comparison) ──
+  'policyCompare.title': 'Policy comparison (A/B/C)',
+  'policyCompare.intro': 'Run the simulation with different concurrent-cap values and compare results. Each slot stores an independent full-sim result.',
+  'policyCompare.lockedHint': 'Slots cannot be changed while a simulation is running.',
+  'policyCompare.mode.preset': 'Preset (define all upfront)',
+  'policyCompare.mode.preset.desc': 'Set A/B/C cap values upfront and run them in sequence.',
+  'policyCompare.mode.progressive': 'Progressive (define as you go)',
+  'policyCompare.mode.progressive.desc': 'Run A first, then receive recommendations for B/C.',
+  'policyCompare.slot.label': 'Slot {id}',
+  'policyCompare.slot.capLabel': 'Concurrent cap',
+  'policyCompare.slot.empty': 'empty',
+  'policyCompare.slot.configured': 'pending',
+  'policyCompare.slot.captured': 'result saved',
+  'policyCompare.slot.activeBadge': 'active',
+  'policyCompare.slot.capturedAt': 'captured {time}',
+  'policyCompare.activate': 'Run sim into this slot',
+  'policyCompare.activateHint': 'Active slot: {id} — pressing Start will save the result into slot {id} automatically.',
+  'policyCompare.activatedToast': '✓ Slot {id} activated (cap={cap}) — press Start to begin',
+  'policyCompare.deactivate': 'Deactivate',
+  'policyCompare.runHint': 'Press the Start button above to begin the simulation.',
+  'policyCompare.clear': 'Clear',
+  'policyCompare.clearAll': 'Clear all',
+  'policyCompare.viewCompare': 'View comparison ({count} results)',
+  'policyCompare.compareDisabled': 'Need 2+ results to compare',
+  'policyCompare.modalTitle': 'Policy comparison results',
+  'policyCompare.close': 'Close',
+  'policyCompare.recommendTitle': 'Recommendation based on slot {id}',
+  'policyCompare.recommendApply': 'Fill B={B}, C={C}',
+  'policyCompare.recommendDismiss': 'Dismiss',
+  'policyCompare.recommendation.tooManyAbandons': 'Abandonment {rate}% — cap is too tight. Try larger caps.',
+  'policyCompare.recommendation.lowPeak': 'Peak {peak}% — plenty of headroom. Try smaller caps to validate capex.',
+  'policyCompare.recommendation.bracket': 'Near balance — bracket ±15% around current.',
+  'policyCompare.recommendation.lowSatisfaction': 'Satisfaction {sat}% — likely non-cap factor, but exploring both sides is recommended.',
+  'policyCompare.col.satisfaction': 'Sat.',
+  'policyCompare.col.complete': 'Compl.%',
+  'policyCompare.col.peak': 'Peak%',
+  'policyCompare.col.abandon': 'Abandon%',
+  'policyCompare.col.wait': 'Avg wait',
+  'policyCompare.winnerBadge': '★ best',
+  'policyCompare.noResults': 'No captured results yet.',
 
   // ── Phase 0 (2026-04-25): Exhibit vocabulary ─────
   // Top-level concept

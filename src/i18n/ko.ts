@@ -40,7 +40,7 @@ export const ko: Dict = {
   // Simulation — stop dialog
   'sim.stop.title': '시뮬레이션 중지',
   'sim.stop.body':
-    '모든 에이전트, 미디어 통계, KPI 이력, 리플레이 프레임이 초기화됩니다.\n되돌릴 수 없습니다.',
+    '현재 프로젝트의 에이전트, 미디어 통계, KPI 기록, 리플레이 데이터가 모두 초기화됩니다.\n한 번 초기화하면 복구할 수 없습니다. 진행하시겠습니까?',
   'sim.stop.cancel': '취소',
   'sim.stop.confirm': '초기화',
 
@@ -250,11 +250,11 @@ export const ko: Dict = {
   'tooltip.simulation':
     '시뮬레이션 제어 패널입니다. 에이전트 기반 시뮬레이션을 시작·일시정지·중지하고 히트맵 오버레이를 전환합니다. 실행 중에는 현재 Phase와 경과 시간, 활성 에이전트 수가 함께 표시됩니다.',
   'tooltip.spawn':
-    '방문객 생성 설정 패널입니다. 시간대별 슬롯, 초당 생성률, 시뮬레이션 기간 동안 입장하는 방문객 프로필 구성비를 정의합니다.',
+    '방문객 생성 설정 패널입니다.\n• 분당 생성률(Spawn Rate /min): Entry 노드에서 1분당 새로 들어오는 평균 방문객 수.\n• Duration(min): 시뮬레이션 총 길이. time-mode 일 때 종료 기준이 됩니다.\n• 관람 예산(분, 자동): 방문객 1명이 평균적으로 머무는 권장 시간. 자동 모드는 zone/미디어 수에 따라 추정.\n• 시간대별 슬롯: 1시간 단위 등으로 spawn rate / profile 구성을 다르게 줄 때 사용.',
   'tooltip.visitors':
     '방문객 프로필 설정 패널입니다. 시뮬레이션 인구의 인구학적 비율, 참여도, 그룹 크기 분포, 인내심과 보행 속도 같은 행동 파라미터를 조정합니다.',
   'tooltip.zones':
-    '전시 존 목록입니다. 입구(Entrance)는 항상 첫 번째, 출구(Exit)는 항상 마지막에 위치합니다. 클릭하면 해당 존이 편집 대상으로 선택됩니다. 괄호 안의 숫자는 전체 존 개수를 의미합니다.',
+    '존 목록입니다. 클릭해서 편집 대상으로 선택할 수 있습니다. 입출구는 zone 이 아니라 waypoint graph 의 Entry/Exit 노드로 정의됩니다 (좌측 Build 도구에서 Node 추가). 괄호 안의 숫자는 전체 존 개수입니다.',
 
   // Left panel — domain section headers
   'mainLayout.section.build': '공간 빌드',
@@ -368,14 +368,13 @@ export const ko: Dict = {
   'ops.field.maxPerHour': '시간당 입장 (명/h)',
   'ops.field.slotDurationMin': '슬롯 길이 (분)',
   'ops.field.perSlotCap': '슬롯당 입장 (명)',
-  'ops.field.maxWaitMin': '인내심 (분, 초과 시 포기)',
+  'ops.field.maxWaitMin': '인내심 (최대 대기 시간, 이 시간을 넘으면 이탈)',
   'ops.live.title': '라이브 큐',
   'ops.live.queueLength': '대기 인원',
   'ops.live.oldestWait': '최장 대기',
   'ops.live.totalAbandoned': '누적 포기',
   'ops.live.empty': '대기 0명 — 도착 즉시 입장 중.',
   'ops.lockedHint': '시뮬 진행 중에는 정책을 변경할 수 없습니다.',
-  'ops.liveMovedHint': '실시간 큐 현황은 → Experience 탭의 "입장 대기" 카드에서 확인하세요.',
 
   'ops.patienceGuide':
     '🎟️ 인내심 = 한 사람이 외부 큐에서 견디는 한계 시간.\n\n' +
@@ -427,34 +426,34 @@ export const ko: Dict = {
   'experienceMode.titleHint':
     '🎯 무엇을 검증/예측할지 먼저 고르세요.\n\n' +
     '체험 모드는 입장 정책·만족도 가중치·리포트 관점을 자동으로 맞춰주는 _상위_ 설정입니다.\n\n' +
-    '• 검증 (Validation): 변형 A/B/C 비교 — 큐는 발생하지 않음\n' +
+    '• 검증 (Validation): 변형 간 비교를 위한 baseline (큐 미발생)\n' +
     '• 운영 예상 (Operations): 단일 시나리오 시간대별 추이 + 권장',
   'experienceMode.question': '무엇을 검증/예측하시나요?',
   'experienceMode.lockedHint': '시뮬 진행 중에는 모드를 변경할 수 없습니다.',
   'experienceMode.changeConfirm':
-    '체험 모드를 바꾸면 입장 정책과 만족도 가중치가 새 모드의 기본값으로 재설정됩니다.\n진행할까요?',
+    '체험 모드를 바꾸면 입장 정책과 만족도 가중치가 새 모드의\n기본값으로 재설정됩니다. 진행할까요?',
   'experienceMode.disabledHint': '이 모드는 {phase} 에서 활성화됩니다.',
   'experienceMode.disabledLine': '🔒 {phase} 에서 활성화 예정',
 
   // 2-tier 헤더
-  'experienceMode.tier.validation': '검증 — 이 설계가 좋은가',
+  'experienceMode.tier.validation': '분석 — 이 설계가 좋은가',
   'experienceMode.tier.operations': '운영 예상 — 이렇게 운영하면',
 
   // 8 모드 라벨 + 짧은 설명
-  'experienceMode.layout_validation.label': '레이아웃 검증',
-  'experienceMode.layout_validation.desc': '동선/조닝/zone 형상의 변형을 비교 (큐 미발생, 동선·체류 중심).',
-  'experienceMode.curation_validation.label': '큐레이션 검증',
+  'experienceMode.layout_validation.label': '공간 설계 분석',
+  'experienceMode.layout_validation.desc': '동선, 공간 구성, 체류 흐름을 기반으로\n설계 품질 분석.',
+  'experienceMode.curation_validation.label': '큐레이션 분석',
   'experienceMode.curation_validation.desc': '작품 위치·순서·시리즈 응집의 변형 비교.',
-  'experienceMode.media_experience.label': '미디어 경험 검증',
+  'experienceMode.media_experience.label': '미디어 경험 분석',
   'experienceMode.media_experience.desc': '컨텐츠 길이·재생 방식·capacity 의 변형 비교.',
   'experienceMode.free_admission.label': '자유 관람',
-  'experienceMode.free_admission.desc': '제한 없이 받을 때의 시간대별 부하 + 과밀 알림 (baseline).',
+  'experienceMode.free_admission.desc': '방문자 유입에 따른 시간대별 혼잡도와\n밀집도를 분석.',
   'experienceMode.free_with_throttle.label': '자유 관람 + 통제',
-  'experienceMode.free_with_throttle.desc': '평소 자유, 폭주 시만 발동하는 높은 cap. 통제 이벤트 타임라인.',
+  'experienceMode.free_with_throttle.desc': '평소 자유 관람, 공간 수용인원을 초과할 경우\n입장 제한 시뮬레이션.',
   'experienceMode.timed_reservation.label': '시간제 예약 관람',
-  'experienceMode.timed_reservation.desc': '슬롯 길이·슬롯당 cap. 슬롯 충진율 + 낭비율.',
+  'experienceMode.timed_reservation.desc': '시간 단위 예약 운영 시 방문자 분포와 공간 활용\n효율을 분석.',
   'experienceMode.controlled_admission.label': '통제 입장',
-  'experienceMode.controlled_admission.desc': '낮은 cap 으로 쾌적 유지. 외부 대기·포기율·시간당 처리량.',
+  'experienceMode.controlled_admission.desc': '입장 인원을 제한하여 쾌적도를 유지하는\n운영 방식을 시뮬레이션.',
   'experienceMode.group_visit.label': '단체 관람',
   'experienceMode.group_visit.desc': '단체 + 개인 혼합 운영. 그룹 충돌·도슨트 활용.',
 
@@ -515,7 +514,7 @@ export const ko: Dict = {
   // VELA Report — Mode Perspective (Phase 1 UX, 2026-04-26)
   // 본문 11 섹션 위에 덧대는 모드 관점 overlay. 모드 의도 기준 KPI/총평 클로즈업.
   'vela.persp.title': '모드 관점',
-  'vela.persp.tier.validation': '검증 관점',
+  'vela.persp.tier.validation': '분석 관점',
   'vela.persp.tier.operations': '운영 예상 관점',
   'vela.persp.verdict.eyebrow': '이 모드의 평가',
   'vela.persp.priorityRecos': '이 모드 의도와 직결되는 권고',
@@ -814,6 +813,17 @@ export const ko: Dict = {
   // Completion modal
   'completionModal.title': '시뮬레이션 완료',
   'completionModal.duration': '{mins}분 시뮬레이션됨',
+  'completionModal.close': '닫기',
+  'completionModal.dismiss': '나중에',
+  'completionModal.nextStep': '다음으로 무엇을 하시겠어요?',
+  'completionModal.viewReport': '상세 리포트 보기',
+  'completionModal.viewReportHint': 'KPI 분석, 인사이트, 공간 등급 전체 보기',
+  'completionModal.viewCompare': 'A/B/C 정책 비교 ({count}개 결과)',
+  'completionModal.viewCompareHint': '저장된 슬롯 결과를 한눈에 비교',
+  'completionModal.compareDisabled': '정책 비교 (슬롯 더 필요)',
+  'completionModal.compareNeedMore': '비교하려면 {remaining}개 결과를 더 저장하세요',
+  'completionModal.continueAnalysis': '슬롯 {slot} 로 분석 계속 (cap={cap})',
+  'completionModal.continueAnalysisHint': '추천 cap 으로 다음 슬롯 자동 활성화 — Start 만 누르면 됩니다',
 
   // Completion Report panel
   'completionReport.title': '리포트',
@@ -863,38 +873,46 @@ export const ko: Dict = {
   'pinpoint.compare.metric.peakZone': '피크 존',
   'pinpoint.compare.metric.avgComfort': '평균 쾌적도',
 
-  // ── Sweep 도구 [F2] (cap 파라미터 탐색) ──
-  'sweep.title': 'Cap Sweep',
-  'sweep.intro':
-    '같은 시나리오를 cap 값 범위에 걸쳐 돌려보고 만족도가 가장 좋은 값을 찾습니다.\n' +
-    '각 변형은 헤드리스로 실행. 빠른 모드는 변형당 5분 sim 시간 사용.',
-  'sweep.noParamForMode': '현재 정책 모드에는 sweep 가능한 파라미터가 없습니다. concurrent-cap / time-slot / rate-limit / hybrid 로 전환하세요.',
-  'sweep.paramLabel': '파라미터',
-  'sweep.from': '시작',
-  'sweep.to': '끝',
-  'sweep.step': '간격',
-  'sweep.preview': '값 {count}개: {list}',
-  'sweep.quickDuration': '빠른 미리보기 (변형당 5분 sim)',
-  'sweep.runBtn': 'Sweep 실행 (변형 {count}개)',
-  'sweep.stopBtn': '중지',
-  'sweep.progress.variant': '변형 {idx}/{total} — {label}',
-  'sweep.progress.phase.starting': '시작 중',
-  'sweep.progress.phase.running': '실행 중',
-  'sweep.progress.phase.finalizing': '집계 중',
-  'sweep.progress.phase.done': '완료',
-  'sweep.recommended': '추천',
-  'sweep.recommendKey.best-satisfaction': '만족도 최고',
-  'sweep.recommendKey.tied': '동률 — 작은 cap (capex 절감) 우선',
-  'sweep.recommendKey.no-data': '유효 결과 없음 — sim 시간을 늘려보세요',
-  'sweep.recommendKey.aborted': '중단됨',
-  'sweep.apply': '적용',
-  'sweep.col.satisfaction': '만족도',
-  'sweep.col.wait': '대기',
-  'sweep.col.abandon': '포기%',
-  'sweep.col.peak': '피크%',
-  'sweep.col.complete': '완주%',
-  'sweep.elapsed': 'Sweep {sec}s 소요',
-  'sweep.abortedNote': '사용자 중단',
+  // ── 정책 A/B/C 비교 (cap 값 수동 비교) ──
+  'policyCompare.title': '정책 비교 (A/B/C)',
+  'policyCompare.intro': '서로 다른 동시 수용 cap 값으로 시뮬을 돌려 결과를 비교합니다. 각 슬롯은 독립된 풀 시뮬레이션 결과를 저장합니다.',
+  'policyCompare.lockedHint': '시뮬 진행 중에는 슬롯을 변경할 수 없습니다.',
+  'policyCompare.mode.preset': '선시험 (한꺼번에 정의)',
+  'policyCompare.mode.preset.desc': 'A/B/C cap 값을 모두 정해두고 차례대로 실행합니다.',
+  'policyCompare.mode.progressive': '점진 (실행하며 정의)',
+  'policyCompare.mode.progressive.desc': 'A 를 먼저 돌려 결과를 본 뒤 B/C 추천을 받아 진행합니다.',
+  'policyCompare.slot.label': '슬롯 {id}',
+  'policyCompare.slot.capLabel': '동시 수용 cap',
+  'policyCompare.slot.empty': '비어있음',
+  'policyCompare.slot.configured': '대기',
+  'policyCompare.slot.captured': '결과 저장됨',
+  'policyCompare.slot.activeBadge': '활성',
+  'policyCompare.slot.capturedAt': '{time} 캡처',
+  'policyCompare.activate': '이 슬롯으로 시뮬 실행',
+  'policyCompare.activateHint': '활성 슬롯: {id} — Start 누르면 결과가 자동으로 슬롯 {id} 에 저장됩니다.',
+  'policyCompare.activatedToast': '✓ 슬롯 {id} 활성화 (cap={cap}) — Start 누르면 시뮬 시작',
+  'policyCompare.deactivate': '활성 해제',
+  'policyCompare.runHint': '시뮬을 시작하려면 위쪽의 Start 버튼을 누르세요.',
+  'policyCompare.clear': '초기화',
+  'policyCompare.clearAll': '전체 초기화',
+  'policyCompare.viewCompare': '비교 보기 ({count}개 결과)',
+  'policyCompare.compareDisabled': '결과가 2개 이상일 때 비교 가능',
+  'policyCompare.modalTitle': '정책 비교 결과',
+  'policyCompare.close': '닫기',
+  'policyCompare.recommendTitle': '슬롯 {id} 결과 기반 추천',
+  'policyCompare.recommendApply': 'B={B}, C={C} 로 채우기',
+  'policyCompare.recommendDismiss': '추천 닫기',
+  'policyCompare.recommendation.tooManyAbandons': '포기율 {rate}% — cap 부족 신호. 더 큰 cap 을 시도해 보세요.',
+  'policyCompare.recommendation.lowPeak': '피크 {peak}% — cap 여유 충분. 더 작게 줄여 capex 검증해 보세요.',
+  'policyCompare.recommendation.bracket': '균형점 근처 — 양쪽으로 ±15% 브래킷.',
+  'policyCompare.recommendation.lowSatisfaction': '만족도 {sat}% — cap 외 요인일 수 있으나 양쪽 탐색 권장.',
+  'policyCompare.col.satisfaction': '만족도',
+  'policyCompare.col.complete': '완주%',
+  'policyCompare.col.peak': '피크%',
+  'policyCompare.col.abandon': '포기%',
+  'policyCompare.col.wait': '평균 대기',
+  'policyCompare.winnerBadge': '★ 최고',
+  'policyCompare.noResults': '아직 캡처된 결과가 없습니다.',
 
   // ── Phase 0 (2026-04-25): Exhibit 용어 ───────────
   // 상위 개념

@@ -1,11 +1,10 @@
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback } from 'react';
 import { FileText, Download, TableProperties, FileDown, Maximize2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { generateInsights } from '@/analytics';
 import type { StructuredReport, ReportSummary, SpaceAnalysisEntry } from '@/domain';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
-import { FullReportV2 as FullReport } from '@/ui/reports/vela/FullReportV2';
 
 const GRADE_STYLE: Record<'A' | 'B' | 'C' | 'D' | 'F', { badge: string; text: string }> = {
   A: { badge: 'bg-[var(--status-success)]/20 text-[var(--status-success)]', text: 'text-[var(--status-success)]' },
@@ -25,7 +24,7 @@ export function CompletionReport() {
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const kpiHistory = useStore((s) => s.kpiHistory);
   const phase = useStore((s) => s.phase);
-  const [showFullReport, setShowFullReport] = useState(false);
+  const setShowFullReport = useStore((s) => s.setShowFullReport);
   const isCompleted = phase === 'completed';
 
   const guardCompleted = useCallback((fn: () => void) => {
@@ -204,7 +203,6 @@ export function CompletionReport() {
         <p className="text-[10px] text-muted-foreground">
           {t('completionReport.runHint')}
         </p>
-        {showFullReport && <FullReport onClose={() => setShowFullReport(false)} />}
       </div>
     );
   }
@@ -310,7 +308,6 @@ export function CompletionReport() {
         </>
       )}
 
-      {showFullReport && <FullReport onClose={() => setShowFullReport(false)} />}
     </div>
   );
 }

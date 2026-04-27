@@ -9,7 +9,7 @@
  * - 모드 변경 시 사용자 customization 검출 → confirm dialog
  * - 운영 tier + non-unlimited 정책 → simulationMode 'time' 강제 (큐 invariant)
  * - 운영 tier + non-unlimited 모드 선택 시 정책 파라미터 (cap / rate / slot / patience) +
- *   SweepLauncher 를 같은 패널 내 inline 으로 노출 (#1 입장 정책 흡수, 2026-04-26).
+ *   PolicyComparisonLauncher (A/B/C 수동 비교) 를 inline 노출 (#1 입장 정책 흡수, 2026-04-26).
  *
  * 시뮬 진행 중 (phase !== 'idle') 잠금 — 정책 도중 변경 = invariant 깨짐.
  *
@@ -23,11 +23,12 @@ import { useT } from '@/i18n';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
-import { SweepLauncher } from './SweepLauncher';
+import { PolicyComparisonLauncher } from './PolicyComparisonLauncher';
 import {
   EXPERIENCE_MODE_REGISTRY,
   EXPERIENCE_MODES_BY_TIER,
   EXPERIENCE_MODE_POLICY_DEFAULTS,
+  resolveExperienceModePolicy,
   SATISFACTION_WEIGHTS_BY_MODE,
   inferExperienceMode,
   type ExperienceMode,
@@ -97,14 +98,20 @@ export function ExperienceModePanel() {
   const showWait = policy.mode !== 'unlimited';
 
   const handleSelect = (next: ExperienceMode) => {
-    if (next === currentMode || isLocked) return;
+    // Read live store to avoid any stale-closure mismatch between the rendered
+    // active highlight and the value handleSelect captured. (2026-04-26)
+    const live = useStore.getState().scenario;
+    if (!live) return;
+    const liveMode: ExperienceMode = live.experienceMode
+      ?? inferExperienceMode(live.simulationConfig.operations?.entryPolicy?.mode);
+    if (next === liveMode || isLocked) return;
     if (!EXPERIENCE_MODE_REGISTRY[next].enabled) return;
 
     // 사용자가 _현재 모드의 default_ 에서 벗어나게 조정해 둔 상태인지 검사.
     // 벗어나 있다면 mode 전환으로 그 customization 이 날아간다 → confirm.
-    const currentDefaults = EXPERIENCE_MODE_POLICY_DEFAULTS[currentMode];
-    const currentExpectedWeights = SATISFACTION_WEIGHTS_BY_MODE[currentMode];
-    const ops = scenario.simulationConfig.operations ?? DEFAULT_OPERATIONS_CONFIG;
+    const currentDefaults = EXPERIENCE_MODE_POLICY_DEFAULTS[liveMode];
+    const currentExpectedWeights = SATISFACTION_WEIGHTS_BY_MODE[liveMode];
+    const ops = live.simulationConfig.operations ?? DEFAULT_OPERATIONS_CONFIG;
     const policyCustom = isPolicyCustomized(ops.entryPolicy, currentDefaults);
     const weightsCustom = isWeightsCustomized(ops.satisfactionWeights, currentExpectedWeights);
 
@@ -113,20 +120,20 @@ export function ExperienceModePanel() {
       if (!ok) return;
     }
 
-    const nextPolicy = EXPERIENCE_MODE_POLICY_DEFAULTS[next];
+    const nextPolicy = resolveExperienceModePolicy(next, live.zones, live.media);
     const nextWeights = SATISFACTION_WEIGHTS_BY_MODE[next];
 
     // 운영 tier + non-unlimited → simulationMode 'time' 강제 (person-mode 는
     // totalCount 도달 시 generation 정지 → 큐 sweep 의미 사라짐).
     const nextTier = EXPERIENCE_MODE_REGISTRY[next].tier;
     const needsTimeMode = nextTier === 'operations' && nextPolicy.mode !== 'unlimited';
-    const currentSimMode = scenario.simulationConfig.simulationMode ?? 'time';
+    const currentSimMode = live.simulationConfig.simulationMode ?? 'time';
 
     setScenario({
-      ...scenario,
+      ...live,
       experienceMode: next,
       simulationConfig: {
-        ...scenario.simulationConfig,
+        ...live.simulationConfig,
         ...(needsTimeMode && currentSimMode === 'person' ? { simulationMode: 'time' as const } : {}),
         operations: {
           entryPolicy: nextPolicy,
@@ -170,7 +177,7 @@ export function ExperienceModePanel() {
                   const enabled = meta.enabled;
 
                   const buttonClass = active
-                    ? 'bg-primary/10 border-primary/40 text-foreground'
+                    ? 'bg-primary/15 border-primary text-foreground ring-1 ring-primary/40'
                     : enabled
                       ? 'bg-transparent border-border hover:border-primary/30'
                       : 'bg-muted/20 border-border/40 opacity-60 cursor-not-allowed';
@@ -191,7 +198,7 @@ export function ExperienceModePanel() {
                         <span className="text-[11px] font-medium">{t(labelKey)}</span>
                         {!enabled && <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" aria-hidden />}
                       </div>
-                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight">
+                      <div className="text-[9px] text-muted-foreground mt-0.5 leading-tight whitespace-pre-line">
                         {enabled
                           ? t(descKey)
                           : t('experienceMode.disabledLine', { phase: meta.enabledFromPhase ?? '' })
@@ -269,54 +276,11 @@ export function ExperienceModePanel() {
               </div>
             </div>
 
-            {/* ── 인내심 분포 모델 토글 + σ (% of mean) 입력 ── */}
-            <div className="mt-2 px-2 py-1.5 rounded bg-secondary/30 border border-border/50">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[9px] font-medium">{t('ops.patienceModelLabel')}</span>
-                <InfoTooltip text={t('ops.patienceModelHint')} />
-              </div>
-              <div className="grid grid-cols-2 gap-1 mb-1.5">
-                <button
-                  onClick={() => setField('patienceModel', 'fixed')}
-                  disabled={isLocked}
-                  className={`px-1.5 py-1 rounded text-[10px] border transition-colors disabled:opacity-50 ${
-                    (policy.patienceModel ?? 'fixed') === 'fixed'
-                      ? 'bg-primary/15 border-primary/40 text-foreground'
-                      : 'bg-transparent border-border hover:border-primary/30'
-                  }`}
-                >
-                  {t('ops.patienceModel.fixed')}
-                </button>
-                <button
-                  onClick={() => setField('patienceModel', 'normal')}
-                  disabled={isLocked}
-                  className={`px-1.5 py-1 rounded text-[10px] border transition-colors disabled:opacity-50 ${
-                    policy.patienceModel === 'normal'
-                      ? 'bg-primary/15 border-primary/40 text-foreground'
-                      : 'bg-transparent border-border hover:border-primary/30'
-                  }`}
-                >
-                  {t('ops.patienceModel.normal')}
-                </button>
-              </div>
-              {policy.patienceModel === 'normal' && (() => {
-                const meanMs = policy.maxWaitBeforeAbandonMs ?? 1_800_000;
-                const stdMs = policy.patienceStdMs ?? Math.round(meanMs * 0.3);
-                const stdPct = Math.max(1, Math.round((stdMs / meanMs) * 100));
-                return (
-                  <NumField
-                    label={t('ops.field.patienceStdPct')}
-                    value={stdPct}
-                    onChange={(v) => {
-                      const pct = Math.max(1, Math.min(80, Math.round(v)));
-                      setField('patienceStdMs', Math.round(meanMs * (pct / 100)));
-                    }}
-                    disabled={isLocked}
-                    step={5}
-                  />
-                );
-              })()}
-            </div>
+            {/* 인내심 분포 모델 (균일/정규) + σ 입력 UI 는 제거됨 (2026-04-26).
+                근거: 평균(인내심)은 모집단 중심값이고 σ 는 그 개인차 분산 — 개념상 이중 가중이 아니지만,
+                사용자가 magic number (30%) 를 직접 결정하게 둘 정당한 근거 없음.
+                내부적으로는 PATIENCE_DEFAULTS (정규분포, σ = 평균의 30%) 가 유지되어 시뮬에 적용됨.
+                전시 성격 차이는 아래의 "프로필/참여도 배수" opt-in 으로 처리. */}
 
             {/* ── (선택) 프로필/참여도 배수 opt-in ── */}
             <div className="mt-2 px-2 py-1.5 rounded bg-secondary/30 border border-border/50">
@@ -328,7 +292,7 @@ export function ExperienceModePanel() {
                   disabled={isLocked}
                   className="mt-0.5 cursor-pointer disabled:opacity-50"
                 />
-                <span className="text-[9px] font-medium leading-tight">
+                <span className="text-[9px] font-medium leading-tight inline-flex items-center gap-1">
                   {t('ops.useModifiersLabel')}
                   <InfoTooltip text={t('ops.useModifiersHint')} />
                 </span>
@@ -341,15 +305,10 @@ export function ExperienceModePanel() {
             </div>
           </CollapsibleSection>
 
-          {/* ── cap sweep 도구 (자체적으로 unlimited 면 null 반환) ── */}
+          {/* ── A/B/C 정책 비교 도구 (unlimited 면 null 반환) ── */}
           <div className="mt-3">
-            <SweepLauncher />
+            <PolicyComparisonLauncher />
           </div>
-
-          {/* ── 라이브 큐 → Experience 탭으로 이동 (Phase 1+, 2026-04-26) ── */}
-          <p className="text-[9px] text-muted-foreground italic mt-2">
-            {t('ops.liveMovedHint')}
-          </p>
         </div>
       )}
     </div>

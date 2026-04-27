@@ -46,6 +46,10 @@ export interface UiSlice {
   polygonEditMode: boolean;
   mediaPolygonEditMode: boolean;
   language: Language;
+  /** 전역 toggle — CompletionModal/CompletionReport 모두 사용. */
+  showFullReport: boolean;
+  /** 전역 toggle — CompletionModal/PolicyComparisonLauncher 모두 사용. */
+  showPolicyCompareModal: boolean;
 
   // Actions
   selectZone: (zoneId: string | null) => void;
@@ -61,6 +65,8 @@ export interface UiSlice {
   setPolygonEditMode: (on: boolean) => void;
   setMediaPolygonEditMode: (on: boolean) => void;
   setLanguage: (lang: Language) => void;
+  setShowFullReport: (show: boolean) => void;
+  setShowPolicyCompareModal: (show: boolean) => void;
 }
 
 export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
@@ -77,6 +83,8 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   polygonEditMode: false,
   mediaPolygonEditMode: false,
   language: readStoredLanguage(),
+  showFullReport: false,
+  showPolicyCompareModal: false,
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId, selectedMediaId: null }),
   selectMedia: (mediaId) => set({ selectedMediaId: mediaId, selectedZoneId: null }),
@@ -93,6 +101,8 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
     writeStoredLanguage(lang);
     set({ language: lang });
   },
+  setShowFullReport: (show) => set({ showFullReport: show }),
+  setShowPolicyCompareModal: (show) => set({ showPolicyCompareModal: show }),
   togglePanel: (side) =>
     set((s) => ({
       isPanelCollapsed: {

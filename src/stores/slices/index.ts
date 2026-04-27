@@ -6,3 +6,11 @@ export { createEditorSlice, type EditorSlice, type EditorMode, type DragAction }
 export { createReplaySlice, type ReplaySlice, type ReplayFrame } from './replaySlice';
 export { createUndoSlice, type UndoSlice } from './undoSlice';
 export { createPinpointSlice, type PinpointSlice, MAX_COMPARE_PINS } from './pinpointSlice';
+export {
+  createPolicyComparisonSlice,
+  type PolicyComparisonSlice,
+  type PolicySlot,
+  type PolicySlotId,
+  type PolicyComparisonMode,
+  type PolicyRecommendation,
+} from './policyComparisonSlice';

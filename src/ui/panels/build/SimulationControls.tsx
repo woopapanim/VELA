@@ -182,6 +182,46 @@ export function SimulationControls() {
           milestonesHit.current.add(-1);
           setDensityGrids(eng.getDensityGrids());
           toast('success', '✅ Simulation completed!');
+
+          // ── Policy A/B/C 자동 캡처
+          //    1) activePolicySlotId 있으면 그 슬롯에 저장.
+          //    2) 없으면 비교 가능한 정책 (non-unlimited) 일 때 가장 낮은 빈 슬롯 (A→B→C) 에 자동 저장
+          //       → 사용자가 모드 모르고 실행해도 첫 run 부터 비교 데이터가 쌓임.
+          const final = useStore.getState();
+          const opsMode = final.scenario?.simulationConfig.operations?.entryPolicy.mode ?? 'unlimited';
+          let targetSlotId = final.activePolicySlotId;
+          let autoFilled = false;
+          if (targetSlotId == null && opsMode !== 'unlimited') {
+            const order: ('A' | 'B' | 'C')[] = ['A', 'B', 'C'];
+            const empty = order.find((id) => final.policySlots[id].status === 'empty');
+            if (empty) {
+              const cap = final.scenario?.simulationConfig.operations?.entryPolicy.maxConcurrent;
+              if (cap != null && cap > 0) {
+                final.setPolicySlotCap(empty, cap);
+                targetSlotId = empty;
+                autoFilled = true;
+              }
+            }
+          }
+          if (targetSlotId) {
+            const finalElapsed = state.timeState.elapsed;
+            const finalSnapshot = assembleKpiSnapshot(
+              final.zones,
+              final.media,
+              eng.getVisitors(),
+              finalElapsed,
+              eng.getTotalExited(),
+            );
+            final.capturePolicySlotResult(
+              targetSlotId,
+              finalSnapshot,
+              eng.getTotalSpawned(),
+              eng.getTotalExited(),
+            );
+            if (autoFilled) {
+              toast('info', `📊 슬롯 ${targetSlotId} 에 결과 저장 — A/B/C 비교에 사용됩니다`);
+            }
+          }
         }
       }
 

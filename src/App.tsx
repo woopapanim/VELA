@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ThemeProvider } from '@/ui/components/ThemeProvider';
 import { ToastProvider } from '@/ui/components/Toast';
 import { CompletionModal } from '@/ui/components/CompletionModal';
+import { GlobalReportModal } from '@/ui/components/GlobalReportModal';
 import { MainLayout } from '@/ui/layouts/MainLayout';
 import { WelcomeScreen } from '@/ui/layouts/WelcomeScreen';
 import { ModeSelectionScreen } from '@/ui/layouts/ModeSelectionScreen';
@@ -18,6 +19,7 @@ function App() {
           <>
             <MainLayout />
             <CompletionModal />
+            <GlobalReportModal />
           </>
         )}
         {step === 'mode' && (
