@@ -53,6 +53,22 @@ export interface ExperienceModeMeta {
   readonly enabledFromPhase?: string;
   /** UI 표시명 i18n 키 (예: 'experienceMode.layout_validation.label') */
   readonly i18nKey: string;
+  /**
+   * 페르소나 i18n 키 prefix. Ka 카드의 "누구를 위한 모드인가" 라벨.
+   * 예: 'experienceMode.layout_validation.persona' → "공간 디자이너".
+   */
+  readonly personaKey: string;
+  /**
+   * 핵심 질문 i18n 키. "이 모드가 답하는 질문 한 줄". (한국어 한 문장)
+   * 예: 'experienceMode.layout_validation.question'
+   *  → "이 레이아웃이 좋은가? 동선이 꼬이지 않는가?"
+   */
+  readonly questionKey: string;
+  /**
+   * 이 모드가 켜졌을 때 사용자가 보게 될 핵심 KPI 의 i18n 키들 (2-4 개).
+   * 모드 카드의 "여기서 보는 결과" preview, locked 카드의 가치 미리보기에 사용.
+   */
+  readonly previewKpiKeys: ReadonlyArray<string>;
 }
 
 export const EXPERIENCE_MODE_REGISTRY: Readonly<Record<ExperienceMode, ExperienceModeMeta>> = {
@@ -61,6 +77,14 @@ export const EXPERIENCE_MODE_REGISTRY: Readonly<Record<ExperienceMode, Experienc
     tier: 'validation',
     enabled: true,
     i18nKey: 'experienceMode.layout_validation',
+    personaKey: 'experienceMode.layout_validation.persona',
+    questionKey: 'experienceMode.layout_validation.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.density',
+      'experienceMode.kpi.congestionMin',
+      'experienceMode.kpi.flowEfficiency',
+      'experienceMode.kpi.variantAbc',
+    ],
   },
   curation_validation: {
     mode: 'curation_validation',
@@ -68,6 +92,14 @@ export const EXPERIENCE_MODE_REGISTRY: Readonly<Record<ExperienceMode, Experienc
     enabled: false,
     enabledFromPhase: 'Phase 3A',
     i18nKey: 'experienceMode.curation_validation',
+    personaKey: 'experienceMode.curation_validation.persona',
+    questionKey: 'experienceMode.curation_validation.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.orderFidelity',
+      'experienceMode.kpi.seriesCompletion',
+      'experienceMode.kpi.heroReach',
+      'experienceMode.kpi.backtrack',
+    ],
   },
   media_experience: {
     mode: 'media_experience',
@@ -75,30 +107,70 @@ export const EXPERIENCE_MODE_REGISTRY: Readonly<Record<ExperienceMode, Experienc
     enabled: false,
     enabledFromPhase: 'Phase 3B',
     i18nKey: 'experienceMode.media_experience',
+    personaKey: 'experienceMode.media_experience.persona',
+    questionKey: 'experienceMode.media_experience.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.meaningfulCompletion',
+      'experienceMode.kpi.throughput',
+      'experienceMode.kpi.contentSkip',
+      'experienceMode.kpi.capacityUtil',
+    ],
   },
   free_admission: {
     mode: 'free_admission',
     tier: 'operations',
     enabled: true,
     i18nKey: 'experienceMode.free_admission',
+    personaKey: 'experienceMode.free_admission.persona',
+    questionKey: 'experienceMode.free_admission.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.concurrentTimeline',
+      'experienceMode.kpi.satisfaction',
+      'experienceMode.kpi.crowdAccum',
+      'experienceMode.kpi.recommendedCap',
+    ],
   },
   free_with_throttle: {
     mode: 'free_with_throttle',
     tier: 'operations',
     enabled: true,
     i18nKey: 'experienceMode.free_with_throttle',
+    personaKey: 'experienceMode.free_with_throttle.persona',
+    questionKey: 'experienceMode.free_with_throttle.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.outsideQueue',
+      'experienceMode.kpi.avgWait',
+      'experienceMode.kpi.abandonRate',
+      'experienceMode.kpi.recommendedCap',
+    ],
   },
   timed_reservation: {
     mode: 'timed_reservation',
     tier: 'operations',
     enabled: true,
     i18nKey: 'experienceMode.timed_reservation',
+    personaKey: 'experienceMode.timed_reservation.persona',
+    questionKey: 'experienceMode.timed_reservation.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.slotIntake',
+      'experienceMode.kpi.slotUtil',
+      'experienceMode.kpi.interSlotWait',
+      'experienceMode.kpi.satisfaction',
+    ],
   },
   controlled_admission: {
     mode: 'controlled_admission',
     tier: 'operations',
     enabled: true,
     i18nKey: 'experienceMode.controlled_admission',
+    personaKey: 'experienceMode.controlled_admission.persona',
+    questionKey: 'experienceMode.controlled_admission.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.satisfaction',
+      'experienceMode.kpi.throughputTradeoff',
+      'experienceMode.kpi.outsideQueue',
+      'experienceMode.kpi.recommendedCapRange',
+    ],
   },
   group_visit: {
     mode: 'group_visit',
@@ -106,6 +178,14 @@ export const EXPERIENCE_MODE_REGISTRY: Readonly<Record<ExperienceMode, Experienc
     enabled: false,
     enabledFromPhase: 'Phase 2',
     i18nKey: 'experienceMode.group_visit',
+    personaKey: 'experienceMode.group_visit.persona',
+    questionKey: 'experienceMode.group_visit.question',
+    previewKpiKeys: [
+      'experienceMode.kpi.groupCohesion',
+      'experienceMode.kpi.groupConflict',
+      'experienceMode.kpi.docentUtil',
+      'experienceMode.kpi.vipImpact',
+    ],
   },
 };
 
