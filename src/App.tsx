@@ -25,7 +25,7 @@ function App() {
     <ThemeProvider>
       <ToastProvider>
         <div className="flex flex-col h-screen overflow-hidden">
-          <GlobalHeader />
+          {step !== 'welcome' && <GlobalHeader />}
           {step === 'ready' && (
             <>
               <MainLayout />
