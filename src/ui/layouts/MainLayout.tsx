@@ -1,5 +1,3 @@
-import { ThemeToggle } from '../components/ThemeToggle';
-import { LanguageToggle } from '../components/LanguageToggle';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
@@ -13,8 +11,6 @@ import { ExperienceModePanel } from '../panels/build/ExperienceModePanel';
 import { RegionsPanel } from '../panels/build/RegionsPanel';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
 import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
-import { ProgressRing } from '../components/ProgressRing';
-import { HelpButton } from '../components/HelpOverlay';
 import { StatsFooter } from '../components/StatsFooter';
 import { InfoTooltip } from '../components/InfoTooltip';
 import { useStore } from '@/stores';
@@ -46,18 +42,12 @@ function writePanelOpen(id: string, open: boolean) {
 
 export function MainLayout() {
   const visitors = useStore((s) => s.visitors);
-  const timeState = useStore((s) => s.timeState);
   const phase = useStore((s) => s.phase);
   const visitorHistory = useRef<number[]>([]);
   const zones = useStore((s) => s.zones);
-  const scenario = useStore((s) => s.scenario);
-  const simProgress = scenario ? Math.min(1, timeState.elapsed / scenario.simulationConfig.duration) : 0;
   const t = useT();
 
   const activeCount = visitors.filter((v) => v.isActive).length;
-  const elapsed = timeState.elapsed;
-  const minutes = Math.floor(elapsed / 60000);
-  const seconds = Math.floor((elapsed % 60000) / 1000);
 
   // Track visitor count history for sparkline
   if (phase !== 'idle' && (visitorHistory.current.length === 0 || visitorHistory.current[visitorHistory.current.length - 1] !== activeCount)) {
@@ -66,35 +56,7 @@ export function MainLayout() {
   if (phase === 'idle') visitorHistory.current = [];
 
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)]">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold tracking-tight">
-            VELA
-          </h1>
-          {scenario && (
-            <span className="text-xs text-muted-foreground italic truncate max-w-48">
-              {scenario.meta.name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {phase !== 'idle' && (
-            <div className="flex items-center gap-3 text-xs font-data">
-              <ProgressRing progress={simProgress} size={18} />
-              <span className="text-muted-foreground">
-                {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-              </span>
-            </div>
-          )}
-          <HelpButton />
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {/* 3-Panel Body */}
+    <div className="flex flex-col flex-1 overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
         {/* Left Panel — Session / Build / Operations 3 도메인 ─────────────────
             세션(Project/Simulation/Replay) 다음 빌드(공간) → 운영(시나리오)

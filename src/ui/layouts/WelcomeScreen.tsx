@@ -200,14 +200,14 @@ export function WelcomeScreen({ onNewProjectCreated, onLoaded }: WelcomeScreenPr
 
   return (
     <div
-      className="fixed inset-0 bg-background flex items-center justify-center z-[300]"
+      className="flex-1 bg-background flex items-center justify-center overflow-y-auto relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* 드래그 오버레이 */}
       {isDragging && (
-        <div className="fixed inset-0 z-[310] flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-none pointer-events-none">
+        <div className="absolute inset-0 z-[310] flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-none pointer-events-none">
           <div className="text-center">
             <Upload className="w-10 h-10 text-primary mx-auto mb-2" />
             <p className="text-sm text-primary font-medium">{t('welcome.drop.hint')}</p>

@@ -84,7 +84,7 @@ export function ModeSelectionScreen({ onPicked, onBack }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-background z-[300] overflow-hidden flex">
+    <div className="flex-1 bg-background overflow-hidden flex">
       {/* 좌측: 4-step indicator */}
       <aside className="w-64 border-r border-border/60 px-4 py-8 flex-shrink-0 hidden md:block">
         <div className="mb-6">
