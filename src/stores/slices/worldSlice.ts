@@ -275,7 +275,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       // Reparent any orphans onto the fallback floor so densityGrids keys match.
       zonesArr = zonesArr.map(z => floorIdSet.has(z.floorId as string) ? z : { ...z, floorId: fallbackId as any });
     }
-    const activeFloorId = floorsArr[0]?.id as string ?? null;
+    // Preserve user's current activeFloorId if still valid; only fall back to
+    // the first floor when nothing was selected or the previous selection no
+    // longer exists (e.g. loading a different scenario). Without this, every
+    // setScenario (incl. autosaves from useEffects in SpawnConfig) would yank
+    // selection back to floor[0] mid-edit. (2026-04-26 Duration→Region bug)
+    const prevActiveFloorId = get().activeFloorId;
+    const validIds = new Set(floorsArr.map((f) => f.id as string));
+    const activeFloorId = prevActiveFloorId && validIds.has(prevActiveFloorId)
+      ? prevActiveFloorId
+      : (floorsArr[0]?.id as string ?? null);
     let mediaArr: MediaPlacement[] = correctedMedia;
     let graphArr: WaypointGraph | null = scenario.waypointGraph ?? null;
 
@@ -737,9 +746,13 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     // Save undo snapshot BEFORE mutation
     const s = get();
     (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
-    set((s) => ({
-      media: s.media.filter((m) => (m.id as string) !== mediaId),
-    }));
+    set((s) => {
+      const newMedia = s.media.filter((m) => (m.id as string) !== mediaId);
+      return {
+        media: newMedia,
+        scenario: s.scenario ? { ...s.scenario, media: newMedia } : s.scenario,
+      };
+    });
   },
 
   // ── Waypoint Graph CRUD ──

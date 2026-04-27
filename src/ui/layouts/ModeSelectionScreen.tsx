@@ -20,7 +20,7 @@ import { useT } from '@/i18n';
 import {
   EXPERIENCE_MODE_REGISTRY,
   EXPERIENCE_MODES_BY_TIER,
-  EXPERIENCE_MODE_POLICY_DEFAULTS,
+  resolveExperienceModePolicy,
   SATISFACTION_WEIGHTS_BY_MODE,
   type ExperienceMode,
   type ExperienceModeTier,
@@ -45,7 +45,7 @@ export function ModeSelectionScreen({ onPicked, onBack }: Props) {
     if (!scenario) return;
     if (!EXPERIENCE_MODE_REGISTRY[mode].enabled) return;
 
-    const nextPolicy = EXPERIENCE_MODE_POLICY_DEFAULTS[mode];
+    const nextPolicy = resolveExperienceModePolicy(mode, scenario.zones, scenario.media);
     const nextWeights = SATISFACTION_WEIGHTS_BY_MODE[mode];
     const tier = EXPERIENCE_MODE_REGISTRY[mode].tier;
     const needsTimeMode = tier === 'operations' && nextPolicy.mode !== 'unlimited';

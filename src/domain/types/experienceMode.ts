@@ -21,6 +21,8 @@
 
 import type { EntryPolicy } from './operations';
 import type { SatisfactionWeights } from './operations';
+import type { ZoneConfig } from './zone';
+import type { MediaPlacement } from './media';
 
 // ── Tier ────────────────────────────────────────────────
 
@@ -152,7 +154,7 @@ export const EXPERIENCE_MODE_POLICY_DEFAULTS: Readonly<Record<ExperienceMode, En
   free_admission:       { mode: 'unlimited' },
   free_with_throttle: {
     mode: 'concurrent-cap',
-    maxConcurrent: 400,                // 높은 cap = 폭주 시만 발동
+    maxConcurrent: 400,                // 면적 모를 때만 사용되는 fallback. 실제 default 는 resolveExperienceModePolicy 가 면적 기반으로 계산.
     ...PATIENCE_DEFAULTS,
   },
   timed_reservation: {
@@ -170,6 +172,54 @@ export const EXPERIENCE_MODE_POLICY_DEFAULTS: Readonly<Record<ExperienceMode, En
   // 현재는 unlimited placeholder.
   group_visit:          { mode: 'unlimited' },
 };
+
+// ── 면적 기반 자동 cap (free_with_throttle) ──────────────
+//
+// 자유 관람 + 통제 의 의도: "평소 자유, 공간 수용인원 초과 시 발동".
+// 그 수용인원은 시나리오의 실제 _점유 가능_ 면적에서 계산해야 의미가 있다 (magic number 금지).
+// 기준: 국제 권장 2.5 m²/인 (FullReport.tsx 의 공간 등급 기준과 일치).
+// 점유형 zone (lobby/exhibition/corridor/rest/stage) 만 합산 — entrance/exit/gateway 는 통과형.
+// 미디어 물리 히트박스 면적은 차감 — 관람객이 실제로 점유할 수 없음.
+//   bounding-box 기준 (rect 정확, circle/polygon 은 약간 보수적 = cap 더 작아짐, 안전한 방향).
+// 결과는 10명 단위로 반올림 + 최저 50명 보장.
+//
+// 시나리오에 zone 이 아직 없을 땐 정적 default (400) fallback.
+
+const AREA_PER_PERSON_M2 = 2.5;
+const OCCUPIABLE_ZONE_TYPES = new Set<string>(['lobby', 'exhibition', 'corridor', 'rest', 'stage']);
+
+export function computeAreaBasedCap(
+  zones: readonly Pick<ZoneConfig, 'id' | 'type' | 'area'>[],
+  media: readonly Pick<MediaPlacement, 'zoneId' | 'size'>[] = [],
+): number {
+  const occupiableZoneIds = new Set(zones.filter((z) => OCCUPIABLE_ZONE_TYPES.has(z.type)).map((z) => z.id));
+  const zoneArea = zones
+    .filter((z) => OCCUPIABLE_ZONE_TYPES.has(z.type))
+    .reduce((s, z) => s + z.area, 0);
+  const mediaArea = media
+    .filter((m) => occupiableZoneIds.has(m.zoneId))
+    .reduce((s, m) => s + Math.max(0, m.size.width * m.size.height), 0);
+  const usableArea = Math.max(0, zoneArea - mediaArea);
+  if (usableArea <= 0) return 400;
+  const cap = Math.round(usableArea / AREA_PER_PERSON_M2 / 10) * 10;
+  return Math.max(50, cap);
+}
+
+/**
+ * 모드의 entry policy default 를 시나리오 컨텍스트로 풀어서 반환.
+ * 정적 EXPERIENCE_MODE_POLICY_DEFAULTS 위에서 free_with_throttle 의 maxConcurrent 만 면적 기반으로 덮어씀.
+ */
+export function resolveExperienceModePolicy(
+  mode: ExperienceMode,
+  zones: readonly Pick<ZoneConfig, 'id' | 'type' | 'area'>[],
+  media: readonly Pick<MediaPlacement, 'zoneId' | 'size'>[] = [],
+): EntryPolicy {
+  const base = EXPERIENCE_MODE_POLICY_DEFAULTS[mode];
+  if (mode === 'free_with_throttle' && base.mode === 'concurrent-cap') {
+    return { ...base, maxConcurrent: computeAreaBasedCap(zones, media) };
+  }
+  return base;
+}
 
 // ── 모드별 만족도 가중치 default ─────────────────────────
 //
