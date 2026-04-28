@@ -5,7 +5,13 @@ import { TimeSlotEditor } from './TimeSlotEditor';
 import { VisitorPresets } from './VisitorPresets';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
-import { computeAutoRecommendedDurationMs } from '@/domain/constants';
+import {
+  computeAutoRecommendedDurationMs,
+  computeRecommendedVisitorCount,
+  VISITOR_COUNT_MIN,
+  VISITOR_COUNT_MAX,
+} from '@/domain/constants';
+import { Sparkles, Check } from 'lucide-react';
 import { EXPERIENCE_MODE_REGISTRY, inferExperienceMode } from '@/domain';
 
 export function SpawnConfig() {
@@ -115,6 +121,14 @@ export function SpawnConfig() {
   // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
   const rateRps = config?.timeSlots?.[0]?.spawnRatePerSecond ?? dist?.spawnRatePerSecond ?? 2;
 
+  // 운영 tier 도 면적 기반 권장 인원이 필요 — 1067㎡ 공간에 50명 (default) 은
+  // 너무 적고, 5000명 (입력 가능) 은 비현실적. 검증 tier 의 VisitorLoadInline 과
+  // 같은 공식 (0.3 명/㎡) 을 작은 pill 로 노출 (2026-04-28 운영 페르소나 피드백).
+  const totalAreaM2 = zones.reduce((sum, z) => sum + (z.area ?? 0), 0);
+  const recommendedCount = computeRecommendedVisitorCount(totalAreaM2);
+  const totalCount = dist?.totalCount ?? 200;
+  const isRecApplied = totalCount === recommendedCount;
+
   const updateSpawnRatePerMin = (vPerMin: number) => {
     if (!scenario || isLocked || isMultiSlot) return;
     const rps = vPerMin / 60;
@@ -175,12 +189,41 @@ export function SpawnConfig() {
           </div>
         )}
         <div className="grid grid-cols-2 gap-2">
-          <NumField
-            label={policyForcesTime ? `Total Visitors (∞)` : 'Total Visitors'}
-            value={dist?.totalCount ?? 200}
-            onChange={(v) => updateDist('totalCount', v)}
-            disabled={isLocked || policyForcesTime}
-          />
+          <div>
+            <NumField
+              label={policyForcesTime ? `Total Visitors (∞)` : 'Total Visitors'}
+              value={dist?.totalCount ?? 200}
+              onChange={(v) => updateDist('totalCount', v)}
+              disabled={isLocked || policyForcesTime}
+              min={VISITOR_COUNT_MIN}
+              max={VISITOR_COUNT_MAX}
+            />
+            {!policyForcesTime && totalAreaM2 > 0 && (
+              <button
+                type="button"
+                onClick={() => !isRecApplied && updateDist('totalCount', recommendedCount)}
+                disabled={isLocked || isRecApplied}
+                title={`${Math.round(totalAreaM2)}㎡ × 0.3명/㎡`}
+                className={`mt-0.5 w-full flex items-center justify-center gap-1 px-1 py-0.5 text-[8px] rounded transition-colors ${
+                  isRecApplied
+                    ? 'bg-primary/5 text-primary/70 cursor-default'
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+              >
+                {isRecApplied ? (
+                  <>
+                    <Check className="w-2.5 h-2.5" />
+                    Recommended
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-2.5 h-2.5" />
+                    Recommend {recommendedCount}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           <NumField
             label={policyForcesTime ? `Max Concurrent (∞)` : 'Max Concurrent'}
             // Clamp displayed value to Total — Max > Total is a dead setting
@@ -190,6 +233,8 @@ export function SpawnConfig() {
             value={Math.min(config?.maxVisitors ?? 500, dist?.totalCount ?? 500)}
             onChange={(v) => updateConfig('maxVisitors', Math.min(v, dist?.totalCount ?? v))}
             disabled={isLocked || policyForcesTime}
+            min={1}
+            max={dist?.totalCount ?? VISITOR_COUNT_MAX}
           />
           <div>
             <NumField
@@ -198,6 +243,8 @@ export function SpawnConfig() {
               onChange={updateSpawnRatePerMin}
               disabled={isLocked || isMultiSlot}
               step={1}
+              min={1}
+              max={600}
             />
             {isMultiSlot && (
               <p className="text-[8px] text-muted-foreground mt-0.5">Edit in Time Slots</p>
@@ -208,6 +255,8 @@ export function SpawnConfig() {
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
+            min={1}
+            max={1440}
           />
           <div>
             <NumField

@@ -3,9 +3,13 @@
  *
  * 역할: "관제실" — 시뮬 실행 + 라이브 모니터링만. 회고/분석은 AnalyzeLayout 이 담당.
  *
- *   좌(288): SimulationControls + Replay + (운영 tier) Spawn/Visitors + Project
+ *   좌(288): SimulationControls + Replay + Visitors (전 tier) + (운영 tier) Spawn + Project
  *   중앙   : Canvas (heatmap/pin 토글 가능)
  *   우(320): LivePulse — phase 무관 항상.
+ *
+ * Visitors 패널 (Profile Mix 등) 은 검증 tier 에서도 노출 — 어린이/VIP/장애인 등
+ * 대상 페르소나가 시뮬레이션 결과의 핵심 변수이기 때문 (2026-04-28 사용자 피드백).
+ * Spawn 만 운영 tier 전용 (검증 tier 는 VisitorLoadInline 으로 대체).
  *
  * 시뮬 완료 시 App.tsx 가 자동으로 'analyze' step 으로 전환 (toast 알림). 화면 내
  * "분석으로 이동" 버튼 제거 — stepper 가 단일 navigation control.
@@ -61,24 +65,22 @@ export function MainLayout() {
             <ReplayScrubber />
 
             {isOperations && (
-              <>
-                <div className="bento-box p-4">
-                  <h2 className="panel-section mb-3 flex items-center gap-1.5">
-                    Spawn
-                    <InfoTooltip text={t('tooltip.spawn')} />
-                  </h2>
-                  <SpawnConfig />
-                </div>
-
-                <div className="bento-box p-4">
-                  <h2 className="panel-section mb-3 flex items-center gap-1.5">
-                    Visitors
-                    <InfoTooltip text={t('tooltip.visitors')} />
-                  </h2>
-                  <VisitorConfig />
-                </div>
-              </>
+              <div className="bento-box p-4">
+                <h2 className="panel-section mb-3 flex items-center gap-1.5">
+                  Spawn
+                  <InfoTooltip text={t('tooltip.spawn')} />
+                </h2>
+                <SpawnConfig />
+              </div>
             )}
+
+            <div className="bento-box p-4">
+              <h2 className="panel-section mb-3 flex items-center gap-1.5">
+                Visitors
+                <InfoTooltip text={t('tooltip.visitors')} />
+              </h2>
+              <VisitorConfig />
+            </div>
           </div>
 
           <div className="border-t border-border p-3">
