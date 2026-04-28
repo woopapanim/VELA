@@ -3,7 +3,7 @@ import { Plus, FolderOpen, Trash2, ArrowRight, Upload } from 'lucide-react';
 import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
-import type { Scenario } from '@/domain';
+import type { Scenario, ScenarioId, FloorId } from '@/domain';
 import { useT } from '@/i18n';
 
 const HISTORY_KEY = 'vela-project-history';
@@ -76,7 +76,7 @@ export function WelcomeScreen({ onNewProjectCreated, onLoaded }: WelcomeScreenPr
     const name = projectName.trim() || 'Untitled Project';
     const scenario: Scenario = {
       meta: {
-        id: `project_${Date.now()}` as any,
+        id: `project_${Date.now()}` as ScenarioId,
         name,
         description: '',
         version: 1,
@@ -86,7 +86,7 @@ export function WelcomeScreen({ onNewProjectCreated, onLoaded }: WelcomeScreenPr
         updatedAt: Date.now(),
       },
       floors: [{
-        id: 'floor_1f' as any, name: '1F', level: 0,
+        id: 'floor_1f' as FloorId, name: '1F', level: 0,
         canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
         zoneIds: [], metadata: {},
       }],

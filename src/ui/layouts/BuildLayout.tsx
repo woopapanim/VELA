@@ -136,7 +136,7 @@ function TaskCard({
   onActivate,
   children,
 }: {
-  task: { id: BuildTaskId; icon: typeof ImageIcon; label: string; sub: string; done: boolean };
+  task: { id: BuildTaskId; icon: typeof LayoutGrid; label: string; sub: string; done: boolean };
   isActive: boolean;
   onActivate: () => void;
   children: React.ReactNode;
