@@ -1,12 +1,19 @@
 import { useRef, useCallback, useState } from 'react';
-import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
+import { Play, Pause, Square, AlertTriangle, Sparkles, Check } from 'lucide-react';
 import { useStore } from '@/stores';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
-import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
-import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
+import {
+  SIMULATION_PHASE,
+  KPI_SAMPLE_INTERVAL_MS,
+  computeRecommendedVisitorCount,
+  experienceModeTier,
+  VISITOR_COUNT_MIN,
+  VISITOR_COUNT_MAX,
+} from '@/domain';
+import { assembleKpiSnapshot } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
-import type { OverlayMode, EntryQueueState, EntryQueueNodeBucket } from '@/stores';
+import type { EntryQueueState, EntryQueueNodeBucket } from '@/stores';
 import { useT } from '@/i18n';
 
 // djb2-style short hash → 6 hex chars. Deterministic for identical scenario shape.
@@ -47,17 +54,15 @@ export function SimulationControls() {
   const [speed, setSpeed] = useState(1);
 
   const phase = useStore((s) => s.phase);
+  const scenario = useStore((s) => s.scenario);
   const timeState = useStore((s) => s.timeState);
   const visitors = useStore((s) => s.visitors);
-  const pinCount = useStore((s) => s.pins.length);
   const updateSimState = useStore((s) => s.updateSimState);
   const setShaftQueues = useStore((s) => s.setShaftQueues);
   const setDensityGrids = useStore((s) => s.setDensityGrids);
   const setEntryQueue = useStore((s) => s.setEntryQueue);
   const setPhase = useStore((s) => s.setPhase);
   const resetSim = useStore((s) => s.resetSim);
-  const overlayMode = useStore((s) => s.overlayMode);
-  const setOverlayMode = useStore((s) => s.setOverlayMode);
   const pushSnapshot = useStore((s) => s.pushSnapshot);
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
@@ -324,25 +329,6 @@ export function SimulationControls() {
     setTimeout(() => setPhase('idle' as any), 50);
   }, [resetSim, clearHistory, clearReplay, clearPins, setPhase]);
 
-  const toggleHeatmap = useCallback(() => {
-    const next: OverlayMode = overlayMode === 'heatmap' ? 'none' : 'heatmap';
-    setOverlayMode(next);
-  }, [overlayMode, setOverlayMode]);
-
-  const handlePin = useCallback(() => {
-    const store = useStore.getState();
-    const totalS = Math.max(0, Math.round(store.timeState.elapsed / 1000));
-    const mm = Math.floor(totalS / 60);
-    const ss = totalS % 60;
-    const time = `${mm}:${String(ss).padStart(2, '0')}`;
-    const pin = pinCurrentMoment(store, t('pinpoint.defaultLabel', { time }));
-    if (!pin) {
-      toast('warning', t('pinpoint.toast.noSnapshot'));
-      return;
-    }
-    toast('success', t('pinpoint.toast.created', { time }));
-  }, [t, toast]);
-
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
@@ -353,15 +339,22 @@ export function SimulationControls() {
       ? `👥 사람 기준 · ${totalCount}명 · 최대 ${durationMin}분`
       : `🕐 시간 기준 · ${durationMin}분 · 최대 ${totalCount}명`;
 
+  // 검증 tier 는 좌측 패널에서 SpawnConfig 가 숨김 → SimulationControls 안에 인라인
+  // 방문객 수 입력을 직접 노출. 운영 tier 는 SpawnConfig 가 이미 보임 → 배지만 노출.
+  const expMode = scenario?.experienceMode;
+  const tier = expMode ? experienceModeTier(expMode) : 'operations';
+  const isValidationTier = tier === 'validation';
+  const isIdleOrCompleted = phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED;
+
   return (
     <div className="space-y-3">
-      {/* Mode summary badge */}
-      {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
+      {/* 운영 tier 모드 배지 — phase=idle|completed 일 때만 (실행 중엔 잠금) */}
+      {isIdleOrCompleted && !isValidationTier && (
         <div className="px-2 py-1 rounded bg-secondary/50 text-[10px] text-muted-foreground text-center font-data">
           {modeBadge}
         </div>
       )}
-      {/* Controls — action row (Start/Pause/Resume + Stop) */}
+      {/* Controls — Start / Pause+Stop / Resume+Stop. 원본 행 레이아웃 유지. */}
       <div className="flex gap-2">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
@@ -397,31 +390,9 @@ export function SimulationControls() {
         )}
       </div>
 
-      {/* Utility row — overlay + pin, predictable placement */}
-      <div className="flex gap-2">
-        <button
-          onClick={toggleHeatmap}
-          className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors active:scale-95 ${
-            overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-          title="Toggle Heatmap"
-        >
-          <Thermometer className="w-3.5 h-3.5" />
-        </button>
-        <button
-          onClick={handlePin}
-          disabled={phase === SIMULATION_PHASE.IDLE}
-          className="relative shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95"
-          title={`${t('pinpoint.action.pin')} (P)`}
-        >
-          <Pin className="w-3.5 h-3.5" />
-          {pinCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background">
-              {pinCount}
-            </span>
-          )}
-        </button>
-      </div>
+      {/* 검증 tier 인라인 방문객 수 입력 — Start 버튼 아래 (시뮬 컨텍스트의 부속 입력).
+          phase=idle|completed 일 때만 노출, running 중엔 잠금. */}
+      {isIdleOrCompleted && isValidationTier && <VisitorLoadInline />}
 
       {/* Speed */}
       {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
@@ -499,6 +470,88 @@ export function SimulationControls() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── VisitorLoadInline — 검증 tier 의 인라인 방문객 수 입력 ────────────
+// 검증 tier 는 좌측 SpawnConfig 패널을 숨기지만, "몇 명을 흘려보낼지" 는 반드시
+// 사용자가 결정해야 함 (10평 vs 600평 의 적정 부하가 다름). 면적 기반 권장값을
+// 자동 제시하고, 사용자가 override 가능한 작은 입력 카드를 SimulationControls
+// 안에 직접 노출. simulationMode 는 'person' 으로 강제 (totalCount 도달 시 종료).
+function VisitorLoadInline() {
+  const t = useT();
+  const scenario = useStore((s) => s.scenario);
+  const setScenario = useStore((s) => s.setScenario);
+  const zones = useStore((s) => s.zones);
+
+  const totalAreaM2 = zones.reduce((sum, z) => sum + (z.area ?? 0), 0);
+  const recommended = computeRecommendedVisitorCount(totalAreaM2);
+  const totalCount = scenario?.visitorDistribution.totalCount ?? recommended;
+  const totalAreaPyeong = totalAreaM2 / 3.3058;
+
+  if (!scenario) return null;
+
+  const setCount = (next: number) => {
+    const clamped = Math.min(VISITOR_COUNT_MAX, Math.max(VISITOR_COUNT_MIN, Math.round(next)));
+    setScenario({
+      ...scenario,
+      visitorDistribution: { ...scenario.visitorDistribution, totalCount: clamped },
+      // 검증 tier 는 항상 'person' 모드 — totalCount 도달 시 자연 종료.
+      simulationConfig: { ...scenario.simulationConfig, simulationMode: 'person' },
+    });
+  };
+
+  const isApplied = totalCount === recommended;
+
+  return (
+    <div className="px-3 py-2.5 rounded-lg bg-secondary/50 border border-border/50 space-y-2">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="text-muted-foreground uppercase tracking-wider font-medium">
+          {t('sim.visitorLoad.label')}
+        </span>
+        <span className="text-muted-foreground/60 font-data">
+          {totalAreaPyeong.toFixed(0)}평 · {Math.round(totalAreaM2)}㎡
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={VISITOR_COUNT_MIN}
+          max={VISITOR_COUNT_MAX}
+          value={totalCount}
+          onChange={(e) => setCount(Number(e.target.value) || recommended)}
+          className="flex-1 min-w-0 bg-background border border-border rounded px-2 py-1 text-xs font-data font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+        />
+        <span className="text-[10px] text-muted-foreground shrink-0">{t('sim.visitorLoad.unit')}</span>
+      </div>
+      {/* 추천값 — 항상 노출. 적용 후엔 "적용됨" 상태로 morph. */}
+      <button
+        type="button"
+        onClick={() => !isApplied && setCount(recommended)}
+        disabled={isApplied}
+        title={t('sim.visitorLoad.recommendBasis', { area: Math.round(totalAreaM2), count: recommended })}
+        className={`w-full flex items-center justify-center gap-1.5 px-2 py-1 text-[10px] rounded transition-colors ${
+          isApplied
+            ? 'bg-primary/5 text-primary/70 cursor-default'
+            : 'bg-primary/10 text-primary hover:bg-primary/20'
+        }`}
+      >
+        {isApplied ? (
+          <>
+            <Check className="w-3 h-3" />
+            {t('sim.visitorLoad.recommendApplied')}
+          </>
+        ) : (
+          <>
+            <Sparkles className="w-3 h-3" />
+            {t('sim.visitorLoad.recommendCta', { count: recommended })}
+          </>
+        )}
+      </button>
+      <p className="text-[10px] text-muted-foreground/70 leading-relaxed">
+        {t('sim.visitorLoad.hint')}
+      </p>
     </div>
   );
 }

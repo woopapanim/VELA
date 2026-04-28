@@ -1,6 +1,22 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { Rewind, FastForward, SkipBack, Play, Pause } from 'lucide-react';
 import { useStore } from '@/stores';
+import type { Visitor, VisitorGroup, SimulationPhase, TimeState } from '@/domain';
+
+interface PreReplaySnapshot {
+  visitors: Visitor[];
+  groups: VisitorGroup[];
+  timeState: TimeState;
+  phase: SimulationPhase;
+  totalSpawned: number;
+  totalExited: number;
+  mediaStats: Map<string, any>;
+  spawnByNode: ReadonlyMap<string, number>;
+  exitByNode: ReadonlyMap<string, number>;
+  // Replay 중엔 누적 heatmap 이 의미 없음 — 진입 시 'none' 으로 전환, Exit 시 복원
+  // (2026-04-28 사용자 결정: option a).
+  overlayMode: ReturnType<typeof useStore.getState>['overlayMode'];
+}
 
 export function ReplayScrubber() {
   const replayFrames = useStore((s) => s.replayFrames);
@@ -14,6 +30,9 @@ export function ReplayScrubber() {
   const frameCount = replayFrames.length;
   const playTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isPlayingRef = useRef(false);
+  // Enter Replay 직전 store 스냅샷. Exit 시 이 상태로 복원해야 사용자가 "탐색하던 자리에 멈춘"
+  // 어색한 상태에 갇히지 않음 (2026-04-28 사용자 피드백).
+  const preReplaySnapshotRef = useRef<PreReplaySnapshot | null>(null);
 
   const applyFrame = useCallback((index: number) => {
     if (index < 0 || index >= frameCount) return;
@@ -51,21 +70,58 @@ export function ReplayScrubber() {
   }, []);
 
   const handleToggleReplay = useCallback(() => {
+    const store = useStore.getState();
     if (isReplaying) {
       stopAutoPlay();
+      // Exit Replay → 진입 직전 상태로 복원. 스냅샷 없으면 마지막 frame 으로 fallback.
+      const snap = preReplaySnapshotRef.current;
+      if (snap) {
+        updateSimState(
+          snap.visitors,
+          snap.groups,
+          snap.timeState,
+          snap.phase,
+          snap.totalSpawned,
+          snap.totalExited,
+          snap.mediaStats,
+          snap.spawnByNode,
+          snap.exitByNode,
+        );
+        // overlayMode 복원 — Replay 진입 시 강제 'none' 으로 바꿨다면 원래대로.
+        store.setOverlayMode(snap.overlayMode);
+      } else if (frameCount > 0) {
+        applyFrame(frameCount - 1);
+      }
+      preReplaySnapshotRef.current = null;
       setIsReplaying(false);
     } else {
+      // Enter Replay → 현재 store 상태 스냅샷.
+      preReplaySnapshotRef.current = {
+        visitors: store.visitors,
+        groups: store.groups,
+        timeState: store.timeState,
+        phase: store.phase,
+        totalSpawned: store.totalSpawned,
+        totalExited: store.totalExited,
+        mediaStats: store.mediaStats,
+        spawnByNode: store.spawnByNode,
+        exitByNode: store.exitByNode,
+        overlayMode: store.overlayMode,
+      };
+      // Replay 중엔 heatmap 이 cumulative density grid 라서 frame 동기화 안 됨 — 강제 off.
+      if (store.overlayMode === 'heatmap') store.setOverlayMode('none');
       setIsReplaying(true);
       applyFrame(replayIndex >= 0 ? replayIndex : 0);
     }
-  }, [isReplaying, setIsReplaying, applyFrame, replayIndex, stopAutoPlay]);
+  }, [isReplaying, setIsReplaying, applyFrame, replayIndex, stopAutoPlay, updateSimState, frameCount]);
 
   const handleScrub = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     stopAutoPlay();
     applyFrame(parseInt(e.target.value));
   }, [applyFrame, stopAutoPlay]);
 
-  if (frameCount < 3 || phase === 'idle') return null;
+  // Replay 는 시뮬이 끝난(또는 일시정지된) 뒤에만 진입 가능. running 중엔 숨김.
+  if (frameCount < 3 || phase === 'idle' || phase === 'running') return null;
 
   const currentFrame = replayIndex >= 0 && replayIndex < frameCount ? replayFrames[replayIndex] : null;
   const currentMin = currentFrame ? Math.floor(currentFrame.timestamp / 60000) : 0;

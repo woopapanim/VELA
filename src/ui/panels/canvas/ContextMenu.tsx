@@ -4,6 +4,7 @@ import { useStore } from '@/stores';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import type { ZoneId, MediaId } from '@/domain';
 import { useT } from '@/i18n';
+import { useToast } from '@/ui/components/Toast';
 
 interface MenuState {
   visible: boolean;
@@ -47,7 +48,9 @@ const ZONE_TYPES = [
 // Phase 0: 라벨은 i18n exhibit.kind.* 키로 매핑. 코드 카테고리 키는 그대로 유지.
 const EXHIBIT_CATEGORIES = [
   { labelKey: 'exhibit.kind.artwork', color: '#a78bfa', items: [
+    { type: 'painting', label: 'Painting' },
     { type: 'artifact', label: 'Artifact' },
+    { type: 'sculpture', label: 'Sculpture' },
     { type: 'diorama', label: 'Diorama' },
     { type: 'documents', label: 'Documents' },
     { type: 'graphic_sign', label: 'Graphic Sign' },
@@ -136,17 +139,26 @@ function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) 
   store.selectZone(id as string);
 }
 
-function createMediaAtPosition(mediaType: string, worldX: number, worldY: number) {
+/** Returns 'placed' on success, 'no-zone' if click was outside any zone, 'too-large' if exhibit doesn't fit. */
+function createMediaAtPosition(mediaType: string, worldX: number, worldY: number): 'placed' | 'no-zone' | 'too-large' {
   const store = useStore.getState();
   const preset = MEDIA_PRESETS[mediaType as keyof typeof MEDIA_PRESETS];
-  if (!preset) return;
+  if (!preset) return 'no-zone';
 
   // Find the zone that contains this position
   const zone = store.zones.find((z) => {
     const b = z.bounds;
     return worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h;
   });
-  if (!zone) return; // Media must be inside a zone
+  if (!zone) return 'no-zone';
+
+  // Block placement when the exhibit's footprint can't fit inside the zone (with margin).
+  const fitW = preset.defaultSize.width * MEDIA_SCALE;
+  const fitH = preset.defaultSize.height * MEDIA_SCALE;
+  const fitMargin = 10;
+  if (zone.bounds.w < fitW + fitMargin * 2 || zone.bounds.h < fitH + fitMargin * 2) {
+    return 'too-large';
+  }
 
   // Sync counter
   for (const m of store.media) {
@@ -186,6 +198,7 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
     groupFriendly: preset.groupFriendly,
   } as any);
   store.selectMedia(id as string);
+  return 'placed';
 }
 
 export function CanvasContextMenu({ menu, onClose }: {
@@ -201,6 +214,7 @@ export function CanvasContextMenu({ menu, onClose }: {
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const [openSub, setOpenSub] = useState<string | null>(null);
   const t = useT();
+  const { toast } = useToast();
 
   if (!menu.visible) return null;
 
@@ -299,7 +313,8 @@ export function CanvasContextMenu({ menu, onClose }: {
                   </div>
                   {items.map(({ type, label: itemLabel }) => (
                     <SubItem key={type} label={itemLabel} color={color} onClick={() => {
-                      createMediaAtPosition(type, menu.worldX, menu.worldY);
+                      const r = createMediaAtPosition(type, menu.worldX, menu.worldY);
+                      if (r === 'too-large') toast('warning', t('build.exhibit.tooLarge'));
                       onClose();
                     }} />
                   ))}

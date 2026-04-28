@@ -47,6 +47,8 @@ export interface RenderState {
   densityGrids?: ReadonlyMap<string, DensityGrid>;
   /** Phase 1: 외부 입장 대기 큐 (entry node 별 인원 + oldestWait). */
   entryQueue?: EntryQueueState;
+  /** 도면 5m 캘리브레이션 자 (활성 시 두 끝점 — world coords). */
+  bgCalRuler?: { a: { x: number; y: number }; b: { x: number; y: number } } | null;
 }
 
 export class CanvasManager {
@@ -123,36 +125,94 @@ export class CanvasManager {
         const by = fl.canvas.bgOffsetY;
         const w = entry.img.naturalWidth * fl.canvas.bgScale;
         const h = entry.img.naturalHeight * fl.canvas.bgScale;
+        const rotDeg = fl.canvas.bgRotation ?? 0;
+        const cx = bx + w / 2;
+        const cy = by + h / 2;
 
+        const isActiveBg = floorId === (state.activeFloorId ?? null);
         ctx.save();
-        ctx.globalAlpha = isDark ? 0.45 : 0.35;
+        // Inactive floors fade so the active floor's plan is visually dominant.
+        const baseAlpha = isDark ? 0.45 : 0.35;
+        ctx.globalAlpha = isActiveBg ? baseAlpha : baseAlpha * 0.45;
         if (isDark) ctx.filter = 'invert(1) brightness(0.6)';
-        ctx.drawImage(entry.img, bx, by, w, h);
+        if (rotDeg !== 0) {
+          ctx.translate(cx, cy);
+          ctx.rotate((rotDeg * Math.PI) / 180);
+          ctx.drawImage(entry.img, -w / 2, -h / 2, w, h);
+        } else {
+          ctx.drawImage(entry.img, bx, by, w, h);
+        }
         ctx.restore();
 
-        const isActive = floorId === (state.activeFloorId ?? null);
-        if (isActive && !fl.canvas.bgLocked && state.simPhase !== 'running') {
-          const corners = [
-            { x: bx, y: by },
-            { x: bx + w, y: by },
-            { x: bx, y: by + h },
-            { x: bx + w, y: by + h },
+        if (isActiveBg && !fl.canvas.bgLocked && state.simPhase !== 'running') {
+          // Local-frame corners; rotated into world-frame around (cx, cy).
+          const localCorners = [
+            { x: -w / 2, y: -h / 2 },
+            { x:  w / 2, y: -h / 2 },
+            { x: -w / 2, y:  h / 2 },
+            { x:  w / 2, y:  h / 2 },
           ];
+          const r = (rotDeg * Math.PI) / 180;
+          const cos = Math.cos(r), sin = Math.sin(r);
+          const corners = localCorners.map((p) => ({
+            x: cx + p.x * cos - p.y * sin,
+            y: cy + p.x * sin + p.y * cos,
+          }));
+
+          // ZoneRenderer 와 동일한 핸들 스타일 — 줌과 무관한 화면 픽셀 크기 유지.
+          const px = 1 / Math.max(this.camera.zoom, 0.3);
+          const handleSq = 6 * px;
+          const handleStroke = 1 * px;
+          const handleColor = isDark ? '#60a5fa' : '#2563eb';
+
           ctx.save();
-          for (const c of corners) {
-            ctx.beginPath();
-            ctx.arc(c.x, c.y, 6, 0, Math.PI * 2);
-            ctx.fillStyle = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.95)';
-            ctx.fill();
-            ctx.strokeStyle = isDark ? 'rgba(59,130,246,0.8)' : 'rgba(37,99,235,0.8)';
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-          }
-          ctx.setLineDash([6, 4]);
-          ctx.strokeStyle = isDark ? 'rgba(59,130,246,0.3)' : 'rgba(37,99,235,0.3)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(bx, by, w, h);
+          // Dashed outline (rotated rect) — px-scaled like ZoneRenderer.
+          ctx.setLineDash([8 * px, 4 * px]);
+          ctx.strokeStyle = isDark ? 'rgba(96,165,250,0.55)' : 'rgba(37,99,235,0.5)';
+          ctx.lineWidth = 1 * px;
+          ctx.beginPath();
+          ctx.moveTo(corners[0].x, corners[0].y);
+          ctx.lineTo(corners[1].x, corners[1].y);
+          ctx.lineTo(corners[3].x, corners[3].y);
+          ctx.lineTo(corners[2].x, corners[2].y);
+          ctx.closePath();
+          ctx.stroke();
           ctx.setLineDash([]);
+
+          // Corner handles — square (matches ZoneRenderer rect handles).
+          ctx.fillStyle = '#fff';
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = handleStroke;
+          for (const c of corners) {
+            ctx.fillRect(c.x - handleSq / 2, c.y - handleSq / 2, handleSq, handleSq);
+            ctx.strokeRect(c.x - handleSq / 2, c.y - handleSq / 2, handleSq, handleSq);
+          }
+
+          // Rotation handle: top-mid, extended outward (small circle, px-scaled).
+          const rotHandleDist = 24 * px;
+          const outwardLocal = { x: 0, y: -h / 2 - rotHandleDist };
+          const topMidLocal = { x: 0, y: -h / 2 };
+          const topMidWorld = {
+            x: cx + topMidLocal.x * cos - topMidLocal.y * sin,
+            y: cy + topMidLocal.x * sin + topMidLocal.y * cos,
+          };
+          const rotHandleWorld = {
+            x: cx + outwardLocal.x * cos - outwardLocal.y * sin,
+            y: cy + outwardLocal.x * sin + outwardLocal.y * cos,
+          };
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = handleStroke;
+          ctx.beginPath();
+          ctx.moveTo(topMidWorld.x, topMidWorld.y);
+          ctx.lineTo(rotHandleWorld.x, rotHandleWorld.y);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(rotHandleWorld.x, rotHandleWorld.y, 4 * px, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff';
+          ctx.fill();
+          ctx.strokeStyle = handleColor;
+          ctx.lineWidth = handleStroke;
+          ctx.stroke();
           ctx.restore();
         }
       }
@@ -258,6 +318,11 @@ export class CanvasManager {
     // 8. Visitors (topmost)
     renderVisitors(ctx, state.visitors, state.groups, isDark, true, state.followAgentId);
 
+    // 8b. 5m calibration ruler — drawn in world space, above bg & zones, below screen-space ruler.
+    if (state.bgCalRuler) {
+      this.drawCalRuler(ctx, state.bgCalRuler, isDark, state.pixelToMeterScale);
+    }
+
     // Reset transform to screen-space
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
@@ -270,6 +335,91 @@ export class CanvasManager {
 
   getCamera(): Camera {
     return this.camera;
+  }
+
+  /**
+   * 5m 캘리브레이션 자 — 두 끝점 사이 직선 + 끝점 사각 핸들 + "5m" 라벨.
+   * ZoneRenderer 와 동일한 핸들 스타일(px-scaled square handle).
+   */
+  private drawCalRuler(
+    ctx: CanvasRenderingContext2D,
+    ruler: { a: { x: number; y: number }; b: { x: number; y: number } },
+    isDark: boolean,
+    pixelToMeterScale: number,
+  ) {
+    const px = 1 / Math.max(this.camera.zoom, 0.3);
+    const handleSq = 8 * px;
+    const handleStroke = 1 * px;
+    const color = isDark ? '#fbbf24' : '#d97706'; // amber — 도면 핸들 파랑과 구분
+    const a = ruler.a, b = ruler.b;
+    ctx.save();
+    // Line
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2 * px;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+
+    // 끝점 마감 줄 (5m 막대 끝의 짧은 가로획)
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const nx = -dy / len, ny = dx / len; // perpendicular
+    const cap = 10 * px;
+    for (const p of [a, b]) {
+      ctx.beginPath();
+      ctx.moveTo(p.x - nx * cap, p.y - ny * cap);
+      ctx.lineTo(p.x + nx * cap, p.y + ny * cap);
+      ctx.stroke();
+    }
+
+    // 끝점 사각 핸들 — ZoneRenderer 와 동일 스타일.
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = handleStroke;
+    for (const p of [a, b]) {
+      ctx.fillRect(p.x - handleSq / 2, p.y - handleSq / 2, handleSq, handleSq);
+      ctx.strokeRect(p.x - handleSq / 2, p.y - handleSq / 2, handleSq, handleSq);
+    }
+
+    // "5m" 라벨 — 자 중앙 위. 현재 ruler world 길이 / metersPerUnit 으로 실측 표시도 함께.
+    const cx = (a.x + b.x) / 2;
+    const cy = (a.y + b.y) / 2;
+    const mpu = pixelToMeterScale > 0 ? pixelToMeterScale : 0.025;
+    const meters = len * mpu;
+    const fs = Math.max(10, 12 * px);
+    ctx.font = `600 ${fs}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelText = `5m  •  current ${meters.toFixed(2)}m`;
+    const metrics = ctx.measureText(labelText);
+    const padX = 6 * px, padY = 3 * px;
+    const labelW = metrics.width + padX * 2;
+    const labelH = fs + padY * 2;
+    // 자 위쪽 (자에서 perpendicular 방향, 핸들과 안 겹치게).
+    const labelOffset = 18 * px;
+    const lx = cx + nx * labelOffset;
+    const ly = cy + ny * labelOffset;
+    ctx.fillStyle = isDark ? 'rgba(31,41,55,0.92)' : 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = handleStroke;
+    ctx.beginPath();
+    const r = 4 * px;
+    ctx.moveTo(lx - labelW / 2 + r, ly - labelH / 2);
+    ctx.lineTo(lx + labelW / 2 - r, ly - labelH / 2);
+    ctx.quadraticCurveTo(lx + labelW / 2, ly - labelH / 2, lx + labelW / 2, ly - labelH / 2 + r);
+    ctx.lineTo(lx + labelW / 2, ly + labelH / 2 - r);
+    ctx.quadraticCurveTo(lx + labelW / 2, ly + labelH / 2, lx + labelW / 2 - r, ly + labelH / 2);
+    ctx.lineTo(lx - labelW / 2 + r, ly + labelH / 2);
+    ctx.quadraticCurveTo(lx - labelW / 2, ly + labelH / 2, lx - labelW / 2, ly + labelH / 2 - r);
+    ctx.lineTo(lx - labelW / 2, ly - labelH / 2 + r);
+    ctx.quadraticCurveTo(lx - labelW / 2, ly - labelH / 2, lx - labelW / 2 + r, ly - labelH / 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillText(labelText, lx, ly);
+    ctx.restore();
   }
 
   getBgImageBounds(floorId: string, bgOffsetX: number, bgOffsetY: number, bgScale: number): { x: number; y: number; w: number; h: number } | null {

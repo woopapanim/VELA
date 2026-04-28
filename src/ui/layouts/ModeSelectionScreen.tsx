@@ -31,11 +31,11 @@ import {
   EXPERIENCE_MODES_BY_TIER,
   resolveExperienceModePolicy,
   SATISFACTION_WEIGHTS_BY_MODE,
+  computeRecommendedVisitorCount,
   type ExperienceMode,
   type ExperienceModeTier,
 } from '@/domain';
 import { LockedModeModal } from './LockedModeModal';
-import { WorkflowStepIndicator } from './WorkflowStepIndicator';
 
 const DEFAULT_MODE: ExperienceMode = 'free_admission';
 
@@ -63,12 +63,27 @@ export function ModeSelectionScreen({ onPicked, onBack }: Props) {
     const needsTimeMode = tier === 'operations' && nextPolicy.mode !== 'unlimited';
     const currentSimMode = scenario.simulationConfig.simulationMode ?? 'time';
 
+    // 검증 tier 진입: 'person' 모드 강제 + 면적 기반 권장 인원으로 totalCount 시드.
+    // 사용자가 SimulationControls 에서 override 가능. 운영 tier 의 time-mode 강제와 대칭.
+    const isValidation = tier === 'validation';
+    const totalAreaM2 = scenario.zones.reduce((sum, z) => sum + (z.area ?? 0), 0);
+    const recommendedCount = computeRecommendedVisitorCount(totalAreaM2);
+
     setScenario({
       ...scenario,
       experienceMode: mode,
+      ...(isValidation
+        ? {
+            visitorDistribution: {
+              ...scenario.visitorDistribution,
+              totalCount: recommendedCount,
+            },
+          }
+        : {}),
       simulationConfig: {
         ...scenario.simulationConfig,
         ...(needsTimeMode && currentSimMode === 'person' ? { simulationMode: 'time' as const } : {}),
+        ...(isValidation ? { simulationMode: 'person' as const } : {}),
         operations: {
           entryPolicy: nextPolicy,
           satisfactionWeights: nextWeights,
@@ -85,25 +100,16 @@ export function ModeSelectionScreen({ onPicked, onBack }: Props) {
 
   return (
     <div className="flex-1 bg-background overflow-hidden flex">
-      {/* 좌측: 4-step indicator */}
-      <aside className="w-64 border-r border-border/60 px-4 py-8 flex-shrink-0 hidden md:block">
-        <div className="mb-6">
-          <button
-            onClick={onBack}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {t('modeSelect.back')}
-          </button>
-        </div>
-        <WorkflowStepIndicator current={1} variant="vertical" />
-      </aside>
+      {/* 좌측: 빈 영역 — 추후 컨텐츠 추가 예정 (w-72, Build/Simulate 와 통일) */}
+      <aside className="w-72 border-r border-border/60 flex-shrink-0 hidden md:block" />
+
 
       {/* 메인: 핵심 질문 (binary → sub) */}
       <main className="flex-1 overflow-y-auto px-8 py-12">
         <div className="max-w-2xl mx-auto">
           <button
             onClick={onBack}
-            className="md:hidden text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors"
+            className="text-xs text-muted-foreground hover:text-foreground mb-6 transition-colors"
           >
             {t('modeSelect.back')}
           </button>
@@ -137,8 +143,8 @@ export function ModeSelectionScreen({ onPicked, onBack }: Props) {
         </div>
       </main>
 
-      {/* 우측: 가이드 영상 (작게, dismissable) */}
-      <aside className="w-72 border-l border-border/60 px-5 py-8 flex-shrink-0 hidden lg:block">
+      {/* 우측: 가이드 영상 (작게, dismissable) — w-80, Build/Simulate 와 통일 */}
+      <aside className="w-80 border-l border-border/60 px-5 py-8 flex-shrink-0 hidden lg:block">
         <button
           onClick={() => setGuideOpen(true)}
           className="w-full text-left rounded-2xl border border-border/60 bg-secondary/30 hover:border-primary/40 hover:bg-secondary transition-all p-4 group"

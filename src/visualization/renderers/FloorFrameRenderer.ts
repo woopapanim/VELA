@@ -22,11 +22,21 @@ export function renderFloorFrames(
     if (!frame) continue;
 
     const { x, y, w, h } = frame;
+    const isActive = activeFloorId != null && (floor.id as string) === activeFloorId;
 
     ctx.save();
-    ctx.strokeStyle = isDark ? 'rgba(148,163,184,0.3)' : 'rgba(71,85,105,0.25)';
-    ctx.lineWidth = 1.5 * px;
-    ctx.setLineDash([8 * px, 4 * px]);
+    // Inactive floors: dimmed slate dashed outline. Active: brighter blue solid + subtle fill.
+    if (isActive) {
+      ctx.fillStyle = isDark ? 'rgba(59,130,246,0.06)' : 'rgba(59,130,246,0.05)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = isDark ? 'rgba(96,165,250,0.7)' : 'rgba(37,99,235,0.7)';
+      ctx.lineWidth = 2 * px;
+      ctx.setLineDash([]);
+    } else {
+      ctx.strokeStyle = isDark ? 'rgba(148,163,184,0.22)' : 'rgba(71,85,105,0.2)';
+      ctx.lineWidth = 1 * px;
+      ctx.setLineDash([8 * px, 4 * px]);
+    }
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
 
@@ -41,7 +51,11 @@ export function renderFloorFrames(
     const labelX = x;
     const labelY = y - labelH - LABEL_OFFSET * px;
 
-    ctx.fillStyle = isDark ? 'rgba(59,130,246,0.85)' : 'rgba(59,130,246,0.9)';
+    if (isActive) {
+      ctx.fillStyle = isDark ? 'rgba(59,130,246,0.95)' : 'rgba(37,99,235,0.95)';
+    } else {
+      ctx.fillStyle = isDark ? 'rgba(148,163,184,0.45)' : 'rgba(100,116,139,0.5)';
+    }
     roundedRect(ctx, labelX, labelY, labelW, labelH, 6 * px);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
@@ -49,7 +63,6 @@ export function renderFloorFrames(
 
     // Corner resize handles — selected active floor only, sim not running.
     // Match ZoneRenderer rect handles: 6*px square, 1*px stroke, zone-handle blue.
-    const isActive = activeFloorId != null && (floor.id as string) === activeFloorId;
     if (showResizeHandles && isActive) {
       const handleSq = 6 * px;
       const handleStroke = 1 * px;

@@ -44,6 +44,15 @@ export const ko: Dict = {
   'sim.stop.cancel': '취소',
   'sim.stop.confirm': '초기화',
 
+  // Simulation — visitor load (검증 tier 인라인 입력)
+  'sim.visitorLoad.label': '방문객 수',
+  'sim.visitorLoad.unit': '명',
+  'sim.visitorLoad.useRecommendedTooltip': '면적 기반 권장값으로 되돌리기',
+  'sim.visitorLoad.hint': '이 인원이 다 다녀가면 시뮬 종료. 면적이 클수록 권장값도 큼.',
+  'sim.visitorLoad.recommendBasis': '면적 {area}㎡ 기반 권장: {count}명',
+  'sim.visitorLoad.recommendApplied': '추천 방문객 수가 적용되었습니다',
+  'sim.visitorLoad.recommendCta': '면적 기반 권장 {count}명',
+
   // Build — waypoint node descriptions (tooltips)
   'build.node.entry.desc': '스폰 지점',
   'build.node.exit.desc': '퇴장 지점',
@@ -260,6 +269,77 @@ export const ko: Dict = {
   'mainLayout.section.build': '공간 빌드',
   'mainLayout.section.operations': '운영 시나리오',
 
+  // AnalyticsPanel — tab group labels (Live / Post)
+  'analytics.group.live': '실시간',
+  'analytics.group.post': '회고 / 비교',
+
+  // LivePulse — Simulate 단계 우측 패널 (분석 깊이 X, 모니터링만)
+  'pulse.idle': '시뮬레이션을 시작하면 실시간 진행 상황이 여기에 표시됩니다.',
+  'pulse.progress.title': '진행도',
+  'pulse.progress.running': '실행 중',
+  'pulse.progress.paused': '일시정지',
+  'pulse.progress.personSub': '입장 {spawned} · 퇴장 {exited} / {total}명',
+  'pulse.progress.timeSub': '{elapsed} / {total}',
+  'pulse.kpi.active': '현재 관람객',
+  'pulse.kpi.activeSub': '관람 {watching} · 대기 {waiting}',
+  'pulse.kpi.peak': '최고 혼잡',
+  'pulse.kpi.fatigue': '평균 피로도',
+  'pulse.kpi.skip': 'Skip률',
+  'pulse.status.ok': '정상 — 큰 문제 없이 흐르고 있습니다.',
+  'pulse.status.crowded': '주의 — {zone} {pct}% 까지 차오름',
+  'pulse.status.bottleneck': '병목 {n}곳 — Analyze 에서 위치 확인',
+  'pulse.hint.afterEnd': '시뮬레이션이 끝나면 자동으로 분석 화면으로 전환됩니다.',
+  'pulse.zones.title': '혼잡 영역 TOP',
+  'pulse.zones.empty': '아직 점유된 영역이 없습니다',
+  'pulse.media.title': '관람 중 TOP',
+  'pulse.media.empty': '아직 관람 중인 전시물이 없습니다',
+  'pulse.media.viewers': '{n}명',
+
+  // CanvasToolbar — sim context chips
+  'canvasToolbar.heatmap': '히트맵',
+  'canvasToolbar.heatmap.replayDisabled': '리플레이 중에는 사용할 수 없습니다',
+  'canvasToolbar.pin': '순간 기록',
+
+  // MainLayout — mode badge tooltip
+  'mainLayout.modeBadge.tooltip': '클릭해서 Setup 으로 이동 — 모드 변경',
+
+  // AnalyticsPanel — Action tab (validation tier CTA)
+  'analytics.action.validation.title': '결과 요약 + 다음 행동',
+  'analytics.action.validation.desc':
+    '이 결과가 만족스러우면 그대로 저장하고, 다른 안을 시험하려면 변형을 만들어 Build 에서 수정하세요.',
+  'analytics.action.validation.kpi.bottleneck': '병목',
+  'analytics.action.validation.kpi.dwell': '평균체험',
+  'analytics.action.validation.kpi.skip': '스킵률',
+  'analytics.action.validation.saveBtn': '이대로 저장',
+  'analytics.action.validation.forkBtn': '변형 만들기',
+  'analytics.action.validation.saved': '"{{name}}" 저장됨',
+
+  // AnalyticsPanel — Action 탭 상단 핫스팟 (어디가 막혔나 / 어디로 흘렀나)
+  'analytics.action.hotspots.title': '핫스팟',
+  'analytics.action.hotspots.bottleneckTitle': '병목 영역',
+  'analytics.action.hotspots.bottleneckEmpty': '심각한 병목이 발견되지 않았습니다',
+  'analytics.action.hotspots.mediaTitle': '가장 많이 본 전시물',
+  'analytics.action.hotspots.mediaEmpty': '관람 데이터가 없습니다',
+  'analytics.action.hotspots.score': '점수 {n}',
+  'analytics.action.hotspots.watchCount': '{n}회',
+
+  // MainLayout — Simulate 단계 완료 후 분석으로 이동 CTA
+  'mainLayout.goAnalyze.title': '시뮬레이션 완료 — 분석으로 이동',
+  'mainLayout.goAnalyze.sub': 'KPI · 변형 비교 · 핀 · 리포트 전체 보기',
+
+  // Toast — 단계 전환 알림
+  'toast.simCompleted': '시뮬레이션 완료. 분석 단계로 이동했어요.',
+
+  // AnalyzeLayout — 좌측 요약 패널
+  'analyze.summary.title': '시뮬 결과 요약',
+  'analyze.summary.visitors': '입퇴장',
+  'analyze.summary.completion': '완주율',
+  'analyze.summary.avgDwell': '평균체류',
+  'analyze.summary.peak': '최고혼잡',
+  'analyze.summary.fatigue': '평균피로',
+  'analyze.summary.skip': '스킵률',
+  'analyze.summary.bottleneck': '병목 {{n}}건 — Pin 탭에서 시점별 확인',
+
   // Media editor — field tooltips
   'tooltip.media.orientation':
     '미디어의 정면 방향입니다(0°=위, 90°=오른쪽, 180°=아래, 270°=왼쪽). 방문객이 모여 관람하는 영역의 위치를 결정합니다.',
@@ -430,21 +510,98 @@ export const ko: Dict = {
   'workflow.step3.sub': '시뮬레이션 실행',
   'workflow.step4': 'Analyze',
   'workflow.step4.sub': '결과 분석',
+  // stepper 잠금 사유 — 미충족 시 tooltip 으로 노출
+  'step.lock.setup': '모드 변경은 새 프로젝트 또는 변형 fork 로만',
+  'step.lock.build': '먼저 모드를 선택하세요',
+  'step.lock.simulate': '영역과 전시물을 1개 이상 배치하세요',
+  'step.lock.analyze': '시뮬레이션을 먼저 실행하세요',
 
   // Build 단계 (공간 구성) — task accordion 4개
-  'build.task.floor.label': '도면',
-  'build.task.floor.sub': '바닥 도면을 올려서 시작',
+  'build.task.region.label': '공간',
+  'build.task.region.sub': '관람 공간(리전)을 만들고 — 도면은 옵션',
   'build.task.zones.label': '영역',
   'build.task.zones.sub': '관람 공간을 그리기',
   'build.task.exhibits.label': '전시물',
   'build.task.exhibits.sub': '작품·미디어 배치',
   'build.task.flow.label': '동선',
   'build.task.flow.sub': '관람 흐름 연결',
-  'build.bottom.empty': '캔버스에서 객체를 선택하면 여기서 편집',
-  'build.bottom.statsZones': '영역 {z}개',
-  'build.bottom.statsExhibits': '전시물 {m}개',
-  'build.bottom.statsFloors': '도면 {f}개',
   'build.next': '시뮬레이션으로 →',
+  'build.next.needZones': '먼저 영역을 그려야 진행할 수 있어요',
+  'build.next.needExhibits': '전시물을 1개 이상 배치하면 진행할 수 있어요',
+
+  // Build 도구 모드 (task accordion 안 토글)
+  'build.mode.select': '선택',
+  'build.mode.zone': '영역',
+  'build.mode.exhibit': '전시물',
+  'build.mode.node': '노드',
+  'build.mode.edge': '연결',
+
+  // Build task 안 안내문
+  'build.hint.selectZoneFirstShort': '먼저 영역을 선택하세요',
+  'build.list.zonesEmpty': '아직 영역이 없습니다. 위에서 영역을 추가하세요.',
+  'build.list.exhibitsEmpty': '이 영역에 전시물이 없습니다. 카테고리에서 추가하세요.',
+  'build.exhibit.tooLarge': '이 전시물이 선택한 영역보다 큽니다. 영역을 키우거나 더 작은 전시물을 선택하세요.',
+  'build.list.zonesTitle': '영역 ({n})',
+  'build.list.exhibitsTitle': '전시물 ({n})',
+  'build.list.nodesTitle': '노드 ({n})',
+  'build.list.edgesTitle': '연결 ({n})',
+  'build.list.flowEmpty': '아직 노드가 없습니다. 좌측 "노드" 도구로 캔버스에 추가하세요.',
+  'build.list.edgesEmpty': '연결이 없습니다. "연결" 도구로 노드를 이어주세요.',
+  'build.right.empty': '캔버스에서 객체를 선택하면 여기서 편집할 수 있어요.',
+  'build.right.flowEmpty': '동선은 캔버스에서 노드를 클릭하거나 자동 연결을 사용하세요.',
+  'build.right.regionEmpty': '왼쪽에서 공간(리전)을 선택하면 여기서 정보를 볼 수 있어요. 도면 첨부는 옵션입니다.',
+
+  // Build > 공간(Region) task
+  'build.region.leftHint': '관람 공간(리전)을 추가하고, 우측 리스트에서 선택해 도면을 첨부할 수 있어요. 도면은 옵션입니다.',
+  'build.region.addAction': '공간 추가',
+  'build.region.arrangeAction': '여러 층 자동 정렬',
+  'build.region.rightEmpty': '아직 공간이 없습니다. 좌측에서 "공간 추가" 를 눌러 시작하세요.',
+  'build.region.overlayLabel': '도면 (옵션)',
+  'build.region.overlayOn': '도면 첨부됨',
+  'build.region.overlayHidden': '도면 첨부됨 (숨김)',
+  'build.region.overlayOff': '도면 없음',
+  'build.region.add': '추가',
+  'build.region.addFirst': '+ 공간 추가',
+  'build.region.arrange': '자동 정렬',
+  'build.region.listTitle': '공간 ({n})',
+  'build.region.zone': '영역',
+  'build.region.zones': '영역',
+  'build.region.editOverlay': '도면 편집',
+  'build.region.addOverlay': '도면 추가',
+  'build.region.show': '보이기',
+  'build.region.hide': '숨김',
+  'build.region.moveUp': '위로',
+  'build.region.moveDown': '아래로',
+  'build.region.rename': '이름 변경',
+  'build.region.delete': '삭제',
+  'build.region.confirmDelete': '"{name}" 공간을 삭제할까요? 이 공간의 영역, 전시물, 동선이 모두 사라집니다.',
+
+  // Build > 도면 (Region 안의 옵션)
+  'build.floor.upload': '도면 업로드',
+  'build.floor.dropHint': '도면 이미지를 끌어 놓거나 클릭해서 업로드',
+  'build.floor.scale': '스케일',
+  'build.floor.replace': '교체',
+  'build.floor.removeAria': '제거',
+  'build.floor.addLevel': '+ 여러 층 추가',
+  'build.floor.edit': '편집',
+  'build.floor.done': '완료',
+  'build.floor.hide': '숨김',
+  'build.floor.show': '보기',
+  'build.floor.reset': '초기화',
+  'build.floor.arrange': '층 자동 정렬',
+  'build.floor.editHint': '캔버스에서 도면을 끌어 이동, 모서리로 크기 조정, 상단 핸들로 회전',
+  'build.floor.rotation': '회전',
+  'build.floor.cal.start': '5m 캘리브레이션',
+  'build.floor.cal.title': '5m 기준선 — 길이 맞추기',
+  'build.floor.cal.hint': '캔버스의 양 끝점을 도면 위 알려진 5m 구간(예: 출입문 폭, 표시된 길이)에 맞춰 끌어주세요. 적용을 누르면 도면 스케일이 자동 보정됩니다.',
+  'build.floor.cal.apply': '적용',
+  'build.floor.cal.cancel': '취소',
+
+  // Build 하단 inspector 빈 상태 통계 (BuildLayout 재작성 시 제거 예정)
+  'build.bottom.empty': '편집할 객체를 선택하거나, 위에서 작업을 계속하세요.',
+  'build.bottom.statsFloors': '{f}개 층',
+  'build.bottom.statsZones': '{z}개 영역',
+  'build.bottom.statsExhibits': '{m}개 전시물',
 
   // Setup 1단계: 큰 binary 분기
   'modeSelect.branch.validation.label': '공간 디자인 평가',

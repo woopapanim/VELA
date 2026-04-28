@@ -76,9 +76,9 @@ export function MediaEditor() {
   ));
 
   return (
-    <div data-editor="media" className="bento-box p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold flex items-center gap-1.5">
+    <div data-editor="media" className="bento-box p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
           {(() => {
             const cat = (m as any).category;
             const badge = CATEGORY_BADGE[cat];
@@ -87,17 +87,21 @@ export function MediaEditor() {
                 {t(badge.labelKey)}
               </span>
             ) : (
-              <div className={`w-2 h-2 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+              <div className={`w-3 h-3 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
             );
           })()}
-          {t('exhibit.label')}
-        </h3>
+          <h2 className="panel-title">{t('exhibit.label')}</h2>
+        </div>
         {!isLocked && (
-          <button onClick={() => removeMedia(selectedMediaId!)} className="text-muted-foreground hover:text-destructive">
+          <button
+            onClick={() => removeMedia(selectedMediaId!)}
+            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
+          >
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
+      <div className="space-y-2">
 
       {/* Name */}
       <div>
@@ -414,6 +418,7 @@ export function MediaEditor() {
         isLocked={isLocked}
         t={t}
       />
+      </div>
     </div>
   );
 }

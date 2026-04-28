@@ -143,11 +143,22 @@ export function useKeyboardShortcuts() {
             const clipZone = (window as any).__vela_clipboard_zone;
             if (clipZone) {
               const newId = `z_paste_${Date.now()}`;
+              // 기존 zone 의 width + 20px 만큼 우측으로 이동 — 겹치지 않게.
+              const offsetX = clipZone.bounds.w + 20;
+              // 이름 중복 시 (Copy), (Copy 2), (Copy 3)... 자동 증가.
+              const baseName = clipZone.name.replace(/ \(Copy(?: \d+)?\)$/, '');
+              const existingNames = new Set(store.zones.map((z: any) => z.name));
+              let copyName = `${baseName} (Copy)`;
+              let n = 2;
+              while (existingNames.has(copyName)) {
+                copyName = `${baseName} (Copy ${n})`;
+                n += 1;
+              }
               const pasted = {
                 ...clipZone,
                 id: newId,
-                name: clipZone.name + ' (Copy)',
-                bounds: { ...clipZone.bounds, x: clipZone.bounds.x + 30, y: clipZone.bounds.y + 30 },
+                name: copyName,
+                bounds: { ...clipZone.bounds, x: clipZone.bounds.x + offsetX, y: clipZone.bounds.y },
                 gates: clipZone.gates.map((g: any, i: number) => ({
                   ...g,
                   id: `g_paste_${Date.now()}_${i}`,
@@ -157,6 +168,8 @@ export function useKeyboardShortcuts() {
               };
               store.addZone(pasted);
               store.selectZone(newId);
+              // 다음 paste 가 또 우측으로 cascade 되도록 clipboard 위치 갱신.
+              (window as any).__vela_clipboard_zone = { ...clipZone, bounds: pasted.bounds };
             }
           }
           break;

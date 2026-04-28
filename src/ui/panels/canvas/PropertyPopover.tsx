@@ -728,7 +728,7 @@ export function PropertyPopover({ popover, onClose }: {
 // Phase 0: 큐레이터 관점 라벨 사용. 코드 상 카테고리 키 (analog/passive_media/active/immersive)
 // 는 그대로 유지 (백엔드 호환). UI 표시 라벨만 i18n exhibit.kind.* 키로 매핑.
 const EXHIBIT_QUICK_ADD = [
-  { key: 'analog',        labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
+  { key: 'analog',        labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['painting', 'artifact', 'sculpture', 'documents', 'diorama', 'graphic_sign'] },
   { key: 'passive_media', labelKey: 'exhibit.kind.digital',    color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
   { key: 'active',        labelKey: 'exhibit.kind.interactive',color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
   { key: 'immersive',     labelKey: 'exhibit.kind.immersive',  color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },

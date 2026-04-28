@@ -14,7 +14,9 @@ export type MediaCategory =
 // ---- Media Type (15종 콘텐츠) ----
 export const MEDIA_TYPE = {
   // 아날로그 (analog)
+  PAINTING: 'painting',                   // 회화 (그림/사진/액자)
   ARTIFACT: 'artifact',                   // 유물/제품 전시
+  SCULPTURE: 'sculpture',                 // 조각/오브제
   DOCUMENTS: 'documents',                 // 사료/기록물
   DIORAMA: 'diorama',                     // 디오라마/모형
   GRAPHIC_SIGN: 'graphic_sign',           // 그래픽 사인/배너

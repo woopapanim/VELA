@@ -5,22 +5,43 @@ export function TimelineBar() {
   const phase = useStore((s) => s.phase);
   const scenario = useStore((s) => s.scenario);
   const visitors = useStore((s) => s.visitors);
+  const totalSpawned = useStore((s) => s.totalSpawned);
+  const totalExited = useStore((s) => s.totalExited);
 
   if (phase === 'idle' || !scenario) return null;
 
   const duration = scenario.simulationConfig.duration;
   const elapsed = timeState.elapsed;
-  const progress = duration > 0 ? Math.min(1, elapsed / duration) : 0;
-
-  const minutes = Math.floor(elapsed / 60000);
-  const seconds = Math.floor((elapsed % 60000) / 1000);
-  const totalMin = Math.floor(duration / 60000);
+  const totalCount = scenario.visitorDistribution.totalCount ?? 0;
+  // 'person' mode: 종료 기준은 관람객 수. duration 은 safety cap 일 뿐.
+  // 'time' mode (default/legacy): 종료 기준은 경과 시간.
+  const simMode = scenario.simulationConfig.simulationMode ?? 'time';
+  const isPersonMode = simMode === 'person';
 
   const activeCount = visitors.filter((v) => v.isActive).length;
   const watchingCount = visitors.filter((v) => v.isActive && v.currentAction === 'WATCHING').length;
 
-  // Time slot markers
-  const slots = scenario.simulationConfig.timeSlots;
+  // Progress 기준은 모드별로 다름.
+  // person: 관람객 누적(스폰 + 이탈) 기준. 모두 들어와서 모두 나가면 100%.
+  // time: 경과 시간 / 총 운영시간.
+  const progress = isPersonMode
+    ? (totalCount > 0 ? Math.min(1, (totalSpawned + totalExited) / (totalCount * 2)) : 0)
+    : (duration > 0 ? Math.min(1, elapsed / duration) : 0);
+
+  // Elapsed 시간 표기는 항상 보여줌 (참고용).
+  const elapsedMin = Math.floor(elapsed / 60000);
+  const elapsedSec = Math.floor((elapsed % 60000) / 1000);
+  const elapsedLabel = `${String(elapsedMin).padStart(2, '0')}:${String(elapsedSec).padStart(2, '0')}`;
+
+  // Total 표기.
+  const totalHr = Math.floor(duration / 3_600_000);
+  const totalMinRem = Math.floor((duration % 3_600_000) / 60000);
+  const totalLabel = totalHr > 0
+    ? `${totalHr}h ${String(totalMinRem).padStart(2, '0')}m`
+    : `${totalMinRem}m`;
+
+  // Time slot markers (time mode 에서만 의미 있음).
+  const slots = isPersonMode ? [] : scenario.simulationConfig.timeSlots;
 
   return (
     <div className="absolute bottom-0 left-0 right-0 z-10 glass border-t border-white/10">
@@ -60,16 +81,34 @@ export function TimelineBar() {
         {/* Info row */}
         <div className="flex items-center justify-between text-[9px] font-data">
           <div className="flex items-center gap-3">
-            <span className="text-foreground">
-              {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-              <span className="text-muted-foreground"> / {totalMin}:00</span>
-            </span>
+            {isPersonMode ? (
+              <>
+                <span className="text-foreground">
+                  {totalSpawned} / {totalCount}
+                  <span className="text-muted-foreground"> spawned</span>
+                </span>
+                <span className="text-foreground">
+                  {totalExited} / {totalCount}
+                  <span className="text-muted-foreground"> exited</span>
+                </span>
+              </>
+            ) : (
+              <span className="text-foreground">
+                {elapsedLabel}
+                <span className="text-muted-foreground"> / {totalLabel}</span>
+              </span>
+            )}
             <span className="text-primary">{activeCount} active</span>
             {watchingCount > 0 && (
               <span className="text-[var(--status-success)]">{watchingCount} watching</span>
             )}
           </div>
           <div className="flex items-center gap-3">
+            {isPersonMode && (
+              <span className="text-muted-foreground" title="elapsed sim time">
+                {elapsedLabel}
+              </span>
+            )}
             <span className="text-muted-foreground">
               Tick {timeState.tickCount}
             </span>

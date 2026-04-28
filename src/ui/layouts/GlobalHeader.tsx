@@ -15,8 +15,18 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { ProgressRing } from '../components/ProgressRing';
 import { HelpButton } from '../components/HelpOverlay';
+import { WorkflowStepIndicator, type WorkflowStep, type WorkflowStepStatus } from './WorkflowStepIndicator';
 
-export function GlobalHeader() {
+interface Props {
+  /** 현재 워크플로우 step (1 Setup / 2 Build / 3 Simulate / 4 Analyze). 미지정 시 stepper 숨김. */
+  workflowStep?: WorkflowStep;
+  /** stepper 칸 클릭 시 호출. 미지정이면 stepper 클릭 불가. */
+  onNavigateStep?: (step: WorkflowStep) => void;
+  /** 4 step 의 reachable + lockReason. App.tsx 가 계산해 전달. */
+  stepStatus?: ReadonlyArray<WorkflowStepStatus>;
+}
+
+export function GlobalHeader({ workflowStep, onNavigateStep, stepStatus }: Props = {}) {
   const scenario = useStore((s) => s.scenario);
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
@@ -30,7 +40,7 @@ export function GlobalHeader() {
 
   return (
     <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)] flex-shrink-0">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <h1 className="text-sm font-semibold tracking-tight">VELA</h1>
         {scenario && (
           <span className="text-xs text-muted-foreground italic truncate max-w-48">
@@ -38,7 +48,12 @@ export function GlobalHeader() {
           </span>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      {workflowStep && (
+        <div className="flex-1 flex justify-center px-4">
+          <WorkflowStepIndicator current={workflowStep} variant="horizontal" onNavigate={onNavigateStep} status={stepStatus} />
+        </div>
+      )}
+      <div className="flex items-center gap-3 flex-shrink-0">
         {phase !== 'idle' && (
           <div className="flex items-center gap-3 text-xs font-data">
             <ProgressRing progress={simProgress} size={18} />

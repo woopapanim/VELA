@@ -45,6 +45,15 @@ export const en: Dict = {
   'sim.stop.cancel': 'Cancel',
   'sim.stop.confirm': 'Reset',
 
+  // Simulation — visitor load (validation tier inline input)
+  'sim.visitorLoad.label': 'Visitor count',
+  'sim.visitorLoad.unit': 'people',
+  'sim.visitorLoad.useRecommendedTooltip': 'Reset to area-based recommendation',
+  'sim.visitorLoad.hint': 'Sim ends when all visitors have come and gone. Bigger area = bigger recommendation.',
+  'sim.visitorLoad.recommendBasis': 'Recommended for {area}㎡: {count} visitors',
+  'sim.visitorLoad.recommendApplied': 'Recommended count applied',
+  'sim.visitorLoad.recommendCta': 'Use area-based: {count}',
+
   // Build — waypoint node descriptions (tooltips)
   'build.node.entry.desc': 'Spawn point',
   'build.node.exit.desc': 'Exit point',
@@ -291,6 +300,77 @@ export const en: Dict = {
   // Left panel — domain section headers
   'mainLayout.section.build': 'Build',
   'mainLayout.section.operations': 'Operations',
+
+  // AnalyticsPanel — tab group labels (Live / Post)
+  'analytics.group.live': 'Live',
+  'analytics.group.post': 'Post',
+
+  // LivePulse — Simulate-phase right panel (monitoring only, no analytics depth)
+  'pulse.idle': 'Start the simulation to see live progress here.',
+  'pulse.progress.title': 'Progress',
+  'pulse.progress.running': 'Running',
+  'pulse.progress.paused': 'Paused',
+  'pulse.progress.personSub': 'in {spawned} · out {exited} / {total}',
+  'pulse.progress.timeSub': '{elapsed} / {total}',
+  'pulse.kpi.active': 'Visitors now',
+  'pulse.kpi.activeSub': 'watching {watching} · waiting {waiting}',
+  'pulse.kpi.peak': 'Peak load',
+  'pulse.kpi.fatigue': 'Avg fatigue',
+  'pulse.kpi.skip': 'Skip rate',
+  'pulse.status.ok': 'OK — flowing smoothly.',
+  'pulse.status.crowded': 'Watch — {zone} at {pct}%',
+  'pulse.status.bottleneck': '{n} bottleneck(s) — see Analyze for locations',
+  'pulse.hint.afterEnd': 'When the run ends you will switch to the analyze view automatically.',
+  'pulse.zones.title': 'Hottest areas',
+  'pulse.zones.empty': 'No areas occupied yet',
+  'pulse.media.title': 'Now watching',
+  'pulse.media.empty': 'No exhibits being watched',
+  'pulse.media.viewers': '{n}',
+
+  // CanvasToolbar — sim context chips
+  'canvasToolbar.heatmap': 'Heatmap',
+  'canvasToolbar.heatmap.replayDisabled': 'Disabled during replay',
+  'canvasToolbar.pin': 'Pin moment',
+
+  // MainLayout — mode badge tooltip
+  'mainLayout.modeBadge.tooltip': 'Click to return to Setup — change mode',
+
+  // AnalyticsPanel — Action tab (validation tier CTA)
+  'analytics.action.validation.title': 'Result summary + Next action',
+  'analytics.action.validation.desc':
+    'If this result is good, save it as-is. To try a different layout, create a variant and edit it in Build.',
+  'analytics.action.validation.kpi.bottleneck': 'Bottleneck',
+  'analytics.action.validation.kpi.dwell': 'Avg dwell',
+  'analytics.action.validation.kpi.skip': 'Skip rate',
+  'analytics.action.validation.saveBtn': 'Save as-is',
+  'analytics.action.validation.forkBtn': 'Create variant',
+  'analytics.action.validation.saved': '"{{name}}" saved',
+
+  // AnalyticsPanel — Action tab post-run hotspots (where stuck / where flowed)
+  'analytics.action.hotspots.title': 'Hotspots',
+  'analytics.action.hotspots.bottleneckTitle': 'Bottleneck areas',
+  'analytics.action.hotspots.bottleneckEmpty': 'No serious bottlenecks detected',
+  'analytics.action.hotspots.mediaTitle': 'Most-watched exhibits',
+  'analytics.action.hotspots.mediaEmpty': 'No viewing data',
+  'analytics.action.hotspots.score': 'score {n}',
+  'analytics.action.hotspots.watchCount': '{n}',
+
+  // MainLayout — Simulate completed CTA banner
+  'mainLayout.goAnalyze.title': 'Simulation complete — Go to Analyze',
+  'mainLayout.goAnalyze.sub': 'KPIs · variant compare · pins · report',
+
+  // Toast — step transition
+  'toast.simCompleted': 'Simulation complete. Switched to Analyze step.',
+
+  // AnalyzeLayout — left summary panel
+  'analyze.summary.title': 'Simulation summary',
+  'analyze.summary.visitors': 'In/Out',
+  'analyze.summary.completion': 'Completion',
+  'analyze.summary.avgDwell': 'Avg dwell',
+  'analyze.summary.peak': 'Peak load',
+  'analyze.summary.fatigue': 'Avg fatigue',
+  'analyze.summary.skip': 'Skip rate',
+  'analyze.summary.bottleneck': '{{n}} bottlenecks — see Pin tab',
 
   // Media editor — field tooltips
   'tooltip.media.orientation':
@@ -545,21 +625,98 @@ export const en: Dict = {
   'workflow.step3.sub': 'Run simulation',
   'workflow.step4': 'Analyze',
   'workflow.step4.sub': 'Review results',
+  // stepper lock reasons — surfaced as tooltip when not yet reachable
+  'step.lock.setup': 'Mode is set — start a new project or fork a variant to change',
+  'step.lock.build': 'Choose a mode first',
+  'step.lock.simulate': 'Place at least one area and one exhibit',
+  'step.lock.analyze': 'Run a simulation first',
 
   // Build step (compose space) — task accordion 4
-  'build.task.floor.label': 'Floor plan',
-  'build.task.floor.sub': 'Upload your floor plan to start',
+  'build.task.region.label': 'Regions',
+  'build.task.region.sub': 'Create a region — floor plan is optional',
   'build.task.zones.label': 'Areas',
   'build.task.zones.sub': 'Draw visitor areas',
   'build.task.exhibits.label': 'Exhibits',
   'build.task.exhibits.sub': 'Place artworks and media',
   'build.task.flow.label': 'Flow',
   'build.task.flow.sub': 'Connect the visitor path',
-  'build.bottom.empty': 'Select something on the canvas to edit it here',
-  'build.bottom.statsZones': '{z} areas',
-  'build.bottom.statsExhibits': '{m} exhibits',
-  'build.bottom.statsFloors': '{f} floors',
   'build.next': 'Continue to simulation →',
+  'build.next.needZones': 'Draw at least one area to continue',
+  'build.next.needExhibits': 'Place at least one exhibit to continue',
+
+  // Build tool modes (task accordion toggles)
+  'build.mode.select': 'Select',
+  'build.mode.zone': 'Area',
+  'build.mode.exhibit': 'Exhibit',
+  'build.mode.node': 'Node',
+  'build.mode.edge': 'Edge',
+
+  // Build task accordion hints
+  'build.hint.selectZoneFirstShort': 'Select an area first',
+  'build.list.zonesEmpty': 'No areas yet. Add one from the tools above.',
+  'build.list.exhibitsEmpty': 'No exhibits in this area yet. Pick a category above.',
+  'build.exhibit.tooLarge': 'This exhibit is too large for the selected area. Resize the area first or pick a smaller one.',
+  'build.list.zonesTitle': 'Areas ({n})',
+  'build.list.exhibitsTitle': 'Exhibits ({n})',
+  'build.list.nodesTitle': 'Nodes ({n})',
+  'build.list.edgesTitle': 'Edges ({n})',
+  'build.list.flowEmpty': 'No nodes yet. Use the "Node" tool on the left to add one.',
+  'build.list.edgesEmpty': 'No connections yet. Use the "Edge" tool to link nodes.',
+  'build.right.empty': 'Select an object on the canvas to edit it here.',
+  'build.right.flowEmpty': 'For flow, click nodes on the canvas or use auto-connect.',
+  'build.right.regionEmpty': 'Pick a region on the left to see its info. Floor plan is optional.',
+
+  // Region task
+  'build.region.leftHint': 'Add a region, then pick one in the list on the right to attach a floor plan. Floor plan is optional.',
+  'build.region.addAction': 'Add region',
+  'build.region.arrangeAction': 'Auto-arrange floors',
+  'build.region.rightEmpty': 'No regions yet. Tap "Add region" on the left to start.',
+  'build.region.overlayLabel': 'Floor plan (optional)',
+  'build.region.overlayOn': 'Floor plan attached',
+  'build.region.overlayHidden': 'Floor plan attached (hidden)',
+  'build.region.overlayOff': 'No floor plan',
+  'build.region.add': 'Add',
+  'build.region.addFirst': '+ Add region',
+  'build.region.arrange': 'Auto-arrange',
+  'build.region.listTitle': 'Regions ({n})',
+  'build.region.zone': 'area',
+  'build.region.zones': 'areas',
+  'build.region.editOverlay': 'Edit floor plan',
+  'build.region.addOverlay': 'Add floor plan',
+  'build.region.show': 'Show',
+  'build.region.hide': 'Hide',
+  'build.region.moveUp': 'Move up',
+  'build.region.moveDown': 'Move down',
+  'build.region.rename': 'Rename',
+  'build.region.delete': 'Delete',
+  'build.region.confirmDelete': 'Delete region "{name}"? Its areas, exhibits, and flow will be removed.',
+
+  // Floor plan editor (lives inside a region — optional)
+  'build.floor.upload': 'Upload floor plan',
+  'build.floor.dropHint': 'Drop a floor plan image, or click to upload',
+  'build.floor.scale': 'Scale',
+  'build.floor.replace': 'Replace',
+  'build.floor.removeAria': 'Remove',
+  'build.floor.addLevel': '+ Add another level',
+  'build.floor.edit': 'Edit',
+  'build.floor.done': 'Done',
+  'build.floor.hide': 'Hide',
+  'build.floor.show': 'Show',
+  'build.floor.reset': 'Reset',
+  'build.floor.arrange': 'Arrange floors',
+  'build.floor.editHint': 'Drag the floor plan on the canvas, grab corners to resize, or use the top handle to rotate',
+  'build.floor.rotation': 'Rotate',
+  'build.floor.cal.start': 'Calibrate (5m)',
+  'build.floor.cal.title': '5m reference — match a known length',
+  'build.floor.cal.hint': 'Drag the ruler endpoints onto a known 5m feature on the plan (door width, dimension label, etc.). Press Apply and the floor plan scale is recomputed.',
+  'build.floor.cal.apply': 'Apply',
+  'build.floor.cal.cancel': 'Cancel',
+
+  // Build bottom inspector empty-state stats (legacy — removed when bottom panel goes)
+  'build.bottom.empty': 'Select an object to edit, or keep building.',
+  'build.bottom.statsFloors': '{f} floor(s)',
+  'build.bottom.statsZones': '{z} area(s)',
+  'build.bottom.statsExhibits': '{m} exhibit(s)',
 
   // Setup 1단계: binary branch
   'modeSelect.branch.validation.label': 'Evaluate space design',

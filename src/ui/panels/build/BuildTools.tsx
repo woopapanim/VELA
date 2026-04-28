@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Plus, Monitor, MousePointer2, Circle, GitBranch } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import { useT } from '@/i18n';
+import { useToast } from '@/ui/components/Toast';
 
 const ZONE_TYPES = [
   { type: 'lobby', label: 'Lobby', color: '#14b8a6' },
@@ -15,7 +16,7 @@ const ZONE_TYPES = [
 
 // Phase 0: 라벨은 i18n exhibit.kind.* 키로 매핑.
 const EXHIBIT_QUICK_CATEGORIES = [
-  { labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
+  { labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['painting', 'artifact', 'sculpture', 'diorama', 'documents', 'graphic_sign'] },
   { labelKey: 'exhibit.kind.digital',    color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
   { labelKey: 'exhibit.kind.interactive',color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
   { labelKey: 'exhibit.kind.immersive',  color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
@@ -42,7 +43,9 @@ function ensureCounters() {
   _mediaCounter = maxM + 1;
 }
 
-export function BuildTools() {
+type BuildToolsTask = 'zones' | 'exhibits' | 'flow';
+
+export function BuildTools({ task }: { task?: BuildToolsTask } = {}) {
   const editorMode = useStore((s) => s.editorMode);
   const setEditorMode = useStore((s) => s.setEditorMode);
   const addMedia = useStore((s) => s.addMedia);
@@ -52,6 +55,7 @@ export function BuildTools() {
   const phase = useStore((s) => s.phase);
   const pendingWaypointType = useStore((s) => s.pendingWaypointType);
   const t = useT();
+  const { toast } = useToast();
 
   const isSimRunning = phase === 'running'; // paused = editable
 
@@ -129,6 +133,15 @@ export function BuildTools() {
     const preset = MEDIA_PRESETS[mediaType as keyof typeof MEDIA_PRESETS];
     if (!preset) return;
 
+    // Block placement when the exhibit's footprint can't fit inside the zone (with margin).
+    const pw = preset.defaultSize.width * 20;
+    const ph = preset.defaultSize.height * 20;
+    const margin = 10;
+    if (zone.bounds.w < pw + margin * 2 || zone.bounds.h < ph + margin * 2) {
+      toast('warning', t('build.exhibit.tooLarge'));
+      return;
+    }
+
     const id = `m_user_${_mediaCounter++}` as MediaId;
     // Determine interactionType from category
     const interactionType = preset.category === 'immersive' ? 'staged' as const
@@ -169,60 +182,129 @@ export function BuildTools() {
 
     addMedia(media);
     useStore.getState().selectMedia(id as string);
-  }, [selectedZoneId, zones, addMedia]);
+  }, [selectedZoneId, zones, addMedia, toast, t]);
+
+  // task 별 토글 행 — task prop 있으면 그 task 도구만, 없으면 전체 (legacy)
+  const showZoneTools = !task || task === 'zones';
+  const showExhibitTools = !task || task === 'exhibits';
+  const showFlowTools = !task || task === 'flow';
 
   return (
     <div className="space-y-3">
-      <h2 className="panel-section">Build</h2>
+      {!task && <h2 className="panel-section">Build</h2>}
 
-      {/* Editor Mode — hierarchical layout */}
+      {/* Editor Mode — task 별 분기. task 컨텍스트에서는 Select + 주 도구를 2열 한 줄로
+          묶어서 SimulationControls (Pause+Stop) 와 동일한 행 레이아웃 유지. */}
       <div className="space-y-1">
-        {/* Row 1: Select (full width) */}
-        <ModeBtn
-          active={editorMode === 'select'}
-          onClick={() => setEditorMode('select')}
-          icon={MousePointer2}
-          label="Select"
-          fullWidth
-        />
-        {/* Row 2: Spatial layers */}
-        <div className="grid grid-cols-2 gap-1">
-          <ModeBtn
-            active={editorMode === 'create-zone'}
-            onClick={() => setEditorMode('create-zone')}
-            icon={Plus}
-            label="Zone"
-            disabled={isSimRunning}
-          />
-          <ModeBtn
-            active={editorMode === 'place-media'}
-            onClick={() => setEditorMode('place-media')}
-            icon={Monitor}
-            label="Media"
-            disabled={isSimRunning}
-          />
-        </div>
-        {/* Row 3: Graph layers */}
-        <div className="grid grid-cols-2 gap-1">
-          <ModeBtn
-            active={editorMode === 'place-waypoint'}
-            onClick={() => setEditorMode('place-waypoint')}
-            icon={Circle}
-            label="Node"
-            disabled={isSimRunning}
-          />
-          <ModeBtn
-            active={editorMode === 'connect-waypoint'}
-            onClick={() => setEditorMode('connect-waypoint')}
-            icon={GitBranch}
-            label="Edge"
-            disabled={isSimRunning}
-          />
-        </div>
+        {task === 'zones' && (
+          <div className="grid grid-cols-2 gap-1">
+            <ModeBtn
+              active={editorMode === 'select'}
+              onClick={() => setEditorMode('select')}
+              icon={MousePointer2}
+              label={t('build.mode.select')}
+            />
+            <ModeBtn
+              active={editorMode === 'create-zone'}
+              onClick={() => setEditorMode('create-zone')}
+              icon={Plus}
+              label={t('build.mode.zone')}
+              disabled={isSimRunning}
+            />
+          </div>
+        )}
+        {task === 'exhibits' && (
+          <div className="grid grid-cols-2 gap-1">
+            <ModeBtn
+              active={editorMode === 'select'}
+              onClick={() => setEditorMode('select')}
+              icon={MousePointer2}
+              label={t('build.mode.select')}
+            />
+            <ModeBtn
+              active={editorMode === 'place-media'}
+              onClick={() => setEditorMode('place-media')}
+              icon={Monitor}
+              label={t('build.mode.exhibit')}
+              disabled={isSimRunning}
+            />
+          </div>
+        )}
+        {task === 'flow' && (
+          <>
+            <ModeBtn
+              active={editorMode === 'select'}
+              onClick={() => setEditorMode('select')}
+              icon={MousePointer2}
+              label={t('build.mode.select')}
+              fullWidth
+            />
+            <div className="grid grid-cols-2 gap-1">
+              <ModeBtn
+                active={editorMode === 'place-waypoint'}
+                onClick={() => setEditorMode('place-waypoint')}
+                icon={Circle}
+                label={t('build.mode.node')}
+                disabled={isSimRunning}
+              />
+              <ModeBtn
+                active={editorMode === 'connect-waypoint'}
+                onClick={() => setEditorMode('connect-waypoint')}
+                icon={GitBranch}
+                label={t('build.mode.edge')}
+                disabled={isSimRunning}
+              />
+            </div>
+          </>
+        )}
+        {/* Legacy (no task prop) — 전체 도구 한꺼번에 노출 */}
+        {!task && (
+          <>
+            <ModeBtn
+              active={editorMode === 'select'}
+              onClick={() => setEditorMode('select')}
+              icon={MousePointer2}
+              label={t('build.mode.select')}
+              fullWidth
+            />
+            <div className="grid grid-cols-2 gap-1">
+              <ModeBtn
+                active={editorMode === 'create-zone'}
+                onClick={() => setEditorMode('create-zone')}
+                icon={Plus}
+                label={t('build.mode.zone')}
+                disabled={isSimRunning}
+              />
+              <ModeBtn
+                active={editorMode === 'place-media'}
+                onClick={() => setEditorMode('place-media')}
+                icon={Monitor}
+                label={t('build.mode.exhibit')}
+                disabled={isSimRunning}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              <ModeBtn
+                active={editorMode === 'place-waypoint'}
+                onClick={() => setEditorMode('place-waypoint')}
+                icon={Circle}
+                label={t('build.mode.node')}
+                disabled={isSimRunning}
+              />
+              <ModeBtn
+                active={editorMode === 'connect-waypoint'}
+                onClick={() => setEditorMode('connect-waypoint')}
+                icon={GitBranch}
+                label={t('build.mode.edge')}
+                disabled={isSimRunning}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Waypoint Node Placement */}
-      {editorMode === 'place-waypoint' && !isSimRunning && (
+      {showFlowTools && editorMode === 'place-waypoint' && !isSimRunning && (
         <div>
           <p className="panel-label mb-1.5">Add Node</p>
           <div className="grid grid-cols-2 gap-1">
@@ -253,7 +335,7 @@ export function BuildTools() {
       )}
 
       {/* Edge Connection Guide */}
-      {editorMode === 'connect-waypoint' && !isSimRunning && (
+      {showFlowTools && editorMode === 'connect-waypoint' && !isSimRunning && (
         <div className="px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px]">
           <p className="font-medium text-indigo-400 mb-1">{t('build.hint.edgeMode.title')}</p>
           <p className="text-muted-foreground">{t('build.hint.edgeMode.body')}</p>
@@ -261,7 +343,7 @@ export function BuildTools() {
       )}
 
       {/* Zone Creation — 미디어 배치 영역 */}
-      {editorMode === 'create-zone' && !isSimRunning && (
+      {showZoneTools && editorMode === 'create-zone' && !isSimRunning && (
         <div>
           <p className="panel-label mb-1.5">Add Zone</p>
           <div className="grid grid-cols-2 gap-1">
@@ -281,7 +363,7 @@ export function BuildTools() {
       )}
 
       {/* Exhibit Placement — categorized (Phase 0 vocabulary) */}
-      {editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
+      {showExhibitTools && editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
         <div className="space-y-2">
           <p className="panel-label">
             {t('exhibit.add')}
@@ -297,10 +379,10 @@ export function BuildTools() {
                   <button
                     key={type}
                     onClick={() => handlePlaceMedia(type)}
-                    className="px-2 py-1.5 text-[10px] rounded-lg bg-secondary hover:bg-accent transition-colors text-left truncate"
-                    style={{ borderLeft: `2px solid ${color}` }}
+                    className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg bg-secondary hover:bg-accent transition-colors"
                   >
-                    {type.replace(/_/g, ' ')}
+                    <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                    <span className="truncate">{type.replace(/_/g, ' ')}</span>
                   </button>
                 ))}
               </div>
@@ -309,7 +391,7 @@ export function BuildTools() {
         </div>
       )}
 
-      {editorMode === 'place-media' && !selectedZoneId && (
+      {showExhibitTools && editorMode === 'place-media' && !selectedZoneId && (
         <p className="text-[10px] text-muted-foreground">
           Select a zone first to place exhibit
         </p>

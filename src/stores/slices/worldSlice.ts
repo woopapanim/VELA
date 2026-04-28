@@ -10,6 +10,7 @@ import {
   findFloorAtPoint,
   clampFloorShift,
   clampFloorResize,
+  resolveFloorOverlaps,
 } from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
@@ -571,10 +572,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
           : f,
       );
       newFloors = expandCanvasForZones(newFloors, newZones, targetFloorId);
+      // Push neighbor floors apart if anchor's frame grew into them.
+      const resolved = targetFloorId
+        ? resolveFloorOverlaps(newFloors, newZones, s.media, s.waypointGraph, targetFloorId)
+        : { floors: newFloors, zones: newZones, media: s.media, waypointGraph: s.waypointGraph };
       return {
-        zones: newZones,
-        floors: newFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, floors: newFloors } : s.scenario,
+        zones: resolved.zones,
+        floors: resolved.floors,
+        media: resolved.media,
+        waypointGraph: resolved.waypointGraph,
+        scenario: s.scenario ? { ...s.scenario, zones: resolved.zones, floors: resolved.floors, media: resolved.media, waypointGraph: resolved.waypointGraph ?? undefined } : s.scenario,
       };
     });
   },
@@ -656,11 +663,20 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         }
       }
       const expandedFloors = expandCanvasForZones(reassignedFloors, newZones, s.activeFloorId);
+      // After zone bounds change, anchor floor's frame may have grown — push neighbors apart.
+      const anchorFloorId = (() => {
+        const holder = expandedFloors.find(f => f.zoneIds.some(id => (id as string) === zoneId));
+        return holder ? (holder.id as string) : null;
+      })();
+      const resolved = (newBounds && anchorFloorId)
+        ? resolveFloorOverlaps(expandedFloors, newZones, newMedia, s.waypointGraph, anchorFloorId)
+        : { floors: expandedFloors, zones: newZones, media: newMedia, waypointGraph: s.waypointGraph };
       return {
-        zones: newZones,
-        media: newMedia,
-        floors: expandedFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, media: newMedia, floors: expandedFloors } : s.scenario,
+        zones: resolved.zones,
+        media: resolved.media,
+        floors: resolved.floors,
+        waypointGraph: resolved.waypointGraph,
+        scenario: s.scenario ? { ...s.scenario, zones: resolved.zones, media: resolved.media, floors: resolved.floors, waypointGraph: resolved.waypointGraph ?? undefined } : s.scenario,
       };
     }),
 
