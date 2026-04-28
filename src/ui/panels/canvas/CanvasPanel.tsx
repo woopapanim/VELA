@@ -98,7 +98,7 @@ export function CanvasPanel({ activeBuildTask = null }: CanvasPanelProps = {}) {
   const { resolvedTheme } = useTheme();
   const { menu, show: showMenu, hide: hideMenu } = useContextMenu();
   const { popover, showPopover, hidePopover } = usePropertyPopover();
-  useKeyboardShortcuts();
+  useKeyboardShortcuts({ isBuildScreen: activeBuildTask !== null });
 
   // Store selectors (used by event handlers, not render loop)
   const zones = useStore((s) => s.zones);
@@ -441,11 +441,12 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       return;
     }
 
-    // Floor corner resize (selected floor only) OR label drag — sim not running.
+    // Floor corner resize (selected floor only) OR label drag — 시뮬 idle 일 때만.
+    // running/paused 모두 차단: paused 중 Build 단계 이동해 floor 를 흔드는 사고 방지.
     // Region task 에서만 캔버스로 floor 조작 — 다른 task 에서는 zone/exhibit 작업 보호.
     if (e.button === 0 && world && activeBuildTask === 'region') {
       const storeInit = useStore.getState();
-      if (storeInit.phase !== 'running') {
+      if (storeInit.phase === 'idle') {
         // Corners take priority over label (both are outside zone hit areas).
         const hitCorner = hitTestFloorCorner(world, storeInit.floors, storeInit.zones, storeInit.activeFloorId);
         if (hitCorner) {
@@ -1202,8 +1203,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const hitNothing = !anyNode && !anyEdge && !anyMedia && !anyZone;
 
     // Floor label/outline click → toggle active floor.
-    // Region task 일 때만 동작 — 다른 task (영역/전시물/동선) 에서는 컨텍스트 보존을 위해 무시.
-    const hitFloorHandle = (store.phase !== 'running' && activeBuildTask === 'region')
+    // Region task + phase=idle 일 때만 동작. paused/running 중에는 컨텍스트 보존.
+    const hitFloorHandle = (store.phase === 'idle' && activeBuildTask === 'region')
       ? (hitTestFloorLabel(world, store.floors, store.zones) ??
          hitTestFloorOutline(world, store.floors, store.zones))
       : null;

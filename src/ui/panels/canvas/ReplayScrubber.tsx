@@ -87,11 +87,12 @@ export function ReplayScrubber() {
           snap.spawnByNode,
           snap.exitByNode,
         );
-        // overlayMode 복원 — Replay 진입 시 강제 'none' 으로 바꿨다면 원래대로.
-        store.setOverlayMode(snap.overlayMode);
       } else if (frameCount > 0) {
         applyFrame(frameCount - 1);
       }
+      // overlayMode 복원 — snap 있으면 원래대로, 없으면 'heatmap' 기본값.
+      // (Replay 진입 시 강제 'none' 한 것을 무조건 되돌려야 사용자가 heatmap 잃지 않음.)
+      store.setOverlayMode(snap?.overlayMode ?? 'heatmap');
       preReplaySnapshotRef.current = null;
       setIsReplaying(false);
     } else {

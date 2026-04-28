@@ -66,12 +66,12 @@ export function LivePulse() {
     ? Math.max(0, ...latestSnapshot.zoneUtilizations.map((u) => u.ratio))
     : 0;
   const peakUtilPct = Math.round(peakUtil * 100);
-  const peakZone = latestSnapshot?.zoneUtilizations.reduce(
-    (max, u) => (u.ratio > max.ratio ? u : max),
-    { ratio: 0, zoneId: '' as unknown },
-  );
-  const peakZoneName = peakZone && (peakZone as any).zoneId
-    ? zones.find((z) => z.id === (peakZone as any).zoneId)?.name ?? '—'
+  // peakZone — 빈 zoneUtilizations 또는 latestSnapshot null 일 때 null 로 명시.
+  const peakZone = latestSnapshot && latestSnapshot.zoneUtilizations.length > 0
+    ? latestSnapshot.zoneUtilizations.reduce((max, u) => (u.ratio > max.ratio ? u : max))
+    : null;
+  const peakZoneName = peakZone
+    ? zones.find((z) => z.id === peakZone.zoneId)?.name ?? '—'
     : '—';
   const bottleneckCount = latestSnapshot
     ? latestSnapshot.bottlenecks.filter((b) => b.score > 0.5).length

@@ -48,12 +48,21 @@ function AppShell() {
     setStep('analyze');
   }, [step, phase, toast, t]);
 
-  // Open/Recent 흐름에서 legacy 시나리오(experienceMode 미설정)는 모드 선택 강제.
-  // experienceMode 있으면 zone 유무로 build / ready 결정.
+  // Open/Recent 흐름의 step 라우팅:
+  //   - experienceMode 미설정 (legacy)         → mode 선택 강제
+  //   - mode 있고 zone+media 둘 다 있음        → ready (시뮬 바로 가능)
+  //   - mode 있지만 zone/media 미완            → build (이어서 작업)
+  // (페이지 새로고침 자체는 welcome 유지 — 자동 resume 은 의도적으로 안 함.)
   const handleLoaded = () => {
-    const scenario = useStore.getState().scenario;
-    if (scenario && !scenario.experienceMode) {
+    const state = useStore.getState();
+    const scen = state.scenario;
+    if (!scen) return;
+    if (!scen.experienceMode) {
       setStep('mode');
+      return;
+    }
+    if (state.zones.length > 0 && state.media.length > 0) {
+      setStep('ready');
     } else {
       setStep('build');
     }
@@ -78,8 +87,11 @@ function AppShell() {
     step === 'analyze' ? 4 : undefined;
 
   // 단일 navigation 규칙: stepper 칸 누르면 거기로 간다.
-  // 잠긴 단계는 stepper 가 disabled + tooltip 으로 차단 → 여기는 가드 없이 단순 라우팅.
+  // 잠긴 단계는 stepper 가 disabled + tooltip 으로 1차 차단.
+  // 여기는 defense-in-depth — 비-stepper 경로 (단축키, 향후 deep link 등) 우회 시 안전망.
   const handleNavigateStep = (n: number) => {
+    const target = stepStatus[n - 1];
+    if (target && !target.reachable) return;
     if (n === 1) setStep('mode');
     else if (n === 2) setStep('build');
     else if (n === 3) setStep('ready');

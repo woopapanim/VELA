@@ -48,6 +48,19 @@ export function BuildLayout() {
     return 'flow';
   });
 
+  // Task 전환 = 컨텍스트 스위치. 이전 task 에서 살아있던 selection 이 새 task 의
+  // 우측 패널을 가리는 사고 방지 (예: Zones 에서 zone 선택 후 Region 탭 → ZoneEditor
+  // 가 RegionPanelRight 자리를 차지). 사용자는 탭 클릭을 명시적 컨텍스트 전환 신호로 씀.
+  const handleActivateTask = (id: BuildTaskId) => {
+    if (id === activeTask) return;
+    setActiveTask(id);
+    const s = useStore.getState();
+    s.selectZone(null);
+    s.selectMedia(null);
+    s.selectWaypoint(null);
+    s.selectEdge(null);
+  };
+
   const tasks = useMemo<Array<{
     id: BuildTaskId;
     icon: typeof LayoutGrid;
@@ -73,7 +86,7 @@ export function BuildLayout() {
                 key={task.id}
                 task={task}
                 isActive={isActive}
-                onActivate={() => setActiveTask(task.id)}
+                onActivate={() => handleActivateTask(task.id)}
               >
                 {task.id === 'region' && <RegionTask />}
                 {task.id === 'zones' && (

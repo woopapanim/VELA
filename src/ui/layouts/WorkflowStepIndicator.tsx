@@ -63,8 +63,12 @@ export function WorkflowStepIndicator({ current, variant = 'vertical', onNavigat
         {STEPS.map((s, i) => {
           const visual = computeVisual(s.n, current, status);
           const isClickable = !!onNavigate && (visual === 'completed' || visual === 'available');
-          const lockReason = visual === 'locked' ? status?.[s.n - 1]?.lockReason : undefined;
-          const Wrapper: any = isClickable ? 'button' : 'div';
+          const isLocked = visual === 'locked';
+          const lockReason = isLocked ? status?.[s.n - 1]?.lockReason : undefined;
+          // Locked 도 button 으로 렌더해 disabled 시맨틱 + 스크린리더 announce 보장.
+          // current 는 div (informational, focusable 아님).
+          const Wrapper: any = isClickable || isLocked ? 'button' : 'div';
+          const isButton = Wrapper === 'button';
 
           // 색/테두리 매핑.
           const wrapperColor =
@@ -81,15 +85,17 @@ export function WorkflowStepIndicator({ current, variant = 'vertical', onNavigat
           return (
             <div key={s.n} className="flex items-center gap-2">
               <Wrapper
+                type={isButton ? 'button' : undefined}
                 onClick={isClickable ? () => onNavigate!(s.n) : undefined}
-                disabled={Wrapper === 'button' && !isClickable ? true : undefined}
+                disabled={isButton && !isClickable ? true : undefined}
                 title={lockReason}
                 aria-label={lockReason ? `${t(s.titleKey)} — ${lockReason}` : t(s.titleKey)}
-                aria-disabled={visual === 'locked' ? true : undefined}
+                aria-current={visual === 'current' ? 'step' : undefined}
+                aria-disabled={isLocked ? true : undefined}
                 className={`flex items-center gap-2 px-2.5 py-1 rounded-lg transition-colors
                   ${wrapperColor}
                   ${isClickable ? 'hover:bg-accent cursor-pointer' : ''}
-                  ${visual === 'locked' ? 'cursor-not-allowed' : ''}`}
+                  ${isLocked ? 'cursor-not-allowed' : ''}`}
               >
                 <span
                   className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-medium ${dotColor}`}
@@ -115,8 +121,10 @@ export function WorkflowStepIndicator({ current, variant = 'vertical', onNavigat
       {STEPS.map((s, i) => {
         const visual = computeVisual(s.n, current, status);
         const isClickable = !!onNavigate && (visual === 'completed' || visual === 'available');
-        const lockReason = visual === 'locked' ? status?.[s.n - 1]?.lockReason : undefined;
-        const Wrapper: any = isClickable ? 'button' : 'div';
+        const isLocked = visual === 'locked';
+        const lockReason = isLocked ? status?.[s.n - 1]?.lockReason : undefined;
+        const Wrapper: any = isClickable || isLocked ? 'button' : 'div';
+        const isButton = Wrapper === 'button';
 
         const dotColor =
           visual === 'current' ? 'bg-primary text-primary-foreground'
@@ -125,20 +133,22 @@ export function WorkflowStepIndicator({ current, variant = 'vertical', onNavigat
           : 'bg-muted-foreground/15 text-muted-foreground/55';
         const titleColor =
           visual === 'current' ? 'text-primary'
-          : visual === 'locked' ? 'text-muted-foreground/55'
+          : isLocked ? 'text-muted-foreground/55'
           : '';
 
         return (
           <div key={s.n} className="relative">
             <Wrapper
+              type={isButton ? 'button' : undefined}
               onClick={isClickable ? () => onNavigate!(s.n) : undefined}
-              disabled={Wrapper === 'button' && !isClickable ? true : undefined}
+              disabled={isButton && !isClickable ? true : undefined}
               title={lockReason}
-              aria-disabled={visual === 'locked' ? true : undefined}
+              aria-current={visual === 'current' ? 'step' : undefined}
+              aria-disabled={isLocked ? true : undefined}
               className={`w-full flex items-start gap-3 px-3 py-3 rounded-xl text-left transition-colors
                 ${visual === 'current' ? 'bg-primary/10 border border-primary/30' : ''}
                 ${isClickable ? 'hover:bg-accent cursor-pointer' : ''}
-                ${visual === 'locked' ? 'cursor-not-allowed' : ''}`}
+                ${isLocked ? 'cursor-not-allowed' : ''}`}
             >
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium flex-shrink-0 mt-0.5 ${dotColor}`}>
                 {visual === 'completed' ? <Check className="w-3.5 h-3.5" />
