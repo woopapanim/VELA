@@ -492,6 +492,9 @@ function VisitorLoadInline() {
 
   if (!scenario) return null;
 
+  // setCount(commit=true) 에서만 store clamp. 타이핑 중엔 raw 문자열 유지 →
+  // "1" → "10" → "100" 같이 한 자릿수 통과 단계가 50 으로 스냅되는 사고 방지
+  // (2026-04-28 사용자 보고: 50 미만 통과 단계가 막혀 자릿수 입력 불가).
   const setCount = (next: number) => {
     const clamped = Math.min(VISITOR_COUNT_MAX, Math.max(VISITOR_COUNT_MIN, Math.round(next)));
     setScenario({
@@ -503,6 +506,15 @@ function VisitorLoadInline() {
   };
 
   const isApplied = totalCount === recommended;
+  const [raw, setRaw] = useState(String(totalCount));
+  const prevTotalRef = useRef(totalCount);
+  // 외부 변경 (preset 적용 / 권장값 클릭) 동기화
+  if (totalCount !== prevTotalRef.current) {
+    prevTotalRef.current = totalCount;
+    if (parseInt(raw, 10) !== totalCount) setRaw(String(totalCount));
+  }
+  const parsed = parseInt(raw, 10);
+  const showError = raw === '' || isNaN(parsed) || parsed < VISITOR_COUNT_MIN || parsed > VISITOR_COUNT_MAX;
 
   return (
     <div className="px-3 py-2.5 rounded-lg bg-secondary/50 border border-border/50 space-y-2">
@@ -519,9 +531,19 @@ function VisitorLoadInline() {
           type="number"
           min={VISITOR_COUNT_MIN}
           max={VISITOR_COUNT_MAX}
-          value={totalCount}
-          onChange={(e) => setCount(Number(e.target.value) || recommended)}
-          className="flex-1 min-w-0 bg-background border border-border rounded px-2 py-1 text-xs font-data font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          onBlur={() => {
+            const n = parseInt(raw, 10);
+            if (raw === '' || isNaN(n)) {
+              setRaw(String(totalCount));
+              return;
+            }
+            setCount(n);
+          }}
+          className={`flex-1 min-w-0 bg-background border rounded px-2 py-1 text-xs font-data font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
+            showError ? 'border-[var(--status-error)]' : 'border-border'
+          }`}
         />
         <span className="text-[10px] text-muted-foreground shrink-0">{t('sim.visitorLoad.unit')}</span>
       </div>
