@@ -69,13 +69,20 @@ function AppShell() {
   };
 
   // 검증 tier Action 탭 CTA: 현재 시나리오를 변형으로 fork → Build 단계 이동.
+  // Fork 시 이전 시뮬 결과 (snapshot, KPI, heatmap densityGrids, overlay 모드) 를
+  // 모두 청소 — 새 변형은 빈 편집판에서 시작해야지 직전 sim 의 heatmap/flow 가
+  // 새 zone 위에 남아있으면 안 됨 (2026-04-28 사용자 보고: "viewport 가 옛날꺼 같다").
   const handleForkToBuild = () => {
-    const cur = useStore.getState().scenario;
+    const s = useStore.getState();
+    const cur = s.scenario;
     if (!cur) return;
-    scenarioManager.save(cur, useStore.getState().kpiHistory);
+    scenarioManager.save(cur, s.kpiHistory);
     const branched = scenarioManager.branch(cur.meta.id, `${cur.meta.name} (Variant)`);
     if (branched) {
-      useStore.getState().setScenario(branched);
+      s.setScenario(branched);
+      s.resetSim();
+      s.clearHistory();
+      s.setOverlayMode('none');
       setStep('build');
     }
   };
