@@ -1,4 +1,4 @@
-import { useRef, useCallback, useState, useMemo } from 'react';
+import { useRef, useCallback, useState, useMemo, useEffect } from 'react';
 import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
 import { useStore } from '@/stores';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
@@ -65,6 +65,18 @@ export function ControlBar() {
 
   const activeCount = visitors.filter((v) => v.isActive).length;
   const isReplayable = (phase === 'completed' || phase === 'paused') && replayCount > 0;
+
+  // Unmount 시 loop 강제 종료. 없으면 SimulateLayout 가 unmount 된 뒤에도
+  // setOnTick 콜백이 살아있어 store 의 phase 를 다시 'running' 으로 덮어씀.
+  useEffect(() => {
+    return () => {
+      if (loopRef.current) {
+        loopRef.current.destroy();
+        loopRef.current = null;
+      }
+      engineRef.current = null;
+    };
+  }, []);
 
   // Bottleneck 마커 — kpiHistory walk
   const markers = useMemo(() => {

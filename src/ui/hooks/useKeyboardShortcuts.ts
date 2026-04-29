@@ -142,7 +142,10 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const clipZone = (window as any).__vela_clipboard_zone;
             if (clipZone) {
-              const newId = `z_paste_${Date.now()}`;
+              // suffix 로 random — 빠른 연속 paste 에서 Date.now() 가 동일 ms
+              // 일 때 ID 충돌하던 것 방지.
+              const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+              const newId = `z_paste_${suffix}`;
               const pasted = {
                 ...clipZone,
                 id: newId,
@@ -150,7 +153,7 @@ export function useKeyboardShortcuts() {
                 bounds: { ...clipZone.bounds, x: clipZone.bounds.x + 30, y: clipZone.bounds.y + 30 },
                 gates: clipZone.gates.map((g: any, i: number) => ({
                   ...g,
-                  id: `g_paste_${Date.now()}_${i}`,
+                  id: `g_paste_${suffix}_${i}`,
                   zoneId: newId,
                   connectedGateId: null,
                 })),

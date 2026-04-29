@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { useStore } from '@/stores';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { StatsFooter } from '../components/StatsFooter';
 import { CockpitTopBar } from './simulate/CockpitTopBar';
@@ -28,6 +30,22 @@ interface Props {
 //   - Start/Pause/Stop · Timeline progress + 마커 · Speed · Heatmap/Pin
 //   - 완료 후에는 ReplayScrubber 로 자동 전환
 export function SimulateLayout({ onBackToBuild }: Props) {
+  // Unmount 시 sim run 정리. ControlBar 의 cleanup 이 먼저 실행되어 loop 가
+  // destroy 된 뒤 우리가 phase 를 idle 로 set — race 없이 안전하게 종료.
+  // (App.tsx 에서 onBackToBuild 직접 reset 하면 loop 의 마지막 tick 이
+  // updateSimState 로 phase 를 다시 'running' 으로 덮어쓰는 race 가 있었음.)
+  useEffect(() => {
+    return () => {
+      const s = useStore.getState();
+      if (s.phase !== 'idle') {
+        s.resetSim();
+        s.clearHistory?.();
+        s.clearReplay?.();
+        s.clearPins?.();
+      }
+    };
+  }, []);
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <CockpitTopBar onBackToBuild={onBackToBuild} />
