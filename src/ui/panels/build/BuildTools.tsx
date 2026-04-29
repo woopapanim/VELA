@@ -99,6 +99,7 @@ export function BuildTools() {
       id,
       name: `${zoneType.charAt(0).toUpperCase() + zoneType.slice(1)} ${_zoneCounter}`,
       type: zoneType as any,
+      floorId,
       shape: 'rect',
       bounds: { x, y, w: zoneW, h: zoneH },
       polygon: null,

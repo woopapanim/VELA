@@ -6,6 +6,7 @@ export * from './media';
 export * from './exhibit';
 export * from './visitor';
 export * from './simulation';
+export * from './operations';
 export * from './scenario';
 export * from './kpi';
 export * from './heatmap';

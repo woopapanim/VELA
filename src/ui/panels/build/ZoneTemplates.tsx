@@ -42,6 +42,7 @@ function makeZone(
     id: zoneId,
     name,
     type: type as any,
+    floorId,
     shape: 'rect',
     bounds: { x, y, w, h },
     polygon: null,

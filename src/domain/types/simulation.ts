@@ -1,5 +1,6 @@
 import type { PhysicsConfig, SkipThreshold } from './physics';
 import type { TimeSlotConfig } from './visitor';
+import type { OperationsConfig } from './operations';
 
 // ---- Simulation Phase ----
 export const SIMULATION_PHASE = {
@@ -33,6 +34,8 @@ export interface SimulationConfig {
   readonly recommendedDurationAuto?: boolean;
   // 시뮬레이션 종료 기준. 미지정 시 'time' (레거시 호환).
   readonly simulationMode?: SimulationMode;
+  // Phase 1 (2026-04-26): 운영 정책 (입장 throttle + 만족도 가중치). 미지정 시 unlimited.
+  readonly operations?: OperationsConfig;
 }
 
 // ---- Time State (Fixed Timestep with accumulator) ----

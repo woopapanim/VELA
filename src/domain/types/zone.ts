@@ -65,6 +65,8 @@ export interface ZoneConfig {
   readonly id: ZoneId;
   readonly name: string;
   readonly type: ZoneType;
+  // Phase 0+ multi-floor: zone가 속한 floor. 마이그레이션 시 첫 floor 로 자동 부여.
+  readonly floorId: FloorId;
   readonly shape: ZoneShape;
   readonly bounds: Rect;
   readonly polygon: Polygon | null; // actual hitbox for L/O/custom shapes

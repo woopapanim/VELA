@@ -130,6 +130,7 @@ export function hydrateDraft(
       id: ZoneId(zoneIdStr),
       name: dz.name || dz.key,
       type: dz.type,
+      floorId,
       shape: isCircle ? 'circle' : polygonPx ? 'custom' : 'rect',
       bounds: rectPx,
       polygon: polygonPx,

@@ -1,4 +1,5 @@
 import { useStore } from '@/stores';
+import type { VisitorProfileType, VisitorCategory } from '@/domain';
 
 // Simulate 좌측 column 의 readonly 모드 — phase != idle 일 때.
 // "지금 무슨 설정으로 돌고 있는가" 한눈에. 편집은 idle 로 돌아가야 함.
@@ -15,8 +16,8 @@ export function RunSummary() {
     ? slots.reduce((a, s) => a + s.spawnRatePerSecond, 0) / slots.length
     : (slots[0]?.spawnRatePerSecond ?? dist.spawnRatePerSecond ?? 0);
 
-  const profile = dist.profileWeights ?? {};
-  const cat = dist.categoryWeights ?? {};
+  const profile: Partial<Record<VisitorProfileType, number>> = dist.profileWeights ?? {};
+  const cat: Partial<Record<VisitorCategory, number>> = dist.categoryWeights ?? {};
   const skip = config.skipThreshold;
 
   return (
