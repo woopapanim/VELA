@@ -130,10 +130,7 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
             if (zone) {
-              const snap = JSON.parse(JSON.stringify(zone));
-              // 연속 paste 카운터 — 매번 zone width+gap 만큼 우측으로 누적 이동.
-              snap.__pasteCount = 0;
-              (window as any).__vela_clipboard_zone = snap;
+              (window as any).__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
             }
           }
           break;
@@ -149,16 +146,24 @@ export function useKeyboardShortcuts() {
               // 일 때 ID 충돌하던 것 방지.
               const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
               const newId = `z_paste_${suffix}`;
-              // Offset: 존 너비 + 20px gap 만큼 우측. 연속 paste 시 누적.
-              // 너비가 0 일 리는 없지만 안전망으로 최소 60.
+              // 카운터 방식은 재복사 시 리셋되어 또 겹침. 대신 우측으로 한 칸씩
+              // 걸어가며 비어 있는 첫 자리에 놓는다 (zone width+gap step).
               const step = Math.max(60, clipZone.bounds.w + 20);
-              const idx = (clipZone.__pasteCount ?? 0) + 1;
-              clipZone.__pasteCount = idx;
+              const overlaps = (x: number, y: number) => {
+                const w = clipZone.bounds.w, h = clipZone.bounds.h;
+                return store.zones.some((z) => {
+                  const b = z.bounds;
+                  return !(x + w <= b.x || b.x + b.w <= x || y + h <= b.y || b.y + b.h <= y);
+                });
+              };
+              let tx = clipZone.bounds.x + step;
+              const ty = clipZone.bounds.y;
+              for (let i = 0; i < 200 && overlaps(tx, ty); i++) tx += step;
               const pasted = {
                 ...clipZone,
                 id: newId,
                 name: clipZone.name + ' (Copy)',
-                bounds: { ...clipZone.bounds, x: clipZone.bounds.x + step * idx, y: clipZone.bounds.y },
+                bounds: { ...clipZone.bounds, x: tx, y: ty },
                 gates: clipZone.gates.map((g: any, i: number) => ({
                   ...g,
                   id: `g_paste_${suffix}_${i}`,
@@ -166,8 +171,6 @@ export function useKeyboardShortcuts() {
                   connectedGateId: null,
                 })),
               };
-              // 내부 marker 는 시나리오에 새지 않게 제거.
-              delete (pasted as any).__pasteCount;
               store.addZone(pasted);
               store.selectZone(newId);
             }
