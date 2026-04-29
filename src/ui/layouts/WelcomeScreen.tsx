@@ -217,7 +217,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           <h1 className="text-2xl font-semibold tracking-tight mb-1">
             VELA
           </h1>
-          <p className="text-xs text-muted-foreground mt-3">Spatial Simulation &amp; Flow Analytics</p>
+          <p className="text-xs text-muted-foreground mt-3">{t('welcome.tagline')}</p>
         </div>
 
         {/* New Project */}
@@ -226,7 +226,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
             onClick={() => setShowNameInput(true)}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium rounded-2xl bg-primary text-primary-foreground hover:opacity-90 transition-opacity mb-3"
           >
-            <Plus className="w-4 h-4" /> New Project
+            <Plus className="w-4 h-4" /> {t('welcome.action.new')}
           </button>
         ) : (
           <div className="mb-3">
@@ -253,7 +253,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
               onClick={() => setShowNameInput(false)}
               className="text-xs text-muted-foreground mt-1.5 hover:text-foreground"
             >
-              Cancel
+              {t('welcome.action.cancel')}
             </button>
           </div>
         )}
@@ -270,7 +270,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           onClick={handleOpenFile}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-2xl bg-secondary text-secondary-foreground hover:bg-accent transition-colors mb-1 cursor-pointer"
         >
-          <FolderOpen className="w-4 h-4" /> Open File...
+          <FolderOpen className="w-4 h-4" /> {t('welcome.action.openFile')}
         </button>
         <p className="text-[10px] text-muted-foreground text-center mb-3">
           {t('welcome.drag.hint')}
@@ -280,7 +280,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           onClick={() => setShowAnalyzer(true)}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-2xl bg-secondary text-secondary-foreground hover:bg-accent transition-colors mb-3 cursor-pointer"
         >
-          <Sparkles className="w-4 h-4" /> Analyze Floor Plan (AI)
+          <Sparkles className="w-4 h-4" /> {t('welcome.action.analyze')}
         </button>
 
         {openError && (
@@ -290,28 +290,44 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         {/* Recent Projects */}
         {history.length > 0 && (
           <div>
-            <p className="panel-label mb-3">Recent Projects</p>
+            <p className="panel-label mb-3">{t('welcome.recent.title')}</p>
             <div className="space-y-2">
-              {history.map((entry) => (
-                <div
-                  key={entry.id}
-                  onClick={() => handleLoad(entry)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/50 hover:bg-secondary cursor-pointer transition-colors group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{entry.name}</p>
-                    <p className="text-[10px] text-muted-foreground font-data">
-                      {entry.zoneCount ?? entry.scenario?.zones?.length ?? 0} zones · {getTimeAgo(entry.savedAt)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-opacity"
+              {history.map((entry) => {
+                const zoneCount = entry.zoneCount ?? entry.scenario?.zones?.length ?? 0;
+                const mediaCount = entry.scenario?.media?.length ?? 0;
+                const mode = entry.scenario?.simulationConfig?.operations?.entryPolicy?.mode ?? 'unlimited';
+                const modeLabelKey = (
+                  mode === 'concurrent-cap' ? 'entry.mode.capacity'
+                  : mode === 'time-slot' ? 'entry.mode.slot'
+                  : mode === 'hybrid' ? 'entry.mode.group'
+                  : 'entry.mode.unlimited'
+                );
+                return (
+                  <div
+                    key={entry.id}
+                    onClick={() => handleLoad(entry)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-secondary/50 hover:bg-secondary cursor-pointer transition-colors group"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  </button>
-                </div>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <p className="text-sm font-medium truncate">{entry.name}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium shrink-0">
+                          {t(modeLabelKey)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-data">
+                        {t('welcome.recent.zones', { n: zoneCount })} · {t('welcome.recent.media', { n: mediaCount })} · {formatTimeAgo(entry.savedAt, t)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 transition-opacity"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -328,13 +344,13 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   );
 }
 
-function getTimeAgo(timestamp: number): string {
+function formatTimeAgo(timestamp: number, t: (k: string, p?: Record<string, string | number>) => string): string {
   const diff = Date.now() - timestamp;
   const sec = Math.floor(diff / 1000);
-  if (sec < 60) return 'just now';
+  if (sec < 60) return t('welcome.time.justNow');
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min}m ago`;
+  if (min < 60) return t('welcome.time.minAgo', { n: min });
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr}h ago`;
-  return `${Math.floor(hr / 24)}d ago`;
+  if (hr < 24) return t('welcome.time.hourAgo', { n: hr });
+  return t('welcome.time.dayAgo', { n: Math.floor(hr / 24) });
 }

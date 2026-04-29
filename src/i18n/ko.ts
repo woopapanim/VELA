@@ -98,6 +98,18 @@ export const ko: Dict = {
   'welcome.drop.hint': 'JSON 파일을 여기에 놓으세요',
   'welcome.drag.hint': '또는 .json 파일을 화면에 드래그하여 열기',
   'welcome.projectName': '프로젝트 이름',
+  'welcome.tagline': '공간 시뮬레이션 & 동선 분석',
+  'welcome.action.new': '새 프로젝트',
+  'welcome.action.cancel': '취소',
+  'welcome.action.openFile': '파일 열기...',
+  'welcome.action.analyze': '도면 분석 (AI)',
+  'welcome.recent.title': '최근 프로젝트',
+  'welcome.recent.zones': '{n}개 존',
+  'welcome.recent.media': '{n}개 미디어',
+  'welcome.time.justNow': '방금',
+  'welcome.time.minAgo': '{n}분 전',
+  'welcome.time.hourAgo': '{n}시간 전',
+  'welcome.time.dayAgo': '{n}일 전',
 
   // Property popover
   'popover.waypoint.namePlaceholder': '이름',

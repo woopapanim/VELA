@@ -101,6 +101,18 @@ export const en: Dict = {
   'welcome.drop.hint': 'Drop JSON file here',
   'welcome.drag.hint': 'Or drag a .json file to open',
   'welcome.projectName': 'Project name',
+  'welcome.tagline': 'Spatial Simulation & Flow Analytics',
+  'welcome.action.new': 'New Project',
+  'welcome.action.cancel': 'Cancel',
+  'welcome.action.openFile': 'Open File...',
+  'welcome.action.analyze': 'Analyze Floor Plan (AI)',
+  'welcome.recent.title': 'Recent Projects',
+  'welcome.recent.zones': '{n} zones',
+  'welcome.recent.media': '{n} media',
+  'welcome.time.justNow': 'just now',
+  'welcome.time.minAgo': '{n}m ago',
+  'welcome.time.hourAgo': '{n}h ago',
+  'welcome.time.dayAgo': '{n}d ago',
 
   // Property popover
   'popover.waypoint.namePlaceholder': 'Name',
