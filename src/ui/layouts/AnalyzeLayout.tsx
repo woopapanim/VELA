@@ -97,7 +97,13 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
 
   const completionPct = Math.round((latestSnapshot?.flowEfficiency.completionRate ?? 0) * 100);
   const skipPct = Math.round((latestSnapshot?.skipRate.globalSkipRate ?? 0) * 100);
-  const fatiguePct = Math.round((latestSnapshot?.fatigueDistribution.mean ?? 0) * 100);
+  // fatigueDistribution.mean 은 active 기반 → sim 종료 시 0. exited visitor 의 마지막 fatigue 까지 포함해 직접 평균.
+  const fatigueMean = useMemo(() => {
+    if (visitors.length === 0) return 0;
+    const sum = visitors.reduce((acc, v) => acc + (v.fatigue ?? 0), 0);
+    return sum / visitors.length;
+  }, [visitors]);
+  const fatiguePct = Math.round(fatigueMean * 100);
   const throughput = latestSnapshot?.flowEfficiency.throughputPerMinute ?? 0;
 
   // Bottleneck score는 active visitor 기반이라 sim 종료 시점엔 0이 된다.
