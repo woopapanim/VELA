@@ -660,4 +660,20 @@ export const ko: Dict = {
   'pinpoint.compare.metric.avgFatigue': '평균 피로도',
   'pinpoint.compare.metric.peakZone': '피크 존',
   'pinpoint.compare.metric.avgComfort': '평균 쾌적도',
+
+  // Entry policy (운영 정책)
+  'entry.title': '운영 정책',
+  'entry.mode.unlimited': '자유관람',
+  'entry.mode.unlimited.desc': '제한 없이 출입',
+  'entry.mode.capacity': '정원제',
+  'entry.mode.capacity.desc': '동시 수용 인원 한도',
+  'entry.mode.slot': '회차제',
+  'entry.mode.slot.desc': '시간 슬롯별 입장',
+  'entry.mode.group': '단체',
+  'entry.mode.group.desc': '정원 + 슬롯 (가이드)',
+  'entry.field.maxConcurrent': '동시 수용',
+  'entry.field.maxWaitMin': '대기 인내(분)',
+  'entry.field.slotMin': '슬롯 길이(분)',
+  'entry.field.perSlot': '슬롯당 인원',
+  'entry.unlimited.note': '외부 큐 없이 도착 즉시 입장합니다.',
 };

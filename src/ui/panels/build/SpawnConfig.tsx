@@ -3,6 +3,7 @@ import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { TimeSlotEditor } from './TimeSlotEditor';
 import { VisitorPresets } from './VisitorPresets';
+import { EntryPolicySection } from './EntryPolicySection';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
@@ -92,6 +93,8 @@ export function SpawnConfig() {
 
   return (
     <div>
+      <EntryPolicySection />
+
       <CollapsibleSection id="spawn-presets" title="Presets">
         <VisitorPresets />
       </CollapsibleSection>

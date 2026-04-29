@@ -686,4 +686,20 @@ export const en: Dict = {
   'pinpoint.compare.metric.avgFatigue': 'Avg fatigue',
   'pinpoint.compare.metric.peakZone': 'Peak zone',
   'pinpoint.compare.metric.avgComfort': 'Avg comfort',
+
+  // Entry policy
+  'entry.title': 'Entry Policy',
+  'entry.mode.unlimited': 'Free Entry',
+  'entry.mode.unlimited.desc': 'No throttle',
+  'entry.mode.capacity': 'Capacity',
+  'entry.mode.capacity.desc': 'Concurrent occupancy cap',
+  'entry.mode.slot': 'Time Slot',
+  'entry.mode.slot.desc': 'Per-slot admission',
+  'entry.mode.group': 'Group',
+  'entry.mode.group.desc': 'Capacity + slot (tour)',
+  'entry.field.maxConcurrent': 'Max concurrent',
+  'entry.field.maxWaitMin': 'Wait patience (min)',
+  'entry.field.slotMin': 'Slot length (min)',
+  'entry.field.perSlot': 'Per-slot cap',
+  'entry.unlimited.note': 'Visitors enter on arrival with no outside queue.',
 };
