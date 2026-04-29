@@ -1,6 +1,6 @@
 import type {
-  Scenario, ZoneConfig, MediaConfig, FloorConfig,
-  Visitor, VisitorGroup, TimeState, SimulationSnapshot,
+  Scenario, ZoneConfig, MediaPlacement, FloorConfig,
+  Visitor, VisitorGroup, TimeState, KpiSnapshot, KpiTimeSeriesEntry,
   InsightEntry, WaypointGraph,
 } from '@/domain';
 import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
@@ -263,13 +263,13 @@ export interface ReportData {
 export interface ToReportDataInput {
   readonly scenario: Scenario;
   readonly zones: readonly ZoneConfig[];
-  readonly media: readonly MediaConfig[];
+  readonly media: readonly MediaPlacement[];
   readonly floors: readonly FloorConfig[];
   readonly visitors: readonly Visitor[];
   readonly groups: readonly VisitorGroup[];
   readonly timeState: TimeState;
-  readonly latestSnapshot: SimulationSnapshot;
-  readonly kpiHistory: readonly { readonly timestamp: number; readonly snapshot: SimulationSnapshot }[];
+  readonly latestSnapshot: KpiSnapshot;
+  readonly kpiHistory: readonly KpiTimeSeriesEntry[];
   readonly mediaStats: ReadonlyMap<string, {
     readonly watchCount: number; readonly skipCount: number; readonly waitCount: number;
     readonly totalWatchMs: number; readonly totalWaitMs: number; readonly peakViewers: number;
@@ -560,8 +560,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
 
   // ---- Key moment --------------------------------------------------------
   const keyMoments = extractKeyMoments(kpiHistory);
-  const peakMomentMs = keyMoments.find((k) => k.kind === 'peak-crowding')?.timestamp
-    ?? keyMoments[0]?.timestamp
+  // KeyMomentKind: peak_congestion / first_bottleneck / peak_fatigue / peak_active / final
+  const peakMomentMs = keyMoments.find((k) => k.kind === 'peak_congestion')?.timestampMs
+    ?? keyMoments[0]?.timestampMs
     ?? null;
   const peakMoment = peakMomentMs != null ? fmtClock(peakMomentMs) : null;
 
