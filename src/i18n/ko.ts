@@ -134,6 +134,10 @@ export const ko: Dict = {
   'analyze.bento.entryExit.sessionEnd': '시뮬 종료 시 잔류',
   'analyze.bento.engagement': '관람 깊이',
   'analyze.bento.empty': '항목 없음',
+  'analyze.engagement.avgZones': '평균 방문 존',
+  'analyze.engagement.avgMedia': '평균 관람 미디어',
+  'analyze.engagement.avgDwell': '평균 체류시간',
+  'analyze.engagement.fullCompletion': '전 존 완주율',
   'analyze.detail.title': '상세 분석',
   'analyze.detail.hint': '탭별 깊이 있는 차트와 데이터',
 

@@ -163,12 +163,19 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
 
   const engagementSummary = useMemo(() => {
     const exited = visitors.filter((v) => !v.isActive);
-    if (exited.length === 0) return { avgZones: 0, fullCompletion: 0 };
+    if (exited.length === 0) return { avgZones: 0, avgMedia: 0, fullCompletion: 0, avgDwellSec: 0 };
     const sumZones = exited.reduce((s, v) => s + v.visitedZoneIds.length, 0);
+    const sumMedia = exited.reduce((s, v) => s + (v.visitedMediaIds?.length ?? 0), 0);
     const full = exited.filter((v) => v.visitedZoneIds.length >= zones.length).length;
+    const sumDwellMs = exited.reduce(
+      (s, v) => s + Math.max(0, (v.exitedAt ?? 0) - (v.spawnedAt ?? 0)),
+      0,
+    );
     return {
       avgZones: sumZones / exited.length,
+      avgMedia: sumMedia / exited.length,
       fullCompletion: full / exited.length,
+      avgDwellSec: sumDwellMs / exited.length / 1000,
     };
   }, [visitors, zones]);
 
@@ -356,10 +363,22 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
                 <Empty t={t} />
               ) : (
                 <div className="space-y-1.5 text-[11px]">
-                  <Row label="Avg zones / visitor" value={engagementSummary.avgZones.toFixed(1)} />
-                  <Row label="Full completion" value={`${Math.round(engagementSummary.fullCompletion * 100)}%`} />
-                  <Row label="Avg fatigue" value={`${fatiguePct}%`} />
-                  <Row label="Throughput" value={`${throughput.toFixed(1)} /min`} />
+                  <Row
+                    label={t('analyze.engagement.avgZones')}
+                    value={`${engagementSummary.avgZones.toFixed(1)} / ${zones.length}`}
+                  />
+                  <Row
+                    label={t('analyze.engagement.avgMedia')}
+                    value={`${engagementSummary.avgMedia.toFixed(1)} / ${media.length}`}
+                  />
+                  <Row
+                    label={t('analyze.engagement.avgDwell')}
+                    value={`${engagementSummary.avgDwellSec.toFixed(0)}s`}
+                  />
+                  <Row
+                    label={t('analyze.engagement.fullCompletion')}
+                    value={`${Math.round(engagementSummary.fullCompletion * 100)}%`}
+                  />
                 </div>
               )}
             </BentoCard>
