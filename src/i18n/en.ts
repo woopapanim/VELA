@@ -134,6 +134,7 @@ export const en: Dict = {
   'analyze.bento.bottlenecks': 'Bottleneck zones',
   'analyze.bento.skipHotspots': 'Skip hotspots',
   'analyze.bento.entryExit': 'Entry / Exit flow',
+  'analyze.bento.entryExit.sessionEnd': 'Still in venue at session end',
   'analyze.bento.engagement': 'Engagement depth',
   'analyze.bento.empty': 'No items',
   'analyze.detail.title': 'Detailed analysis',

@@ -131,6 +131,7 @@ export const ko: Dict = {
   'analyze.bento.bottlenecks': '병목 구역',
   'analyze.bento.skipHotspots': '스킵 핫스팟',
   'analyze.bento.entryExit': '입출구 흐름',
+  'analyze.bento.entryExit.sessionEnd': '시뮬 종료 시 잔류',
   'analyze.bento.engagement': '관람 깊이',
   'analyze.bento.empty': '항목 없음',
   'analyze.detail.title': '상세 분석',

@@ -32,7 +32,10 @@ function deriveVerdict(snap: KpiSnapshot | null, totalSpawned: number, t: (k: st
       detail: t('analyze.verdict.empty.detail'),
     };
   }
-  const peak = Math.max(0, ...snap.zoneUtilizations.map((u) => u.ratio));
+  const peak = Math.max(
+    0,
+    ...snap.zoneUtilizations.map((u) => (u.capacity > 0 ? u.peakOccupancy / u.capacity : 0)),
+  );
   const skip = snap.skipRate.globalSkipRate;
   const completion = snap.flowEfficiency.completionRate;
 
@@ -90,7 +93,8 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
     if (!latestSnapshot) return null;
     let best: { zoneId: string; ratio: number } | null = null;
     for (const u of latestSnapshot.zoneUtilizations) {
-      if (!best || u.ratio > best.ratio) best = { zoneId: u.zoneId as string, ratio: u.ratio };
+      const peakRatio = u.capacity > 0 ? u.peakOccupancy / u.capacity : 0;
+      if (!best || peakRatio > best.ratio) best = { zoneId: u.zoneId as string, ratio: peakRatio };
     }
     return best;
   }, [latestSnapshot]);
@@ -131,7 +135,7 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
   }, [latestSnapshot, media]);
 
   const entryExitFlow = useMemo(() => {
-    if (!graph) return { entries: [], exits: [] };
+    if (!graph) return { entries: [], exits: [], unaccountedExits: 0 };
     const entries = graph.nodes
       .filter((n) => n.type === 'entry')
       .map((n) => ({
@@ -144,8 +148,10 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
         name: n.label || 'Exit',
         count: exitByNode.get(n.id as string) ?? 0,
       }));
-    return { entries, exits };
-  }, [graph, spawnByNode, exitByNode]);
+    const exitNodeTotal = exits.reduce((s, e) => s + e.count, 0);
+    const unaccountedExits = Math.max(0, totalExited - exitNodeTotal);
+    return { entries, exits, unaccountedExits };
+  }, [graph, spawnByNode, exitByNode, totalExited]);
 
   const engagementSummary = useMemo(() => {
     const exited = visitors.filter((v) => !v.isActive);
@@ -322,6 +328,17 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
                       </span>
                     </div>
                   ))}
+                  {entryExitFlow.unaccountedExits > 0 && (
+                    <div className="flex items-center gap-2 text-[11px] pt-1.5 mt-1.5 border-t border-border/40">
+                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
+                      <span className="flex-1 truncate text-muted-foreground italic">
+                        {t('analyze.bento.entryExit.sessionEnd')}
+                      </span>
+                      <span className="font-data tabular-nums text-muted-foreground">
+                        {entryExitFlow.unaccountedExits}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </BentoCard>
