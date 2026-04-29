@@ -14,8 +14,19 @@ export function StatsFooter() {
   const active = visitors.filter((v) => v.isActive).length;
   const watching = visitors.filter((v) => v.isActive && v.currentAction === 'WATCHING').length;
   const waiting = visitors.filter((v) => v.isActive && v.currentAction === 'WAITING').length;
-  const fatigue = latestSnapshot ? Math.round(latestSnapshot.fatigueDistribution.mean * 100) : 0;
-  const peakUtil = latestSnapshot ? Math.round(Math.max(...latestSnapshot.zoneUtilizations.map((u) => u.ratio)) * 100) : 0;
+  // fatigueDistribution.mean / zoneUtilizations[].ratio 둘 다 active visitor 기반.
+  // sim 종료 후엔 0 으로 떨어지므로 historical/all-visitor 값을 footer 에 노출.
+  const fatigue = visitors.length > 0
+    ? Math.round((visitors.reduce((s, v) => s + (v.fatigue ?? 0), 0) / visitors.length) * 100)
+    : 0;
+  const peakUtil = latestSnapshot
+    ? Math.round(
+        Math.max(
+          0,
+          ...latestSnapshot.zoneUtilizations.map((u) => (u.capacity > 0 ? u.peakOccupancy / u.capacity : 0)),
+        ) * 100,
+      )
+    : 0;
   const bottlenecks = latestSnapshot ? latestSnapshot.bottlenecks.filter((b) => b.score > 0.5).length : 0;
 
   return (
