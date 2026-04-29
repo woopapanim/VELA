@@ -12,17 +12,17 @@ export function Timeline() {
   const kpiHistory = useStore((s) => s.kpiHistory);
   const isReplayable = phase === 'completed' || phase === 'paused';
 
-  // Bottleneck 마커 — kpiHistory walk
+  // Bottleneck 마커 — kpiHistory walk (entry shape: { timestamp, snapshot: { bottlenecks } })
   const markers = useMemo(() => {
     if (!duration) return [];
     const seen = new Set<string>();
     const out: { t: number; kind: 'bottleneck' }[] = [];
-    for (const snap of kpiHistory as any[]) {
-      for (const bn of snap.bottlenecks ?? []) {
+    for (const entry of kpiHistory as any[]) {
+      for (const bn of entry.snapshot?.bottlenecks ?? []) {
         const key = bn.zoneId as string;
         if (!seen.has(key)) {
           seen.add(key);
-          out.push({ t: snap.simulationTimeMs, kind: 'bottleneck' });
+          out.push({ t: entry.timestamp, kind: 'bottleneck' });
         }
       }
     }

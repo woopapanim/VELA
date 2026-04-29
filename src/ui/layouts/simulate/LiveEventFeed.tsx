@@ -11,16 +11,15 @@ type Event =
 const VISITOR_MILESTONES = [50, 100, 200, 500] as const;
 
 // kpiHistory 를 walk 해서 시간순 이벤트로 변환. memoize 로 비용 낮춤.
-function deriveEvents(history: ReadonlyArray<{ simulationTimeMs: number; bottlenecks: ReadonlyArray<{ zoneId: ZoneId; score: number }> }>): Event[] {
+function deriveEvents(history: ReadonlyArray<{ timestamp: number; snapshot: { bottlenecks: ReadonlyArray<{ zoneId: ZoneId; score: number }> } }>): Event[] {
   const events: Event[] = [];
   const activeBn = new Map<string, number>(); // zoneId → start time
-  let lastMilestone = 0;
 
-  for (const snap of history) {
-    const t = snap.simulationTimeMs;
+  for (const entry of history) {
+    const t = entry.timestamp;
     const present = new Set<string>();
 
-    for (const bn of snap.bottlenecks) {
+    for (const bn of entry.snapshot.bottlenecks) {
       const key = bn.zoneId as string;
       present.add(key);
       if (!activeBn.has(key)) {
@@ -34,11 +33,6 @@ function deriveEvents(history: ReadonlyArray<{ simulationTimeMs: number; bottlen
         activeBn.delete(key);
       }
     }
-
-    // visitor milestones (use snapshot-equivalent — derive from utilizations sum is unreliable;
-    // emit purely from a passed-in count signal would be better. For now skip in walk and
-    // compute below via store.totalSpawned).
-    void lastMilestone;
   }
   return events;
 }
