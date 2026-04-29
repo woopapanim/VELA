@@ -1,0 +1,85 @@
+import { ChevronLeft, BarChart3 } from 'lucide-react';
+import { useStore } from '@/stores';
+import { ProgressRing } from '../../components/ProgressRing';
+import { ThemeToggle } from '../../components/ThemeToggle';
+import { LanguageToggle } from '../../components/LanguageToggle';
+import { HelpButton } from '../../components/HelpOverlay';
+
+interface Props {
+  onBackToBuild: () => void;
+  insightsOpen: boolean;
+  onToggleInsights: () => void;
+}
+
+// Simulate 단계 상단 바 (56px). 좌측: ← Build · VELA · 시나리오. 가운데: stepper
+// (Build ✓ → Simulate active → Analyze). 우측: Insights toggle + 도구. 좌/우 영구
+// 패널 폐기 — 캔버스 full-bleed, Insights 는 토글.
+export function CockpitTopBar({ onBackToBuild, insightsOpen, onToggleInsights }: Props) {
+  const scenario = useStore((s) => s.scenario);
+  const phase = useStore((s) => s.phase);
+  const timeState = useStore((s) => s.timeState);
+  const simProgress = scenario
+    ? Math.min(1, timeState.elapsed / scenario.simulationConfig.duration)
+    : 0;
+  const elapsed = timeState.elapsed;
+  const minutes = Math.floor(elapsed / 60000);
+  const seconds = Math.floor((elapsed % 60000) / 1000);
+
+  return (
+    <header className="flex items-center justify-between px-4 h-14 border-b border-border bg-[var(--surface)] flex-shrink-0">
+      <div className="flex items-center gap-3 min-w-0">
+        <button
+          type="button"
+          onClick={onBackToBuild}
+          className="flex items-center gap-1 px-2 h-7 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          title="Back to Build"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          Build
+        </button>
+        <h1 className="text-sm font-semibold tracking-tight">VELA</h1>
+        {scenario && (
+          <span className="text-xs text-muted-foreground italic truncate max-w-64">
+            {scenario.meta.name}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 text-[11px]">
+        <span className="text-muted-foreground/80">1 Build ✓</span>
+        <span className="text-muted-foreground/60">→</span>
+        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+          2 Simulate
+        </span>
+        <span className="text-muted-foreground/60">→</span>
+        <span className="text-muted-foreground/80">3 Analyze</span>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {phase !== 'idle' && (
+          <div className="flex items-center gap-2 text-xs font-data text-muted-foreground mr-1">
+            <ProgressRing progress={simProgress} size={18} />
+            <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={onToggleInsights}
+          className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium transition-colors ${
+            insightsOpen
+              ? 'bg-primary/15 text-primary'
+              : 'bg-secondary text-secondary-foreground hover:bg-accent'
+          }`}
+          title="Toggle Insights drawer"
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          Insights
+        </button>
+        <div className="w-px h-5 bg-border mx-1" />
+        <HelpButton />
+        <LanguageToggle />
+        <ThemeToggle />
+      </div>
+    </header>
+  );
+}

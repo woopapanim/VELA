@@ -3,7 +3,7 @@ import { ThemeProvider } from '@/ui/components/ThemeProvider';
 import { ToastProvider } from '@/ui/components/Toast';
 import { CompletionModal } from '@/ui/components/CompletionModal';
 import { BuildLayout } from '@/ui/layouts/BuildLayout';
-import { MainLayout } from '@/ui/layouts/MainLayout';
+import { SimulateLayout } from '@/ui/layouts/SimulateLayout';
 import { WelcomeScreen } from '@/ui/layouts/WelcomeScreen';
 
 type AppPhase = 'welcome' | 'build' | 'simulate';
@@ -18,7 +18,7 @@ function App() {
         {phase === 'build' && <BuildLayout onRun={() => setPhase('simulate')} />}
         {phase === 'simulate' && (
           <>
-            <MainLayout onBackToBuild={() => setPhase('build')} />
+            <SimulateLayout onBackToBuild={() => setPhase('build')} />
             <CompletionModal />
           </>
         )}
