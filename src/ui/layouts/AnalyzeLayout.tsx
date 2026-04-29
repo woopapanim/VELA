@@ -291,8 +291,8 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
                           style={{ width: `${Math.round(b.score * 100)}%` }}
                         />
                       </div>
-                      <span className="font-data tabular-nums w-9 text-right text-muted-foreground">
-                        {Math.round(b.score * 100)}
+                      <span className="font-data tabular-nums w-10 text-right text-muted-foreground">
+                        {Math.round(b.score * 100)}%
                       </span>
                     </li>
                   ))}
