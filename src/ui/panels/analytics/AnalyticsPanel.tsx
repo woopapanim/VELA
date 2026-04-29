@@ -1,300 +1,95 @@
+/**
+ * AnalyticsPanel — Analyze 단계 우측 패널 (post-run 전용, 2026-04-28).
+ *
+ * 2026-04-28 IA 재구성:
+ *   - Live 탭(Flow/Behavior/Experience) 제거 → `LivePulse` 가 대체.
+ *   - Persistent KPI 블록 제거 → Pulse 가 모니터링 담당, 여기는 회고만.
+ *   - Post 탭(Action/Pin/Report)만 유지.
+ *
+ * 진입 문서: docs/plans/ux-ia-restructure.md §6 Stage B
+ */
 import { useState } from 'react';
 import { useStore } from '@/stores';
-import { generateInsights } from '@/analytics';
 import { useT } from '@/i18n';
-import { InfoTooltip } from '@/ui/components/InfoTooltip';
-import {
-  AlertTriangle,
-  Info,
-  AlertCircle,
-  ArrowRight,
-  GitBranch,
-  Users,
-  Sparkles,
-  Zap,
-  FileText,
-  Pin,
-} from 'lucide-react';
-import type { InsightEntry } from '@/domain';
-import { TrendChart } from './TrendChart';
-import { ZoneDetail } from './ZoneDetail';
-import { ProfileLegend } from './ProfileLegend';
+import { experienceModeTier } from '@/domain';
+import { Zap, FileText, Pin, Save, GitBranch } from 'lucide-react';
+import { useToast } from '@/ui/components/Toast';
+import { scenarioManager } from '@/scenario';
+import { PolicyComparisonLauncher } from '../build/PolicyComparisonLauncher';
 import { CompletionReport } from './CompletionReport';
 import { SensitivityPanel } from './SensitivityPanel';
-import { StatsDashboard } from './StatsDashboard';
-import { HeatRanking } from './HeatRanking';
-import { FollowedAgentCard } from './FollowedAgentCard';
 import { EventLog } from './EventLog';
-import { ZoneDonutChart } from './ZoneDonutChart';
-import { ActionAreaChart } from './ActionAreaChart';
-import { ZoneGraphViz } from './ZoneGraphViz';
 import { AgentJourney } from './AgentJourney';
-import { NodeTraffic } from './NodeTraffic';
-import { EngagementHistogram } from './EngagementHistogram';
-import { ExperienceQuality } from './ExperienceQuality';
-import { ZoneMediaPerformance } from './ZoneMediaPerformance';
-import { FlowVsExperience } from './FlowVsExperience';
 import { PinTimeline } from './PinTimeline';
 import { PinDetail } from './PinDetail';
 import { PinCompare } from './PinCompare';
 
-type AnalyticsTab = 'flow' | 'behavior' | 'experience' | 'action' | 'pin' | 'report';
+type AnalyticsTab = 'action' | 'pin' | 'report';
 
-const TABS: { id: AnalyticsTab; label: string; icon: typeof GitBranch }[] = [
-  { id: 'flow', label: 'Flow', icon: GitBranch },
-  { id: 'behavior', label: 'Behavior', icon: Users },
-  { id: 'experience', label: 'Experience', icon: Sparkles },
+interface TabMeta {
+  id: AnalyticsTab;
+  label: string;
+  icon: typeof Zap;
+}
+
+const TABS: TabMeta[] = [
   { id: 'action', label: 'Action', icon: Zap },
   { id: 'pin', label: 'Pin', icon: Pin },
   { id: 'report', label: 'Report', icon: FileText },
 ];
 
-export function AnalyticsPanel() {
-  const [tab, setTab] = useState<AnalyticsTab>('action');
+interface AnalyticsPanelProps {
+  /** 시나리오를 변형으로 fork 하고 Build 단계로 이동 (검증 tier Action 탭에서 호출). */
+  onForkToBuild?: () => void;
+}
+
+export function AnalyticsPanel({ onForkToBuild }: AnalyticsPanelProps = {}) {
   const t = useT();
+  const scenario = useStore((s) => s.scenario);
+  const tier = scenario?.experienceMode
+    ? experienceModeTier(scenario.experienceMode)
+    : 'operations';
 
-  const visitors = useStore((s) => s.visitors);
-  const zones = useStore((s) => s.zones);
-  const phase = useStore((s) => s.phase);
-  const timeState = useStore((s) => s.timeState);
-  const latestSnapshot = useStore((s) => s.latestSnapshot);
-  const staticInsights = useStore((s) => s.staticInsights);
-  const totalSpawned = useStore((s) => s.totalSpawned);
-  const totalExited = useStore((s) => s.totalExited);
-  const spawnByNode = useStore((s) => s.spawnByNode);
-  const exitByNode = useStore((s) => s.exitByNode);
-  const graph = useStore((s) => s.waypointGraph);
-  const media = useStore((s) => s.media);
-  const mediaStats = useStore((s) => s.mediaStats);
-  const groups = useStore((s) => s.groups);
-
-  const activeCount = visitors.filter((v) => v.isActive).length;
-  const elapsed = timeState.elapsed;
-  const minutes = Math.floor(elapsed / 60000);
-  const seconds = Math.floor((elapsed % 60000) / 1000);
-
-  const liveInsights = latestSnapshot
-    ? generateInsights(latestSnapshot, zones, media, mediaStats, visitors, groups, t)
-    : [];
-
-  const avgFatigue = latestSnapshot?.fatigueDistribution.mean ?? 0;
-  const peakZone = latestSnapshot?.zoneUtilizations
-    .reduce((max, u) => (u.ratio > max.ratio ? u : max), { ratio: 0, zoneId: '' as any });
-  const peakZoneName = peakZone?.zoneId
-    ? zones.find((z) => z.id === peakZone.zoneId)?.name ?? '—'
-    : '—';
-  const peakLoadPct = Math.round((peakZone?.ratio ?? 0) * 100);
-  const throughput = latestSnapshot?.flowEfficiency.throughputPerMinute ?? 0;
+  const [tab, setTab] = useState<AnalyticsTab>('action');
 
   return (
     <div className="p-3 space-y-3">
-      {/* ─── PERSISTENT TOP ─── */}
-      <div className="bento-box p-3">
-        <h2 className="panel-section mb-2 flex items-center gap-1.5">
-          Summary
-          <InfoTooltip text={t('tooltip.summary')} />
-        </h2>
-        <div className="grid grid-cols-3 gap-1.5">
-          <KpiTile label="Active" value={activeCount} />
-          <KpiTile label="Spawned" value={totalSpawned} />
-          <KpiTile label="Exited" value={totalExited} accent="danger" />
-          <KpiTile
-            label="Fatigue"
-            value={`${Math.round(avgFatigue * 100)}%`}
-            accent={avgFatigue > 0.6 ? 'danger' : 'primary'}
-          />
-          <KpiTile label="Thru/min" value={throughput.toFixed(1)} />
-          <KpiTile label="Elapsed" value={`${minutes}:${seconds.toString().padStart(2, '0')}`} />
-        </div>
-        {latestSnapshot && (
-          <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-            <span>Peak Zone</span>
-            <span className="font-data truncate max-w-[60%]">{peakZoneName}</span>
-            <span
-              className={`font-data ${peakLoadPct > 80 ? 'text-[var(--status-danger)]' : peakLoadPct > 50 ? 'text-[var(--status-warning)]' : 'text-primary'}`}
-            >
-              {peakLoadPct}%
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="bento-box p-3">
-        <h2 className="panel-section mb-2 flex items-center gap-1.5">
-          Agent Distribution
-          <InfoTooltip text={t('tooltip.agentDistribution')} />
-        </h2>
-        <div className="space-y-1">
-          {(['MOVING', 'WATCHING', 'WAITING', 'RESTING', 'EXITING'] as const).map((action) => {
-            const count = visitors.filter((v) => v.isActive && v.currentAction === action).length;
-            const pct = activeCount > 0 ? Math.round((count / activeCount) * 100) : 0;
-            const barColor =
-              action === 'WATCHING' ? 'bg-[var(--status-success)]' :
-              action === 'WAITING' ? 'bg-[var(--status-warning)]' :
-              action === 'RESTING' ? 'bg-[var(--status-info)]' :
-              action === 'EXITING' ? 'bg-[var(--status-danger)]' :
-              'bg-primary';
-            return (
-              <div key={action} className="flex items-center gap-2">
-                <span className="w-14 text-muted-foreground font-data text-[10px]">{action}</span>
-                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${barColor}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="w-7 text-right font-data text-muted-foreground text-[10px]">{count}</span>
-              </div>
-            );
-          })}
-          {/* CONGESTED: subset of MOVING — stuck by physics (velocity below crawl speed). */}
-          {(() => {
-            const congestedCount = visitors.filter((v) => {
-              if (!v.isActive || v.currentAction !== 'MOVING') return false;
-              const speed = Math.hypot(v.velocity.x, v.velocity.y);
-              return speed < 5;
-            }).length;
-            const pct = activeCount > 0 ? Math.round((congestedCount / activeCount) * 100) : 0;
-            return (
-              <div className="flex items-center gap-2">
-                <span className="w-14 text-muted-foreground font-data text-[10px] opacity-70">CONGESTED</span>
-                <div className="flex-1 h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-300 bg-[var(--status-warning)] opacity-60"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="w-7 text-right font-data text-muted-foreground text-[10px]">{congestedCount}</span>
-              </div>
-            );
-          })()}
-        </div>
-        {graph && (spawnByNode.size > 0 || exitByNode.size > 0) && (
-          <div className="mt-2 pt-2 border-t border-border space-y-1">
-            {graph.nodes.filter((n) => n.type === 'entry').map((n) => (
-              <div key={n.id as string} className="flex items-center gap-1.5 text-[10px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] shrink-0" />
-                <span className="flex-1 truncate font-data">{n.label || 'Entry'}</span>
-                <span className="text-primary font-data">{spawnByNode.get(n.id as string) ?? 0} in</span>
-              </div>
-            ))}
-            {graph.nodes.filter((n) => n.type === 'exit').map((n) => (
-              <div key={n.id as string} className="flex items-center gap-1.5 text-[10px]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444] shrink-0" />
-                <span className="flex-1 truncate font-data">{n.label || 'Exit'}</span>
-                <span className="text-[var(--status-danger)] font-data">{exitByNode.get(n.id as string) ?? 0} out</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─── TAB STRIP ─── */}
+      {/* Tab strip — Post 만 (Live 는 LivePulse 가 대체). */}
       <div className="flex gap-0.5 p-0.5 rounded-lg bg-secondary/50 border border-border">
-        {TABS.map((t) => {
-          const Icon = t.icon;
-          const active = tab === t.id;
+        {TABS.map((meta) => {
+          const Icon = meta.icon;
+          const active = tab === meta.id;
           return (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={meta.id}
+              onClick={() => setTab(meta.id)}
               className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-md transition-colors ${
                 active
                   ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               }`}
-              title={t.label}
+              title={meta.label}
             >
               <Icon className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-medium">{t.label}</span>
+              <span className="text-[11px] font-medium">{meta.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* ─── TAB CONTENT ─── */}
-      {tab === 'flow' && (
-        <div className="space-y-3">
-          <HeatRanking />
-          <NodeTraffic />
-          <TrendChart />
-          <ZoneDetail />
-          <ZoneDonutChart />
-          <ZoneGraphViz />
-        </div>
-      )}
-
-      {tab === 'behavior' && (
-        <div className="space-y-3">
-          <ProfileLegend />
-          <ActionAreaChart />
-          <FollowedAgentCard />
-        </div>
-      )}
-
-      {tab === 'experience' && (
-        <div className="space-y-3">
-          <EngagementHistogram />
-          <ExperienceQuality />
-          <ZoneMediaPerformance />
-          <FlowVsExperience />
-        </div>
-      )}
-
       {tab === 'action' && (
         <div className="space-y-3">
-          <div className="bento-box p-3">
-            <h2 className="panel-section mb-2 flex items-center gap-1.5">
-              Insights
-              <InfoTooltip text={t('tooltip.insights')} />
-            </h2>
-            {phase === 'idle' && staticInsights.length > 0 && (
-              <div className="space-y-2 mb-3">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Pre-Simulation Analysis</p>
-                {staticInsights
-                  .filter((si) => si.bottleneckRisk === 'high' || si.bottleneckRisk === 'critical')
-                  .map((si) => {
-                    const zone = zones.find((z) => z.id === si.zoneId);
-                    return (
-                      <div key={si.zoneId as string} className="flex items-start gap-2 p-2 rounded-lg bg-[var(--status-warning)]/10 border border-[var(--status-warning)]/20">
-                        <AlertTriangle className="w-3.5 h-3.5 text-[var(--status-warning)] mt-0.5 shrink-0" />
-                        <div className="text-[10px]">
-                          <p className="font-medium">
-                            {t('analytics.staticInsight.title', { zone: zone?.name ?? '' })}
-                          </p>
-                          <p className="text-muted-foreground mt-0.5">
-                            {t('analytics.staticInsight.cause', {
-                              density: si.areaPerPerson.toFixed(1),
-                              risk: si.bottleneckRisk,
-                            })}
-                          </p>
-                          <p className="text-primary mt-1">
-                            {t('analytics.staticInsight.rec')}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-
-            {liveInsights.length > 0 ? (
-              <div className="space-y-2">
-                {liveInsights.slice(0, 5).map((insight, i) => (
-                  <InsightCard key={i} insight={insight} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                {phase === 'idle'
-                  ? 'Start simulation to see real-time insights'
-                  : 'Collecting data...'}
-              </p>
-            )}
-          </div>
-
+          {/* 상단 핫스팟 — 어디가 막혔나 / 어디로 흘렀나 (운영/검증 공통, no-scroll 우선순위) */}
+          <PostRunHotspots t={t} />
+          {/* tier-specific 진입점:
+              운영 = PolicyComparisonLauncher (cap A/B/C 비교)
+              검증 = ForkToBuild CTA (변형 fork → Build 에서 수정 → 재시뮬) */}
+          {tier === 'operations' ? (
+            <PolicyComparisonLauncher />
+          ) : (
+            <ValidationActionCard onForkToBuild={onForkToBuild} t={t} />
+          )}
           <SensitivityPanel />
-          <StatsDashboard />
         </div>
       )}
 
@@ -317,111 +112,213 @@ export function AnalyticsPanel() {
   );
 }
 
-function KpiTile({
-  label,
-  value,
-  accent,
+// ── ValidationActionCard — 검증 tier 의 Action 탭 진입점 ────────
+// 결과 요약 (KPI 3개) + 다음 행동 (저장 / 변형 fork) 두 단으로 구성.
+// 운영 tier 의 PolicyComparisonLauncher 와 framing 일관성: "본 다음에 결정한다."
+function ValidationActionCard({
+  onForkToBuild,
+  t,
 }: {
-  label: string;
-  value: string | number;
-  accent?: 'primary' | 'danger' | 'warning';
+  onForkToBuild?: () => void;
+  t: (key: string) => string;
 }) {
-  const color =
-    accent === 'danger'
-      ? 'text-[var(--status-danger)]'
-      : accent === 'warning'
-        ? 'text-[var(--status-warning)]'
-        : 'text-primary';
-  return (
-    <div className="bento-box-elevated p-2 text-center">
-      <div className={`text-sm font-semibold font-data ${color}`}>{value}</div>
-      <div className="text-[9px] text-muted-foreground uppercase mt-0.5 truncate">
-        {label}
-      </div>
-    </div>
-  );
-}
+  const { toast } = useToast();
+  const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const visitors = useStore((s) => s.visitors);
+  const timeState = useStore((s) => s.timeState);
+  const scenario = useStore((s) => s.scenario);
+  const kpiHistory = useStore((s) => s.kpiHistory);
 
-/** Map insight category → store action + i18n key for the button label */
-function resolveInsightAction(insight: InsightEntry): { labelKey: string; run: () => void } | null {
-  const zoneId = insight.affectedZoneIds[0];
-  const mediaId = insight.affectedMediaIds[0];
-  const s = useStore.getState();
+  const exited = visitors.filter((v) => !v.isActive);
+  const avgDwellMs = exited.length > 0
+    ? exited.reduce((s, v) => s + ((v.exitedAt ?? timeState.elapsed) - v.enteredAt), 0) / exited.length
+    : 0;
+  const avgDwellMin = Math.round(avgDwellMs / 60000 * 10) / 10;
+  const skipPct = Math.round((latestSnapshot?.skipRate.globalSkipRate ?? 0) * 100);
+  const bottleneckCount = latestSnapshot
+    ? latestSnapshot.bottlenecks.filter((b) => b.score > 0.5).length
+    : 0;
 
-  switch (insight.category) {
-    case 'congestion':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'capacity':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editCapacity', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'skip':
-      if (!mediaId) return null;
-      return { labelKey: 'analytics.action.editMedia', run: () => { s.selectMedia(mediaId); scrollEditorIntoView('media'); } };
-    case 'fatigue':
-      return { labelKey: 'analytics.action.viewHeatmap', run: () => s.setOverlayMode('heatmap') };
-    case 'flow':
-      return { labelKey: 'analytics.action.viewFlow', run: () => s.setOverlayMode('flow') };
-    case 'space_roi':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'content_mix':
-      if (!zoneId) return null;
-      return { labelKey: 'analytics.action.editZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-    case 'group_impact':
-      if (zoneId) return { labelKey: 'analytics.action.checkZone', run: () => { s.selectZone(zoneId); scrollEditorIntoView('zone'); } };
-      return null;
-    case 'content_fatigue':
-      return {
-        labelKey: 'analytics.action.viewDensity',
-        run: () => {
-          s.setOverlayMode('density');
-          if (mediaId) { s.selectMedia(mediaId); scrollEditorIntoView('media'); }
-        },
-      };
-    default:
-      return null;
-  }
-}
-
-function scrollEditorIntoView(kind: 'zone' | 'media') {
-  requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(
-      kind === 'zone' ? '[data-editor="zone"]' : '[data-editor="media"]',
-    );
-    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  });
-}
-
-function InsightCard({ insight }: { insight: InsightEntry }) {
-  const t = useT();
-  const severityConfig = {
-    critical: { icon: AlertCircle, bgClass: 'bg-[var(--status-danger)]/10', borderClass: 'border-[var(--status-danger)]/20', iconClass: 'text-[var(--status-danger)]' },
-    warning: { icon: AlertTriangle, bgClass: 'bg-[var(--status-warning)]/10', borderClass: 'border-[var(--status-warning)]/20', iconClass: 'text-[var(--status-warning)]' },
-    info: { icon: Info, bgClass: 'bg-[var(--status-info)]/10', borderClass: 'border-[var(--status-info)]/20', iconClass: 'text-[var(--status-info)]' },
+  const handleSave = () => {
+    if (!scenario) return;
+    scenarioManager.save(scenario, kpiHistory);
+    toast('success', t('analytics.action.validation.saved', { name: scenario.meta.name }));
   };
 
-  const cfg = severityConfig[insight.severity];
-  const Icon = cfg.icon;
-  const action = resolveInsightAction(insight);
-
   return (
-    <div className={`flex items-start gap-2 p-2 rounded-lg ${cfg.bgClass} border ${cfg.borderClass}`}>
-      <Icon className={`w-3.5 h-3.5 ${cfg.iconClass} mt-0.5 shrink-0`} />
-      <div className="text-[10px] min-w-0 flex-1">
-        <p className="font-medium">{insight.problem}</p>
-        <p className="text-muted-foreground mt-0.5">{insight.cause}</p>
-        <p className="text-primary mt-1">{insight.recommendation}</p>
-        {action && (
-          <button
-            onClick={action.run}
-            className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium transition-colors"
-          >
-            {t(action.labelKey)}
-            <ArrowRight className="w-2.5 h-2.5" />
-          </button>
-        )}
+    <div className="bento-box p-4 space-y-3">
+      <h2 className="panel-section">{t('analytics.action.validation.title')}</h2>
+
+      {/* KPI 3 — 무엇을 본 후에 결정할지 명확하게 */}
+      <div className="grid grid-cols-3 gap-2">
+        <ResultTile
+          label={t('analytics.action.validation.kpi.bottleneck')}
+          value={String(bottleneckCount)}
+          tone={bottleneckCount > 0 ? 'danger' : 'good'}
+        />
+        <ResultTile
+          label={t('analytics.action.validation.kpi.dwell')}
+          value={`${avgDwellMin}m`}
+          tone="neutral"
+        />
+        <ResultTile
+          label={t('analytics.action.validation.kpi.skip')}
+          value={`${skipPct}%`}
+          tone={skipPct > 30 ? 'danger' : skipPct > 15 ? 'warning' : 'good'}
+        />
+      </div>
+
+      <p className="text-[11px] text-muted-foreground/80 leading-relaxed">
+        {t('analytics.action.validation.desc')}
+      </p>
+
+      {/* 두 CTA 병렬 — 저장 (이대로 OK) / 변형 (다른 안 시험) */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-secondary hover:bg-accent text-foreground text-[11px] font-medium transition-colors border border-border"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {t('analytics.action.validation.saveBtn')}
+        </button>
+        <button
+          type="button"
+          onClick={onForkToBuild}
+          disabled={!onForkToBuild}
+          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-primary/90 hover:bg-primary text-primary-foreground text-[11px] font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <GitBranch className="w-3.5 h-3.5" />
+          {t('analytics.action.validation.forkBtn')}
+        </button>
       </div>
     </div>
   );
 }
+
+// ── PostRunHotspots — Action 탭 상단 핫스팟 (운영/검증 공통) ─────
+// 시뮬 끝난 직후 "어디가 막혔나? / 어디로 흘렀나?" 두 질문에 답한다.
+// 좌: 병목 점수 상위 3 영역. 우: 누적 watchCount 상위 3 전시물.
+// 스크롤 없이 보여야 함 — 두 컬럼 grid, max 3 rows.
+function PostRunHotspots({ t }: { t: (key: string, params?: Record<string, any>) => string }) {
+  const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const zones = useStore((s) => s.zones);
+  const media = useStore((s) => s.media);
+  const mediaStats = useStore((s) => s.mediaStats);
+
+  if (!latestSnapshot) return null;
+
+  const topBottlenecks = latestSnapshot.bottlenecks
+    .slice()
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .filter((b) => b.score > 0)
+    .map((b) => ({
+      id: b.zoneId,
+      name: zones.find((z) => z.id === b.zoneId)?.name ?? '—',
+      score: b.score,
+    }));
+
+  const topMedia = Array.from(mediaStats.entries())
+    .map(([id, stats]) => ({
+      id,
+      name: media.find((m) => m.id === id)?.name ?? '—',
+      watchCount: stats.watchCount,
+    }))
+    .filter((m) => m.watchCount > 0)
+    .sort((a, b) => b.watchCount - a.watchCount)
+    .slice(0, 3);
+
+  return (
+    <div className="bento-box p-3 space-y-2">
+      <h3 className="text-[10px] uppercase tracking-wider text-muted-foreground/80 font-medium">
+        {t('analytics.action.hotspots.title')}
+      </h3>
+      <div className="grid grid-cols-2 gap-3">
+        {/* 좌: 병목 영역 */}
+        <div>
+          <div className="text-[10px] text-muted-foreground/80 mb-1">
+            {t('analytics.action.hotspots.bottleneckTitle')}
+          </div>
+          {topBottlenecks.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/60 py-1">
+              {t('analytics.action.hotspots.bottleneckEmpty')}
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {topBottlenecks.map((b) => {
+                const sev = b.score > 0.7 ? 'danger' : b.score > 0.4 ? 'warning' : 'muted';
+                const barColor =
+                  sev === 'danger' ? 'bg-[var(--status-danger)]'
+                  : sev === 'warning' ? 'bg-[var(--status-warning)]'
+                  : 'bg-muted-foreground/40';
+                const textColor =
+                  sev === 'danger' ? 'text-[var(--status-danger)]'
+                  : sev === 'warning' ? 'text-[var(--status-warning)]'
+                  : 'text-foreground';
+                return (
+                  <li key={b.id} className="flex items-center gap-1.5 text-[10px]">
+                    <span className="flex-1 truncate text-foreground/90">{b.name}</span>
+                    <div className="w-8 h-1 bg-secondary/60 rounded-full overflow-hidden shrink-0">
+                      <div className={`h-full ${barColor}`} style={{ width: `${Math.round(b.score * 100)}%` }} />
+                    </div>
+                    <span className={`font-data tabular-nums shrink-0 text-[10px] ${textColor}`}>
+                      {b.score.toFixed(2)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        {/* 우: 가장 많이 본 전시물 */}
+        <div>
+          <div className="text-[10px] text-muted-foreground/80 mb-1">
+            {t('analytics.action.hotspots.mediaTitle')}
+          </div>
+          {topMedia.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground/60 py-1">
+              {t('analytics.action.hotspots.mediaEmpty')}
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {topMedia.map((m) => (
+                <li key={m.id} className="flex items-center gap-1.5 text-[10px]">
+                  <span className="flex-1 truncate text-foreground/90">{m.name}</span>
+                  <span className="font-data tabular-nums shrink-0 text-[10px] text-primary">
+                    {t('analytics.action.hotspots.watchCount', { n: m.watchCount })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultTile({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: 'good' | 'warning' | 'danger' | 'neutral';
+}) {
+  const valColor =
+    tone === 'danger' ? 'text-[var(--status-danger)]'
+    : tone === 'warning' ? 'text-[var(--status-warning)]'
+    : tone === 'good' ? 'text-[var(--status-success)]'
+    : 'text-foreground';
+  return (
+    <div className="rounded-lg bg-secondary/40 border border-border px-2 py-1.5 text-center">
+      <div className="text-[9px] uppercase tracking-wider text-muted-foreground/80 font-medium leading-tight">
+        {label}
+      </div>
+      <div className={`text-base font-semibold font-data leading-tight mt-0.5 ${valColor}`}>{value}</div>
+    </div>
+  );
+}
+

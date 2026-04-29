@@ -3,8 +3,11 @@ import { CATEGORY_CONFIGS } from '@/domain';
 import { useT } from '@/i18n';
 
 // ── Numeric input field ──
-export function NumField({ label, value, onChange, disabled, step = 1 }: {
-  label: string; value: number; onChange: (v: number) => void; disabled: boolean; step?: number;
+// min/max 가 주어지면 blur 시 clamp + 범위 밖일 때 빨간 테두리. 타이핑 중엔 자유.
+// (예: max=2000 인데 "5000" 타이핑 → blur 시 2000 으로 스냅. 0/음수도 동일.)
+export function NumField({ label, value, onChange, disabled, step = 1, min, max }: {
+  label: string; value: number; onChange: (v: number) => void; disabled: boolean;
+  step?: number; min?: number; max?: number;
 }) {
   const [raw, setRaw] = useState(String(value));
   const prevValue = useRef(value);
@@ -14,13 +17,22 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
     if (parseFloat(raw) !== value) setRaw(String(value));
   }
 
+  const hasBounds = min !== undefined || max !== undefined;
+  const parsed = parseFloat(raw);
+  const isInvalid = raw === '' || isNaN(parsed)
+    || (min !== undefined && parsed < min)
+    || (max !== undefined && parsed > max);
+  const showError = hasBounds && !disabled && isInvalid;
+
   return (
     <div>
-      <label className="panel-label">{label}</label>
+      <label className="panel-label whitespace-nowrap overflow-hidden text-ellipsis block" title={label}>{label}</label>
       <input
         type="number"
         value={raw}
         step={step}
+        min={min}
+        max={max}
         onChange={(e) => {
           setRaw(e.target.value);
           const n = parseFloat(e.target.value);
@@ -28,10 +40,22 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
         }}
         onBlur={() => {
           const n = parseFloat(raw);
-          if (isNaN(n) || raw === '') setRaw(String(value));
+          if (isNaN(n) || raw === '') {
+            setRaw(String(value));
+            return;
+          }
+          let clamped = n;
+          if (min !== undefined) clamped = Math.max(min, clamped);
+          if (max !== undefined) clamped = Math.min(max, clamped);
+          if (clamped !== n) {
+            setRaw(String(clamped));
+            onChange(clamped);
+          }
         }}
         disabled={disabled}
-        className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+        className={`w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border disabled:opacity-50 ${
+          showError ? 'border-[var(--status-error)]' : 'border-border'
+        }`}
       />
     </div>
   );

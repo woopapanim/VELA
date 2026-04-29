@@ -1,11 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
-import { Plus, FolderOpen, Trash2, ArrowRight, Upload, Sparkles } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, ArrowRight, Upload } from 'lucide-react';
 import { useStore } from '@/stores';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
-import type { Scenario } from '@/domain';
+import type { Scenario, ScenarioId, FloorId } from '@/domain';
 import { useT } from '@/i18n';
-import { AnalyzeFloorPlan } from '@/ui/panels/build/AnalyzeFloorPlan';
 
 const HISTORY_KEY = 'vela-project-history';
 
@@ -31,13 +30,19 @@ function deleteFromHistory(id: string) {
   } catch {}
 }
 
-export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
+interface WelcomeScreenProps {
+  /** New Project 직후 호출 — App 이 mode 단계로 전환. */
+  onNewProjectCreated: () => void;
+  /** Open File / Recent Projects — 저장된 시나리오에 모드 이미 있으므로 ready 로 직행. */
+  onLoaded: () => void;
+}
+
+export function WelcomeScreen({ onNewProjectCreated, onLoaded }: WelcomeScreenProps) {
   const setScenario = useStore((s) => s.setScenario);
   const [showNameInput, setShowNameInput] = useState(false);
   const [projectName, setProjectName] = useState('');
   const [openError, setOpenError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const [showAnalyzer, setShowAnalyzer] = useState(false);
   const [, forceUpdate] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const t = useT();
@@ -63,15 +68,15 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       else existing.push(entry);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(-20)));
     } catch {}
-    onEnter();
-  }, [setScenario, onEnter, t]);
+    onLoaded();
+  }, [setScenario, onLoaded, t]);
 
   // ── New blank project ──
   const handleNew = useCallback(() => {
     const name = projectName.trim() || 'Untitled Project';
     const scenario: Scenario = {
       meta: {
-        id: `project_${Date.now()}` as any,
+        id: `project_${Date.now()}` as ScenarioId,
         name,
         description: '',
         version: 1,
@@ -81,7 +86,7 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         updatedAt: Date.now(),
       },
       floors: [{
-        id: 'floor_1f' as any, name: '1F', level: 0,
+        id: 'floor_1f' as FloorId, name: '1F', level: 0,
         canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
         zoneIds: [], metadata: {},
       }],
@@ -110,8 +115,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       // globalFlowMode intentionally omitted — user must choose before adding zones
     };
     setScenario(scenario);
-    onEnter();
-  }, [projectName, setScenario, onEnter]);
+    onNewProjectCreated();
+  }, [projectName, setScenario, onNewProjectCreated]);
 
   // ── Open File — showOpenFilePicker (모던 API) + fallback input ──
   const handleOpenFile = useCallback(async () => {
@@ -183,8 +188,8 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
   // ── Load from history ──
   const handleLoad = useCallback((entry: ProjectEntry) => {
     setScenario(entry.scenario);
-    onEnter();
-  }, [setScenario, onEnter]);
+    onLoaded();
+  }, [setScenario, onLoaded]);
 
   const handleDelete = useCallback((id: string) => {
     deleteFromHistory(id);
@@ -195,14 +200,14 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 bg-background flex items-center justify-center z-[300]"
+      className="flex-1 bg-background flex items-center justify-center overflow-y-auto relative"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {/* 드래그 오버레이 */}
       {isDragging && (
-        <div className="fixed inset-0 z-[310] flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-none pointer-events-none">
+        <div className="absolute inset-0 z-[310] flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-none pointer-events-none">
           <div className="text-center">
             <Upload className="w-10 h-10 text-primary mx-auto mb-2" />
             <p className="text-sm text-primary font-medium">{t('welcome.drop.hint')}</p>
@@ -276,13 +281,6 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
           {t('welcome.drag.hint')}
         </p>
 
-        <button
-          onClick={() => setShowAnalyzer(true)}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm rounded-2xl bg-secondary text-secondary-foreground hover:bg-accent transition-colors mb-3 cursor-pointer"
-        >
-          <Sparkles className="w-4 h-4" /> Analyze Floor Plan (AI)
-        </button>
-
         {openError && (
           <p className="text-[11px] text-red-400 text-center mb-3 px-2">{openError}</p>
         )}
@@ -318,12 +316,6 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
 
       </div>
 
-      {showAnalyzer && (
-        <AnalyzeFloorPlan
-          onClose={() => setShowAnalyzer(false)}
-          onLoaded={() => { setShowAnalyzer(false); onEnter(); }}
-        />
-      )}
     </div>
   );
 }

@@ -86,14 +86,19 @@ function closestPointOnSeg(px: number, py: number, ax: number, ay: number, bx: n
   return { x: ax + t * dx, y: ay + t * dy };
 }
 
-export function CanvasPanel() {
+export interface CanvasPanelProps {
+  /** Build 단계의 활성 task — 'region' 일 때만 캔버스에서 region 선택 허용 */
+  activeBuildTask?: 'region' | 'zones' | 'exhibits' | 'flow' | null;
+}
+
+export function CanvasPanel({ activeBuildTask = null }: CanvasPanelProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const managerRef = useRef<CanvasManager | null>(null);
   const { resolvedTheme } = useTheme();
   const { menu, show: showMenu, hide: hideMenu } = useContextMenu();
   const { popover, showPopover, hidePopover } = usePropertyPopover();
-  useKeyboardShortcuts();
+  useKeyboardShortcuts({ isBuildScreen: activeBuildTask !== null });
 
   // Store selectors (used by event handlers, not render loop)
   const zones = useStore((s) => s.zones);
@@ -127,9 +132,12 @@ export function CanvasPanel() {
   }, []);
 
   // Auto zoom-to-fit when scenario loads
+  // 시나리오 JSON 로드 시 한 번에 다수 zone 이 들어옴 → 화면 맞춤.
+  // 사용자가 빈 캔버스에 zone 을 하나씩 추가하는 경우는 스킵 (현재 viewport/zoom 유지).
   const prevZoneCount = useRef(0);
   useEffect(() => {
-    if (zones.length > 0 && prevZoneCount.current === 0 && managerRef.current) {
+    const isScenarioLoad = zones.length >= 2 && prevZoneCount.current === 0;
+    if (isScenarioLoad && managerRef.current) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const z of zones) {
         minX = Math.min(minX, z.bounds.x);
@@ -196,6 +204,8 @@ export function CanvasPanel() {
             activeFloorId: store.activeFloorId,
             shaftQueues: store.shaftQueues,
             densityGrids: store.densityGrids,
+            entryQueue: store.entryQueue,
+            bgCalRuler: store.bgCalRuler,
           });
         }
       }
@@ -218,7 +228,7 @@ export function CanvasPanel() {
   // Mouse world position for ghost node preview
   const mouseWorldPos = useRef<{ x: number; y: number } | null>(null);
 
-  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'waypoint-move' | 'floor-drag' | 'floor-resize';
+  type DragMode = 'none' | 'pan' | 'move' | 'resize' | 'gate' | 'l-handle' | 'media-move' | 'media-rotate' | 'media-resize' | 'media-vertex' | 'vertex' | 'bg-move' | 'bg-resize' | 'bg-rotate' | 'waypoint-move' | 'floor-drag' | 'floor-resize' | 'cal-ruler-a' | 'cal-ruler-b';
   const dragMode = useRef<DragMode>('none');
   const dragZoneId = useRef<string | null>(null);
   const dragGateId = useRef<string | null>(null);
@@ -231,9 +241,13 @@ export function CanvasPanel() {
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeCorner = useRef<'nw' | 'ne' | 'sw' | 'se' | 'n' | 'e' | 's' | 'w'>('se');
   const didDrag = useRef(false);
-  const bgDragAnchor = useRef({ x: 0, y: 0 }); // for bg-resize: opposite corner
+  const bgDragAnchor = useRef({ x: 0, y: 0 }); // for bg-resize: opposite corner (world)
   const bgDragInitScale = useRef(1); // initial bgScale at drag start
   const bgDragInitDiag = useRef(1); // initial diagonal distance at drag start
+  // Rotation drag state
+  const bgDragInitRot = useRef(0); // initial bgRotation (deg) at drag start
+  const bgDragRotCenter = useRef({ x: 0, y: 0 }); // image center in world coords
+  const bgDragInitAngle = useRef(0); // initial pointer angle (rad) at drag start
 
   // Vertex drag state (for custom polygon editing via ZoneEditor)
   const dragVertexIdx = useRef<number | null>(null);
@@ -427,10 +441,12 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       return;
     }
 
-    // Floor corner resize (selected floor only) OR label drag — sim not running.
-    if (e.button === 0 && world) {
+    // Floor corner resize (selected floor only) OR label drag — 시뮬 idle 일 때만.
+    // running/paused 모두 차단: paused 중 Build 단계 이동해 floor 를 흔드는 사고 방지.
+    // Region task 에서만 캔버스로 floor 조작 — 다른 task 에서는 zone/exhibit 작업 보호.
+    if (e.button === 0 && world && activeBuildTask === 'region') {
       const storeInit = useStore.getState();
-      if (storeInit.phase !== 'running') {
+      if (storeInit.phase === 'idle') {
         // Corners take priority over label (both are outside zone hit areas).
         const hitCorner = hitTestFloorCorner(world, storeInit.floors, storeInit.zones, storeInit.activeFloorId);
         if (hitCorner) {
@@ -1015,7 +1031,24 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           e.preventDefault();
         }
       } else {
-        // Nothing clicked — check background image for drag/resize
+        // 5m calibration ruler endpoint hit-test (highest priority — user wants
+        // ruler endpoints draggable even over the bg image).
+        const ruler = store.bgCalRuler;
+        if (ruler) {
+          const zoom = managerRef.current?.camera.zoom ?? 1;
+          const hitR = 14 / Math.max(zoom, 0.3);
+          const hitR2 = hitR * hitR;
+          const dxa = world.x - ruler.a.x, dya = world.y - ruler.a.y;
+          const dxb = world.x - ruler.b.x, dyb = world.y - ruler.b.y;
+          const dA = dxa * dxa + dya * dya;
+          const dB = dxb * dxb + dyb * dyb;
+          if (dA <= hitR2 || dB <= hitR2) {
+            dragMode.current = dA < dB ? 'cal-ruler-a' : 'cal-ruler-b';
+            e.preventDefault();
+            return;
+          }
+        }
+        // Nothing clicked — check background image for drag/resize/rotate
         const manager = managerRef.current;
         if (manager && store.showBackground) {
           const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
@@ -1027,39 +1060,74 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
               fl.canvas.bgScale ?? 1,
             );
             if (bgBounds) {
-              // Check corner handles first (12px hit radius)
-              const corners: Array<{ corner: 'nw' | 'ne' | 'sw' | 'se'; cx: number; cy: number }> = [
-                { corner: 'nw', cx: bgBounds.x, cy: bgBounds.y },
-                { corner: 'ne', cx: bgBounds.x + bgBounds.w, cy: bgBounds.y },
-                { corner: 'sw', cx: bgBounds.x, cy: bgBounds.y + bgBounds.h },
-                { corner: 'se', cx: bgBounds.x + bgBounds.w, cy: bgBounds.y + bgBounds.h },
+              const rotDeg = fl.canvas.bgRotation ?? 0;
+              const r = (rotDeg * Math.PI) / 180;
+              const cos = Math.cos(r), sin = Math.sin(r);
+              const cx = bgBounds.x + bgBounds.w / 2;
+              const cy = bgBounds.y + bgBounds.h / 2;
+              // Local-frame corners (centered at origin)
+              const halfW = bgBounds.w / 2, halfH = bgBounds.h / 2;
+              const localCorners = [
+                { corner: 'nw' as const, lx: -halfW, ly: -halfH },
+                { corner: 'ne' as const, lx:  halfW, ly: -halfH },
+                { corner: 'sw' as const, lx: -halfW, ly:  halfH },
+                { corner: 'se' as const, lx:  halfW, ly:  halfH },
               ];
+              const worldCorners = localCorners.map((c) => ({
+                corner: c.corner,
+                cx: cx + c.lx * cos - c.ly * sin,
+                cy: cy + c.lx * sin + c.ly * cos,
+              }));
+
+              // Rotation handle: outward from top-mid edge in rotated frame
+              const rotHandleDist = 28;
+              const topMidLocalY = -halfH - rotHandleDist;
+              const rotHandleX = cx + 0 * cos - topMidLocalY * sin;
+              const rotHandleY = cy + 0 * sin + topMidLocalY * cos;
+              if (Math.abs(world.x - rotHandleX) < 12 && Math.abs(world.y - rotHandleY) < 12) {
+                store.pushUndo(store.zones, store.media, store.waypointGraph);
+                dragMode.current = 'bg-rotate';
+                bgDragRotCenter.current = { x: cx, y: cy };
+                bgDragInitRot.current = rotDeg;
+                bgDragInitAngle.current = Math.atan2(world.y - cy, world.x - cx);
+                e.preventDefault();
+                selectZone(null);
+                return;
+              }
+
+              // Corner handles (12px hit radius)
               let hitCorner: 'nw' | 'ne' | 'sw' | 'se' | null = null;
-              for (const { corner, cx, cy } of corners) {
-                if (Math.abs(world.x - cx) < 12 && Math.abs(world.y - cy) < 12) {
+              for (const { corner, cx: hx, cy: hy } of worldCorners) {
+                if (Math.abs(world.x - hx) < 12 && Math.abs(world.y - hy) < 12) {
                   hitCorner = corner;
                   break;
                 }
               }
               if (hitCorner) {
+                store.pushUndo(store.zones, store.media, store.waypointGraph);
                 dragMode.current = 'bg-resize';
                 resizeCorner.current = hitCorner;
-                // Anchor = opposite corner
                 const opp = hitCorner === 'nw' ? 'se' : hitCorner === 'ne' ? 'sw' : hitCorner === 'sw' ? 'ne' : 'nw';
-                const oppC = corners.find((c) => c.corner === opp)!;
+                const oppC = worldCorners.find((c) => c.corner === opp)!;
+                const hitC = worldCorners.find((c) => c.corner === hitCorner)!;
                 bgDragAnchor.current = { x: oppC.cx, y: oppC.cy };
                 bgDragInitScale.current = fl.canvas.bgScale ?? 1;
-                const dx = corners.find((c) => c.corner === hitCorner)!.cx - oppC.cx;
-                const dy = corners.find((c) => c.corner === hitCorner)!.cy - oppC.cy;
+                const dx = hitC.cx - oppC.cx;
+                const dy = hitC.cy - oppC.cy;
                 bgDragInitDiag.current = Math.sqrt(dx * dx + dy * dy);
                 e.preventDefault();
                 selectZone(null);
                 return;
               }
-              // Check if inside bg image bounds → bg-move
-              if (world.x >= bgBounds.x && world.x <= bgBounds.x + bgBounds.w &&
-                  world.y >= bgBounds.y && world.y <= bgBounds.y + bgBounds.h) {
+
+              // Inside rotated rect? Transform world point to local frame.
+              const dx = world.x - cx, dy = world.y - cy;
+              const lx = dx * cos + dy * sin;
+              const ly = -dx * sin + dy * cos;
+              if (lx >= -halfW && lx <= halfW && ly >= -halfH && ly <= halfH) {
+                store.pushUndo(store.zones, store.media, store.waypointGraph);
                 dragMode.current = 'bg-move';
+                // For move, store world-space offset relative to top-left corner of axis-aligned bg
                 dragOffset.current = { x: world.x - bgBounds.x, y: world.y - bgBounds.y };
                 e.preventDefault();
                 selectZone(null);
@@ -1071,7 +1139,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         selectZone(null);
       }
     }
-  }, [editorMode, selectZone, setEditorMode]);
+  }, [editorMode, selectZone, setEditorMode, activeBuildTask]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (didDrag.current) return;
@@ -1134,9 +1202,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const anyZone = hitZone();
     const hitNothing = !anyNode && !anyEdge && !anyMedia && !anyZone;
 
-    // Floor label/outline click → toggle active floor (no interior click — that's
-    // reserved for zone work). Does not deselect zones/media/nodes.
-    const hitFloorHandle = store.phase !== 'running'
+    // Floor label/outline click → toggle active floor.
+    // Region task + phase=idle 일 때만 동작. paused/running 중에는 컨텍스트 보존.
+    const hitFloorHandle = (store.phase === 'idle' && activeBuildTask === 'region')
       ? (hitTestFloorLabel(world, store.floors, store.zones) ??
          hitTestFloorOutline(world, store.floors, store.zones))
       : null;
@@ -1152,7 +1220,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       store.selectWaypoint(null);
       (store as any).selectMedia?.(null);
       store.setPendingEdgeSource(null);
-      store.setActiveFloor(null);
+      // activeFloor 는 Region task 에서만 캔버스로 변경 — 다른 task 에서는 floor scope 보존
+      if (activeBuildTask === 'region') store.setActiveFloor(null);
       if (mode !== 'select') store.setEditorMode('select');
       return;
     }
@@ -1185,7 +1254,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     if (anyEdge) { store.selectEdge(anyEdge); selectZone(null); return; }
     if (anyMedia) { selectZone(null); store.selectWaypoint(null); (store as any).selectMedia(anyMedia); return; }
     if (anyZone) { selectZone(anyZone); store.selectWaypoint(null); return; }
-  }, [selectZone]);
+  }, [selectZone, activeBuildTask]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const mode = dragMode.current;
@@ -1390,8 +1459,16 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       }
     }
 
+    // 5m calibration ruler endpoint drag
+    if (world && (mode === 'cal-ruler-a' || mode === 'cal-ruler-b')) {
+      const which = mode === 'cal-ruler-a' ? 'a' : 'b';
+      useStore.getState().updateBgCalRulerEndpoint(which, { x: world.x, y: world.y });
+      didDrag.current = true;
+      return;
+    }
+
     // Background image drag
-    if (world && (mode === 'bg-move' || mode === 'bg-resize')) {
+    if (world && (mode === 'bg-move' || mode === 'bg-resize' || mode === 'bg-rotate')) {
       const store = useStore.getState();
       if (store.activeFloorId) {
         const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
@@ -1400,8 +1477,18 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             const newX = world.x - dragOffset.current.x;
             const newY = world.y - dragOffset.current.y;
             store.updateFloorCanvas(fl.id as string, { bgOffsetX: newX, bgOffsetY: newY });
+          } else if (mode === 'bg-rotate') {
+            const ctr = bgDragRotCenter.current;
+            const a = Math.atan2(world.y - ctr.y, world.x - ctr.x);
+            const deltaDeg = ((a - bgDragInitAngle.current) * 180) / Math.PI;
+            let newRot = bgDragInitRot.current + deltaDeg;
+            // Snap to 15° increments when shift held
+            if (e.shiftKey) newRot = Math.round(newRot / 15) * 15;
+            // Normalize to (-180, 180]
+            newRot = ((newRot + 180) % 360 + 360) % 360 - 180;
+            store.updateFloorCanvas(fl.id as string, { bgRotation: newRot });
           } else {
-            // bg-resize: proportional scaling based on diagonal distance from anchor
+            // bg-resize: proportional scaling based on diagonal distance from rotated anchor
             const dx = world.x - bgDragAnchor.current.x;
             const dy = world.y - bgDragAnchor.current.y;
             const newDiag = Math.sqrt(dx * dx + dy * dy);
@@ -1412,14 +1499,25 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
               if (manager) {
                 const img = manager.getBgImageBounds(fl.id as string, 0, 0, newScale);
                 if (img) {
-                  const anchor = bgDragAnchor.current;
+                  // Anchor (opposite corner, world) stays fixed. Compute the new
+                  // image's center such that the rotated corner opposite to anchor
+                  // lands exactly on the dragged world point.
+                  const rot = (fl.canvas.bgRotation ?? 0) * Math.PI / 180;
+                  const cos = Math.cos(rot), sin = Math.sin(rot);
                   const c = resizeCorner.current;
-                  let newOffX = fl.canvas.bgOffsetX ?? 0;
-                  let newOffY = fl.canvas.bgOffsetY ?? 0;
-                  if (c === 'se') { newOffX = anchor.x; newOffY = anchor.y; }
-                  else if (c === 'sw') { newOffX = anchor.x - img.w; newOffY = anchor.y; }
-                  else if (c === 'ne') { newOffX = anchor.x; newOffY = anchor.y - img.h; }
-                  else { newOffX = anchor.x - img.w; newOffY = anchor.y - img.h; }
+                  // local offset of anchor corner from center, in original rotation
+                  const halfW = img.w / 2, halfH = img.h / 2;
+                  const oppLocal = c === 'se' ? { x: -halfW, y: -halfH }
+                    : c === 'sw' ? { x: halfW, y: -halfH }
+                    : c === 'ne' ? { x: -halfW, y: halfH }
+                    : { x: halfW, y: halfH };
+                  // anchor world = center + R * oppLocal  →  center = anchor - R * oppLocal
+                  const rotatedX = oppLocal.x * cos - oppLocal.y * sin;
+                  const rotatedY = oppLocal.x * sin + oppLocal.y * cos;
+                  const cxNew = bgDragAnchor.current.x - rotatedX;
+                  const cyNew = bgDragAnchor.current.y - rotatedY;
+                  const newOffX = cxNew - halfW;
+                  const newOffY = cyNew - halfH;
                   store.updateFloorCanvas(fl.id as string, { bgScale: newScale, bgOffsetX: newOffX, bgOffsetY: newOffY });
                 }
               }
@@ -2050,8 +2148,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     >
       <canvas ref={canvasRef} className="absolute inset-0" />
       <SpeedIndicator />
-      <CanvasToolbar />
-      <TimelineBar />
+      <CanvasToolbar isBuildScreen={activeBuildTask !== null} />
+      {activeBuildTask === null && <TimelineBar />}
       <CanvasContextMenu menu={menu} onClose={hideMenu} />
       <PropertyPopover popover={popover} onClose={hidePopover} />
       <VisitorPopover canvasRef={canvasRef} managerRef={managerRef} />

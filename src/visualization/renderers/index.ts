@@ -15,3 +15,4 @@ export { renderSpawnPoints } from './SpawnPointRenderer';
 export { renderMeasureLine } from './MeasureRenderer';
 export { renderWaypoints } from './WaypointRenderer';
 export { renderFloorFrames } from './FloorFrameRenderer';
+export { renderOutsideQueue } from './OutsideQueueRenderer';

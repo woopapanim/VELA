@@ -14,7 +14,9 @@ export type MediaCategory =
 // ---- Media Type (15종 콘텐츠) ----
 export const MEDIA_TYPE = {
   // 아날로그 (analog)
+  PAINTING: 'painting',                   // 회화 (그림/사진/액자)
   ARTIFACT: 'artifact',                   // 유물/제품 전시
+  SCULPTURE: 'sculpture',                 // 조각/오브제
   DOCUMENTS: 'documents',                 // 사료/기록물
   DIORAMA: 'diorama',                     // 디오라마/모형
   GRAPHIC_SIGN: 'graphic_sign',           // 그래픽 사인/배너
@@ -58,6 +60,59 @@ export interface MediaPreset {
 export type MediaInteractionType = 'passive' | 'active' | 'staged' | 'analog';
 export type MediaShape = 'rect' | 'circle' | 'ellipse' | 'custom';
 
+// ─── Phase 0 (2026-04-25): 카테고리별 큐레이션 속성 ───
+// spec: docs/specs/phase-0-exhibit-vocabulary.md
+// 모두 optional — 기존 시나리오 100% 호환 보장.
+
+/** 작품 비중 — KPI 가중 + UI 강조에 사용. */
+export type ArtworkSignificance = 'hero' | 'support' | 'context';
+
+/** 작품(Artwork = analog 카테고리) 전용 큐레이션 속성. */
+export interface ArtworkProps {
+  /** 같은 시리즈 내 의도된 관람 순서 (1-based 정수). */
+  readonly curatorialOrder?: number;
+  /** 시리즈/섹션 그룹 키 (예: "조선시대 회화", "작가 A 시리즈"). zone 넘나들 수 있음. */
+  readonly series?: string;
+  /** 작품 비중 — KPI 가중 (hero=3.0, support=1.0, context=0.3) + UI 강조. */
+  readonly significance?: ArtworkSignificance;
+}
+
+/** 디지털 미디어 챕터 (Phase 3B 에서 활용, Phase 0 에서는 표시만). */
+export interface MediaChapter {
+  readonly id: string;
+  readonly title: string;
+  readonly startMs: number;
+  readonly endMs: number;
+}
+
+/** 디지털 미디어 인터랙션 수준 (Phase 3B 에서 시뮬에 영향). */
+export type InteractivityLevel = 'view-only' | 'chapter-select' | 'full-interactive';
+
+/** 디지털 미디어(passive_media 카테고리) 전용 경험 속성. */
+export interface DigitalMediaProps {
+  /** 컨텐츠 전체 길이. */
+  readonly contentDurationMs?: number;
+  /** 의미있는 체험으로 인정할 최소 시청 시간. Phase 3B 의 meaningfulCompletionRate 기준. */
+  readonly minWatchMs?: number;
+  /** 루프 가능 여부 (PASSIVE 모드일 때 의미). */
+  readonly loopable?: boolean;
+  /** 챕터 (Phase 3B 활용). */
+  readonly chapters?: ReadonlyArray<MediaChapter>;
+  /** 인터랙션 수준 (Phase 3B 에서 시뮬에 multiplier 적용). */
+  readonly interactivityLevel?: InteractivityLevel;
+}
+
+/** 인터랙티브(active 카테고리) 세션 모드. */
+export type InteractiveSessionMode = 'slot' | 'queue' | 'free';
+
+/** 인터랙티브(active 카테고리) 전용 속성. */
+export interface InteractiveProps {
+  /** 세션 모드 — 기존 queueBehavior 와 보완 (slot=시간 분할, queue=대기열, free=자유). */
+  readonly sessionMode?: InteractiveSessionMode;
+  /** 평균 인터랙션 깊이 (0-1). 단순 터치 → 풀 인터랙션. */
+  readonly interactionDepth?: number;
+}
+
 export interface MediaPlacement {
   readonly id: MediaId;
   readonly name: string;
@@ -79,4 +134,14 @@ export interface MediaPlacement {
   readonly stageIntervalMs?: number; // staged only: time between sessions (e.g. 60000 = 1min)
   readonly queueBehavior?: QueueBehavior;
   readonly groupFriendly?: boolean;
+
+  // ─── Phase 0 (2026-04-25): 카테고리별 큐레이션 속성 ───
+  // 모두 optional. category 에 따라 해당 props 를 활용.
+  // mustVisit (시뮬 강제) 와 artwork.significance (KPI/UI 표시) 는 직교 — 둘 다 사용 가능.
+  /** 작품 (category=ANALOG) 큐레이션 속성. Phase 3A 에서 활용. */
+  readonly artwork?: ArtworkProps;
+  /** 디지털 미디어 (category=PASSIVE_MEDIA) 경험 속성. Phase 3B 에서 활용. */
+  readonly digital?: DigitalMediaProps;
+  /** 인터랙티브 (category=ACTIVE) 속성. */
+  readonly interactive?: InteractiveProps;
 }

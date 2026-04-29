@@ -49,8 +49,11 @@ export class Camera {
     const worldW = bounds.maxX - bounds.minX;
     const worldH = bounds.maxY - bounds.minY;
     if (worldW <= 0 || worldH <= 0) return;
-    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom,
-      Math.min((canvasWidth - padding * 2) / worldW, (canvasHeight - padding * 2) / worldH)));
+    // bounds 가 viewport 보다 작으면 zoom-in 하지 않음 (1.0 cap).
+    // 빈 캔버스에서 작은 zone 한 개 만들 때 500% 로 튀는 것 방지.
+    // 큰 floor plan 등 viewport 보다 큰 컨텐츠는 정상적으로 zoom-out.
+    const fitScale = Math.min((canvasWidth - padding * 2) / worldW, (canvasHeight - padding * 2) / worldH);
+    this.zoom = Math.max(this.minZoom, Math.min(1, fitScale));
     this.x = bounds.minX + worldW / 2 - canvasWidth / 2;
     this.y = bounds.minY + worldH / 2 - canvasHeight / 2;
   }

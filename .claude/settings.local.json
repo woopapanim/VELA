@@ -81,7 +81,22 @@
       "Bash(echo \"exit=$?\")",
       "Bash(curl -sI http://localhost:5173)",
       "Bash(identify public/sample_img.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight public/sample_img.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight public/sample_img.png)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(rm -rf src/services/ai src/services/cv)",
+      "Bash(rm src/ui/panels/build/AnalyzeFloorPlan.tsx src/ui/panels/build/CvRoomPreview.tsx src/ui/panels/build/ScaleCalibrator.tsx)",
+      "Bash(rm public/sample_img.png)",
+      "Bash(tee /tmp/tsc.log)",
+      "Bash(echo \"tsc=$?\")",
+      "Bash(tee /tmp/tsc.out)",
+      "Bash(awk 'NR==1 || /^\\\\+/' /tmp/ko-mine.patch)",
+      "Bash(awk '/^[+ ]/ && !/^\\\\+\\\\+\\\\+/' /tmp/ko-mine.patch)",
+      "Bash(cp /tmp/ko-head.ts /tmp/ko-new.ts)",
+      "Bash(head -349 /tmp/ko-head.ts)",
+      "Bash(cat)",
+      "Bash(tail -n +350 /tmp/ko-head.ts)",
+      "Bash(echo \"tsc exit=$?\")"
     ]
   }
 }

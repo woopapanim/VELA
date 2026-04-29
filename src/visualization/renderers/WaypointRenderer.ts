@@ -171,8 +171,11 @@ export function renderWaypoints(
       }
     }
 
-    // Label above (hidden when labels are toggled off)
-    if (showLabels && node.label) {
+    // Label above (hidden when labels are toggled off).
+    // type='zone' 노드는 zone 자체에 이름 라벨이 이미 그려져 있어 (ZoneRenderer)
+    // waypoint 의 'Zone N' 자동 라벨이 그 위에 겹쳐 "ExhibitioZoZe 1" 같은
+    // 텍스트 충돌을 만듦 (2026-04-29 사용자 보고). zone 노드는 라벨 생략.
+    if (showLabels && node.label && node.type !== 'zone') {
       ctx.font = `${fs(11)}px sans-serif`;
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.8)';
       ctx.textAlign = 'center';

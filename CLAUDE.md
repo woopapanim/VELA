@@ -87,10 +87,57 @@ domain ← simulation ← stores → analytics
 | 정적 밀도 분석 | ✅ 완료 |
 | Multi-floor 기본 구조 | ✅ 완료 |
 | Multi-floor 배경 오버레이 + 영역 편집 | ✅ 완료 |
-| AI 도면 분석 (Anthropic vision → DraftScenario) | ✅ 완료 |
+| ~~AI 도면 분석~~ | ❌ 폐기 (2026-04-25, 정확도 한계 + 모던 도면이 zone 추상에 안 맞음) |
 | **Structured Reporting (VELA Report v2)** | ✅ 완료 |
 | **Pinpoint 분석** | ✅ 완료 |
 | **Advanced Analytics (트렌드/민감도)** | ✅ 완료 |
+
+## 제품 로드맵 (2026-04-25 ~)
+
+큐레이션 (서비스 use case 정리) 결과로 6 phase plan 도출. 상세 spec 은 `docs/specs/`:
+
+| Phase | 목적 | 상태 | 참조 |
+|-------|-----|-----|------|
+| **0** | Exhibit 용어 + 카테고리별 속성 | spec ✅ + 코드 ✅ | [`phase-0-exhibit-vocabulary.md`](docs/specs/phase-0-exhibit-vocabulary.md) |
+| **1 엔진** | 운영 정책 엔진 (5종 정책, EntryController) | spec ✅ + 코드 ✅ | [`phase-1-operations-policy.md`](docs/specs/phase-1-operations-policy.md) |
+| **1 UX** | 체험 모드 (8종, 검증 3 + 운영 5) | spec ✅ + 코드 ✅ (Sweep + ModePerspective + ComparisonSection) | [`phase-1-experience-modes.md`](docs/specs/phase-1-experience-modes.md) |
+| **2** | 단체 / 도슨트 / VIP | spec ✅ | [`phase-2-groups-docent.md`](docs/specs/phase-2-groups-docent.md) |
+| **3A** | 작품 큐레이션 (위치 + 순서) | spec ✅ | [`phase-3a-artwork-curation.md`](docs/specs/phase-3a-artwork-curation.md) |
+| **3B** | 디지털 미디어 경험 설계 | spec ✅ | [`phase-3b-digital-media-experience.md`](docs/specs/phase-3b-digital-media-experience.md) |
+| **4** | 트래킹 연동 (Layer 2, design only) | spec ✅ | [`phase-4-tracking-integration-design.md`](docs/specs/phase-4-tracking-integration-design.md) |
+
+마스터 로드맵: [`docs/specs/ROADMAP.md`](docs/specs/ROADMAP.md)
+
+### 체험 모드 (Phase 1 UX 결정, 2026-04-26)
+
+엔진 정책 (`unlimited / concurrent-cap / rate-limit / time-slot / hybrid`) 위에 페르소나 친화적 framing 추가. 사용자는 _체험 모드_ 로 진입, 모드가 정책/가중치/리포트 shape 를 결정.
+
+**검증 tier** (변형 A/B/C 비교, 큐 미발생):
+- 레이아웃 검증 ✅ — 공간 디자이너
+- 큐레이션 검증 🔒 Phase 3A
+- 미디어 경험 검증 🔒 Phase 3B
+
+**운영 예상 tier** (단일 시나리오 timeline + 권장):
+- 자유 관람 ✅
+- 자유 관람 + 통제 ✅ (concurrent-cap, 높은 cap = 폭주 시만 발동)
+- 시간제 예약 관람 ✅ (time-slot)
+- 통제 입장 ✅ (concurrent-cap, 낮은 cap)
+- 단체 관람 🔒 Phase 2
+
+리포트 shape 도 모드별 분기 (검증 = 변형 비교, 운영 = timeline + 권장 cap).
+
+### Exhibit 용어 (Phase 0 결정)
+
+기존 `Media` 단일 추상 → 카테고리별 분리. 점진 마이그레이션 (alias 도입):
+
+| UI/문서 표시 | 코드 카테고리 (`MEDIA_CATEGORY`) | 비교 차원 |
+|------------|------------------------------|---------|
+| 작품 (Artwork) | `ANALOG` | 위치 + 순서 + 시리즈 |
+| 디지털 미디어 (Digital Media) | `PASSIVE_MEDIA` | 길이 + 인터랙션 + capacity |
+| 인터랙티브 (Interactive) | `ACTIVE` | 슬롯 + capacity (Phase 1 운영 정책에서 다룸) |
+| 이머시브 (Immersive) | `IMMERSIVE` | Digital Media 와 동일 워크플로우 (Phase 3B) |
+
+상위 개념: **전시물 (Exhibit)** — 모든 카테고리의 부모. 코드에서는 `Exhibit = MediaPlacement` alias.
 
 ## 작업 규칙
 - 기능 하나 완성 → 시뮬레이션 테스트 → 커밋. 한 세션에 한 기능.

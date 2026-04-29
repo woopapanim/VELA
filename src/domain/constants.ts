@@ -156,6 +156,19 @@ export function computeAutoRecommendedDurationMs(zoneCount: number, mediaCount: 
   return minutes * 60_000;
 }
 
+// ---- Visitor count recommendation (validation tier 'person' mode) ----
+// Layout 검증 시 "이 면적에 몇 명을 흘려보내야 의미있는 throughput 측정인가?".
+// 0.3명/m² ≈ 1평(3.3㎡)당 1명 — 회전형 throughput 시뮬에 무난한 부하.
+// 너무 작은 공간에서도 통계적 의미가 나오도록 50명 floor.
+export const VISITOR_PER_AREA_M2 = 0.3;
+export const VISITOR_COUNT_MIN = 50;
+export const VISITOR_COUNT_MAX = 2000;
+
+export function computeRecommendedVisitorCount(totalAreaM2: number): number {
+  const raw = Math.round(Math.max(0, totalAreaM2) * VISITOR_PER_AREA_M2);
+  return Math.min(VISITOR_COUNT_MAX, Math.max(VISITOR_COUNT_MIN, raw));
+}
+
 // ---- Completion / Early-exit thresholds (share of total zones) ----
 // 80% 완주 기준은 자유 관람 패턴에서 비현실적이라 70% 로 완화.
 // 조기이탈 기준은 20% 유지 — 메인 컨텐츠 극히 일부만 본 이탈자를 잡기 위함.
@@ -199,7 +212,9 @@ export const ENGAGEMENT_PATIENCE_MODIFIER: Record<string, number> = {
 // ---- 15 Media Presets (4 Categories) ----
 export const MEDIA_PRESETS: Record<MediaType, MediaPreset> = {
   // ── 아날로그 (analog) — 눈으로 보고 지나가는 전시물 ──
+  painting:      { type: 'painting',      category: 'analog', defaultSize: { width: 1.0, height: 0.8 }, defaultCapacity: 4,  avgEngagementTimeMs: 18_000,  isInteractive: false, attractionRadius: 1.5, attractionPower: 0.4, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: false },
   artifact:      { type: 'artifact',      category: 'analog', defaultSize: { width: 1.5, height: 1.0 }, defaultCapacity: 6,  avgEngagementTimeMs: 20_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.4, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: true },
+  sculpture:     { type: 'sculpture',     category: 'analog', defaultSize: { width: 1.2, height: 1.2 }, defaultCapacity: 6,  avgEngagementTimeMs: 25_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.5, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: true },
   documents:     { type: 'documents',     category: 'analog', defaultSize: { width: 1.2, height: 0.8 }, defaultCapacity: 3,  avgEngagementTimeMs: 22_000,  isInteractive: false, attractionRadius: 1.5, attractionPower: 0.3, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: false },
   diorama:       { type: 'diorama',       category: 'analog', defaultSize: { width: 3.0, height: 2.0 }, defaultCapacity: 10, avgEngagementTimeMs: 30_000,  isInteractive: false, attractionRadius: 3,  attractionPower: 0.6, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: true },
   graphic_sign:  { type: 'graphic_sign',  category: 'analog', defaultSize: { width: 2.0, height: 1.5 }, defaultCapacity: 8,  avgEngagementTimeMs: 10_000,  isInteractive: false, attractionRadius: 2,  attractionPower: 0.2, queueBehavior: 'none',   groupFriendly: true,  fatigueCategory: 'analog', omnidirectional: false },

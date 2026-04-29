@@ -10,6 +10,7 @@ import {
   findFloorAtPoint,
   clampFloorShift,
   clampFloorResize,
+  resolveFloorOverlaps,
 } from '@/domain/floorLayout';
 
 const MEDIA_SCALE = 20;
@@ -275,7 +276,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       // Reparent any orphans onto the fallback floor so densityGrids keys match.
       zonesArr = zonesArr.map(z => floorIdSet.has(z.floorId as string) ? z : { ...z, floorId: fallbackId as any });
     }
-    const activeFloorId = floorsArr[0]?.id as string ?? null;
+    // Preserve user's current activeFloorId if still valid; only fall back to
+    // the first floor when nothing was selected or the previous selection no
+    // longer exists (e.g. loading a different scenario). Without this, every
+    // setScenario (incl. autosaves from useEffects in SpawnConfig) would yank
+    // selection back to floor[0] mid-edit. (2026-04-26 Duration→Region bug)
+    const prevActiveFloorId = get().activeFloorId;
+    const validIds = new Set(floorsArr.map((f) => f.id as string));
+    const activeFloorId = prevActiveFloorId && validIds.has(prevActiveFloorId)
+      ? prevActiveFloorId
+      : (floorsArr[0]?.id as string ?? null);
     let mediaArr: MediaPlacement[] = correctedMedia;
     let graphArr: WaypointGraph | null = scenario.waypointGraph ?? null;
 
@@ -562,10 +572,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
           : f,
       );
       newFloors = expandCanvasForZones(newFloors, newZones, targetFloorId);
+      // Push neighbor floors apart if anchor's frame grew into them.
+      const resolved = targetFloorId
+        ? resolveFloorOverlaps(newFloors, newZones, s.media, s.waypointGraph, targetFloorId)
+        : { floors: newFloors, zones: newZones, media: s.media, waypointGraph: s.waypointGraph };
       return {
-        zones: newZones,
-        floors: newFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, floors: newFloors } : s.scenario,
+        zones: resolved.zones,
+        floors: resolved.floors,
+        media: resolved.media,
+        waypointGraph: resolved.waypointGraph,
+        scenario: s.scenario ? { ...s.scenario, zones: resolved.zones, floors: resolved.floors, media: resolved.media, waypointGraph: resolved.waypointGraph ?? undefined } : s.scenario,
       };
     });
   },
@@ -647,11 +663,20 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         }
       }
       const expandedFloors = expandCanvasForZones(reassignedFloors, newZones, s.activeFloorId);
+      // After zone bounds change, anchor floor's frame may have grown — push neighbors apart.
+      const anchorFloorId = (() => {
+        const holder = expandedFloors.find(f => f.zoneIds.some(id => (id as string) === zoneId));
+        return holder ? (holder.id as string) : null;
+      })();
+      const resolved = (newBounds && anchorFloorId)
+        ? resolveFloorOverlaps(expandedFloors, newZones, newMedia, s.waypointGraph, anchorFloorId)
+        : { floors: expandedFloors, zones: newZones, media: newMedia, waypointGraph: s.waypointGraph };
       return {
-        zones: newZones,
-        media: newMedia,
-        floors: expandedFloors,
-        scenario: s.scenario ? { ...s.scenario, zones: newZones, media: newMedia, floors: expandedFloors } : s.scenario,
+        zones: resolved.zones,
+        media: resolved.media,
+        floors: resolved.floors,
+        waypointGraph: resolved.waypointGraph,
+        scenario: s.scenario ? { ...s.scenario, zones: resolved.zones, media: resolved.media, floors: resolved.floors, waypointGraph: resolved.waypointGraph ?? undefined } : s.scenario,
       };
     }),
 
@@ -737,9 +762,13 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     // Save undo snapshot BEFORE mutation
     const s = get();
     (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
-    set((s) => ({
-      media: s.media.filter((m) => (m.id as string) !== mediaId),
-    }));
+    set((s) => {
+      const newMedia = s.media.filter((m) => (m.id as string) !== mediaId);
+      return {
+        media: newMedia,
+        scenario: s.scenario ? { ...s.scenario, media: newMedia } : s.scenario,
+      };
+    });
   },
 
   // ── Waypoint Graph CRUD ──

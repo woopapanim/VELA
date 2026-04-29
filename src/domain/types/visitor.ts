@@ -134,6 +134,22 @@ export interface Visitor {
   // 스폰 시 사용한 ENTRY 노드 — "들어온 길로 나간다" 휴리스틱용.
   // 퇴장 라우팅은 기본적으로 이 entry 와 기하학적으로 짝지어진 exit 를 선호한다.
   readonly spawnEntryNodeId: WaypointId | null;
+  // ── Phase 1 (2026-04-25): 운영 정책 lifecycle ──
+  /**
+   * 외부 도착 시각 (elapsed ms). 입장 정책 적용 전 시점.
+   * unlimited 모드에선 admittedAt 과 동일 (즉시 입장).
+   * 정책이 throttle 하면 admittedAt > arrivedAt 가능.
+   * 회귀 호환: 미설정 시 enteredAt 으로 fallback.
+   */
+  readonly arrivedAt?: number;
+  /** 입장 시각 (외부 대기 종료, 시뮬 활성화 시점). undefined = 아직 외부 큐. */
+  readonly admittedAt?: number;
+  /** 외부 대기 시간 (ms) = admittedAt - arrivedAt. exit 시점에 확정. */
+  readonly outsideWaitMs?: number;
+  /** 포기 이탈 시각 (ms). undefined = 입장 성공 또는 아직 대기 중. */
+  readonly abandonedAt?: number;
+  /** 만족도 점수 (0-1). exit 시점에 계산. */
+  readonly satisfactionScore?: number;
 }
 
 // ---- Visitor Distribution (spawning config) ----

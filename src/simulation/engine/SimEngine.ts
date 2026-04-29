@@ -54,6 +54,8 @@ import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFoll
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
 import { distance } from '../utils/math';
 import { recordSkipEvent, recordMediaApproach, resetSkipTracking, recordZoneExit, resetDwellTracking } from '@/analytics/calculators';
+import { EntryController, type QueuedItem } from '../operations/EntryController';
+import { samplePatienceMs } from '../operations/patienceSampler';
 
 /* ═══════════════════════════════════════════════════════════════════
  *  SIM FEATURE FLAGS — 최소 파이프라인 디버깅용
@@ -120,9 +122,15 @@ export class SimulationEngine {
   // spawner
   private spawnAccumulator = 0;
 
+  // Phase 1: 외부 도착 → 입장 정책 throttle (unlimited 모드는 즉시 admit, 회귀 0).
+  // 큐의 payload 는 "이미 generateSpawnBatch 가 만든 visitor" — admit 시 state.visitors 로 승격.
+  private entryController!: EntryController<Visitor>;
+
   // cumulative counters
   private _totalSpawned = 0;
   private _totalExited = 0;
+  // Phase 1: 정책에 의해 입장하지 못하고 포기한 누적 인원 (KPI 용).
+  private _totalAbandoned = 0;
   private _spawnByNode = new Map<string, number>();  // entry node id → spawn count
   private _exitByNode = new Map<string, number>();   // exit node id → exit count
 
@@ -295,6 +303,11 @@ export class SimulationEngine {
         data: new Float32Array(cols * rows),
       });
     }
+
+    // Phase 1: 운영 정책 입장 컨트롤러. operations 미설정 시 unlimited (회귀 0).
+    this.entryController = new EntryController<Visitor>(
+      world.config.operations?.entryPolicy ?? { mode: 'unlimited' }
+    );
 
     resetSpawnerIds();
     resetSkipTracking();
@@ -644,7 +657,14 @@ export class SimulationEngine {
     let completing = false;
     if (mode === 'person') {
       const totalCap = this.world.totalVisitors ?? Infinity;
-      const spawnComplete = Number.isFinite(totalCap) && this._totalSpawned >= totalCap;
+      // Phase 1 (2026-04-25): EntryController 가 admit 을 throttle 하면
+      // 도착자 일부가 abandoned 로 빠진다. 이들은 _totalSpawned 에 안 잡히지만
+      // "도착 카운터를 소진" 한 것으로 봐야 person mode 가 정상 종료된다.
+      // 안 그러면 throttled 정책(예: concurrent-cap=20, 인내심=5분)에서
+      // _totalSpawned + _totalAbandoned == totalCap 인데도 sim 이 안 끝나
+      // duration safety cap (180min) 까지 무한 회전한다.
+      const consumedTotal = this._totalSpawned + this._totalAbandoned;
+      const spawnComplete = Number.isFinite(totalCap) && consumedTotal >= totalCap;
       const allExited = spawnComplete && this._totalExited >= this._totalSpawned;
       if (allExited || hitDurationCap) completing = true;
     } else if (hitDurationCap) {
@@ -684,6 +704,11 @@ export class SimulationEngine {
       });
     }
     this.state.visitors = next;
+
+    // Phase 1: 외부 큐에 대기 중이던 사람들은 sim 종료 시 모두 abandoned 처리.
+    // unlimited 모드는 큐가 항상 비어있으므로 no-op (회귀 0).
+    const drained = this.entryController.drainAsAbandoned();
+    this._totalAbandoned += drained.length;
   }
 
   private tick(dt: number) {
@@ -797,21 +822,93 @@ export class SimulationEngine {
   private spawnTick(dt: number) {
     const elapsed = this.state.timeState.elapsed;
     const slot = getActiveTimeSlot(this.world.config.timeSlots, elapsed);
-    if (!slot || slot.spawnRatePerSecond <= 0) return;
 
     const activeCount = Array.from(this.state.visitors.values()).filter(v => v.isActive).length;
-    if (activeCount >= this.world.config.maxVisitors) return;
-    // 누적 입장 상한 체크
-    const totalLimit = this.world.totalVisitors ?? Infinity;
-    if (this._totalSpawned >= totalLimit) return;
+    // Phase 1 (2026-04-25): non-unlimited 정책 active 시 engine 측 totalVisitors / maxVisitors
+    // 무력화 — A/B/C 정책 비교의 본질("얼마나 들어올 때 어느 정책이 효율적인가") 을 위해 지속 도착이 필수.
+    // 정책의 maxConcurrent (concurrent-cap/hybrid) 가 동시 cap 역할을 자연스럽게 수행.
+    // 메모리 안전망: rate-limit/time-slot 도 admit throttle 자체가 active 폭발 방지.
+    const policyActive = (this.world.config.operations?.entryPolicy?.mode ?? 'unlimited') !== 'unlimited';
+    const atActiveCap = !policyActive && activeCount >= this.world.config.maxVisitors;
+    // 누적 도착 상한 체크 — admit + abandon 둘 다 totalCap 을 소진한 것으로 본다.
+    // (admit 만 카운트하면 throttled 정책에서 도착자가 끊임없이 큐에 쌓여 OOM/완료실패)
+    const totalLimit = policyActive ? Infinity : (this.world.totalVisitors ?? Infinity);
+    const atTotalCap = (this._totalSpawned + this._totalAbandoned) >= totalLimit;
 
-    this.spawnAccumulator += slot.spawnRatePerSecond * (dt / 1000);
+    // ═══ Generation phase ═══
+    // 외부 도착(arrival) 만들기 — maxVisitors / totalLimit 안전 cap 미달이면 큐에 넣는다.
+    // unlimited 모드에선 admit 단계가 같은 tick 에 즉시 admit 하므로 회귀 0.
+    if (slot && slot.spawnRatePerSecond > 0 && !atActiveCap && !atTotalCap) {
+      this.spawnAccumulator += slot.spawnRatePerSecond * (dt / 1000);
 
-    while (this.spawnAccumulator >= 1) {
-      // ═══ Graph-Point mode: spawn at ENTRY nodes ═══
-      if (this.waypointNav) {
-        const entryNode = this.waypointNav.selectEntryNode(this.rng);
-        if (!entryNode) { this.spawnAccumulator -= 1; continue; }
+      while (this.spawnAccumulator >= 1) {
+        // ═══ Graph-Point mode: arrive at ENTRY nodes ═══
+        if (this.waypointNav) {
+          const entryNode = this.waypointNav.selectEntryNode(this.rng);
+          if (!entryNode) { this.spawnAccumulator -= 1; continue; }
+
+          const dist = {
+            totalCount: 1,
+            profileWeights: slot.profileDistribution,
+            engagementWeights: slot.engagementDistribution,
+            groupRatio: slot.groupRatio,
+            spawnRatePerSecond: slot.spawnRatePerSecond,
+            categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
+          };
+          const nodeFloorId = (entryNode.floorId as string) || this._defaultFloorId;
+          const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng, this.world.config.recommendedDurationMs);
+          // Deduct actual spawned count from accumulator (groups spawn multiple)
+          this.spawnAccumulator -= batch.visitors.length;
+          // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
+          // 위치 기반 polygon 검사로 보강 — visitedZoneIds 첫 항목 누락 방지.
+          // 모두 실패하면 floor 첫 zone 으로 fallback: currentZoneId 가 빈 문자열로
+          // 남으면 recordZoneExit/_stuckByZone 집계가 '' 키로 오염된다.
+          const resolvedZoneId = (entryNode.zoneId as string | null)
+            ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string)
+            ?? this.fallbackZoneForFloor(nodeFloorId as string);
+          for (const v of batch.visitors) {
+            // arrival visitor: 모든 entry-node 결합 정보는 결정된 채로 큐에 넣는다.
+            // admittedAt / zoneEnteredAtMs 는 admit 시점에 갱신.
+            const arrived: Visitor = {
+              ...v,
+              currentZoneId: (resolvedZoneId as any) ?? ('' as any),
+              visitedZoneIds: resolvedZoneId ? [resolvedZoneId as any] : [],
+              zoneEnteredAtMs: elapsed, // placeholder — admit 시 덮어씀
+              currentNodeId: entryNode.id,
+              targetNodeId: null,
+              pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
+              spawnEntryNodeId: entryNode.id,
+              arrivedAt: elapsed,
+            };
+            // Phase 1+ (2026-04-26): per-visitor 인내심 산출 (프로필/참여도/분포 모델 반영).
+            const policy = this.world.config.operations?.entryPolicy;
+            const patience = policy && policy.mode !== 'unlimited'
+              ? samplePatienceMs(arrived.profile, policy, () => this.rng.next())
+              : undefined;
+            this.entryController.enqueue(arrived, elapsed, patience);
+          }
+          for (const g of batch.groups) this.state.groups.set(g.id as string, g);
+          continue;
+        }
+
+        // ═══ Legacy mode: zone-based arrival ═══
+        let spawnZone: ZoneConfig | undefined;
+        if (this.world.globalFlowMode === 'free') {
+          const entranceZones = this.world.zones.filter(z =>
+            z.type === 'entrance' || (z.type === 'gateway' && (z.gatewayMode ?? 'both') !== 'exit')
+          );
+          spawnZone = entranceZones.length > 0
+            ? entranceZones[Math.floor(this.rng.next() * entranceZones.length)]
+            : this.world.zones[0];
+        } else {
+          spawnZone = this.world.zones[0];
+        }
+        if (!spawnZone || spawnZone.gates.length === 0) { this.spawnAccumulator -= 1; continue; }
+
+        const spawnPos = {
+          x: spawnZone.bounds.x + spawnZone.bounds.w / 2,
+          y: spawnZone.bounds.y + spawnZone.bounds.h / 2,
+        };
 
         const dist = {
           totalCount: 1,
@@ -821,79 +918,90 @@ export class SimulationEngine {
           spawnRatePerSecond: slot.spawnRatePerSecond,
           categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
         };
-        const nodeFloorId = (entryNode.floorId as string) || this._defaultFloorId;
-        const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng, this.world.config.recommendedDurationMs);
-        // Deduct actual spawned count from accumulator (groups spawn multiple)
+        const gate = spawnZone.gates[0];
+        const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng, this.world.config.recommendedDurationMs);
         this.spawnAccumulator -= batch.visitors.length;
-        // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
-        // 위치 기반 polygon 검사로 보강 — visitedZoneIds 첫 항목 누락 방지.
-        // 모두 실패하면 floor 첫 zone 으로 fallback: currentZoneId 가 빈 문자열로
-        // 남으면 recordZoneExit/_stuckByZone 집계가 '' 키로 오염된다.
-        const resolvedZoneId = (entryNode.zoneId as string | null)
-          ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string)
-          ?? this.fallbackZoneForFloor(nodeFloorId as string);
         for (const v of batch.visitors) {
-          const spawned: Visitor = {
+          const arrived: Visitor = {
             ...v,
-            currentZoneId: (resolvedZoneId as any) ?? ('' as any),
-            visitedZoneIds: resolvedZoneId ? [resolvedZoneId as any] : [],
-            zoneEnteredAtMs: elapsed,
-            currentNodeId: entryNode.id,
-            targetNodeId: null,
-            pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
-            spawnEntryNodeId: entryNode.id,
+            currentZoneId: spawnZone.id,
+            visitedZoneIds: [spawnZone.id],
+            zoneEnteredAtMs: elapsed, // placeholder — admit 시 덮어씀
+            arrivedAt: elapsed,
           };
-          this.state.visitors.set(spawned.id as string, this.assignNextTarget(spawned));
-          this._totalSpawned++;
-          const eid = entryNode.id as string;
-          this._spawnByNode.set(eid, (this._spawnByNode.get(eid) ?? 0) + 1);
+          // Phase 1+ (2026-04-26): per-visitor 인내심 산출.
+          const policy = this.world.config.operations?.entryPolicy;
+          const patience = policy && policy.mode !== 'unlimited'
+            ? samplePatienceMs(arrived.profile, policy, () => this.rng.next())
+            : undefined;
+          this.entryController.enqueue(arrived, elapsed, patience);
         }
         for (const g of batch.groups) this.state.groups.set(g.id as string, g);
-        continue;
       }
-
-      // ═══ Legacy mode: zone-based spawning ═══
-      let spawnZone: ZoneConfig | undefined;
-      if (this.world.globalFlowMode === 'free') {
-        const entranceZones = this.world.zones.filter(z =>
-          z.type === 'entrance' || (z.type === 'gateway' && (z.gatewayMode ?? 'both') !== 'exit')
-        );
-        spawnZone = entranceZones.length > 0
-          ? entranceZones[Math.floor(this.rng.next() * entranceZones.length)]
-          : this.world.zones[0];
-      } else {
-        spawnZone = this.world.zones[0];
-      }
-      if (!spawnZone || spawnZone.gates.length === 0) continue;
-
-      const spawnPos = {
-        x: spawnZone.bounds.x + spawnZone.bounds.w / 2,
-        y: spawnZone.bounds.y + spawnZone.bounds.h / 2,
-      };
-
-      const dist = {
-        totalCount: 1,
-        profileWeights: slot.profileDistribution,
-        engagementWeights: slot.engagementDistribution,
-        groupRatio: slot.groupRatio,
-        spawnRatePerSecond: slot.spawnRatePerSecond,
-        categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
-      };
-      const gate = spawnZone.gates[0];
-      const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng, this.world.config.recommendedDurationMs);
-      this.spawnAccumulator -= batch.visitors.length;
-      for (const v of batch.visitors) {
-        const spawned: Visitor = {
-          ...v,
-          currentZoneId: spawnZone.id,
-          visitedZoneIds: [spawnZone.id],
-          zoneEnteredAtMs: elapsed,
-        };
-        this.state.visitors.set(spawned.id as string, spawned);
-        this._totalSpawned++;
-      }
-      for (const g of batch.groups) this.state.groups.set(g.id as string, g);
     }
+
+    // ═══ Admission phase ═══
+    // 안전 cap (maxVisitors) 다시 점검 — 큐에 사람이 있어도 active 가 cap 이면 admit 보류.
+    // 단 unlimited 모드는 정책상 무한 입장이므로 cap 만 강제하고 큐엔 안 쌓일 것.
+    if (this.entryController.peekQueue().length === 0) return;
+
+    // 동시 active 인원이 maxVisitors 에 도달하면 admit 도 보류 (메모리/성능 안전망).
+    // 단 정책이 더 엄격하면 (concurrent-cap < maxVisitors) 자연히 정책이 먼저 막는다.
+    // Phase 1 (2026-04-25): policyActive 시 engine maxVisitors 무력화 — 정책의 cap 이 진짜 cap.
+    const admitCapHeadroom = policyActive
+      ? Number.POSITIVE_INFINITY
+      : Math.max(0, this.world.config.maxVisitors - activeCount);
+    if (admitCapHeadroom === 0) {
+      // active cap 이지만 큐는 그대로 유지 — 다음 tick 에 admit 재시도.
+      // abandonment 만이라도 처리하기 위해 step 호출 (currentConcurrent 를 cap 으로 줘서 admit 0 보장).
+      const abandonOnly = this.entryController.step({ now: elapsed, currentConcurrent: this.world.config.maxVisitors });
+      this._totalAbandoned += abandonOnly.abandoned.length;
+      return;
+    }
+
+    const result = this.entryController.step({ now: elapsed, currentConcurrent: activeCount });
+
+    // 누적 입장 상한 (totalVisitors) 강제 — admit 결과를 totalLimit 까지만 적용.
+    // policyActive 시 totalLimit=Infinity → slice 대신 전체 admit.
+    const remainingTotal = totalLimit - this._totalSpawned;
+    const admitList = Number.isFinite(remainingTotal)
+      ? result.admitted.slice(0, Math.max(0, remainingTotal))
+      : result.admitted;
+
+    for (const item of admitList) {
+      const arrived = item.payload;
+      const outsideWaitMs = elapsed - (arrived.arrivedAt ?? elapsed);
+      // admit 시 zoneEnteredAtMs / admittedAt / outsideWaitMs 갱신 — 외부 대기 동안 zone dwell 미카운트.
+      const admitted: Visitor = {
+        ...arrived,
+        zoneEnteredAtMs: elapsed,
+        admittedAt: elapsed,
+        outsideWaitMs,
+      };
+      // assignNextTarget 은 graph-point mode 에서만 적용 (legacy mode 는 currentNodeId null 이라 no-op)
+      const finalised = arrived.currentNodeId ? this.assignNextTarget(admitted) : admitted;
+      this.state.visitors.set(finalised.id as string, finalised);
+      this._totalSpawned++;
+      if (arrived.spawnEntryNodeId) {
+        const eid = arrived.spawnEntryNodeId as string;
+        this._spawnByNode.set(eid, (this._spawnByNode.get(eid) ?? 0) + 1);
+      }
+    }
+
+    this._totalAbandoned += result.abandoned.length;
+  }
+
+  /** Phase 1 KPI: 외부에서 포기한 누적 인원. */
+  getTotalAbandoned(): number { return this._totalAbandoned; }
+
+  /** Phase 1 UI: 외부 큐 스냅샷 (OutsideQueueRenderer 가 사용 예정). */
+  getEntryQueueSnapshot() {
+    return this.entryController.snapshot(this.state.timeState.elapsed);
+  }
+
+  /** Phase 1 UI: 외부 큐의 read-only payload list (시각화용). */
+  peekEntryQueue(): ReadonlyArray<QueuedItem<Visitor>> {
+    return this.entryController.peekQueue();
   }
 
   /* ═══════════════════════════════════════════════

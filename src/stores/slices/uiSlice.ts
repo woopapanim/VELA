@@ -31,6 +31,11 @@ export interface CameraState {
   zoom: number;
 }
 
+export interface BgCalRuler {
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+}
+
 export interface UiSlice {
   // State
   selectedZoneId: string | null;
@@ -46,6 +51,12 @@ export interface UiSlice {
   polygonEditMode: boolean;
   mediaPolygonEditMode: boolean;
   language: Language;
+  /** 전역 toggle — CompletionModal/CompletionReport 모두 사용. */
+  showFullReport: boolean;
+  /** 전역 toggle — CompletionModal/PolicyComparisonLauncher 모두 사용. */
+  showPolicyCompareModal: boolean;
+  /** 도면 5m 캘리브레이션 자 — null 이면 캘리브레이션 비활성. World coords. */
+  bgCalRuler: BgCalRuler | null;
 
   // Actions
   selectZone: (zoneId: string | null) => void;
@@ -61,6 +72,10 @@ export interface UiSlice {
   setPolygonEditMode: (on: boolean) => void;
   setMediaPolygonEditMode: (on: boolean) => void;
   setLanguage: (lang: Language) => void;
+  setShowFullReport: (show: boolean) => void;
+  setShowPolicyCompareModal: (show: boolean) => void;
+  setBgCalRuler: (ruler: BgCalRuler | null) => void;
+  updateBgCalRulerEndpoint: (which: 'a' | 'b', point: { x: number; y: number }) => void;
 }
 
 export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
@@ -77,6 +92,9 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   polygonEditMode: false,
   mediaPolygonEditMode: false,
   language: readStoredLanguage(),
+  showFullReport: false,
+  showPolicyCompareModal: false,
+  bgCalRuler: null,
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId, selectedMediaId: null }),
   selectMedia: (mediaId) => set({ selectedMediaId: mediaId, selectedZoneId: null }),
@@ -93,6 +111,11 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
     writeStoredLanguage(lang);
     set({ language: lang });
   },
+  setShowFullReport: (show) => set({ showFullReport: show }),
+  setShowPolicyCompareModal: (show) => set({ showPolicyCompareModal: show }),
+  setBgCalRuler: (ruler) => set({ bgCalRuler: ruler }),
+  updateBgCalRulerEndpoint: (which, point) =>
+    set((s) => (s.bgCalRuler ? { bgCalRuler: { ...s.bgCalRuler, [which]: point } } : {})),
   togglePanel: (side) =>
     set((s) => ({
       isPanelCollapsed: {

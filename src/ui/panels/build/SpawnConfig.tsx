@@ -5,7 +5,14 @@ import { TimeSlotEditor } from './TimeSlotEditor';
 import { VisitorPresets } from './VisitorPresets';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
 import { NumField } from '@/ui/components/ConfigFields';
-import { computeAutoRecommendedDurationMs } from '@/domain/constants';
+import {
+  computeAutoRecommendedDurationMs,
+  computeRecommendedVisitorCount,
+  VISITOR_COUNT_MIN,
+  VISITOR_COUNT_MAX,
+} from '@/domain/constants';
+import { Sparkles, Check } from 'lucide-react';
+import { EXPERIENCE_MODE_REGISTRY, inferExperienceMode } from '@/domain';
 
 export function SpawnConfig() {
   const scenario = useStore((s) => s.scenario);
@@ -18,6 +25,18 @@ export function SpawnConfig() {
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
   const config = scenario?.simulationConfig;
+  // Phase 1 (2026-04-25): non-unlimited 정책은 큐 동작 보장을 위해 time-mode 강제.
+  // person-mode 는 totalCount 도달 시 generation 정지 → 정책 sweep 의미 사라짐.
+  // ExperienceModePanel 의 모드 선택 핸들러에서도 자동 flip 수행 (이중 안전).
+  const policyMode = config?.operations?.entryPolicy?.mode ?? 'unlimited';
+  const policyForcesTime = policyMode !== 'unlimited';
+  // Phase 1 UX (2026-04-26): 운영 tier 는 시간 모드 강제 + 토글 숨김. 검증 tier 는 자유.
+  // (policyForcesTime 은 person 버튼 disable 만 — UX 토글 자체 노출은 tier 로 결정)
+  const expMode = scenario?.experienceMode
+    ?? inferExperienceMode(scenario?.simulationConfig.operations?.entryPolicy?.mode);
+  const showModeToggle = scenario
+    ? EXPERIENCE_MODE_REGISTRY[expMode].tier === 'validation'
+    : true;
   // Default to auto for legacy scenarios (undefined → true). Only explicit `false` opts out.
   const recAuto = config?.recommendedDurationAuto !== false;
   const autoRecMs = computeAutoRecommendedDurationMs(zones.length, media.length);
@@ -34,6 +53,24 @@ export function SpawnConfig() {
     });
   }, [scenario, isLocked, recAuto, autoRecMs, config?.recommendedDurationMs, setScenario]);
 
+  // Phase 1 (2026-04-25): 레거시 시나리오 방어 — single-slot 의 endTimeMs 가 duration 보다
+  // 작으면 자동으로 duration 까지 확장. 안 그러면 slot 만료 후 spawn rate=0 으로 멈춤.
+  // multi-slot 은 사용자 의도 (예: 9-10am 만 운영) 존중 → no-op.
+  useEffect(() => {
+    if (!scenario || isLocked) return;
+    const slots = scenario.simulationConfig.timeSlots;
+    if (!slots || slots.length !== 1) return;
+    const dur = scenario.simulationConfig.duration;
+    if (slots[0].endTimeMs >= dur) return;
+    setScenario({
+      ...scenario,
+      simulationConfig: {
+        ...scenario.simulationConfig,
+        timeSlots: [{ ...slots[0], endTimeMs: dur }],
+      },
+    });
+  }, [scenario, isLocked, setScenario]);
+
   const updateDist = useCallback((field: string, value: number) => {
     if (!scenario || isLocked) return;
     setScenario({
@@ -44,9 +81,18 @@ export function SpawnConfig() {
 
   const updateConfig = useCallback((field: string, value: number) => {
     if (!scenario || isLocked) return;
+    // Phase 1 (2026-04-25): single-slot 시 Duration 변경 시 timeSlots[0].endTimeMs 도 함께 sync.
+    // 이전엔 60분 default endTimeMs 가 그대로 남아 Duration 110분이어도 60분 후 spawn rate=0
+    // (getActiveTimeSlot 이 null 반환). multi-slot 은 사용자 의도 존중 → no-op.
+    const slots = scenario.simulationConfig.timeSlots;
+    const isSingleSlot = (slots?.length ?? 0) === 1;
+    let nextSlots = slots;
+    if (field === 'duration' && isSingleSlot && slots && slots[0]) {
+      nextSlots = [{ ...slots[0], endTimeMs: value }];
+    }
     setScenario({
       ...scenario,
-      simulationConfig: { ...scenario.simulationConfig, [field]: value },
+      simulationConfig: { ...scenario.simulationConfig, [field]: value, timeSlots: nextSlots },
     });
   }, [scenario, setScenario, isLocked]);
 
@@ -75,6 +121,14 @@ export function SpawnConfig() {
   // Rate source of truth is timeSlots[0]; dist.spawnRatePerSecond is a legacy mirror.
   const rateRps = config?.timeSlots?.[0]?.spawnRatePerSecond ?? dist?.spawnRatePerSecond ?? 2;
 
+  // 운영 tier 도 면적 기반 권장 인원이 필요 — 1067㎡ 공간에 50명 (default) 은
+  // 너무 적고, 5000명 (입력 가능) 은 비현실적. 검증 tier 의 VisitorLoadInline 과
+  // 같은 공식 (0.3 명/㎡) 을 작은 pill 로 노출 (2026-04-28 운영 페르소나 피드백).
+  const totalAreaM2 = zones.reduce((sum, z) => sum + (z.area ?? 0), 0);
+  const recommendedCount = computeRecommendedVisitorCount(totalAreaM2);
+  const totalCount = dist?.totalCount ?? 200;
+  const isRecApplied = totalCount === recommendedCount;
+
   const updateSpawnRatePerMin = (vPerMin: number) => {
     if (!scenario || isLocked || isMultiSlot) return;
     const rps = vPerMin / 60;
@@ -97,51 +151,90 @@ export function SpawnConfig() {
       </CollapsibleSection>
 
       <CollapsibleSection id="spawn-settings" title="Spawn Settings" defaultOpen>
-        <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
-          <div className="text-[9px] text-muted-foreground mb-1">{t('spawn.mode.label')}</div>
-          <div className="grid grid-cols-2 gap-1">
-            <button
-              onClick={() => setMode('time')}
-              disabled={isLocked}
-              title={t('spawn.mode.timeHint')}
-              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
-                mode === 'time'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-transparent border-border hover:border-primary/50'
-              }`}
-            >
-              {t('spawn.mode.time')}
-            </button>
-            <button
-              onClick={() => setMode('person')}
-              disabled={isLocked}
-              title={t('spawn.mode.personHint')}
-              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
-                mode === 'person'
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-transparent border-border hover:border-primary/50'
-              }`}
-            >
-              {t('spawn.mode.person')}
-            </button>
+        {showModeToggle && (
+          <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
+            <div className="text-[9px] text-muted-foreground mb-1">{t('spawn.mode.label')}</div>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                onClick={() => setMode('time')}
+                disabled={isLocked}
+                title={t('spawn.mode.timeHint')}
+                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+                  mode === 'time'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-transparent border-border hover:border-primary/50'
+                }`}
+              >
+                {t('spawn.mode.time')}
+              </button>
+              <button
+                onClick={() => setMode('person')}
+                disabled={isLocked || policyForcesTime}
+                title={policyForcesTime ? t('spawn.mode.lockedByPolicy') : t('spawn.mode.personHint')}
+                className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  mode === 'person'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-transparent border-border hover:border-primary/50'
+                }`}
+              >
+                {t('spawn.mode.person')}
+                {policyForcesTime && <span className="ml-1 text-[8px]">🔒</span>}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
+        {policyForcesTime && (
+          <div className="mb-2 px-2 py-1.5 rounded bg-primary/5 border border-primary/20 text-[9px] text-muted-foreground leading-tight">
+            {t('spawn.policyActiveHint')}
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-2">
+          <div>
+            <NumField
+              label={policyForcesTime ? `Total Visitors (∞)` : 'Total Visitors'}
+              value={dist?.totalCount ?? 200}
+              onChange={(v) => updateDist('totalCount', v)}
+              disabled={isLocked || policyForcesTime}
+              min={VISITOR_COUNT_MIN}
+              max={VISITOR_COUNT_MAX}
+            />
+            {!policyForcesTime && totalAreaM2 > 0 && (
+              <button
+                type="button"
+                onClick={() => !isRecApplied && updateDist('totalCount', recommendedCount)}
+                disabled={isLocked || isRecApplied}
+                title={`${Math.round(totalAreaM2)}㎡ × 0.3명/㎡`}
+                className={`mt-0.5 w-full flex items-center justify-center gap-1 px-1 py-0.5 text-[8px] rounded transition-colors ${
+                  isRecApplied
+                    ? 'bg-primary/5 text-primary/70 cursor-default'
+                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                }`}
+              >
+                {isRecApplied ? (
+                  <>
+                    <Check className="w-2.5 h-2.5" />
+                    Recommended
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-2.5 h-2.5" />
+                    Recommend {recommendedCount}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           <NumField
-            label="Total Visitors"
-            value={dist?.totalCount ?? 200}
-            onChange={(v) => updateDist('totalCount', v)}
-            disabled={isLocked}
-          />
-          <NumField
-            label="Max Concurrent"
+            label={policyForcesTime ? `Max Concurrent (∞)` : 'Max Concurrent'}
             // Clamp displayed value to Total — Max > Total is a dead setting
             // (cumulative cap fires first). Intermediate keystrokes on Total
             // would corrupt the stored Max, so we only clamp for display and
             // on-commit here, not by rewriting maxVisitors when Total changes.
             value={Math.min(config?.maxVisitors ?? 500, dist?.totalCount ?? 500)}
             onChange={(v) => updateConfig('maxVisitors', Math.min(v, dist?.totalCount ?? v))}
-            disabled={isLocked}
+            disabled={isLocked || policyForcesTime}
+            min={1}
+            max={dist?.totalCount ?? VISITOR_COUNT_MAX}
           />
           <div>
             <NumField
@@ -150,6 +243,8 @@ export function SpawnConfig() {
               onChange={updateSpawnRatePerMin}
               disabled={isLocked || isMultiSlot}
               step={1}
+              min={1}
+              max={600}
             />
             {isMultiSlot && (
               <p className="text-[8px] text-muted-foreground mt-0.5">Edit in Time Slots</p>
@@ -160,6 +255,8 @@ export function SpawnConfig() {
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
+            min={1}
+            max={1440}
           />
           <div>
             <NumField

@@ -1,8 +1,22 @@
 import { useEffect, useRef, useState as __useState } from 'react';
 import { Trash2, X, Plus, Star } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft } from '@/domain';
-import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
+import type {
+  WaypointType,
+  WaypointNode,
+  MediaPlacement,
+  MediaId,
+  Vector2D,
+  ShaftId,
+  ElevatorShaft,
+  ArtworkProps,
+  DigitalMediaProps,
+  InteractiveProps,
+  ArtworkSignificance,
+  InteractivityLevel,
+  InteractiveSessionMode,
+} from '@/domain';
+import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON, EXHIBIT_KIND } from '@/domain';
 import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { useToast } from '@/ui/components/Toast';
@@ -461,7 +475,12 @@ export function PropertyPopover({ popover, onClose }: {
         </Row>
 
         <div className="text-[8px] text-muted-foreground">
-          {(() => { const f = floors.find((fl) => fl.id === zone.floorId) ?? floors[0]; const mpu = (f as any)?.canvas?.scale ?? 0.025; return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`; })()} · {zone.area.toFixed(1)}m² · {zone.shape}
+          {(() => {
+            // ZoneConfig 에 floorId 가 없으므로 floor.zoneIds 로 역참조.
+            const f = floors.find((fl) => fl.zoneIds.includes(zone.id)) ?? floors[0];
+            const mpu = (f as any)?.canvas?.scale ?? 0.025;
+            return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`;
+          })()} · {zone.area.toFixed(1)}m² · {zone.shape}
         </div>
 
         {/* Add Media — inline expandable */}
@@ -494,17 +513,25 @@ export function PropertyPopover({ popover, onClose }: {
         onClick={e => e.stopPropagation()}
         onWheel={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-cyan-500" />
-            <span className="text-[11px] font-medium">MEDIA</span>
-          </div>
-          <div className="flex gap-1">
-            <button onClick={() => { removeMedia(popover.targetId!); onClose(); }}
-              className="p-0.5 rounded hover:bg-destructive/20 text-destructive"><Trash2 size={11} /></button>
-            <button onClick={onClose} className="p-0.5 rounded hover:bg-secondary"><X size={11} /></button>
-          </div>
-        </div>
+        {(() => {
+          const cat = (m as any).category;
+          const kindMeta = EXHIBIT_QUICK_ADD.find(k => k.key === cat);
+          const kindLabel = kindMeta ? t(kindMeta.labelKey) : t('exhibit.label');
+          const kindColor = kindMeta?.color ?? '#06b6d4';
+          return (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: kindColor }} />
+                <span className="text-[11px] font-medium">{kindLabel}</span>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => { removeMedia(popover.targetId!); onClose(); }}
+                  className="p-0.5 rounded hover:bg-destructive/20 text-destructive"><Trash2 size={11} /></button>
+                <button onClick={onClose} className="p-0.5 rounded hover:bg-secondary"><X size={11} /></button>
+              </div>
+            </div>
+          );
+        })()}
 
         <Row label="Name">
           <input type="text" value={m.name}
@@ -680,6 +707,13 @@ export function PropertyPopover({ popover, onClose }: {
           </button>
         </Row>
 
+        {/* ── Phase 0: 카테고리별 큐레이션 속성 ───────────── */}
+        <CategoryPropsCompact
+          media={m}
+          onUpdate={(patch) => updateMedia(popover.targetId!, patch as any)}
+          t={t}
+        />
+
         <div className="text-[8px] text-muted-foreground">
           {m.type.replace(/_/g, ' ')} · {m.size.width}x{m.size.height}m
         </div>
@@ -690,12 +724,14 @@ export function PropertyPopover({ popover, onClose }: {
   return null;
 }
 
-// ── Media categories for quick-add ──
-const MEDIA_CATEGORIES = [
-  { key: 'analog', label: 'Analog', color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
-  { key: 'passive_media', label: 'Passive', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
-  { key: 'active', label: 'Active', color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
-  { key: 'immersive', label: 'Immersive', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+// ── Exhibit categories for quick-add ──
+// Phase 0: 큐레이터 관점 라벨 사용. 코드 상 카테고리 키 (analog/passive_media/active/immersive)
+// 는 그대로 유지 (백엔드 호환). UI 표시 라벨만 i18n exhibit.kind.* 키로 매핑.
+const EXHIBIT_QUICK_ADD = [
+  { key: 'analog',        labelKey: 'exhibit.kind.artwork',    color: '#a78bfa', items: ['painting', 'artifact', 'sculpture', 'documents', 'diorama', 'graphic_sign'] },
+  { key: 'passive_media', labelKey: 'exhibit.kind.digital',    color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { key: 'active',        labelKey: 'exhibit.kind.interactive',color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { key: 'immersive',     labelKey: 'exhibit.kind.immersive',  color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _popoverMediaId = 5000;
@@ -809,7 +845,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
         className="flex items-center gap-1 w-full px-2 py-1.5 text-[10px] rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
       >
         <Plus size={10} />
-        Add Media
+        {t('exhibit.add')}
         <span className="text-[8px] text-muted-foreground ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -817,11 +853,11 @@ function AddMediaInline({ zoneId, zoneBounds }: {
           className="mt-1.5 space-y-1.5 max-h-52 overflow-y-auto overscroll-contain pr-0.5"
           onWheel={e => e.stopPropagation()}
         >
-          {MEDIA_CATEGORIES.map(({ key, label, color, items }) => (
+          {EXHIBIT_QUICK_ADD.map(({ key, labelKey, color, items }) => (
             <div key={key}>
               <div className="flex items-center gap-1 mb-0.5">
                 <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
-                <span className="panel-label">{label}</span>
+                <span className="panel-label">{t(labelKey)}</span>
               </div>
               <div className="grid grid-cols-2 gap-0.5">
                 {items.map(type => (
@@ -849,5 +885,271 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
       <span className="text-[9px] text-muted-foreground w-12 shrink-0">{label}</span>
       {children}
     </div>
+  );
+}
+
+// ── Phase 0: 카테고리별 큐레이션 속성 (popover compact 버전) ──
+// MediaEditor 의 CategoryProps 와 동일 의미. 팝오버 폭(w-60)에 맞춰 row 형태로 압축.
+//
+// 카테고리 매핑:
+//   ARTWORK     (analog)        → series, curatorialOrder, significance
+//   DIGITAL     (passive_media) → contentDuration, minWatch, loop, level
+//   IMMERSIVE   (immersive)     → DigitalMediaSection 재사용
+//   INTERACTIVE (active)        → sessionMode
+
+interface NestedSubKey {
+  artwork: ArtworkProps;
+  digital: DigitalMediaProps;
+  interactive: InteractiveProps;
+}
+
+/** 빈 객체는 제거하여 시나리오 JSON 을 깨끗하게 유지. */
+function buildNestedPatch<K extends keyof NestedSubKey>(
+  current: NestedSubKey[K] | undefined,
+  field: keyof NestedSubKey[K],
+  value: unknown,
+): NestedSubKey[K] | undefined {
+  const next: Record<string, unknown> = { ...(current ?? {}) };
+  if (value === undefined || value === '' || value === null) {
+    delete next[field as string];
+  } else {
+    next[field as string] = value;
+  }
+  if (Object.keys(next).length === 0) return undefined;
+  return next as NestedSubKey[K];
+}
+
+function CategoryPropsCompact({
+  media,
+  onUpdate,
+  t,
+}: {
+  media: MediaPlacement;
+  onUpdate: (patch: Partial<MediaPlacement>) => void;
+  t: (key: string) => string;
+}) {
+  const category = (media as any).category;
+  const artwork = (media as any).artwork as ArtworkProps | undefined;
+  const digital = (media as any).digital as DigitalMediaProps | undefined;
+  const interactive = (media as any).interactive as InteractiveProps | undefined;
+
+  if (category === EXHIBIT_KIND.ARTWORK) {
+    return (
+      <ArtworkRows
+        props={artwork}
+        onChange={(field, value) => onUpdate({ artwork: buildNestedPatch<'artwork'>(artwork, field, value) } as any)}
+        t={t}
+      />
+    );
+  }
+  if (category === EXHIBIT_KIND.DIGITAL || category === EXHIBIT_KIND.IMMERSIVE) {
+    return (
+      <DigitalRows
+        props={digital}
+        onChange={(field, value) => onUpdate({ digital: buildNestedPatch<'digital'>(digital, field, value) } as any)}
+        t={t}
+      />
+    );
+  }
+  if (category === EXHIBIT_KIND.INTERACTIVE) {
+    return (
+      <InteractiveRows
+        props={interactive}
+        onChange={(field, value) => onUpdate({ interactive: buildNestedPatch<'interactive'>(interactive, field, value) } as any)}
+        t={t}
+      />
+    );
+  }
+  return null;
+}
+
+function CategoryDivider({ label }: { label: string }) {
+  return (
+    <div className="pt-1 mt-1 border-t border-border/40">
+      <div className="text-[8px] uppercase tracking-wider text-muted-foreground/80 font-semibold">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function ArtworkRows({
+  props,
+  onChange,
+  t,
+}: {
+  props?: ArtworkProps;
+  onChange: (field: keyof ArtworkProps, value: unknown) => void;
+  t: (key: string) => string;
+}) {
+  const sig = props?.significance;
+  const SIG_OPTIONS: Array<{ value: ArtworkSignificance; labelKey: string; cls: string }> = [
+    { value: 'context', labelKey: 'exhibit.artwork.significance.context', cls: 'bg-secondary text-muted-foreground' },
+    { value: 'support', labelKey: 'exhibit.artwork.significance.support', cls: 'bg-blue-500/20 text-blue-400' },
+    { value: 'hero',    labelKey: 'exhibit.artwork.significance.hero',    cls: 'bg-amber-500/30 text-amber-300 font-semibold' },
+  ];
+
+  return (
+    <>
+      <CategoryDivider label={t('exhibit.artwork.section')} />
+      <Row label={t('exhibit.artwork.series')}>
+        <input
+          type="text"
+          value={props?.series ?? ''}
+          placeholder={t('exhibit.artwork.series.placeholder')}
+          onChange={(e) => onChange('series', e.target.value)}
+          className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border"
+        />
+      </Row>
+      <Row label={t('exhibit.artwork.curatorialOrder')}>
+        <input
+          type="number"
+          min={1}
+          step={1}
+          value={props?.curatorialOrder ?? ''}
+          disabled={!props?.series}
+          title={!props?.series ? t('exhibit.artwork.series') : undefined}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('curatorialOrder', Number.isFinite(v) && v > 0 ? v : undefined);
+          }}
+          className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border disabled:opacity-50"
+        />
+      </Row>
+      <Row label={t('exhibit.artwork.significance')}>
+        <div className="flex gap-0.5 flex-1">
+          {SIG_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onChange('significance', sig === opt.value ? undefined : opt.value)}
+              className={`flex-1 px-1 py-0.5 text-[9px] rounded transition-colors ${
+                sig === opt.value ? opt.cls : 'bg-secondary/50 text-muted-foreground hover:bg-secondary'
+              }`}
+            >
+              {t(opt.labelKey)}
+            </button>
+          ))}
+        </div>
+      </Row>
+    </>
+  );
+}
+
+function DigitalRows({
+  props,
+  onChange,
+  t,
+}: {
+  props?: DigitalMediaProps;
+  onChange: (field: keyof DigitalMediaProps, value: unknown) => void;
+  t: (key: string) => string;
+}) {
+  const contentSec = props?.contentDurationMs ? Math.round(props.contentDurationMs / 1000) : '';
+  const minWatchSec = props?.minWatchMs ? Math.round(props.minWatchMs / 1000) : '';
+  const showWarning =
+    typeof contentSec === 'number' &&
+    typeof minWatchSec === 'number' &&
+    contentSec > 0 &&
+    minWatchSec / contentSec < 0.2;
+
+  const LEVELS: Array<{ value: InteractivityLevel; labelKey: string }> = [
+    { value: 'view-only', labelKey: 'exhibit.digital.interactivityLevel.viewOnly' },
+    { value: 'chapter-select', labelKey: 'exhibit.digital.interactivityLevel.chapterSelect' },
+    { value: 'full-interactive', labelKey: 'exhibit.digital.interactivityLevel.fullInteractive' },
+  ];
+
+  return (
+    <>
+      <CategoryDivider label={t('exhibit.digital.section')} />
+      <Row label={`${t('exhibit.digital.contentDuration')} (s)`}>
+        <input
+          type="number"
+          min={0}
+          step={5}
+          value={contentSec}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('contentDurationMs', Number.isFinite(v) && v > 0 ? v * 1000 : undefined);
+          }}
+          className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border"
+        />
+      </Row>
+      <Row label={`${t('exhibit.digital.minWatch')} (s)`}>
+        <input
+          type="number"
+          min={0}
+          step={5}
+          value={minWatchSec}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            onChange('minWatchMs', Number.isFinite(v) && v > 0 ? v * 1000 : undefined);
+          }}
+          className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border"
+        />
+      </Row>
+      {showWarning && (
+        <div className="text-[8px] text-amber-400 pl-14">
+          ⚠ {t('exhibit.digital.warning.shortMinWatch')}
+        </div>
+      )}
+      <Row label={t('exhibit.digital.loopable')}>
+        <button
+          onClick={() => onChange('loopable', !props?.loopable)}
+          className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
+            props?.loopable ? 'bg-blue-500/20 text-blue-400' : 'bg-secondary text-muted-foreground'
+          }`}
+        >
+          {props?.loopable ? 'On' : 'Off'}
+        </button>
+      </Row>
+      <Row label={t('exhibit.digital.interactivityLevel')}>
+        <select
+          value={props?.interactivityLevel ?? 'view-only'}
+          onChange={(e) =>
+            onChange('interactivityLevel', e.target.value === 'view-only' ? undefined : (e.target.value as InteractivityLevel))
+          }
+          className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border"
+        >
+          {LEVELS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+          ))}
+        </select>
+      </Row>
+    </>
+  );
+}
+
+function InteractiveRows({
+  props,
+  onChange,
+  t,
+}: {
+  props?: InteractiveProps;
+  onChange: (field: keyof InteractiveProps, value: unknown) => void;
+  t: (key: string) => string;
+}) {
+  const SESSION_OPTIONS: Array<{ value: InteractiveSessionMode; labelKey: string }> = [
+    { value: 'free',  labelKey: 'exhibit.interactive.sessionMode.free' },
+    { value: 'queue', labelKey: 'exhibit.interactive.sessionMode.queue' },
+    { value: 'slot',  labelKey: 'exhibit.interactive.sessionMode.slot' },
+  ];
+
+  return (
+    <>
+      <CategoryDivider label={t('exhibit.interactive.section')} />
+      <Row label={t('exhibit.interactive.sessionMode')}>
+        <select
+          value={props?.sessionMode ?? 'free'}
+          onChange={(e) =>
+            onChange('sessionMode', e.target.value === 'free' ? undefined : (e.target.value as InteractiveSessionMode))
+          }
+          className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border"
+        >
+          {SESSION_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+          ))}
+        </select>
+      </Row>
+    </>
   );
 }

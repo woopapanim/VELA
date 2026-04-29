@@ -41,9 +41,18 @@ export const en: Dict = {
   // Simulation — stop dialog
   'sim.stop.title': 'Stop Simulation',
   'sim.stop.body':
-    'All agents, media stats, KPI history, and replay frames will be cleared.\nThis action cannot be undone.',
+    'All agents, media stats, KPI records, and replay data for this project will be cleared.\nOnce reset, the data cannot be recovered. Continue?',
   'sim.stop.cancel': 'Cancel',
   'sim.stop.confirm': 'Reset',
+
+  // Simulation — visitor load (validation tier inline input)
+  'sim.visitorLoad.label': 'Visitor count',
+  'sim.visitorLoad.unit': 'people',
+  'sim.visitorLoad.useRecommendedTooltip': 'Reset to area-based recommendation',
+  'sim.visitorLoad.hint': 'Sim ends when all visitors have come and gone. Bigger area = bigger recommendation.',
+  'sim.visitorLoad.recommendBasis': 'Recommended for {area}㎡: {count} visitors',
+  'sim.visitorLoad.recommendApplied': 'Recommended count applied',
+  'sim.visitorLoad.recommendCta': 'Use area-based: {count}',
 
   // Build — waypoint node descriptions (tooltips)
   'build.node.entry.desc': 'Spawn point',
@@ -94,6 +103,12 @@ export const en: Dict = {
   'configFields.sumRequired': 'Sum: {total}% (100% required)',
 
   // Welcome screen
+  // Mode selection screen — first-run survey after creating a new project
+  'modeSelect.title': 'What scenario should we simulate?',
+  'modeSelect.subtitle': 'Your direction shapes the inputs and the report you will see.',
+  'modeSelect.skip': 'Skip — start with the default',
+  'modeSelect.back': '← Back',
+
   'welcome.error.invalidFile':
     'Invalid file (missing meta / zones / simulationConfig)',
   'welcome.error.parseError': 'Parse error: {message}',
@@ -119,9 +134,6 @@ export const en: Dict = {
   'context.delete': 'Delete',
   'context.duplicate': 'Duplicate',
   'context.edit': 'Edit',
-
-  // Main layout — zone list
-  'mainLayout.dragHandle': 'Drag to reorder',
 
   // Sensitivity panel — dynamic recommendations
   'sensitivity.rec.expandEntrance':
@@ -263,7 +275,7 @@ export const en: Dict = {
   'tooltip.summary':
     'Core KPI panel summarizing the current simulation state. Active is the number of visitors still in the venue; Spawned and Exited are the cumulative entries and departures since start; Fatigue is the mean fatigue across all visitors; Thru/min is the exit rate over the last minute; Elapsed is total simulation time; Peak Zone shows the zone with the highest utilization.',
   'tooltip.agentDistribution':
-    'Proportional bar chart of what active visitors are currently doing. Five states are tracked — MOVING (between zones), WATCHING (viewing media), WAITING (in queue), RESTING (on break), and EXITING (heading out) — with bar length reflecting each action\'s share of the active population.',
+    'Proportional bar chart of what active visitors are currently doing. Five states are tracked — MOVING (between waypoints), WATCHING (viewing media), WAITING (in queue), RESTING (on break), and EXITING (heading out) — with bar length reflecting each action\'s share of the active population.',
   'tooltip.insights':
     'Auto-generated recommendations derived from live simulation data. Severity is categorized into critical (red, immediate action), warning (amber, review advised), and info (blue, informational). Each card\'s action button jumps directly to the editor for the affected zone or media.',
   'tooltip.liveDashboard':
@@ -279,11 +291,86 @@ export const en: Dict = {
   'tooltip.simulation':
     'Simulation control panel. Starts, pauses, and stops the agent-based simulation and toggles the heatmap overlay. During a run, the current Phase and Elapsed time are displayed alongside the active agent count.',
   'tooltip.spawn':
-    'Visitor spawn configuration. Defines time slots, per-second spawn rates, and the mix of visitor profiles entering the venue over the simulation duration.',
+    'Visitor spawn configuration.\n• Spawn Rate /min: average new visitors per minute at Entry nodes.\n• Duration (min): total simulation length. Termination criterion in time-mode.\n• Stay budget (min, auto): average recommended stay per visitor. Auto mode estimates from zone/media count.\n• Time slots: define different spawn rates / profile mixes per hour band.',
   'tooltip.visitors':
     'Visitor profile configuration. Adjusts demographic proportions, engagement levels, group size distribution, and behavioral parameters such as patience and walking speed for the simulated population.',
   'tooltip.zones':
-    'List of exhibition zones in flow order. Entrance is always first and Exit is always last. Middle zones can be dragged to reorder, and clicking a zone selects it for editing. The number in parentheses is the total zone count.',
+    'List of zones. Click to select for editing. Entry/Exit are no longer zones — they are Entry/Exit nodes in the waypoint graph (add via the Node tool in Build). The number in parentheses is the total zone count.',
+
+  // Left panel — domain section headers
+  'mainLayout.section.build': 'Build',
+  'mainLayout.section.operations': 'Operations',
+
+  // AnalyticsPanel — tab group labels (Live / Post)
+  'analytics.group.live': 'Live',
+  'analytics.group.post': 'Post',
+
+  // LivePulse — Simulate-phase right panel (monitoring only, no analytics depth)
+  'pulse.idle': 'Start the simulation to see live progress here.',
+  'pulse.progress.title': 'Progress',
+  'pulse.progress.running': 'Running',
+  'pulse.progress.paused': 'Paused',
+  'pulse.progress.personSub': 'in {spawned} · out {exited} / {total}',
+  'pulse.progress.timeSub': '{elapsed} / {total}',
+  'pulse.kpi.active': 'Visitors now',
+  'pulse.kpi.activeSub': 'watching {watching} · waiting {waiting}',
+  'pulse.kpi.peak': 'Peak load',
+  'pulse.kpi.fatigue': 'Avg fatigue',
+  'pulse.kpi.skip': 'Skip rate',
+  'pulse.status.ok': 'OK — flowing smoothly.',
+  'pulse.status.crowded': 'Watch — {zone} at {pct}%',
+  'pulse.status.bottleneck': '{n} bottleneck(s) — see Analyze for locations',
+  'pulse.hint.afterEnd': 'When the run ends you will switch to the analyze view automatically.',
+  'pulse.zones.title': 'Hottest areas',
+  'pulse.zones.empty': 'No areas occupied yet',
+  'pulse.media.title': 'Now watching',
+  'pulse.media.empty': 'No exhibits being watched',
+  'pulse.media.viewers': '{n}',
+
+  // CanvasToolbar — sim context chips
+  'canvasToolbar.heatmap': 'Heatmap',
+  'canvasToolbar.heatmap.replayDisabled': 'Disabled during replay',
+  'canvasToolbar.pin': 'Pin moment',
+
+  // MainLayout — mode badge tooltip
+  'mainLayout.modeBadge.tooltip': 'Click to return to Setup — change mode',
+
+  // AnalyticsPanel — Action tab (validation tier CTA)
+  'analytics.action.validation.title': 'Result summary + Next action',
+  'analytics.action.validation.desc':
+    'If this result is good, save it as-is. To try a different layout, create a variant and edit it in Build.',
+  'analytics.action.validation.kpi.bottleneck': 'Bottleneck',
+  'analytics.action.validation.kpi.dwell': 'Avg dwell',
+  'analytics.action.validation.kpi.skip': 'Skip rate',
+  'analytics.action.validation.saveBtn': 'Save as-is',
+  'analytics.action.validation.forkBtn': 'Create variant',
+  'analytics.action.validation.saved': '"{{name}}" saved',
+
+  // AnalyticsPanel — Action tab post-run hotspots (where stuck / where flowed)
+  'analytics.action.hotspots.title': 'Hotspots',
+  'analytics.action.hotspots.bottleneckTitle': 'Bottleneck areas',
+  'analytics.action.hotspots.bottleneckEmpty': 'No serious bottlenecks detected',
+  'analytics.action.hotspots.mediaTitle': 'Most-watched exhibits',
+  'analytics.action.hotspots.mediaEmpty': 'No viewing data',
+  'analytics.action.hotspots.score': 'score {n}',
+  'analytics.action.hotspots.watchCount': '{n}',
+
+  // MainLayout — Simulate completed CTA banner
+  'mainLayout.goAnalyze.title': 'Simulation complete — Go to Analyze',
+  'mainLayout.goAnalyze.sub': 'KPIs · variant compare · pins · report',
+
+  // Toast — step transition
+  'toast.simCompleted': 'Simulation complete. Switched to Analyze step.',
+
+  // AnalyzeLayout — left summary panel
+  'analyze.summary.title': 'Simulation summary',
+  'analyze.summary.visitors': 'In/Out',
+  'analyze.summary.completion': 'Completion',
+  'analyze.summary.avgDwell': 'Avg dwell',
+  'analyze.summary.peak': 'Peak load',
+  'analyze.summary.fatigue': 'Avg fatigue',
+  'analyze.summary.skip': 'Skip rate',
+  'analyze.summary.bottleneck': '{{n}} bottlenecks — see Pin tab',
 
   // Media editor — field tooltips
   'tooltip.media.orientation':
@@ -368,11 +455,323 @@ export const en: Dict = {
   'spawn.mode.person': 'Person-based',
   'spawn.mode.timeHint': 'Ends at Duration. For operations review — hourly capacity & peak analysis.',
   'spawn.mode.personHint': 'Ends when all visitors exit (Duration is safety cap). For design validation — dwell & completion rate.',
+  'spawn.mode.lockedByPolicy': 'Time mode is required when an entry policy is active (Person mode stops spawning at totalCount → cap-sweep infeasible).',
+  'spawn.policyActiveHint': 'Entry policy active — continuous arrivals mode (Total/Max Concurrent ignored). Unlimited arrivals during Duration; policy concurrent-cap/slot is the true cap.',
   'spawn.recStay.label': 'Visit Budget (min)',
   'spawn.recStay.labelAuto': 'Visit Budget (min, auto)',
   'spawn.recStay.switchAuto': 'Switch to auto',
   'spawn.recStay.switchManual': 'Switch to manual',
   'spawn.recStay.hint': 'Per-visitor stay budget. Auto: 30min + {zones} zones×3min + {media} media×2min, capped 180min.',
+
+  // Operations Policy (Phase 1)
+  'ops.title': 'Entry Policy',
+  'ops.modeLabel': 'Mode',
+  'ops.mode.unlimited': 'Unlimited',
+  'ops.mode.unlimited.desc': 'Admit on arrival. No throttle (default).',
+  'ops.mode.concurrent-cap': 'Concurrent Cap',
+  'ops.mode.concurrent-cap.desc': 'Admit only while interior count < N.',
+  'ops.mode.rate-limit': 'Rate Limit',
+  'ops.mode.rate-limit.desc': 'At most N admits per rolling 1 hour.',
+  'ops.mode.time-slot': 'Time Slot',
+  'ops.mode.time-slot.desc': 'K admits per slot (e.g. 30 min); resets each slot.',
+  'ops.mode.hybrid': 'Hybrid',
+  'ops.mode.hybrid.desc': 'Concurrent cap + time slot combined (large venues).',
+  'ops.field.maxConcurrent': 'Max Concurrent',
+  'ops.field.maxPerHour': 'Max per Hour',
+  'ops.field.slotDurationMin': 'Slot Length (min)',
+  'ops.field.perSlotCap': 'Per-Slot Cap',
+  'ops.field.maxWaitMin': 'Patience (max wait; abandon if exceeded)',
+  'ops.live.title': 'Live Queue',
+  'ops.live.queueLength': 'Waiting',
+  'ops.live.oldestWait': 'Oldest Wait',
+  'ops.live.totalAbandoned': 'Abandoned',
+  'ops.live.empty': '0 waiting — admitting on arrival.',
+  'ops.lockedHint': 'Policy is locked while simulation is running.',
+
+  'ops.patienceGuide':
+    '🎟️ Patience = max time an individual will tolerate in the outside queue.\n\n' +
+    'Reality benchmarks (Wharton queueing research + museum averages):\n' +
+    '• Free walk-in: 10–15 min\n' +
+    '• Paid general exhibition: 30–45 min ← standard\n' +
+    '• Blockbuster (Klimt, Van Gogh): 45–60 min\n' +
+    '• Theme park headliner: 60–90 min\n' +
+    '• Pre-booked timed-entry: 30–60 min\n\n' +
+    '⚠️ Too short (e.g. 3min) → all caps saturate → sweep loses meaning.',
+  'ops.patienceModelLabel': 'Patience Distribution',
+  'ops.patienceModelHint':
+    '🎲 Distribution model:\n\n' +
+    '• Fixed: everyone has the same patience — for quick comparisons\n' +
+    '• Normal: per-person variation (realistic model)\n\n' +
+    '📏 σ (std dev) sizing guide — pick based on exhibition type:\n' +
+    '• Free walk-in: σ ≈ 50% of mean (wide commitment range)\n' +
+    '• Paid general exhibition: σ ≈ 30% of mean (some commitment)\n' +
+    '• Blockbuster: σ ≈ 20% of mean (everyone prepared to wait)\n' +
+    '• Children\u2019s hands-on: σ ≈ 50% of mean (mood swings)\n' +
+    '• Tech/conference: σ ≈ 30% of mean\n\n' +
+    '※ σ is independent of mean — changing mean does not auto-update σ.',
+  'ops.patienceModel.fixed': 'Fixed',
+  'ops.patienceModel.normal': 'Normal',
+  'ops.field.patienceStdMin': 'Std Dev σ (min)',
+  'ops.field.patienceStdPct': 'Std Dev σ (% of mean)',
+  'ops.useModifiersLabel': 'Per-profile / engagement variation (optional)',
+  'ops.useModifiersHint':
+    'When checked, mean patience varies by visitor profile mix.\n' +
+    'VIP / child / immersive etc. — each person\u2019s mean shifts.\n\n' +
+    '⚠️ If your exhibition has near-zero of these profiles (e.g. tech conference → no children), effect is negligible. Recommend leaving unchecked (simple model).',
+  'ops.patienceProfileNote':
+    'Profile multipliers (only fire if visitor mix includes them):\n' +
+    '• VIP ×1.3 (pre-committed, paid)\n' +
+    '• General ×1.0 (baseline)\n' +
+    '• Child ×0.6 (bores quickly) ※ for child-focused venues, treat as ×1.0\n' +
+    '• Elderly/disabled ×0.85 (limited standing)\n\n' +
+    'Engagement multipliers: immersive ×1.4 / explorer ×1.0 / quick ×0.7.\n\n' +
+    '※ Ignore rows for profiles not in your exhibition. If multipliers don\u2019t match your context, adjust the visitor mix ratios in the spawn panel.',
+
+  // ── Phase 1 UX: Experience Modes (2026-04-26) ──
+  'experienceMode.title': 'Experience Mode',
+  'experienceMode.titleHint':
+    '🎯 Pick what you want to validate or forecast first.\n\n' +
+    'Experience Mode is the _top-level_ choice that auto-aligns entry policy, satisfaction weights, and report perspective.\n\n' +
+    '• Validation: baseline for comparing design variants (no queue)\n' +
+    '• Operations forecast: timeline + recommendation for a single scenario',
+  'experienceMode.question': 'What are you trying to validate or forecast?',
+  'experienceMode.lockedHint': 'Mode cannot be changed while a simulation is running.',
+  'experienceMode.changeConfirm':
+    'Changing the experience mode will reset entry policy and satisfaction weights to the new mode\u2019s defaults.\nProceed?',
+  'experienceMode.disabledHint': 'This mode unlocks in {phase}.',
+  'experienceMode.disabledLine': '🔒 Unlocks in {phase}',
+
+  // 2-tier headers
+  'experienceMode.tier.validation': 'Analysis — Is this design good?',
+  'experienceMode.tier.operations': 'Operations forecast — How will it run?',
+
+  // 8 mode labels + short descriptions
+  'experienceMode.layout_validation.label': 'Spatial design analysis',
+  'experienceMode.layout_validation.desc': 'Analyze design quality based on flow, spatial composition, and dwell patterns.',
+  'experienceMode.curation_validation.label': 'Curation analysis',
+  'experienceMode.curation_validation.desc': 'Compare artwork placement, sequence, and series cohesion variants.',
+  'experienceMode.media_experience.label': 'Media experience analysis',
+  'experienceMode.media_experience.desc': 'Compare content length, playback mode, and capacity variants.',
+  'experienceMode.free_admission.label': 'Free admission',
+  'experienceMode.free_admission.desc': 'Analyze hourly congestion and density patterns from visitor inflow.',
+  'experienceMode.free_with_throttle.label': 'Free + throttle',
+  'experienceMode.free_with_throttle.desc': 'Free walk-in normally; simulate admission limit when capacity is exceeded.',
+  'experienceMode.timed_reservation.label': 'Timed reservation',
+  'experienceMode.timed_reservation.desc': 'Analyze visitor distribution and space utilization under hourly reservation operations.',
+  'experienceMode.controlled_admission.label': 'Controlled admission',
+  'experienceMode.controlled_admission.desc': 'Simulate operations that cap admission to maintain comfort.',
+  'experienceMode.group_visit.label': 'Group visit',
+  'experienceMode.group_visit.desc': 'Mixed group + individual operation. Group conflicts and docent utilization.',
+
+  // Persona + core question (mode selection cards — 2026-04-28)
+  'experienceMode.layout_validation.persona': 'Spatial Designer',
+  'experienceMode.layout_validation.question': 'Is this layout good?',
+  'experienceMode.curation_validation.persona': 'Curator',
+  'experienceMode.curation_validation.question': 'Does this curation order work?',
+  'experienceMode.media_experience.persona': 'Content Manager',
+  'experienceMode.media_experience.question': 'Is this media program meaningfully consumed?',
+  'experienceMode.free_admission.persona': 'Operations Team',
+  'experienceMode.free_admission.question': 'How crowded does it get hour by hour?',
+  'experienceMode.free_with_throttle.persona': 'Operations Team',
+  'experienceMode.free_with_throttle.question': 'Free walk-in normally, throttled on surge — when does it fire?',
+  'experienceMode.timed_reservation.persona': 'Operations Team',
+  'experienceMode.timed_reservation.question': 'Do reservation slots fill properly?',
+  'experienceMode.controlled_admission.persona': 'Owner / Investor',
+  'experienceMode.controlled_admission.question': 'How do we balance comfort vs throughput?',
+  'experienceMode.group_visit.persona': 'Group Operations Lead',
+  'experienceMode.group_visit.question': 'Can groups and individuals operate together?',
+
+  // KPI preview chip labels (mode selection cards — 2026-04-28)
+  'experienceMode.kpi.density': 'Avg density',
+  'experienceMode.kpi.congestionMin': 'Congestion time',
+  'experienceMode.kpi.flowEfficiency': 'Flow efficiency',
+  'experienceMode.kpi.variantAbc': 'A/B/C compare',
+  'experienceMode.kpi.orderFidelity': 'Order fidelity',
+  'experienceMode.kpi.seriesCompletion': 'Series completion',
+  'experienceMode.kpi.heroReach': 'Hero reach',
+  'experienceMode.kpi.backtrack': 'Backtrack ratio',
+  'experienceMode.kpi.meaningfulCompletion': 'Meaningful completion',
+  'experienceMode.kpi.throughput': 'Throughput',
+  'experienceMode.kpi.contentSkip': 'Content skip',
+  'experienceMode.kpi.capacityUtil': 'Capacity util',
+  'experienceMode.kpi.concurrentTimeline': 'Concurrent timeline',
+  'experienceMode.kpi.satisfaction': 'Satisfaction',
+  'experienceMode.kpi.crowdAccum': 'Crowd accumulation',
+  'experienceMode.kpi.recommendedCap': 'Recommended cap',
+  'experienceMode.kpi.outsideQueue': 'Outside queue',
+  'experienceMode.kpi.avgWait': 'Avg wait',
+  'experienceMode.kpi.abandonRate': 'Abandon rate',
+  'experienceMode.kpi.slotIntake': 'Slot intake',
+  'experienceMode.kpi.slotUtil': 'Slot utilization',
+  'experienceMode.kpi.interSlotWait': 'Inter-slot wait',
+  'experienceMode.kpi.throughputTradeoff': 'Throughput trade-off',
+  'experienceMode.kpi.recommendedCapRange': 'Recommended cap range',
+  'experienceMode.kpi.groupCohesion': 'Group cohesion',
+  'experienceMode.kpi.groupConflict': 'Group conflict',
+  'experienceMode.kpi.docentUtil': 'Docent utilization',
+  'experienceMode.kpi.vipImpact': 'VIP impact',
+
+  // Mode selection card shared labels (2026-04-28)
+  'modeSelect.previewKpiLabel': 'Key analysis outputs',
+  'modeSelect.lockedCta': 'Preview',
+  'modeSelect.lockedModalTitle': 'Unlocks in {phase}',
+
+  // 4-step workflow indicator
+  'workflow.step1': 'Setup',
+  'workflow.step1.sub': 'Choose scenario',
+  'workflow.step2': 'Build',
+  'workflow.step2.sub': 'Compose space',
+  'workflow.step3': 'Simulate',
+  'workflow.step3.sub': 'Run simulation',
+  'workflow.step4': 'Analyze',
+  'workflow.step4.sub': 'Review results',
+  // stepper lock reasons — surfaced as tooltip when not yet reachable
+  'step.lock.setup': 'Mode is set — start a new project or fork a variant to change',
+  'step.lock.build': 'Choose a mode first',
+  'step.lock.simulate': 'Place at least one area and one exhibit',
+  'step.lock.analyze': 'Run a simulation first',
+
+  // Build step (compose space) — task accordion 4
+  'build.task.region.label': 'Regions',
+  'build.task.region.sub': 'Create a region — floor plan is optional',
+  'build.task.zones.label': 'Areas',
+  'build.task.zones.sub': 'Draw visitor areas',
+  'build.task.exhibits.label': 'Exhibits',
+  'build.task.exhibits.sub': 'Place artworks and media',
+  'build.task.flow.label': 'Flow',
+  'build.task.flow.sub': 'Connect the visitor path',
+  'build.next': 'Continue to simulation →',
+  'build.next.needZones': 'Draw at least one area to continue',
+  'build.next.needExhibits': 'Place at least one exhibit to continue',
+
+  // Build tool modes (task accordion toggles)
+  'build.mode.select': 'Select',
+  'build.mode.zone': 'Area',
+  'build.mode.exhibit': 'Exhibit',
+  'build.mode.node': 'Node',
+  'build.mode.edge': 'Edge',
+
+  // Build task accordion hints
+  'build.hint.selectZoneFirstShort': 'Select an area first',
+  'build.list.zonesEmpty': 'No areas yet. Add one from the tools above.',
+  'build.list.exhibitsEmpty': 'No exhibits in this area yet. Pick a category above.',
+  'build.exhibit.tooLarge': 'This exhibit is too large for the selected area. Resize the area first or pick a smaller one.',
+  'build.list.zonesTitle': 'Areas ({n})',
+  'build.list.exhibitsTitle': 'Exhibits ({n})',
+  'build.list.nodesTitle': 'Nodes ({n})',
+  'build.list.edgesTitle': 'Edges ({n})',
+  'build.list.flowEmpty': 'No nodes yet. Use the "Node" tool on the left to add one.',
+  'build.list.edgesEmpty': 'No connections yet. Use the "Edge" tool to link nodes.',
+  'build.right.empty': 'Select an object on the canvas to edit it here.',
+  'build.right.flowEmpty': 'For flow, click nodes on the canvas or use auto-connect.',
+  'build.right.regionEmpty': 'Pick a region on the left to see its info. Floor plan is optional.',
+
+  // Region task
+  'build.region.leftHint': 'Add a region, then pick one in the list on the right to attach a floor plan. Floor plan is optional.',
+  'build.region.addAction': 'Add region',
+  'build.region.arrangeAction': 'Auto-arrange floors',
+  'build.region.rightEmpty': 'No regions yet. Tap "Add region" on the left to start.',
+  'build.region.overlayLabel': 'Floor plan (optional)',
+  'build.region.overlayOn': 'Floor plan attached',
+  'build.region.overlayHidden': 'Floor plan attached (hidden)',
+  'build.region.overlayOff': 'No floor plan',
+  'build.region.add': 'Add',
+  'build.region.addFirst': '+ Add region',
+  'build.region.arrange': 'Auto-arrange',
+  'build.region.listTitle': 'Regions ({n})',
+  'build.region.zone': 'area',
+  'build.region.zones': 'areas',
+  'build.region.editOverlay': 'Edit floor plan',
+  'build.region.addOverlay': 'Add floor plan',
+  'build.region.show': 'Show',
+  'build.region.hide': 'Hide',
+  'build.region.moveUp': 'Move up',
+  'build.region.moveDown': 'Move down',
+  'build.region.rename': 'Rename',
+  'build.region.delete': 'Delete',
+  'build.region.confirmDelete': 'Delete region "{name}"? Its areas, exhibits, and flow will be removed.',
+
+  // Floor plan editor (lives inside a region — optional)
+  'build.floor.upload': 'Upload floor plan',
+  'build.floor.dropHint': 'Drop a floor plan image, or click to upload',
+  'build.floor.scale': 'Scale',
+  'build.floor.replace': 'Replace',
+  'build.floor.removeAria': 'Remove',
+  'build.floor.addLevel': '+ Add another level',
+  'build.floor.edit': 'Edit',
+  'build.floor.done': 'Done',
+  'build.floor.hide': 'Hide',
+  'build.floor.show': 'Show',
+  'build.floor.reset': 'Reset',
+  'build.floor.arrange': 'Arrange floors',
+  'build.floor.editHint': 'Drag the floor plan on the canvas, grab corners to resize, or use the top handle to rotate',
+  'build.floor.rotation': 'Rotate',
+  'build.floor.cal.start': 'Calibrate (5m)',
+  'build.floor.cal.title': '5m reference — match a known length',
+  'build.floor.cal.hint': 'Drag the ruler endpoints onto a known 5m feature on the plan (door width, dimension label, etc.). Press Apply and the floor plan scale is recomputed.',
+  'build.floor.cal.apply': 'Apply',
+  'build.floor.cal.cancel': 'Cancel',
+
+  // Build bottom inspector empty-state stats (legacy — removed when bottom panel goes)
+  'build.bottom.empty': 'Select an object to edit, or keep building.',
+  'build.bottom.statsFloors': '{f} floor(s)',
+  'build.bottom.statsZones': '{z} area(s)',
+  'build.bottom.statsExhibits': '{m} exhibit(s)',
+
+  // Setup 1단계: binary branch
+  'modeSelect.branch.validation.label': 'Evaluate space design',
+  'modeSelect.branch.validation.tagline': 'Is the layout / flow effective?',
+  'modeSelect.branch.operations.label': 'Operations simulation',
+  'modeSelect.branch.operations.tagline': 'What will happen with real visitors?',
+  'modeSelect.branch.pickOne': 'Pick one direction',
+  'modeSelect.branch.changeBranch': '← Choose different direction',
+
+  // Setup 2단계: washed sub-mode copy
+  'modeSelect.sub.layout_validation': 'Is the space design good?',
+  'modeSelect.sub.curation_validation': 'Is the exhibit order effective?',
+  'modeSelect.sub.media_experience': 'Is media being consumed well?',
+  'modeSelect.sub.free_admission': 'Free entry — what happens?',
+  'modeSelect.sub.free_with_throttle': 'Free normally, throttle on surge',
+  'modeSelect.sub.timed_reservation': 'Timed reservation operations',
+  'modeSelect.sub.controlled_admission': 'Capped concurrent admission',
+  'modeSelect.sub.group_visit': 'Mixed group + individual',
+  'modeSelect.sub.lockedSoon': 'soon',
+
+  // Setup right-side guide
+  'modeSelect.guide.firstTime': 'First time?',
+  'modeSelect.guide.watchIntro': '1-min intro ▶',
+  'modeSelect.guide.comingSoon': 'Intro video coming soon',
+  'modeSelect.lockedModalIntro': 'Once this mode is enabled you will see:',
+  'modeSelect.lockedModalClose': 'Close',
+  'modeSelect.lockedModalShortIntro': 'This scenario is still in preparation.',
+
+  // ── Experience tab — Entry Queue card (Phase 1+, 2026-04-26) ──
+  'experience.queue.title': 'Entry Queue (Outside)',
+  'experience.queue.titleHint':
+    'Outside-queue status when an entry policy is active.\n' +
+    'Configure the policy in "Settings" (left), analyze the outcome here.',
+  'experience.queue.unlimited': 'Unlimited entry policy — no outside queue. Pick an Experience Mode (left) with a non-unlimited policy to see KPIs.',
+  'experience.queue.idleHint': 'Pre-sim — counters fill once you press Start.',
+  'experience.queue.arrived': 'Arrived',
+  'experience.queue.admitted': 'Admitted',
+  'experience.queue.abandoned': 'Abandoned',
+  'experience.queue.queued': 'Waiting',
+  'experience.queue.avgQueueWait': 'Avg Wait',
+  'experience.queue.avgQueueWaitHint':
+    'Mean wait time of everyone currently queued.\n' +
+    'Live load indicator — rising = cap/throughput shortage.',
+  'experience.queue.recentAdmitWait': 'Recent Admit Avg',
+  'experience.queue.recentAdmitWaitHint':
+    'Mean outside wait of the last 100 admits (rolling).\n' +
+    'Key operational KPI: "with this policy, average X min wait."',
+  'experience.queue.oldestWait': 'Oldest Wait',
+  'experience.queue.abandonRate': 'Abandon Rate',
+  'experience.queue.abandonRateHint':
+    'Fraction of arrivals who left due to patience exceeded.\n' +
+    '> 20%: red (policy too tight), 10-20%: yellow, < 10%: green.',
+  'experience.queue.throughputPerHour': 'Admits/h',
+  'experience.queue.throughputPerHourHint': 'Cumulative admits / elapsed → per-hour estimate.',
+
   'vela.hero.modeTime': '🕐 Time-based',
   'vela.hero.modePerson': '👥 Person-based',
   'vela.hero.modeTimeHint': 'Measures throughput during operating hours',
@@ -400,6 +799,71 @@ export const en: Dict = {
   'vela.verdict.activation.b': 'More than half the content sits in flow blind spots.',
   'vela.verdict.balanced.a': 'Peak {peak}% · Activation {activation}% · Skip {skip}%',
   'vela.verdict.balanced.b': 'All key indicators stayed within thresholds.',
+
+  // VELA Report — Mode Perspective (Phase 1 UX, 2026-04-26)
+  // 본문 11 섹션 위에 덧대는 모드 관점 overlay. 모드 의도 기준 KPI/총평 클로즈업.
+  'vela.persp.title': 'Mode Lens',
+  'vela.persp.tier.validation': 'Analysis lens',
+  'vela.persp.tier.operations': 'Operations lens',
+  'vela.persp.verdict.eyebrow': "This mode's read",
+  'vela.persp.priorityRecos': "Priority for this mode's intent",
+
+  // mode hint — 1 line under the mode badge
+  'vela.persp.modeHint.layout_validation': 'Does the spatial layout invite the intended flow?',
+  'vela.persp.modeHint.curation_validation': 'Does the artwork order land?',
+  'vela.persp.modeHint.media_experience': 'Does each media piece complete its arc?',
+  'vela.persp.modeHint.free_admission': 'Where does crowding form when uncontrolled?',
+  'vela.persp.modeHint.free_with_throttle': 'Throttle on, but how often does it actually fire?',
+  'vela.persp.modeHint.timed_reservation': 'Are slots well-sized for arrivals?',
+  'vela.persp.modeHint.controlled_admission': 'Is the cap holding wait times to acceptable bounds?',
+  'vela.persp.modeHint.group_visit': 'Group flow vs solo flow conflicts',
+
+  // pivot KPI labels + notes (모드 관계없이 같은 KPI 라벨, 모드별로 노출 여부만 다름)
+  'vela.persp.kpi.completion': 'Completion',
+  'vela.persp.kpi.completion.note': 'Visited ≥80% of zones',
+  'vela.persp.kpi.activation': 'Media activation',
+  'vela.persp.kpi.activation.note': 'Media touched ≥1×',
+  'vela.persp.kpi.skip': 'Skip rate',
+  'vela.persp.kpi.skip.note': 'Approached but skipped',
+  'vela.persp.kpi.peak': 'Peak utilization',
+  'vela.persp.kpi.peak.note': 'Hottest zone vs capacity',
+  'vela.persp.kpi.wait': 'Avg outside wait',
+  'vela.persp.kpi.wait.note': 'Last 100 admits',
+  'vela.persp.kpi.abandon': 'Abandonment',
+  'vela.persp.kpi.abandon.note': 'Left queue before admission',
+
+  // verdict signals — {mode} (label) + {pct} (percent for the cited metric)
+  'vela.persp.verdict.balanced.a': '{mode}: indicators within thresholds.',
+  'vela.persp.verdict.balanced.b': 'No mode-critical signal triggered.',
+  'vela.persp.verdict.peak.a': 'Peak utilization {pct}%.',
+  'vela.persp.verdict.peak.b': 'Crowding is the main story for this mode.',
+  'vela.persp.verdict.fatigue.a': 'Top 10% fatigue {pct}%.',
+  'vela.persp.verdict.fatigue.b': 'Free flow concentrates load late in the route.',
+  'vela.persp.verdict.activation.a': 'Only {pct}% of media was used.',
+  'vela.persp.verdict.activation.b': 'Layout fails to direct attention to half the content.',
+  'vela.persp.verdict.completion.a': 'Only {pct}% completed.',
+  'vela.persp.verdict.completion.b': "Designed flow isn't followed.",
+  'vela.persp.verdict.skip.a': '{pct}% skipped content.',
+  'vela.persp.verdict.skip.b': 'Exposure does not equal engagement.',
+  'vela.persp.verdict.abandon.a': '{pct}% of arrivals abandoned the queue.',
+  'vela.persp.verdict.abandon.b': 'Wait policy is too tight or throughput too low for arrival rate.',
+
+  // ── VELA Report — Comparison [F1] (validation tier variant matrix) ──
+  'vela.compare.title': 'Variant Comparison',
+  'vela.compare.variantCount': '{count} variants',
+  'vela.compare.recommended': 'Recommended',
+  'vela.compare.recommendedHint': 'wins on the mode-weighted score.',
+  'vela.compare.tied': 'Variants are within margin of error — no clear winner.',
+  'vela.compare.col.metric': 'Metric',
+  'vela.compare.currentBadge': 'NOW',
+  'vela.compare.unrunBadge': 'No simulation result yet',
+  'vela.compare.higherBetter': 'higher is better',
+  'vela.compare.lowerBetter': 'lower is better',
+  'vela.compare.metric.completion': 'Completion',
+  'vela.compare.metric.peak': 'Peak utilization',
+  'vela.compare.metric.skip': 'Skip rate',
+  'vela.compare.metric.fatigue': 'P90 fatigue',
+  'vela.compare.note.unrun': '{count} variant(s) lack simulation results — run them to compare.',
 
   // VELA Report — Executive
   'vela.exec.eyebrow': 'Executive Summary',
@@ -638,6 +1102,17 @@ export const en: Dict = {
   // Completion modal
   'completionModal.title': 'Simulation Complete',
   'completionModal.duration': '{mins} minutes simulated',
+  'completionModal.close': 'Close',
+  'completionModal.dismiss': 'Maybe later',
+  'completionModal.nextStep': 'What would you like to do next?',
+  'completionModal.viewReport': 'View detailed report',
+  'completionModal.viewReportHint': 'KPI analysis, insights, and space grading',
+  'completionModal.viewCompare': 'Compare A/B/C policies ({count} results)',
+  'completionModal.viewCompareHint': 'See saved slot results side by side',
+  'completionModal.compareDisabled': 'Policy comparison (need more slots)',
+  'completionModal.compareNeedMore': 'Save {remaining} more result(s) to compare',
+  'completionModal.continueAnalysis': 'Continue with slot {slot} (cap={cap})',
+  'completionModal.continueAnalysisHint': 'Auto-activates next slot with recommended cap — just press Start',
 
   // Completion Report panel
   'completionReport.title': 'Report',
@@ -686,4 +1161,98 @@ export const en: Dict = {
   'pinpoint.compare.metric.avgFatigue': 'Avg fatigue',
   'pinpoint.compare.metric.peakZone': 'Peak zone',
   'pinpoint.compare.metric.avgComfort': 'Avg comfort',
+
+  // ── Policy A/B/C comparison (manual cap comparison) ──
+  'policyCompare.title': 'Policy comparison (A/B/C)',
+  'policyCompare.intro': 'Run the simulation with different concurrent-cap values and compare results. Each slot stores an independent full-sim result.',
+  'policyCompare.lockedHint': 'Slots cannot be changed while a simulation is running.',
+  'policyCompare.mode.preset': 'Preset (define all upfront)',
+  'policyCompare.mode.preset.desc': 'Set A/B/C cap values upfront and run them in sequence.',
+  'policyCompare.mode.progressive': 'Progressive (define as you go)',
+  'policyCompare.mode.progressive.desc': 'Run A first, then receive recommendations for B/C.',
+  'policyCompare.slot.label': 'Slot {id}',
+  'policyCompare.slot.capLabel': 'Concurrent cap',
+  'policyCompare.slot.empty': 'empty',
+  'policyCompare.slot.configured': 'pending',
+  'policyCompare.slot.captured': 'result saved',
+  'policyCompare.slot.activeBadge': 'active',
+  'policyCompare.slot.capturedAt': 'captured {time}',
+  'policyCompare.activate': 'Run sim into this slot',
+  'policyCompare.activateHint': 'Active slot: {id} — pressing Start will save the result into slot {id} automatically.',
+  'policyCompare.activatedToast': '✓ Slot {id} activated (cap={cap}) — press Start to begin',
+  'policyCompare.deactivate': 'Deactivate',
+  'policyCompare.runHint': 'Press the Start button above to begin the simulation.',
+  'policyCompare.clear': 'Clear',
+  'policyCompare.clearAll': 'Clear all',
+  'policyCompare.viewCompare': 'View comparison ({count} results)',
+  'policyCompare.compareDisabled': 'Need 2+ results to compare',
+  'policyCompare.modalTitle': 'Policy comparison results',
+  'policyCompare.close': 'Close',
+  'policyCompare.recommendTitle': 'Recommendation based on slot {id}',
+  'policyCompare.recommendApply': 'Fill B={B}, C={C}',
+  'policyCompare.recommendDismiss': 'Dismiss',
+  'policyCompare.recommendation.tooManyAbandons': 'Abandonment {rate}% — cap is too tight. Try larger caps.',
+  'policyCompare.recommendation.lowPeak': 'Peak {peak}% — plenty of headroom. Try smaller caps to validate capex.',
+  'policyCompare.recommendation.bracket': 'Near balance — bracket ±15% around current.',
+  'policyCompare.recommendation.lowSatisfaction': 'Satisfaction {sat}% — likely non-cap factor, but exploring both sides is recommended.',
+  'policyCompare.col.satisfaction': 'Sat.',
+  'policyCompare.col.complete': 'Compl.%',
+  'policyCompare.col.peak': 'Peak%',
+  'policyCompare.col.abandon': 'Abandon%',
+  'policyCompare.col.wait': 'Avg wait',
+  'policyCompare.winnerBadge': '★ best',
+  'policyCompare.noResults': 'No captured results yet.',
+
+  // ── Phase 0 (2026-04-25): Exhibit vocabulary ─────
+  // Top-level concept
+  'exhibit.label': 'Exhibit',
+  'exhibit.label.plural': 'Exhibits',
+  'exhibit.add': 'Add Exhibit',
+  'exhibit.outOfSpace': 'No room — zone is full',
+
+  // Categories (curator-facing)
+  'exhibit.kind.artwork': 'Artwork',
+  'exhibit.kind.artwork.desc': 'Static works — paintings, sculpture, photos, artifacts',
+  'exhibit.kind.digital': 'Digital Media',
+  'exhibit.kind.digital.desc': 'Video, projection, media walls',
+  'exhibit.kind.interactive': 'Interactive',
+  'exhibit.kind.interactive.desc': 'Touch tables, kiosks, hands-on',
+  'exhibit.kind.immersive': 'Immersive',
+  'exhibit.kind.immersive.desc': 'VR/AR, immersive rooms, 4D',
+
+  // Artwork props
+  'exhibit.artwork.section': 'Artwork properties',
+  'exhibit.artwork.curatorialOrder': 'Order in series',
+  'exhibit.artwork.curatorialOrder.hint': 'Intended viewing order (1, 2, 3...)',
+  'exhibit.artwork.series': 'Series',
+  'exhibit.artwork.series.placeholder': 'e.g. Joseon paintings',
+  'exhibit.artwork.series.none': 'No series',
+  'exhibit.artwork.significance': 'Significance',
+  'exhibit.artwork.significance.hero': 'Hero',
+  'exhibit.artwork.significance.support': 'Support',
+  'exhibit.artwork.significance.context': 'Context',
+  'exhibit.artwork.significance.hint': 'Hero pieces get KPI weight + canvas emphasis',
+
+  // Digital Media props
+  'exhibit.digital.section': 'Digital media properties',
+  'exhibit.digital.contentDuration': 'Content duration',
+  'exhibit.digital.contentDuration.hint': 'Full playback length of video/projection',
+  'exhibit.digital.minWatch': 'Meaningful watch',
+  'exhibit.digital.minWatch.hint': 'Minimum dwell time to count as meaningful engagement',
+  'exhibit.digital.loopable': 'Loopable',
+  'exhibit.digital.loopable.hint': 'Visitors can join at any point in playback',
+  'exhibit.digital.interactivityLevel': 'Interactivity level',
+  'exhibit.digital.interactivityLevel.viewOnly': 'View-only',
+  'exhibit.digital.interactivityLevel.chapterSelect': 'Chapter select',
+  'exhibit.digital.interactivityLevel.fullInteractive': 'Full interactive',
+  'exhibit.digital.warning.shortMinWatch': 'Meaningful watch < 20% of content length — questionable impact',
+
+  // Interactive props
+  'exhibit.interactive.section': 'Interactive properties',
+  'exhibit.interactive.sessionMode': 'Session mode',
+  'exhibit.interactive.sessionMode.slot': 'Slot (time-divided)',
+  'exhibit.interactive.sessionMode.queue': 'Queue',
+  'exhibit.interactive.sessionMode.free': 'Free',
+  'exhibit.interactive.interactionDepth': 'Interaction depth',
+  'exhibit.interactive.interactionDepth.hint': '0 = simple touch, 1 = full interaction',
 };

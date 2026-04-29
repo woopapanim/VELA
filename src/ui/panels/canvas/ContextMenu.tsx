@@ -3,6 +3,8 @@ import { Trash2, Eye, EyeOff, Square, Monitor, Circle, GitBranch, ChevronRight }
 import { useStore } from '@/stores';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import type { ZoneId, MediaId } from '@/domain';
+import { useT } from '@/i18n';
+import { useToast } from '@/ui/components/Toast';
 
 interface MenuState {
   visible: boolean;
@@ -43,26 +45,29 @@ const ZONE_TYPES = [
   { type: 'stage', label: 'Stage', color: '#a855f7' },
 ];
 
-const MEDIA_CATEGORIES = [
-  { label: 'Analog', color: '#a78bfa', items: [
+// Phase 0: 라벨은 i18n exhibit.kind.* 키로 매핑. 코드 카테고리 키는 그대로 유지.
+const EXHIBIT_CATEGORIES = [
+  { labelKey: 'exhibit.kind.artwork', color: '#a78bfa', items: [
+    { type: 'painting', label: 'Painting' },
     { type: 'artifact', label: 'Artifact' },
+    { type: 'sculpture', label: 'Sculpture' },
     { type: 'diorama', label: 'Diorama' },
     { type: 'documents', label: 'Documents' },
     { type: 'graphic_sign', label: 'Graphic Sign' },
   ]},
-  { label: 'Passive', color: '#3b82f6', items: [
+  { labelKey: 'exhibit.kind.digital', color: '#3b82f6', items: [
     { type: 'media_wall', label: 'Media Wall' },
     { type: 'video_wall', label: 'Video Wall' },
     { type: 'projection_mapping', label: 'Projection' },
     { type: 'single_display', label: 'Single Display' },
   ]},
-  { label: 'Active', color: '#f59e0b', items: [
+  { labelKey: 'exhibit.kind.interactive', color: '#f59e0b', items: [
     { type: 'kiosk', label: 'Kiosk' },
     { type: 'touch_table', label: 'Touch Table' },
     { type: 'interaction_media', label: 'Interaction' },
     { type: 'hands_on_model', label: 'Hands-on Model' },
   ]},
-  { label: 'Immersive', color: '#ec4899', items: [
+  { labelKey: 'exhibit.kind.immersive', color: '#ec4899', items: [
     { type: 'vr_ar_station', label: 'VR/AR Station' },
     { type: 'immersive_room', label: 'Immersive Room' },
     { type: 'simulator_4d', label: '4D Simulator' },
@@ -134,17 +139,26 @@ function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) 
   store.selectZone(id as string);
 }
 
-function createMediaAtPosition(mediaType: string, worldX: number, worldY: number) {
+/** Returns 'placed' on success, 'no-zone' if click was outside any zone, 'too-large' if exhibit doesn't fit. */
+function createMediaAtPosition(mediaType: string, worldX: number, worldY: number): 'placed' | 'no-zone' | 'too-large' {
   const store = useStore.getState();
   const preset = MEDIA_PRESETS[mediaType as keyof typeof MEDIA_PRESETS];
-  if (!preset) return;
+  if (!preset) return 'no-zone';
 
   // Find the zone that contains this position
   const zone = store.zones.find((z) => {
     const b = z.bounds;
     return worldX >= b.x && worldX <= b.x + b.w && worldY >= b.y && worldY <= b.y + b.h;
   });
-  if (!zone) return; // Media must be inside a zone
+  if (!zone) return 'no-zone';
+
+  // Block placement when the exhibit's footprint can't fit inside the zone (with margin).
+  const fitW = preset.defaultSize.width * MEDIA_SCALE;
+  const fitH = preset.defaultSize.height * MEDIA_SCALE;
+  const fitMargin = 10;
+  if (zone.bounds.w < fitW + fitMargin * 2 || zone.bounds.h < fitH + fitMargin * 2) {
+    return 'too-large';
+  }
 
   // Sync counter
   for (const m of store.media) {
@@ -184,6 +198,7 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
     groupFriendly: preset.groupFriendly,
   } as any);
   store.selectMedia(id as string);
+  return 'placed';
 }
 
 export function CanvasContextMenu({ menu, onClose }: {
@@ -198,6 +213,8 @@ export function CanvasContextMenu({ menu, onClose }: {
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const [openSub, setOpenSub] = useState<string | null>(null);
+  const t = useT();
+  const { toast } = useToast();
 
   if (!menu.visible) return null;
 
@@ -271,9 +288,9 @@ export function CanvasContextMenu({ menu, onClose }: {
             ))}
           </SubMenuItem>
 
-          {/* Media — submenu: creates media at click position (only if inside a zone) */}
+          {/* Exhibit — submenu: creates exhibit at click position (only if inside a zone) */}
           <SubMenuItem
-            label="Media"
+            label={t('exhibit.label')}
             icon={Monitor}
             shortcut="3"
             isOpen={openSub === 'media'}
@@ -285,18 +302,19 @@ export function CanvasContextMenu({ menu, onClose }: {
           >
             {!insideZone ? (
               <div className="px-3 py-2 text-[9px] text-muted-foreground">
-                Right-click inside a zone to place media
+                Right-click inside a zone to place exhibit
               </div>
             ) : (
-              MEDIA_CATEGORIES.map(({ label, color, items }) => (
-                <div key={label}>
+              EXHIBIT_CATEGORIES.map(({ labelKey, color, items }) => (
+                <div key={labelKey}>
                   <div className="px-3 py-1 text-[10px] font-medium text-muted-foreground/60 flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                    {label}
+                    {t(labelKey)}
                   </div>
                   {items.map(({ type, label: itemLabel }) => (
                     <SubItem key={type} label={itemLabel} color={color} onClick={() => {
-                      createMediaAtPosition(type, menu.worldX, menu.worldY);
+                      const r = createMediaAtPosition(type, menu.worldX, menu.worldY);
+                      if (r === 'too-large') toast('warning', t('build.exhibit.tooLarge'));
                       onClose();
                     }} />
                   ))}

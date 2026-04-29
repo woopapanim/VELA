@@ -409,6 +409,70 @@ export function layoutFloorsHorizontally(
   };
 }
 
+/**
+ * After an anchor floor's frame may have auto-grown (e.g. zone added/resized),
+ * push other floors so their frames no longer overlap the anchor's.
+ * Direction: horizontal — push to whichever side they already lie on (left/right of anchor center).
+ * Returns updated floors/zones/media/waypointGraph (children shifted with their floor).
+ * Cascades — a pushed floor may push its own neighbor in turn.
+ */
+export function resolveFloorOverlaps(
+  floors: readonly FloorConfig[],
+  zones: readonly ZoneConfig[],
+  media: readonly MediaPlacement[],
+  waypointGraph: WaypointGraph | null,
+  anchorFloorId: string,
+): LayoutResult {
+  let workingFloors: FloorConfig[] = [...floors];
+  let workingZones: ZoneConfig[] = [...zones];
+  let workingMedia: MediaPlacement[] = [...media];
+  let workingGraph: WaypointGraph | null = waypointGraph;
+
+  // BFS-style: each iteration, push any floor that overlaps the anchor or already-pushed floors.
+  const settled = new Set<string>([anchorFloorId]);
+  let safety = floors.length * 2; // avoid infinite loops on pathological data
+  while (safety-- > 0) {
+    let didPush = false;
+    for (const settledId of Array.from(settled)) {
+      const anchor = workingFloors.find(f => (f.id as string) === settledId);
+      if (!anchor) continue;
+      const anchorFrame = getFloorFrameBounds(anchor, workingZones);
+      if (!anchorFrame) continue;
+      const anchorCx = anchorFrame.x + anchorFrame.w / 2;
+
+      for (const other of workingFloors) {
+        const oid = other.id as string;
+        if (settled.has(oid)) continue;
+        const f = getFloorFrameBounds(other, workingZones);
+        if (!f) continue;
+        if (!rectsOverlap(anchorFrame, f)) continue;
+
+        const otherCx = f.x + f.w / 2;
+        const pushRight = otherCx >= anchorCx;
+        const dx = pushRight
+          ? anchorFrame.x + anchorFrame.w + REGION_GAP - f.x
+          : anchorFrame.x - REGION_GAP - (f.x + f.w);
+        if (dx === 0) continue;
+        const shifted = shiftFloorChildren(other, dx, 0, workingZones, workingMedia, workingGraph);
+        const shiftedBounds = other.bounds
+          ? { ...other.bounds, x: other.bounds.x + dx, y: other.bounds.y }
+          : undefined;
+        workingFloors = workingFloors.map(ff => (ff.id as string) === oid
+          ? (shiftedBounds ? { ...shifted.floor, bounds: shiftedBounds } : shifted.floor)
+          : ff);
+        workingZones = shifted.zones;
+        workingMedia = shifted.media;
+        workingGraph = shifted.waypointGraph;
+        settled.add(oid);
+        didPush = true;
+      }
+    }
+    if (!didPush) break;
+  }
+
+  return { floors: workingFloors, zones: workingZones, media: workingMedia, waypointGraph: workingGraph };
+}
+
 /** Compute the origin (top-left) for a newly added floor — placed to the right of existing regions, top-aligned with the rightmost one. */
 export function computeNewFloorOrigin(
   floors: readonly FloorConfig[],

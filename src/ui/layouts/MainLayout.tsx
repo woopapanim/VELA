@@ -1,88 +1,59 @@
-import { ThemeToggle } from '../components/ThemeToggle';
-import { LanguageToggle } from '../components/LanguageToggle';
+/**
+ * MainLayout — Simulate 단계 (App step === 'ready') 전용 (2026-04-28 IA 재구성, nav 통일 v2).
+ *
+ * 역할: "관제실" — 시뮬 실행 + 라이브 모니터링만. 회고/분석은 AnalyzeLayout 이 담당.
+ *
+ *   좌(288): SimulationControls + Replay + Visitors (전 tier) + (운영 tier) Spawn + Project
+ *   중앙   : Canvas (heatmap/pin 토글 가능)
+ *   우(320): LivePulse — phase 무관 항상.
+ *
+ * Visitors 패널 (Profile Mix 등) 은 검증 tier 에서도 노출 — 어린이/VIP/장애인 등
+ * 대상 페르소나가 시뮬레이션 결과의 핵심 변수이기 때문 (2026-04-28 사용자 피드백).
+ * Spawn 만 운영 tier 전용 (검증 tier 는 VisitorLoadInline 으로 대체).
+ *
+ * 시뮬 완료 시 App.tsx 가 자동으로 'analyze' step 으로 전환 (toast 알림). 화면 내
+ * "분석으로 이동" 버튼 제거 — stepper 가 단일 navigation control.
+ *
+ * 진입 문서: docs/plans/ux-ia-restructure.md §4 (mode×section), §6 Stage B.
+ */
+
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
-import { BuildTools } from '../panels/build/BuildTools';
-import { ZoneEditor } from '../panels/build/ZoneEditor';
-import { WaypointInspector } from '../panels/build/WaypointInspector';
-import { MediaEditor } from '../panels/build/MediaEditor';
 import { VisitorConfig } from '../panels/build/VisitorConfig';
 import { SpawnConfig } from '../panels/build/SpawnConfig';
-import { RegionsPanel } from '../panels/build/RegionsPanel';
 import { ReplayScrubber } from '../panels/canvas/ReplayScrubber';
-import { AnalyticsPanel } from '../panels/analytics/AnalyticsPanel';
-import { ProgressRing } from '../components/ProgressRing';
-import { HelpButton } from '../components/HelpOverlay';
+import { LivePulse } from '../panels/analytics/LivePulse';
 import { StatsFooter } from '../components/StatsFooter';
 import { InfoTooltip } from '../components/InfoTooltip';
 import { useStore } from '@/stores';
-import { useRef, useState } from 'react';
+import { experienceModeTier } from '@/domain';
+import { useRef } from 'react';
 import { useT } from '@/i18n';
 
 export function MainLayout() {
   const visitors = useStore((s) => s.visitors);
-  const timeState = useStore((s) => s.timeState);
   const phase = useStore((s) => s.phase);
   const visitorHistory = useRef<number[]>([]);
-  const zones = useStore((s) => s.zones);
   const scenario = useStore((s) => s.scenario);
-  const simProgress = scenario ? Math.min(1, timeState.elapsed / scenario.simulationConfig.duration) : 0;
   const t = useT();
 
   const activeCount = visitors.filter((v) => v.isActive).length;
-  const elapsed = timeState.elapsed;
-  const minutes = Math.floor(elapsed / 60000);
-  const seconds = Math.floor((elapsed % 60000) / 1000);
 
-  // Track visitor count history for sparkline
   if (phase !== 'idle' && (visitorHistory.current.length === 0 || visitorHistory.current[visitorHistory.current.length - 1] !== activeCount)) {
     visitorHistory.current = [...visitorHistory.current.slice(-30), activeCount];
   }
   if (phase === 'idle') visitorHistory.current = [];
 
+  const mode = scenario?.experienceMode;
+  const tier = mode ? experienceModeTier(mode) : 'operations';
+  const isOperations = tier === 'operations';
+
   return (
-    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)]">
-        <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold tracking-tight">
-            VELA
-          </h1>
-          {scenario && (
-            <span className="text-xs text-muted-foreground italic truncate max-w-48">
-              {scenario.meta.name}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {phase !== 'idle' && (
-            <div className="flex items-center gap-3 text-xs font-data">
-              <ProgressRing progress={simProgress} size={18} />
-              <span className="text-muted-foreground">
-                {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-              </span>
-            </div>
-          )}
-          <HelpButton />
-          <LanguageToggle />
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {/* 3-Panel Body */}
+    <div className="flex flex-col flex-1 overflow-hidden bg-background text-foreground">
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Panel — Build / Control */}
-        <aside className="w-72 border-r border-border bg-[var(--surface)] overflow-y-auto">
-          <div className="p-3 space-y-3">
-            <div className="bento-box p-4">
-              <h2 className="panel-section mb-3 flex items-center gap-1.5">
-                Project
-                <InfoTooltip text={t('tooltip.project')} />
-              </h2>
-              <ProjectManager />
-            </div>
-
+        <aside className="w-72 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
             <div className="bento-box p-4">
               <h2 className="panel-section mb-3 flex items-center gap-1.5">
                 Simulation
@@ -93,25 +64,15 @@ export function MainLayout() {
 
             <ReplayScrubber />
 
-            <div className="bento-box p-4">
-              <BuildTools />
-            </div>
-
-            <RegionsPanel />
-
-            <ZoneEditor />
-            <WaypointInspector />
-            <MediaEditor />
-
-            <ZoneListDragDrop />
-
-            <div className="bento-box p-4">
-              <h2 className="panel-section mb-3 flex items-center gap-1.5">
-                Spawn
-                <InfoTooltip text={t('tooltip.spawn')} />
-              </h2>
-              <SpawnConfig />
-            </div>
+            {isOperations && (
+              <div className="bento-box p-4">
+                <h2 className="panel-section mb-3 flex items-center gap-1.5">
+                  Spawn
+                  <InfoTooltip text={t('tooltip.spawn')} />
+                </h2>
+                <SpawnConfig />
+              </div>
+            )}
 
             <div className="bento-box p-4">
               <h2 className="panel-section mb-3 flex items-center gap-1.5">
@@ -120,167 +81,25 @@ export function MainLayout() {
               </h2>
               <VisitorConfig />
             </div>
+          </div>
 
+          <div className="border-t border-border p-3">
+            <ProjectManager />
           </div>
         </aside>
 
-        {/* Center Panel — Canvas */}
         <main className="flex-1 bg-background overflow-hidden relative flex flex-col">
           <div className="flex-1 relative">
             <CanvasPanel />
           </div>
         </main>
 
-        {/* Right Panel — Analytics / Insight */}
         <aside className="w-80 border-l border-border bg-[var(--surface)] overflow-y-auto">
-          <AnalyticsPanel />
+          <LivePulse />
         </aside>
       </div>
 
-      {/* Stats Footer */}
       <StatsFooter />
-    </div>
-  );
-}
-
-// ── Drag-and-Drop Zone List ──
-/** Re-chain gate connectedGateId to match zone array order */
-function rechainGates(zones: any[]): any[] {
-  return zones.map((zone, i) => {
-    const prevZone = i > 0 ? zones[i - 1] : null;
-    const nextZone = i < zones.length - 1 ? zones[i + 1] : null;
-
-    const gates = zone.gates.map((g: any) => {
-      if (g.type === 'entrance') {
-        // entrance gate connects back to previous zone's exit gate
-        const prevExit = prevZone?.gates.find((pg: any) => pg.type === 'exit');
-        return { ...g, connectedGateId: prevExit?.id ?? null };
-      }
-      if (g.type === 'exit') {
-        // exit gate connects to next zone's entrance gate
-        const nextEntrance = nextZone?.gates.find((ng: any) => ng.type === 'entrance');
-        return { ...g, connectedGateId: nextEntrance?.id ?? null };
-      }
-      // bidirectional: connect to prev exit or next entrance
-      return { ...g, connectedGateId: prevZone?.gates.find((pg: any) => pg.type === 'exit')?.id ?? null };
-    });
-
-    return { ...zone, gates };
-  });
-}
-
-function ZoneListDragDrop() {
-  const zones = useStore((s) => s.zones);
-  const scenario = useStore((s) => s.scenario);
-  const selectedZoneId = useStore((s) => s.selectedZoneId);
-  const [dragIdx, setDragIdx] = useState<number | null>(null);
-  const [overIdx, setOverIdx] = useState<number | null>(null);
-  const t = useT();
-
-  // Entrance = first, Exit = last — only middle zones are draggable
-  const isDraggable = (idx: number) => {
-    const z = zones[idx];
-    return z.type !== 'entrance' && z.type !== 'exit';
-  };
-
-  // Valid drop targets: between first entrance and last exit
-  const isValidDrop = (fromIdx: number, toIdx: number) => {
-    if (fromIdx === toIdx) return false;
-    const target = zones[toIdx];
-    if (target.type === 'entrance' || target.type === 'exit') return false;
-    return true;
-  };
-
-  const handleDragStart = (e: React.DragEvent, idx: number) => {
-    if (!isDraggable(idx)) { e.preventDefault(); return; }
-    setDragIdx(idx);
-    e.dataTransfer.effectAllowed = 'move';
-    // Make drag image semi-transparent
-    const el = e.currentTarget as HTMLElement;
-    el.style.opacity = '0.5';
-  };
-
-  const handleDragEnd = (e: React.DragEvent) => {
-    (e.currentTarget as HTMLElement).style.opacity = '1';
-    setDragIdx(null);
-    setOverIdx(null);
-  };
-
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
-    e.preventDefault();
-    if (dragIdx === null || !isValidDrop(dragIdx, idx)) {
-      e.dataTransfer.dropEffect = 'none';
-      return;
-    }
-    e.dataTransfer.dropEffect = 'move';
-    setOverIdx(idx);
-  };
-
-  const handleDrop = (e: React.DragEvent, toIdx: number) => {
-    e.preventDefault();
-    if (dragIdx === null || !scenario) return;
-    if (!isValidDrop(dragIdx, toIdx)) return;
-
-    const newZones = [...zones];
-    const [moved] = newZones.splice(dragIdx, 1);
-    newZones.splice(toIdx, 0, moved);
-
-    // Re-chain gate connections to match new order
-    const rechained = rechainGates(newZones);
-    useStore.getState().setScenario({ ...scenario, zones: rechained });
-    setDragIdx(null);
-    setOverIdx(null);
-  };
-
-  return (
-    <div className="bento-box p-4">
-      <h2 className="panel-section mb-3 flex items-center gap-1.5">
-        Zones ({zones.length})
-        <InfoTooltip text={t('tooltip.zones')} />
-      </h2>
-      <div className="space-y-0.5 max-h-[50vh] overflow-y-auto px-1 py-1">
-        {zones.map((zone, idx) => {
-          const isSelected = (zone.id as string) === selectedZoneId;
-          const isEntrance = zone.type === 'entrance';
-          const isExit = zone.type === 'exit';
-          const canDrag = isDraggable(idx);
-          const isOver = overIdx === idx && dragIdx !== null && dragIdx !== idx;
-
-          return (
-            <div
-              key={zone.id as string}
-              draggable={canDrag}
-              onDragStart={(e) => handleDragStart(e, idx)}
-              onDragEnd={handleDragEnd}
-              onDragOver={(e) => handleDragOver(e, idx)}
-              onDragLeave={() => { if (overIdx === idx) setOverIdx(null); }}
-              onDrop={(e) => handleDrop(e, idx)}
-              onClick={(e) => { useStore.getState().selectZone(zone.id as string); (e.currentTarget as HTMLElement).scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all
-                ${isSelected ? 'bg-primary/10 ring-1 ring-primary/30' : 'hover:bg-secondary/50'}
-                ${canDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                ${isOver ? 'border-t-2 border-primary' : 'border-t-2 border-transparent'}
-                ${dragIdx === idx ? 'opacity-50' : ''}
-              `}
-            >
-              {/* Drag handle */}
-              {canDrag ? (
-                <span className="text-muted-foreground text-[10px] select-none" title={t('mainLayout.dragHandle')}>⠿</span>
-              ) : (
-                <span className="w-3" />
-              )}
-              <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: zone.color }} />
-              <span className={`flex-1 truncate ${isSelected ? 'font-medium' : ''}`}>{zone.name}</span>
-              <span className="text-muted-foreground font-data text-[9px]">
-                {isEntrance ? '⬆entrance' : isExit ? '⬇exit' : zone.type}
-              </span>
-            </div>
-          );
-        })}
-        {zones.length === 0 && (
-          <p className="text-xs text-muted-foreground">Load a scenario or add zones</p>
-        )}
-      </div>
     </div>
   );
 }

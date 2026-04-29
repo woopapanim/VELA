@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Zap, Clock, Crown, Users, MapPin } from 'lucide-react';
+import { Zap, Clock, Crown, Users, MapPin, Baby, Accessibility } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { VisitorCategory, VisitorProfileType, EngagementLevel } from '@/domain';
 
@@ -75,6 +75,37 @@ const PRESETS: readonly { id: string; label: string; icon: typeof Zap; desc: str
       engagementWeights: { quick: 15, explorer: 45, immersive: 40 },
       groupRatio: 0.6,
       categoryWeights: { solo: 25, small_group: 20, guided_tour: 40, vip_expert: 15 },
+    },
+  },
+  // Kids Only — 어린이 박물관/전시 디자이너용. child 비중 100%, group 비중 높음
+  // (보호자 동반이지만 ratio 는 'small_group' 로 묶여서 표현 — child profile 자체가
+  // 핵심 변수). active 미디어 선호 + immersive 짧음 (집중 시간 짧은 특성 반영).
+  {
+    id: 'kids_only',
+    label: 'Kids Only',
+    icon: Baby,
+    desc: '어린이 시설 검증',
+    config: {
+      spawnRatePerSecond: 3,
+      profileWeights: { general: 0, vip: 0, child: 100, elderly: 0, disabled: 0 },
+      engagementWeights: { quick: 40, explorer: 50, immersive: 10 },
+      groupRatio: 0.7,
+      categoryWeights: { solo: 10, small_group: 70, guided_tour: 15, vip_expert: 5 },
+    },
+  },
+  // Wheelchair / Accessibility — 휠체어 동선 검증. disabled 비중 100% 로 모든
+  // 에이전트가 휠체어 패스 + gate 폭/경사 제약을 따름. 속도 느림 + immersive 비중↑.
+  {
+    id: 'accessibility',
+    label: 'Accessibility',
+    icon: Accessibility,
+    desc: '휠체어/배리어프리 동선',
+    config: {
+      spawnRatePerSecond: 1.5,
+      profileWeights: { general: 0, vip: 0, child: 0, elderly: 20, disabled: 80 },
+      engagementWeights: { quick: 10, explorer: 50, immersive: 40 },
+      groupRatio: 0.4,
+      categoryWeights: { solo: 50, small_group: 40, guided_tour: 5, vip_expert: 5 },
     },
   },
 ];

@@ -38,6 +38,18 @@ const SHOW_CAPACITY: Record<WaypointType, boolean> = {
   zone: true, attractor: true, hub: true, rest: true,
 };
 
+// 헤더 dot 색상 — Inspector 카드 상단의 미니 색 indicator (TaskContextPanel 의 NODE_COLORS 와 동일)
+const NODE_COLOR_FOR_HEADER: Record<WaypointType, string> = {
+  entry: '#22c55e',
+  exit: '#ef4444',
+  zone: '#3b82f6',
+  attractor: '#f59e0b',
+  hub: '#8b5cf6',
+  rest: '#f59e0b',
+  bend: '#94a3b8',
+  portal: '#06b6d4',
+};
+
 let _shaftCounter = 1;
 function nextShaftId(existing: readonly ElevatorShaft[]): ShaftId {
   let maxN = 0;
@@ -72,19 +84,21 @@ export function WaypointInspector() {
     if (!node) return null;
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="panel-section">
-            Node Inspector
-          </h3>
+      <div data-editor="node" className="bento-box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: NODE_COLOR_FOR_HEADER[node.type] }} />
+            <h2 className="panel-title">Node Inspector</h2>
+          </div>
           <button
             onClick={() => { removeWaypoint(selectedWaypointId); selectWaypoint(null); }}
-            className="p-1 rounded hover:bg-destructive/20 text-destructive"
+            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
             title="Delete node"
           >
-            <Trash2 size={12} />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
+        <div className="space-y-2">
 
         {/* Type */}
         <Field label="Type">
@@ -247,6 +261,7 @@ export function WaypointInspector() {
           pos: ({Math.round(node.position.x)}, {Math.round(node.position.y)})
           {node.zoneId && ` · zone: ${(node.zoneId as string).slice(0, 8)}`}
         </div>
+        </div>
       </div>
     );
   }
@@ -260,19 +275,21 @@ export function WaypointInspector() {
     const toNode = graph.nodes.find(n => n.id === edge.toId);
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="panel-section">
-            Edge Inspector
-          </h3>
+      <div data-editor="edge" className="bento-box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm bg-muted-foreground/40" />
+            <h2 className="panel-title">Edge Inspector</h2>
+          </div>
           <button
             onClick={() => { removeEdge(selectedEdgeId); selectEdge(null); }}
-            className="p-1 rounded hover:bg-destructive/20 text-destructive"
+            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
             title="Delete edge"
           >
-            <Trash2 size={12} />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
+        <div className="space-y-2">
 
         {/* Direction */}
         <Field label="Direction">
@@ -310,6 +327,7 @@ export function WaypointInspector() {
         {/* From/To labels */}
         <div className="text-[9px] text-muted-foreground mt-1">
           {fromNode?.label || fromNode?.type || '?'} → {toNode?.label || toNode?.type || '?'}
+        </div>
         </div>
       </div>
     );

@@ -1,9 +1,13 @@
 import type {
-  Scenario, ZoneConfig, MediaConfig, FloorConfig,
-  Visitor, VisitorGroup, TimeState, SimulationSnapshot,
-  InsightEntry, WaypointGraph,
+  Scenario, ZoneConfig, MediaPlacement, FloorConfig,
+  Visitor, VisitorGroup, TimeState, KpiSnapshot, KpiTimeSeriesEntry,
+  InsightEntry, WaypointGraph, ExperienceMode, ExperienceModeTier,
 } from '@/domain';
-import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import {
+  INTERNATIONAL_DENSITY_STANDARD,
+  EXPERIENCE_MODE_REGISTRY,
+  inferExperienceMode,
+} from '@/domain';
 import { COMPLETION_ZONE_RATIO, EARLY_EXIT_ZONE_RATIO } from '@/domain/constants';
 import { generateInsights, extractKeyMoments } from '@/analytics';
 
@@ -232,9 +236,45 @@ export interface ReportHeadline {
   readonly tone: 'critical' | 'warning' | 'healthy';
 }
 
+// ── Mode Perspective (Phase 1 UX, 2026-04-26) ────────────────
+//
+// 11개 섹션 본문은 모드 무관 (객관 데이터). 그 위에 _렌즈_ 를 한 장 덧대서
+// "이 모드의 의도 기준으로 해석" 을 보여주는 overlay. user 합의:
+// "리포트 서두에 총평에 대한 관점 + 비교 + 목적 일치 권고" → 그 중 _관점_ 부분.
+//
+// 비교 컴포넌트는 [F] (sweep). 여기선 단일 시나리오의 모드 관점.
+
+export interface ReportPerspectivePivot {
+  readonly key: string;
+  readonly label: string;
+  readonly value: string;
+  readonly tone: 'ok' | 'warn' | 'bad';
+  readonly note?: string;
+}
+
+export interface ReportPerspective {
+  readonly mode: ExperienceMode;
+  readonly tier: ExperienceModeTier;
+  /** 모드 라벨 — 사용자에게 보일 친근한 이름 ("자유 관람 + 통제" 등). */
+  readonly modeLabel: string;
+  /** 1-2 문장 총평. 이 모드의 _목표_ 와 _달성 여부_ 를 결과 데이터에 비추어 평가. */
+  readonly verdictA: string;
+  readonly verdictB: string;
+  readonly verdictTone: 'critical' | 'warning' | 'healthy';
+  /** 이 모드의 핵심 지표 3-4 개 — 모드 의도와 직결되는 KPI 만 추려서 클로즈업. */
+  readonly pivots: readonly ReportPerspectivePivot[];
+  /** 이 모드 관점에서 가장 중요한 권고 1-2 건의 finding id. RecosSection 본문은 그대로 두고 강조만. */
+  readonly priorityFindingIds: readonly string[];
+}
+
 export interface ReportData {
   readonly meta: ReportMeta;
   readonly headline: ReportHeadline;
+  /**
+   * Phase 1 UX (2026-04-26): 모드 관점 overlay. 본문 11 섹션은 모드 무관 객관 데이터,
+   * 이 perspective 만 모드 의도에 따라 해석 렌즈 제공. 미설정 시 inferExperienceMode 로 추정.
+   */
+  readonly perspective: ReportPerspective;
   readonly evidence: readonly ReportEvidence[];
   readonly kpis: readonly ReportKpi[];
   readonly findings: readonly ReportFinding[];
@@ -263,13 +303,13 @@ export interface ReportData {
 export interface ToReportDataInput {
   readonly scenario: Scenario;
   readonly zones: readonly ZoneConfig[];
-  readonly media: readonly MediaConfig[];
+  readonly media: readonly MediaPlacement[];
   readonly floors: readonly FloorConfig[];
   readonly visitors: readonly Visitor[];
   readonly groups: readonly VisitorGroup[];
   readonly timeState: TimeState;
-  readonly latestSnapshot: SimulationSnapshot;
-  readonly kpiHistory: readonly { readonly timestamp: number; readonly snapshot: SimulationSnapshot }[];
+  readonly latestSnapshot: KpiSnapshot;
+  readonly kpiHistory: readonly KpiTimeSeriesEntry[];
   readonly mediaStats: ReadonlyMap<string, {
     readonly watchCount: number; readonly skipCount: number; readonly waitCount: number;
     readonly totalWatchMs: number; readonly totalWaitMs: number; readonly peakViewers: number;
@@ -279,6 +319,17 @@ export interface ToReportDataInput {
   readonly waypointGraph: WaypointGraph | null;
   readonly totalExited: number;
   readonly runId: string | null;
+  /**
+   * Phase 1 UX (2026-04-26): 외부 입장 큐 스냅샷 (운영 tier 모드 perspective KPI 산정용).
+   * 미제공/'unlimited' 정책 시 기본값으로 fallback (모든 큐 KPI = 0).
+   */
+  readonly entryQueueSnapshot?: {
+    readonly avgQueueWaitMs: number;
+    readonly recentAdmitAvgWaitMs: number;
+    readonly totalAbandoned: number;
+    readonly totalArrived: number;
+    readonly totalAdmitted: number;
+  };
   readonly t: (k: string, params?: Record<string, string | number>) => string;
 }
 
@@ -327,12 +378,174 @@ function findingFromInsight(e: InsightEntry, idx: number): ReportFinding {
   };
 }
 
+// ── Mode perspective helpers (Phase 1 UX, 2026-04-26) ──────────
+//
+// 모드별 _핵심 지표_ 결정 로직. 본문 KPI 와 동일한 원천 데이터를 가져와
+// "이 모드 의도엔 이 3-4 개가 가장 중요" 하는 클로즈업.
+//
+// validation tier (큐 미발생): completion / skip / activation / utilization
+// operations tier (큐 발생): + abandonmentRate / avgWaitMin / throughput
+
+interface PerspectiveBuildInput {
+  readonly mode: ExperienceMode;
+  readonly findings: readonly ReportFinding[];
+  readonly peakUtilRatio: number;
+  readonly mediaActivationRatio: number;
+  readonly completionRate: number;
+  readonly globalSkipRate: number;
+  readonly p90Fat: number;
+  readonly entryQueue?: ToReportDataInput['entryQueueSnapshot'];
+  readonly t: ToReportDataInput['t'];
+}
+
+function buildPerspective(inp: PerspectiveBuildInput): ReportPerspective {
+  const { mode, findings, peakUtilRatio, mediaActivationRatio, completionRate, globalSkipRate, p90Fat, entryQueue, t } = inp;
+  const tier = EXPERIENCE_MODE_REGISTRY[mode].tier;
+  const modeLabel = t(`experienceMode.${mode}.label`);
+  const verdictPctLocal = (r: number) => Math.round(r * 100);
+
+  // ── Pivot KPI 선택 (모드별) ────────────────────────────────
+  const pivots: ReportPerspectivePivot[] = [];
+
+  // 공통: 완주율 (모든 모드에서 의미 있음)
+  pivots.push({
+    key: 'completion',
+    label: t('vela.persp.kpi.completion'),
+    value: `${verdictPctLocal(completionRate)}%`,
+    tone: completionRate >= 0.5 ? 'ok' : completionRate >= 0.3 ? 'warn' : 'bad',
+    note: t('vela.persp.kpi.completion.note'),
+  });
+
+  if (tier === 'validation') {
+    // 검증 tier: 미디어 노출 + skip — 디자인 의도가 잘 닿았는지
+    pivots.push({
+      key: 'activation',
+      label: t('vela.persp.kpi.activation'),
+      value: `${verdictPctLocal(mediaActivationRatio)}%`,
+      tone: mediaActivationRatio >= 0.7 ? 'ok' : mediaActivationRatio >= 0.5 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.activation.note'),
+    });
+    pivots.push({
+      key: 'skip',
+      label: t('vela.persp.kpi.skip'),
+      value: `${verdictPctLocal(globalSkipRate)}%`,
+      tone: globalSkipRate <= 0.3 ? 'ok' : globalSkipRate <= 0.5 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.skip.note'),
+    });
+    pivots.push({
+      key: 'peak',
+      label: t('vela.persp.kpi.peak'),
+      value: `${verdictPctLocal(peakUtilRatio)}%`,
+      tone: peakUtilRatio <= 1 ? 'ok' : peakUtilRatio <= 1.2 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.peak.note'),
+    });
+  } else {
+    // 운영 tier: 외부 대기 + 포기율 + 피크 (큐 KPI). entryQueue 없으면 fallback "—".
+    const arrived = entryQueue?.totalArrived ?? 0;
+    const abandoned = entryQueue?.totalAbandoned ?? 0;
+    const abandonmentRate = arrived > 0 ? abandoned / arrived : 0;
+    const recentWaitMin = entryQueue ? Math.round(entryQueue.recentAdmitAvgWaitMs / MS_MIN) : 0;
+
+    pivots.push({
+      key: 'wait',
+      label: t('vela.persp.kpi.wait'),
+      value: entryQueue ? `${recentWaitMin}m` : '—',
+      tone: !entryQueue ? 'ok' : recentWaitMin <= 10 ? 'ok' : recentWaitMin <= 25 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.wait.note'),
+    });
+    pivots.push({
+      key: 'abandon',
+      label: t('vela.persp.kpi.abandon'),
+      value: arrived > 0 ? `${verdictPctLocal(abandonmentRate)}%` : '—',
+      tone: arrived === 0 ? 'ok' : abandonmentRate <= 0.05 ? 'ok' : abandonmentRate <= 0.15 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.abandon.note'),
+    });
+    pivots.push({
+      key: 'peak',
+      label: t('vela.persp.kpi.peak'),
+      value: `${verdictPctLocal(peakUtilRatio)}%`,
+      tone: peakUtilRatio <= 1 ? 'ok' : peakUtilRatio <= 1.2 ? 'warn' : 'bad',
+      note: t('vela.persp.kpi.peak.note'),
+    });
+  }
+
+  // ── Verdict (모드별 1-2 문장) ─────────────────────────────
+  // 가장 강한 신호 하나 + 모드 의도와의 alignment 한 줄.
+  let verdictTone: ReportPerspective['verdictTone'] = 'healthy';
+  let signalKey = 'balanced';
+  if (mode === 'controlled_admission' || mode === 'timed_reservation') {
+    // 운영 통제 — 외부 대기 / 포기 우선
+    const arrived = entryQueue?.totalArrived ?? 0;
+    const abandoned = entryQueue?.totalAbandoned ?? 0;
+    const abandonmentRate = arrived > 0 ? abandoned / arrived : 0;
+    if (abandonmentRate > 0.15) { verdictTone = 'critical'; signalKey = 'abandon'; }
+    else if (abandonmentRate > 0.05) { verdictTone = 'warning'; signalKey = 'abandon'; }
+    else if (peakUtilRatio > 1.2) { verdictTone = 'warning'; signalKey = 'peak'; }
+  } else if (mode === 'free_admission' || mode === 'free_with_throttle') {
+    // 자유 관람 — 혼잡 / 피로 우선
+    if (peakUtilRatio > 1.3) { verdictTone = 'critical'; signalKey = 'peak'; }
+    else if (peakUtilRatio > 1) { verdictTone = 'warning'; signalKey = 'peak'; }
+    else if (p90Fat > 0.7) { verdictTone = 'warning'; signalKey = 'fatigue'; }
+  } else {
+    // 검증 tier — 디자인 의도 (활성화 / 완주) 우선
+    if (mediaActivationRatio < 0.5) { verdictTone = 'warning'; signalKey = 'activation'; }
+    else if (completionRate < 0.3) { verdictTone = 'warning'; signalKey = 'completion'; }
+    else if (globalSkipRate > 0.4) { verdictTone = 'warning'; signalKey = 'skip'; }
+  }
+
+  const verdictA = t(`vela.persp.verdict.${signalKey}.a`, {
+    mode: modeLabel,
+    pct: verdictPctLocal(
+      signalKey === 'peak' ? peakUtilRatio :
+      signalKey === 'abandon' ? ((entryQueue?.totalArrived ?? 0) > 0 ? (entryQueue!.totalAbandoned / entryQueue!.totalArrived) : 0) :
+      signalKey === 'activation' ? mediaActivationRatio :
+      signalKey === 'completion' ? completionRate :
+      signalKey === 'skip' ? globalSkipRate :
+      signalKey === 'fatigue' ? p90Fat :
+      0,
+    ),
+  });
+  const verdictB = t(`vela.persp.verdict.${signalKey}.b`);
+
+  // ── Priority finding ids — 모드 의도와 매칭되는 권고 1-2 건 ──
+  // simple keyword 매칭: 모드별 우선순위 키워드 → finding.title/detail 검색
+  const priorityKeywords: Record<ExperienceMode, readonly string[]> = {
+    layout_validation: ['미디어', 'media', '활성', 'activation', '존', 'zone', 'flow'],
+    curation_validation: ['순서', 'order', 'curat', '경로'],
+    media_experience: ['skip', '미디어', '체험', 'engagement'],
+    free_admission: ['혼잡', 'crowd', '피크', 'peak', '용량', 'capacity'],
+    free_with_throttle: ['혼잡', 'crowd', '피크', 'peak', '용량'],
+    timed_reservation: ['슬롯', 'slot', '대기', 'wait', '예약'],
+    controlled_admission: ['대기', 'wait', '포기', 'abandon', '큐', 'queue'],
+    group_visit: ['단체', 'group', '동반'],
+  };
+  const kws = priorityKeywords[mode] ?? [];
+  const priorityFindingIds = findings
+    .filter((f) => {
+      const hay = (f.title + ' ' + f.detail).toLowerCase();
+      return kws.some((k) => hay.includes(k.toLowerCase()));
+    })
+    .slice(0, 2)
+    .map((f) => f.id);
+
+  return {
+    mode,
+    tier,
+    modeLabel,
+    verdictA,
+    verdictB,
+    verdictTone,
+    pivots,
+    priorityFindingIds,
+  };
+}
+
 export function toReportData(input: ToReportDataInput): ReportData {
   const {
     scenario, zones, media, floors, visitors, groups,
     timeState, latestSnapshot, kpiHistory, mediaStats,
     spawnByNode, exitByNode, waypointGraph,
-    totalExited, runId, t,
+    totalExited, runId, entryQueueSnapshot, t,
   } = input;
 
   const exited = visitors.filter((v) => !v.isActive);
@@ -560,8 +773,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
 
   // ---- Key moment --------------------------------------------------------
   const keyMoments = extractKeyMoments(kpiHistory);
-  const peakMomentMs = keyMoments.find((k) => k.kind === 'peak-crowding')?.timestamp
-    ?? keyMoments[0]?.timestamp
+  // KeyMomentKind: peak_congestion / first_bottleneck / peak_fatigue / peak_active / final
+  const peakMomentMs = keyMoments.find((k) => k.kind === 'peak_congestion')?.timestampMs
+    ?? keyMoments[0]?.timestampMs
     ?? null;
   const peakMoment = peakMomentMs != null ? fmtClock(peakMomentMs) : null;
 
@@ -1108,6 +1322,23 @@ export function toReportData(input: ToReportDataInput): ReportData {
     activationRatio: `${mediaActiveCount}/${media.length}`,
   };
 
+  // ---- Mode Perspective (Phase 1 UX, 2026-04-26) -----------------------
+  // 본문 11 섹션 위에 덧대는 _렌즈_. 모드별로 핵심 KPI 와 총평 어조가 달라짐.
+  // 미설정 시 inferExperienceMode 로 entryPolicy.mode 기반 추정 (legacy 호환).
+  const resolvedMode: ExperienceMode = scenario.experienceMode
+    ?? inferExperienceMode(scenario.simulationConfig.operations?.entryPolicy?.mode);
+  const perspective = buildPerspective({
+    mode: resolvedMode,
+    findings,
+    peakUtilRatio,
+    mediaActivationRatio,
+    completionRate,
+    globalSkipRate,
+    p90Fat,
+    entryQueue: entryQueueSnapshot,
+    t,
+  });
+
   // ---- Glossary ---------------------------------------------------------
   const glossary: ReportGlossaryEntry[] = [
     { term: t('vela.gl.peak.term'), def: t('vela.gl.peak.def') },
@@ -1123,6 +1354,7 @@ export function toReportData(input: ToReportDataInput): ReportData {
   return {
     meta,
     headline,
+    perspective,
     evidence,
     kpis,
     findings,
