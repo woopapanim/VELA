@@ -1,32 +1,19 @@
-import { useCallback } from 'react';
 import { useStore } from '@/stores';
 import { DEFAULT_CATEGORY_WEIGHTS } from '@/domain';
 import type { VisitorCategory } from '@/domain';
 import { CollapsibleSection } from '@/ui/components/CollapsibleSection';
-import { NumField, PercentMix, CategoryMix } from '@/ui/components/ConfigFields';
-import { InfoTooltip } from '@/ui/components/InfoTooltip';
-import { useT } from '@/i18n';
+import { PercentMix, CategoryMix } from '@/ui/components/ConfigFields';
 
+// Build / Visitors task — 의도만. "누가 오는가"
+// Profile / Engagement / Category Mix 만 다룸. Spawn rate / Skip threshold 등
+// 실행 설정은 Simulate phase 의 RunConfigPanel 로 분리됨 (2026-04-29 IA 재정리).
 export function VisitorConfig() {
   const scenario = useStore((s) => s.scenario);
   const setScenario = useStore((s) => s.setScenario);
   const phase = useStore((s) => s.phase);
-  const t = useT();
 
   const isLocked = phase !== 'idle';
   const dist = scenario?.visitorDistribution;
-  const config = scenario?.simulationConfig;
-
-  const updateSkip = useCallback((field: string, value: number) => {
-    if (!scenario || isLocked) return;
-    setScenario({
-      ...scenario,
-      simulationConfig: {
-        ...scenario.simulationConfig,
-        skipThreshold: { ...scenario.simulationConfig.skipThreshold, [field]: value },
-      },
-    });
-  }, [scenario, setScenario, isLocked]);
 
   if (!scenario) return null;
 
@@ -79,28 +66,6 @@ export function VisitorConfig() {
           }}
           disabled={isLocked}
         />
-      </CollapsibleSection>
-
-      <CollapsibleSection id="visitor-skip" title="Skip Threshold">
-        <div className="flex items-center justify-end mb-1">
-          <InfoTooltip text={t('tooltip.skipFormula')} />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <NumField
-            label="Max Wait (s)"
-            value={Math.round((config?.skipThreshold?.maxWaitTimeMs ?? 30000) / 1000)}
-            onChange={(v) => updateSkip('maxWaitTimeMs', v * 1000)}
-            disabled={isLocked}
-            step={5}
-          />
-          <NumField
-            label="Skip Multiplier"
-            value={config?.skipThreshold?.skipMultiplier ?? 1.0}
-            onChange={(v) => updateSkip('skipMultiplier', v)}
-            disabled={isLocked}
-            step={0.1}
-          />
-        </div>
       </CollapsibleSection>
     </div>
   );
