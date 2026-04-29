@@ -7,12 +7,13 @@ import { HelpButton } from '../../components/HelpOverlay';
 
 interface Props {
   onBackToBuild: () => void;
+  onAnalyze?: () => void;
 }
 
 // Simulate 단계 상단 바 (56px). 좌측: ← Build · VELA · 시나리오. 가운데: stepper.
 // 우측: 진행률 ring + 시간만 — 중복 (KPI strip/Insights Summary 의 ELAPSED) 제거.
 // Insights 토글 폐기 — 분석 패널은 Analyze 단계로 이전.
-export function CockpitTopBar({ onBackToBuild }: Props) {
+export function CockpitTopBar({ onBackToBuild, onAnalyze }: Props) {
   const scenario = useStore((s) => s.scenario);
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
@@ -50,7 +51,17 @@ export function CockpitTopBar({ onBackToBuild }: Props) {
           2 Simulate
         </span>
         <span className="text-muted-foreground/60">→</span>
-        <span className="text-muted-foreground/80">3 Analyze</span>
+        {phase === 'completed' && onAnalyze ? (
+          <button
+            type="button"
+            onClick={onAnalyze}
+            className="px-2 py-0.5 rounded-full bg-[var(--status-success)]/15 text-[var(--status-success)] font-medium hover:bg-[var(--status-success)]/25 transition-colors"
+          >
+            3 Analyze →
+          </button>
+        ) : (
+          <span className="text-muted-foreground/80">3 Analyze</span>
+        )}
       </div>
 
       <div className="flex items-center gap-2">

@@ -9,6 +9,7 @@ import { ControlBar } from './simulate/ControlBar';
 
 interface Props {
   onBackToBuild: () => void;
+  onAnalyze?: () => void;
 }
 
 // Simulate phase — 3-column + bottom-bar (2026-04-29 재구조화).
@@ -29,15 +30,15 @@ interface Props {
 // 하단 (ControlBar):
 //   - Start/Pause/Stop · Timeline progress + 마커 · Speed · Heatmap/Pin
 //   - 완료 후에는 ReplayScrubber 로 자동 전환
-export function SimulateLayout({ onBackToBuild }: Props) {
+export function SimulateLayout({ onBackToBuild, onAnalyze }: Props) {
   // Unmount 시 sim run 정리. ControlBar 의 cleanup 이 먼저 실행되어 loop 가
   // destroy 된 뒤 우리가 phase 를 idle 로 set — race 없이 안전하게 종료.
-  // (App.tsx 에서 onBackToBuild 직접 reset 하면 loop 의 마지막 tick 이
-  // updateSimState 로 phase 를 다시 'running' 으로 덮어쓰는 race 가 있었음.)
+  // 단, phase === 'completed' (이미 loop 종료) 이면 결과 데이터를 보존해야
+  // Analyze 화면에서 활용 가능 — 이 경우 reset 생략.
   useEffect(() => {
     return () => {
       const s = useStore.getState();
-      if (s.phase !== 'idle') {
+      if (s.phase === 'running' || s.phase === 'paused') {
         s.resetSim();
         s.clearHistory?.();
         s.clearReplay?.();
@@ -48,7 +49,7 @@ export function SimulateLayout({ onBackToBuild }: Props) {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <CockpitTopBar onBackToBuild={onBackToBuild} />
+      <CockpitTopBar onBackToBuild={onBackToBuild} onAnalyze={onAnalyze} />
       <div className="flex-1 flex overflow-hidden">
         <RunConfigColumn />
         <div className="flex-1 relative bg-background overflow-hidden">
