@@ -130,7 +130,10 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
             if (zone) {
-              (window as any).__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
+              const snap = JSON.parse(JSON.stringify(zone));
+              // 연속 paste 카운터 — 매번 zone width+gap 만큼 우측으로 누적 이동.
+              snap.__pasteCount = 0;
+              (window as any).__vela_clipboard_zone = snap;
             }
           }
           break;
@@ -146,11 +149,16 @@ export function useKeyboardShortcuts() {
               // 일 때 ID 충돌하던 것 방지.
               const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
               const newId = `z_paste_${suffix}`;
+              // Offset: 존 너비 + 20px gap 만큼 우측. 연속 paste 시 누적.
+              // 너비가 0 일 리는 없지만 안전망으로 최소 60.
+              const step = Math.max(60, clipZone.bounds.w + 20);
+              const idx = (clipZone.__pasteCount ?? 0) + 1;
+              clipZone.__pasteCount = idx;
               const pasted = {
                 ...clipZone,
                 id: newId,
                 name: clipZone.name + ' (Copy)',
-                bounds: { ...clipZone.bounds, x: clipZone.bounds.x + 30, y: clipZone.bounds.y + 30 },
+                bounds: { ...clipZone.bounds, x: clipZone.bounds.x + step * idx, y: clipZone.bounds.y },
                 gates: clipZone.gates.map((g: any, i: number) => ({
                   ...g,
                   id: `g_paste_${suffix}_${i}`,
@@ -158,6 +166,8 @@ export function useKeyboardShortcuts() {
                   connectedGateId: null,
                 })),
               };
+              // 내부 marker 는 시나리오에 새지 않게 제거.
+              delete (pasted as any).__pasteCount;
               store.addZone(pasted);
               store.selectZone(newId);
             }
