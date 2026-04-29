@@ -1,4 +1,4 @@
-import { ChevronLeft, BarChart3 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useStore } from '@/stores';
 import { ProgressRing } from '../../components/ProgressRing';
 import { ThemeToggle } from '../../components/ThemeToggle';
@@ -7,14 +7,12 @@ import { HelpButton } from '../../components/HelpOverlay';
 
 interface Props {
   onBackToBuild: () => void;
-  insightsOpen: boolean;
-  onToggleInsights: () => void;
 }
 
-// Simulate 단계 상단 바 (56px). 좌측: ← Build · VELA · 시나리오. 가운데: stepper
-// (Build ✓ → Simulate active → Analyze). 우측: Insights toggle + 도구. 좌/우 영구
-// 패널 폐기 — 캔버스 full-bleed, Insights 는 토글.
-export function CockpitTopBar({ onBackToBuild, insightsOpen, onToggleInsights }: Props) {
+// Simulate 단계 상단 바 (56px). 좌측: ← Build · VELA · 시나리오. 가운데: stepper.
+// 우측: 진행률 ring + 시간만 — 중복 (KPI strip/Insights Summary 의 ELAPSED) 제거.
+// Insights 토글 폐기 — 분석 패널은 Analyze 단계로 이전.
+export function CockpitTopBar({ onBackToBuild }: Props) {
   const scenario = useStore((s) => s.scenario);
   const phase = useStore((s) => s.phase);
   const timeState = useStore((s) => s.timeState);
@@ -62,20 +60,6 @@ export function CockpitTopBar({ onBackToBuild, insightsOpen, onToggleInsights }:
             <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
           </div>
         )}
-        <button
-          type="button"
-          onClick={onToggleInsights}
-          className={`flex items-center gap-1.5 px-2.5 h-8 rounded-lg text-xs font-medium transition-colors ${
-            insightsOpen
-              ? 'bg-primary/15 text-primary'
-              : 'bg-secondary text-secondary-foreground hover:bg-accent'
-          }`}
-          title="Toggle Insights drawer"
-        >
-          <BarChart3 className="w-3.5 h-3.5" />
-          Insights
-        </button>
-        <div className="w-px h-5 bg-border mx-1" />
         <HelpButton />
         <LanguageToggle />
         <ThemeToggle />

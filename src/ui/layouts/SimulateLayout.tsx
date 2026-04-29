@@ -1,38 +1,34 @@
-import { useState } from 'react';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { StatsFooter } from '../components/StatsFooter';
 import { CockpitTopBar } from './simulate/CockpitTopBar';
-import { KpiStrip } from './simulate/KpiStrip';
+import { StatusCard } from './simulate/StatusCard';
+import { ThroughputGauge } from './simulate/ThroughputGauge';
 import { CockpitDock } from './simulate/CockpitDock';
-import { InsightsDrawer } from './simulate/InsightsDrawer';
-import { ScrubberBar } from './simulate/ScrubberBar';
+import { LiveEventFeed } from './simulate/LiveEventFeed';
+import { Timeline } from './simulate/Timeline';
 
 interface Props {
-  /** Simulate 단계에서 Build 로 돌아갈 때 호출. 시뮬 실행/일시정지 중에도 사용 가능 — 단순 라우팅만. */
   onBackToBuild: () => void;
 }
 
-// Simulate 단계 — heads-up cockpit. 좌/우 영구 column 폐기. 캔버스 full-bleed.
-// KPI strip (top-center) + control dock (bottom-left) + Insights drawer (right, toggle)
-// + replay scrubber (bottom-center, completed 후) 모두 floating overlay.
-// 사용자 피드백 (2026-04-29): "좌/우 패널 정해놓고 그것밖에 못쓰는거야? 시멘틱 개념 알아?"
-//   → Build 와 구조적으로 다른 IA. Simulate 는 모니터링 cockpit 패턴.
+// Simulate 단계 — monitoring cockpit. 영구 column 폐기. 캔버스 full-bleed.
+// 정보 분류 (2026-04-29 피드백 반영):
+//   1) 라이브 신호 (병목 발생/해소, 마일스톤) → 우측 narrow LiveEventFeed 220px
+//   2) 단일 verdict ("정상 / 1 bottleneck") → 좌상단 StatusCard
+//   3) 단일 핵심 지표 (throughput) → 우상단 ThroughputGauge
+//   4) 분석/탐색 데이터 (trend/distribution/sensitivity/report) → Analyze phase 로 이전
+// Drawer 통째로 dump 패턴 폐기 — "정해진 chrome 에 다 때려넣지 말 것".
 export function SimulateLayout({ onBackToBuild }: Props) {
-  const [insightsOpen, setInsightsOpen] = useState(false);
-
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <CockpitTopBar
-        onBackToBuild={onBackToBuild}
-        insightsOpen={insightsOpen}
-        onToggleInsights={() => setInsightsOpen((o) => !o)}
-      />
+      <CockpitTopBar onBackToBuild={onBackToBuild} />
       <div className="flex-1 relative bg-background overflow-hidden">
         <CanvasPanel />
-        <KpiStrip />
+        <StatusCard />
+        <ThroughputGauge />
+        <LiveEventFeed />
         <CockpitDock />
-        <ScrubberBar />
-        <InsightsDrawer open={insightsOpen} onClose={() => setInsightsOpen(false)} />
+        <Timeline />
       </div>
       <StatsFooter />
     </div>
