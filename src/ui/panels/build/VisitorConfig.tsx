@@ -32,7 +32,7 @@ export function VisitorConfig() {
 
   return (
     <div>
-      <CollapsibleSection id="visitor-profile" title="Profile Mix">
+      <CollapsibleSection id="visitor-profile" title="Profile Mix" defaultOpen>
         <PercentMix
           keys={['general', 'vip', 'child', 'elderly', 'disabled']}
           values={dist?.profileWeights as Record<string, number> ?? {}}
@@ -62,7 +62,7 @@ export function VisitorConfig() {
         />
       </CollapsibleSection>
 
-      <CollapsibleSection id="visitor-category" title="Category Mix">
+      <CollapsibleSection id="visitor-category" title="Category Mix" defaultOpen>
         <CategoryMix
           values={dist?.categoryWeights as Record<string, number> ?? DEFAULT_CATEGORY_WEIGHTS}
           onChange={(newWeights) => {

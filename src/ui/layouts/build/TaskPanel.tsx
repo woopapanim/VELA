@@ -1,6 +1,8 @@
 import { RegionsPanel } from '../../panels/build/RegionsPanel';
 import { BuildTools } from '../../panels/build/BuildTools';
 import { ProjectManager } from '../../panels/build/ProjectManager';
+import { SpawnConfig } from '../../panels/build/SpawnConfig';
+import { VisitorConfig } from '../../panels/build/VisitorConfig';
 import type { BuildTask } from './ToolDock';
 
 const TITLES: Record<BuildTask, string> = {
@@ -8,6 +10,7 @@ const TITLES: Record<BuildTask, string> = {
   zones: 'Zones',
   exhibits: 'Exhibits',
   flow: 'Flow',
+  visitors: 'Visitors',
 };
 
 const HINTS: Record<BuildTask, string> = {
@@ -15,6 +18,7 @@ const HINTS: Record<BuildTask, string> = {
   zones: 'Draw zones — lobby, exhibition halls, rest, exit.',
   exhibits: 'Place artworks and digital media inside zones.',
   flow: 'Connect waypoints to define how visitors move.',
+  visitors: 'Who is visiting? Profile, group ratio, spawn rate.',
 };
 
 interface Props {
@@ -33,7 +37,14 @@ export function TaskPanel({ task }: Props) {
         <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">{HINTS[task]}</p>
       </div>
       <div className="flex-1 p-3 space-y-3">
-        {task === 'region' ? <RegionsPanel /> : <BuildTools />}
+        {task === 'region' && <RegionsPanel />}
+        {task === 'visitors' && (
+          <>
+            <SpawnConfig />
+            <VisitorConfig />
+          </>
+        )}
+        {(task === 'zones' || task === 'exhibits' || task === 'flow') && <BuildTools />}
       </div>
       <div className="border-t border-border p-3">
         <ProjectManager />

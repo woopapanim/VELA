@@ -1,7 +1,7 @@
-import { LayoutGrid, Square, Sparkles, Spline, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutGrid, Square, Sparkles, Spline, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 
-export type BuildTask = 'region' | 'zones' | 'exhibits' | 'flow';
+export type BuildTask = 'region' | 'zones' | 'exhibits' | 'flow' | 'visitors';
 
 interface Props {
   active: BuildTask;
@@ -19,6 +19,7 @@ const TASKS: ReadonlyArray<{
   { id: 'zones', icon: Square, label: 'Zones' },
   { id: 'exhibits', icon: Sparkles, label: 'Exhibits' },
   { id: 'flow', icon: Spline, label: 'Flow' },
+  { id: 'visitors', icon: Users, label: 'Visitors' },
 ];
 
 // 좌측 vertical dock (56px). 4 task tools + panel toggle.
@@ -35,6 +36,9 @@ export function ToolDock({ active, onChange, panelOpen, onTogglePanel }: Props) 
     zones: zones.length > 0,
     exhibits: media.length > 0,
     flow: !!waypointGraph && Object.keys(waypointGraph.nodes ?? {}).length > 0,
+    // 의도적으로 done 표시 안 함 — 디폴트 분포가 들어있어도 사용자가 의도를
+    // "정한" 게 아니므로 항상 확인 필요한 task. 다른 task 와 다르게 점 안 켜짐.
+    visitors: false,
   };
 
   return (
