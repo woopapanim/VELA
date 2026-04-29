@@ -264,54 +264,72 @@ export function ControlBar() {
   const ts = Math.floor((duration % 60000) / 1000);
 
   return (
-    <div className="border-t border-border bg-[var(--surface)] flex items-center gap-3 px-4 h-14 flex-shrink-0">
+    <div
+      className="border-t border-border bg-[var(--surface)] flex items-center gap-3 px-4 h-14 flex-shrink-0"
+      role="toolbar"
+      aria-label="시뮬레이션 컨트롤"
+    >
       {/* Action buttons */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
             onClick={handleStart}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
+            aria-label="시뮬레이션 시작"
           >
-            <Play className="w-3.5 h-3.5" /> Start
+            <Play className="w-4 h-4" aria-hidden="true" /> Start
           </button>
         )}
         {phase === SIMULATION_PHASE.RUNNING && (
           <button
             onClick={handlePause}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-warning)]"
+            aria-label="일시정지"
           >
-            <Pause className="w-3.5 h-3.5" /> Pause
+            <Pause className="w-4 h-4" aria-hidden="true" /> Pause
           </button>
         )}
         {phase === SIMULATION_PHASE.PAUSED && (
           <button
             onClick={handleResume}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
+            aria-label="재개"
           >
-            <Play className="w-3.5 h-3.5" /> Resume
+            <Play className="w-4 h-4" aria-hidden="true" /> Resume
           </button>
         )}
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
           <button
             onClick={requestStop}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
+            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-danger)]"
+            aria-label="중지"
             title="Stop"
           >
-            <Square className="w-3.5 h-3.5" />
+            <Square className="w-4 h-4" aria-hidden="true" />
           </button>
         )}
       </div>
 
       {/* Time + progress */}
       <div className="flex-1 min-w-0 flex items-center gap-3">
-        <span className="text-[10px] text-muted-foreground font-data tabular-nums flex-shrink-0">
+        <span
+          className="text-[11px] text-foreground/80 font-data tabular-nums flex-shrink-0"
+          aria-label={`경과 시간 ${mm}분 ${ss}초`}
+        >
           {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
         </span>
         <div className="flex-1 min-w-0">
           {isReplayable ? (
             <ReplayScrubber />
           ) : phase !== 'idle' && duration > 0 ? (
-            <div className="relative h-1.5 rounded-full bg-secondary/60 overflow-hidden">
+            <div
+              className="relative h-2 rounded-full bg-secondary/60 overflow-hidden"
+              role="progressbar"
+              aria-valuenow={Math.round(pct)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`진행률 ${Math.round(pct)}%`}
+            >
               <div className="absolute top-0 left-0 h-full bg-primary" style={{ width: `${pct}%` }} />
               {markers.map((m, i) => {
                 const x = Math.min(100, (m.t / duration) * 100);
@@ -321,23 +339,31 @@ export function ControlBar() {
                     className="absolute top-0 w-0.5 h-full bg-[var(--status-warning)]"
                     style={{ left: `${x}%` }}
                     title={`병목 — ${Math.floor(m.t / 60000)}:${String(Math.floor((m.t % 60000) / 1000)).padStart(2, '0')}`}
+                    aria-label={`병목 마커 ${Math.floor(m.t / 60000)}분 ${Math.floor((m.t % 60000) / 1000)}초`}
                   />
                 );
               })}
             </div>
           ) : (
-            <div className="h-1.5 rounded-full bg-secondary/30" />
+            <div className="h-2 rounded-full bg-secondary/30" aria-hidden="true" />
           )}
         </div>
-        <span className="text-[10px] text-muted-foreground font-data tabular-nums flex-shrink-0">
+        <span
+          className="text-[11px] text-foreground/80 font-data tabular-nums flex-shrink-0"
+          aria-label={`총 ${tm}분 ${ts}초`}
+        >
           {String(tm).padStart(2, '0')}:{String(ts).padStart(2, '0')}
         </span>
       </div>
 
       {/* Speed selector */}
       {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
-        <div className="flex items-center gap-1 flex-shrink-0 border-l border-border pl-3">
-          <span className="text-[9px] text-muted-foreground">Speed</span>
+        <div
+          className="flex items-center gap-1 flex-shrink-0 border-l border-border pl-3"
+          role="group"
+          aria-label="배속 선택"
+        >
+          <span className="text-[10px] text-muted-foreground" aria-hidden="true">Speed</span>
           {[1, 3, 5, 10, 20, 30].map((spd) => {
             const active = speed === spd;
             return (
@@ -349,10 +375,11 @@ export function ControlBar() {
                   }
                   setSpeed(spd);
                 }}
-                className={`px-1.5 py-0.5 text-[9px] rounded transition-colors ${
-                  active ? 'bg-primary text-primary-foreground font-semibold' : 'bg-secondary hover:bg-accent'
+                className={`px-2 py-1 text-[10px] rounded transition-colors focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary ${
+                  active ? 'bg-primary text-primary-foreground font-semibold' : 'bg-secondary hover:bg-accent text-foreground/90'
                 }`}
                 aria-pressed={active}
+                aria-label={`${spd}배속`}
               >{spd}x</button>
             );
           })}
@@ -361,27 +388,36 @@ export function ControlBar() {
 
       {/* Active count + utility buttons */}
       <div className="flex items-center gap-2 flex-shrink-0 border-l border-border pl-3">
-        <div className="text-[10px] font-data tabular-nums text-muted-foreground">
-          <span className="text-primary font-semibold">{activeCount}</span> active
+        <div
+          className="text-[11px] font-data tabular-nums text-foreground/80"
+          aria-label={`현재 활성 방문객 ${activeCount}명`}
+        >
+          <span className="text-primary font-semibold">{activeCount}</span> <span aria-hidden="true">active</span>
         </div>
         <button
           onClick={toggleHeatmap}
-          className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors active:scale-95 ${
+          className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
+          aria-label="히트맵 토글"
+          aria-pressed={overlayMode === 'heatmap'}
           title="Toggle Heatmap"
         >
-          <Thermometer className="w-3.5 h-3.5" />
+          <Thermometer className="w-4 h-4" aria-hidden="true" />
         </button>
         <button
           onClick={handlePin}
           disabled={phase === SIMULATION_PHASE.IDLE}
-          className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95"
+          className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary"
+          aria-label={`현재 순간 핀 (${pinCount}개 저장됨)`}
           title={`${t('pinpoint.action.pin')} (P)`}
         >
-          <Pin className="w-3.5 h-3.5" />
+          <Pin className="w-4 h-4" aria-hidden="true" />
           {pinCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background">
+            <span
+              className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background"
+              aria-hidden="true"
+            >
               {pinCount}
             </span>
           )}
