@@ -2,6 +2,7 @@ import { RegionsPanel } from '../../panels/build/RegionsPanel';
 import { BuildTools } from '../../panels/build/BuildTools';
 import { ProjectManager } from '../../panels/build/ProjectManager';
 import { VisitorConfig } from '../../panels/build/VisitorConfig';
+import { ZoneTemplates } from '../../panels/build/ZoneTemplates';
 import type { BuildTask } from './ToolDock';
 
 const TITLES: Record<BuildTask, string> = {
@@ -39,6 +40,7 @@ export function TaskPanel({ task }: Props) {
         {task === 'region' && <RegionsPanel />}
         {task === 'visitors' && <VisitorConfig />}
         {(task === 'zones' || task === 'exhibits' || task === 'flow') && <BuildTools />}
+        {task === 'zones' && <ZoneTemplates />}
       </div>
       <div className="border-t border-border p-3">
         <ProjectManager />
