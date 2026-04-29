@@ -8,7 +8,6 @@ import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import type { OverlayMode } from '@/stores';
 import { useT } from '@/i18n';
-import { ReplayScrubber } from '@/ui/panels/canvas/ReplayScrubber';
 
 // djb2-style short hash → 6 hex chars. Deterministic for identical scenario shape.
 function hashSignature(s: string): string {
@@ -59,12 +58,10 @@ export function ControlBar() {
   const clearHistory = useStore((s) => s.clearHistory);
   const clearPins = useStore((s) => s.clearPins);
   const setRunId = useStore((s) => s.setRunId);
-  const replayCount = useStore((s) => s.replayFrames.length);
   const duration = useStore((s) => s.scenario?.simulationConfig.duration ?? 0);
   const kpiHistory = useStore((s) => s.kpiHistory);
 
   const activeCount = visitors.filter((v) => v.isActive).length;
-  const isReplayable = (phase === 'completed' || phase === 'paused') && replayCount > 0;
 
   // Unmount 시 loop 강제 종료. 없으면 SimulateLayout 가 unmount 된 뒤에도
   // setOnTick 콜백이 살아있어 store 의 phase 를 다시 'running' 으로 덮어씀.
@@ -331,9 +328,7 @@ export function ControlBar() {
           {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
         </span>
         <div className="flex-1 min-w-0">
-          {isReplayable ? (
-            <ReplayScrubber />
-          ) : phase !== 'idle' && duration > 0 ? (
+          {phase !== 'idle' && duration > 0 ? (
             <div
               className="relative h-2 rounded-full bg-secondary/60 overflow-hidden"
               role="progressbar"

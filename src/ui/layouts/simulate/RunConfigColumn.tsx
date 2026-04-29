@@ -1,12 +1,17 @@
 import { useStore } from '@/stores';
 import { RunConfigPanel } from '@/ui/panels/simulate/RunConfigPanel';
 import { RunSummary } from './RunSummary';
+import { ReplayScrubber } from '@/ui/panels/canvas/ReplayScrubber';
 
 // Simulate 좌측 column. idle: 편집 가능 (RunConfigPanel). 그 외: readonly summary.
-// 의도(profile/category mix) 는 Build / Visitors 에서. 여기는 "어떻게 돌릴까"만.
+// 완료/일시정지 + replay frames 보유 시 ReplayScrubber 가 상단에 등장
+// (이전엔 하단 ControlBar 의 timeline 자리를 차지했으나, 좌측으로 이동해
+//  진행률 progress bar 는 항상 노출되도록 분리).
 export function RunConfigColumn() {
   const phase = useStore((s) => s.phase);
+  const replayCount = useStore((s) => s.replayFrames.length);
   const isIdle = phase === 'idle';
+  const isReplayable = (phase === 'completed' || phase === 'paused') && replayCount > 0;
 
   return (
     <aside className="w-64 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-hidden">
@@ -20,7 +25,8 @@ export function RunConfigColumn() {
             : '실행 중 — 변경하려면 Stop 후 다시 설정'}
         </p>
       </div>
-      <div className="flex-1 overflow-y-auto p-3">
+      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+        {isReplayable && <ReplayScrubber />}
         {isIdle ? <RunConfigPanel /> : <RunSummary />}
       </div>
     </aside>

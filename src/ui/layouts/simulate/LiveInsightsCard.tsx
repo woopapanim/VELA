@@ -48,7 +48,7 @@ export function LiveInsightsCard() {
       )}
 
       {insights.length > 0 && (
-        <ul className="space-y-1.5" role="list">
+        <ul className="space-y-1.5 max-h-44 overflow-y-auto pr-1" role="list">
           {insights.map((it) => (
             <InsightRow key={it.id} insight={it} />
           ))}
