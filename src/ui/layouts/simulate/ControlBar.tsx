@@ -159,6 +159,18 @@ export function ControlBar() {
           milestonesHit.current.add(-1);
           setDensityGrids(eng.getDensityGrids());
           toast('success', '✅ Simulation completed!');
+          // 마지막 KPI 스냅샷 — finalizeActiveOnCompletion 이후 totalExited 가
+          // 갱신된 상태를 latestSnapshot 에 반영해야 throughput/completionRate 가
+          // sim 종료 시점 값으로 정확히 노출된다.
+          const finalStore = useStore.getState();
+          const finalSnapshot = assembleKpiSnapshot(
+            finalStore.zones,
+            finalStore.media,
+            eng.getVisitors(),
+            state.timeState.elapsed,
+            eng.getTotalExited(),
+          );
+          pushSnapshot(finalSnapshot);
         }
       }
 
