@@ -38,29 +38,20 @@ function deriveVerdict(snap: KpiSnapshot | null, totalSpawned: number, t: (k: st
   );
   const skip = snap.skipRate.globalSkipRate;
   const completion = snap.flowEfficiency.completionRate;
+  const detail = `${Math.round(peak * 100)}% peak · ${Math.round(skip * 100)}% skip · ${Math.round(completion * 100)}% complete`;
 
-  const critical = peak > 0.9 || skip > 0.5 || completion < 0.4;
-  const warning = peak > 0.7 || skip > 0.3 || completion < 0.6;
-
-  if (critical) {
-    return {
-      level: 'critical',
-      headline: t('analyze.verdict.critical'),
-      detail: `${Math.round(peak * 100)}% peak · ${Math.round(skip * 100)}% skip · ${Math.round(completion * 100)}% complete`,
-    };
+  // Critical = 실제 운영 위험 신호 (혼잡/대량 이탈). 단순 미완료는 critical 이 아니다.
+  const overcrowded = peak > 0.9;
+  const massSkip = skip > 0.5;
+  if (overcrowded || massSkip) {
+    return { level: 'critical', headline: t('analyze.verdict.critical'), detail };
   }
-  if (warning) {
-    return {
-      level: 'warning',
-      headline: t('analyze.verdict.warning'),
-      detail: `${Math.round(peak * 100)}% peak · ${Math.round(skip * 100)}% skip · ${Math.round(completion * 100)}% complete`,
-    };
+  // Warning = 주의 (혼잡 임박 / 스킵 누적 / 완주 부진).
+  if (peak > 0.7 || skip > 0.3 || completion < 0.4) {
+    return { level: 'warning', headline: t('analyze.verdict.warning'), detail };
   }
-  return {
-    level: 'success',
-    headline: t('analyze.verdict.success'),
-    detail: `${Math.round(peak * 100)}% peak · ${Math.round(skip * 100)}% skip · ${Math.round(completion * 100)}% complete`,
-  };
+  // 미세한 완주 부진은 그냥 success 옆에 detail 로 노출.
+  return { level: 'success', headline: t('analyze.verdict.success'), detail };
 }
 
 const VERDICT_STYLE: Record<VerdictLevel, { bg: string; ring: string; text: string; Icon: typeof CheckCircle2 }> = {
