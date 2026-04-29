@@ -1,5 +1,6 @@
 import { ThemeToggle } from '../components/ThemeToggle';
 import { LanguageToggle } from '../components/LanguageToggle';
+import { ChevronLeft } from 'lucide-react';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { SimulationControls } from '../panels/build/SimulationControls';
 import { ProjectManager } from '../panels/build/ProjectManager';
@@ -20,7 +21,12 @@ import { useStore } from '@/stores';
 import { useRef, useState } from 'react';
 import { useT } from '@/i18n';
 
-export function MainLayout() {
+interface MainLayoutProps {
+  /** Simulate 단계에서 Build 로 돌아갈 때 호출. 시뮬 실행/일시정지 중에도 사용 가능 — 단순 라우팅만. */
+  onBackToBuild?: () => void;
+}
+
+export function MainLayout({ onBackToBuild }: MainLayoutProps = {}) {
   const visitors = useStore((s) => s.visitors);
   const timeState = useStore((s) => s.timeState);
   const phase = useStore((s) => s.phase);
@@ -46,6 +52,17 @@ export function MainLayout() {
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b border-border bg-[var(--surface)]">
         <div className="flex items-center gap-3">
+          {onBackToBuild && (
+            <button
+              type="button"
+              onClick={onBackToBuild}
+              className="flex items-center gap-1 px-2 h-7 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              title="Back to Build"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              Build
+            </button>
+          )}
           <h1 className="text-sm font-semibold tracking-tight">
             VELA
           </h1>
