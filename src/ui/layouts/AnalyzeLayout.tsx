@@ -68,6 +68,7 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
   const media = useStore((s) => s.media);
   const visitors = useStore((s) => s.visitors);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const kpiHistory = useStore((s) => s.kpiHistory);
   const totalSpawned = useStore((s) => s.totalSpawned);
   const totalExited = useStore((s) => s.totalExited);
   const spawnByNode = useStore((s) => s.spawnByNode);
@@ -99,18 +100,28 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
   const fatiguePct = Math.round((latestSnapshot?.fatigueDistribution.mean ?? 0) * 100);
   const throughput = latestSnapshot?.flowEfficiency.throughputPerMinute ?? 0;
 
-  // Derived rows for bento cells
+  // Bottleneck score는 active visitor 기반이라 sim 종료 시점엔 0이 된다.
+  // history 전체에서 zone 별 peak score 를 추려서 표시.
   const topBottlenecks = useMemo(() => {
-    if (!latestSnapshot) return [];
-    return [...latestSnapshot.bottlenecks]
-      .filter((b) => b.score > 0.3)
-      .sort((a, b) => b.score - a.score)
+    const peakByZone = new Map<string, number>();
+    const sources = kpiHistory.length > 0
+      ? kpiHistory.map((h) => h.snapshot)
+      : latestSnapshot ? [latestSnapshot] : [];
+    for (const snap of sources) {
+      for (const b of snap.bottlenecks) {
+        const prev = peakByZone.get(b.zoneId as string) ?? 0;
+        if (b.score > prev) peakByZone.set(b.zoneId as string, b.score);
+      }
+    }
+    return Array.from(peakByZone.entries())
+      .filter(([, score]) => score > 0.3)
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
-      .map((b) => ({
-        name: zones.find((z) => z.id === b.zoneId)?.name ?? '—',
-        score: b.score,
+      .map(([zoneId, score]) => ({
+        name: zones.find((z) => z.id === zoneId)?.name ?? '—',
+        score,
       }));
-  }, [latestSnapshot, zones]);
+  }, [kpiHistory, latestSnapshot, zones]);
 
   const topSkipMedia = useMemo(() => {
     if (!latestSnapshot) return [];
