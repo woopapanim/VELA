@@ -3,7 +3,6 @@ import { useStore } from '@/stores';
 import { CanvasManager } from '@/visualization';
 import { useTheme } from '@/ui/components/ThemeProvider';
 import { CanvasToolbar } from './CanvasToolbar';
-import { TimelineBar } from './TimelineBar';
 import { CanvasContextMenu, useContextMenu } from './ContextMenu';
 import { PropertyPopover, usePropertyPopover } from './PropertyPopover';
 import { VisitorPopover } from './VisitorPopover';
@@ -2055,7 +2054,6 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       <canvas ref={canvasRef} className="absolute inset-0" />
       <SpeedIndicator />
       <CanvasToolbar />
-      <TimelineBar />
       <CanvasContextMenu menu={menu} onClose={hideMenu} />
       <PropertyPopover popover={popover} onClose={hidePopover} />
       <VisitorPopover canvasRef={canvasRef} managerRef={managerRef} />
