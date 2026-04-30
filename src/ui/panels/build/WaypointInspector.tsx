@@ -5,8 +5,21 @@ import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
-const NODE_TYPE_VALUES: WaypointType[] = ['entry', 'exit', 'zone', 'attractor', 'hub', 'rest', 'bend', 'portal'];
-const EDGE_DIR_VALUES = ['directed', 'bidirectional'] as const;
+const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
+  { value: 'entry', label: 'Entry' },
+  { value: 'exit', label: 'Exit' },
+  { value: 'zone', label: 'Zone' },
+  { value: 'attractor', label: 'Attractor' },
+  { value: 'hub', label: 'Hub' },
+  { value: 'rest', label: 'Rest' },
+  { value: 'bend', label: 'Bend' },
+  { value: 'portal', label: 'Portal' },
+];
+
+const EDGE_DIR_OPTIONS = [
+  { value: 'directed', label: 'Directed →' },
+  { value: 'bidirectional', label: 'Bidirectional ↔' },
+];
 
 // Field visibility per node type (see CLAUDE.md for semantics):
 // - attraction/capacity: used by Score formula, irrelevant for entry/exit/bend
@@ -62,42 +75,42 @@ export function WaypointInspector() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="panel-section">
-            {t('waypoint.node.title')}
+            Node Inspector
           </h3>
           <button
             onClick={() => { removeWaypoint(selectedWaypointId); selectWaypoint(null); }}
             className="p-1 rounded hover:bg-destructive/20 text-destructive"
-            title={t('waypoint.node.delete')}
+            title="Delete node"
           >
             <Trash2 size={12} />
           </button>
         </div>
 
         {/* Type */}
-        <Field label={t('waypoint.node.field.type')}>
+        <Field label="Type">
           <select
             value={node.type}
             onChange={(e) => updateWaypoint(selectedWaypointId, { type: e.target.value as WaypointType })}
-            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
           >
-            {NODE_TYPE_VALUES.map(v => <option key={v} value={v}>{t(`waypoint.node.type.${v}`)}</option>)}
+            {NODE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Field>
 
         {/* Label */}
-        <Field label={t('waypoint.node.field.label')}>
+        <Field label="Label">
           <input
             type="text"
             value={node.label}
             onChange={(e) => updateWaypoint(selectedWaypointId, { label: e.target.value })}
-            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
             placeholder={t('waypoint.namePlaceholder')}
           />
         </Field>
 
         {/* Attraction (Score formula weight — not shown for entry/exit/bend) */}
         {SHOW_ATTRACTION[node.type] && (
-          <Field label={t('waypoint.node.field.attraction', { value: node.attraction.toFixed(2) })} tooltip={t('tooltip.node.attraction')}>
+          <Field label={`Attraction: ${node.attraction.toFixed(2)}`} tooltip={t('tooltip.node.attraction')}>
             <input
               type="range"
               min={0} max={1} step={0.05}
@@ -110,7 +123,7 @@ export function WaypointInspector() {
 
         {/* Dwell Time (rest/attractor only) */}
         {SHOW_DWELL[node.type] && (
-          <Field label={t('waypoint.node.field.dwell', { value: (node.dwellTimeMs / 1000).toFixed(0) })} tooltip={t('tooltip.node.dwell')}>
+          <Field label={`Dwell: ${(node.dwellTimeMs / 1000).toFixed(0)}s`} tooltip={t('tooltip.node.dwell')}>
             <input
               type="range"
               min={0} max={120000} step={1000}
@@ -123,13 +136,13 @@ export function WaypointInspector() {
 
         {/* Capacity — POI crowd cap, distinct from zone spatial capacity */}
         {SHOW_CAPACITY[node.type] && (
-          <Field label={t('waypoint.node.field.poiCapacity', { value: node.capacity })} tooltip={t('tooltip.node.capacity')}>
+          <Field label={`POI Capacity: ${node.capacity}`} tooltip={t('tooltip.node.capacity')}>
             <input
               type="number"
               min={1} max={500}
               value={node.capacity}
               onChange={(e) => updateWaypoint(selectedWaypointId, { capacity: parseInt(e.target.value) || 1 })}
-              className="w-20 text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+              className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
             />
           </Field>
         )}
@@ -140,7 +153,7 @@ export function WaypointInspector() {
           const currentShaft = shafts.find(sh => (sh.id as string) === currentShaftId);
           return (
             <>
-              <Field label={t('waypoint.shaft.label')} tooltip={t('waypoint.shaft.tooltip')}>
+              <Field label="Shaft" tooltip="Portal shaft group. All nodes sharing a shaft connect to each other across floors/buildings. Agents wait + travel before teleporting.">
                 <select
                   value={currentShaftId ?? ''}
                   onChange={(e) => {
@@ -159,9 +172,9 @@ export function WaypointInspector() {
                     }
                     updateWaypoint(selectedWaypointId, { shaftId: (val || null) as any });
                   }}
-                  className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+                  className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
                 >
-                  <option value="">{t('waypoint.shaft.none')}</option>
+                  <option value="">— None —</option>
                   {shafts.map(sh => {
                     const fids = getShaftFloorIds(sh.id, graph);
                     return (
@@ -170,20 +183,20 @@ export function WaypointInspector() {
                       </option>
                     );
                   })}
-                  <option value="__new__">{t('waypoint.shaft.new')}</option>
+                  <option value="__new__">+ New shaft</option>
                 </select>
               </Field>
               {currentShaft && (
                 <>
-                  <Field label={t('waypoint.shaft.name')}>
+                  <Field label="Shaft name">
                     <input
                       type="text"
                       value={currentShaft.name}
                       onChange={(e) => updateShaft(currentShaft.id as string, { name: e.target.value })}
-                      className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+                      className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
                     />
                   </Field>
-                  <Field label={t('waypoint.shaft.capacity', { value: currentShaft.capacity })} tooltip={t('waypoint.shaft.capacity.tooltip')}>
+                  <Field label={`Capacity: ${currentShaft.capacity}`} tooltip="Max agents inside the cabin per trip.">
                     <input
                       type="range"
                       min={1} max={30} step={1}
@@ -192,7 +205,7 @@ export function WaypointInspector() {
                       className="w-full"
                     />
                   </Field>
-                  <Field label={t('waypoint.shaft.wait', { value: (currentShaft.waitTimeMs / 1000).toFixed(0) })} tooltip={t('waypoint.shaft.wait.tooltip')}>
+                  <Field label={`Wait: ${(currentShaft.waitTimeMs / 1000).toFixed(0)}s`} tooltip="Time spent waiting for the cabin to arrive + board.">
                     <input
                       type="range"
                       min={0} max={30000} step={1000}
@@ -201,7 +214,7 @@ export function WaypointInspector() {
                       className="w-full"
                     />
                   </Field>
-                  <Field label={t('waypoint.shaft.travel', { value: (currentShaft.travelTimePerFloorMs / 1000).toFixed(0) })} tooltip={t('waypoint.shaft.travel.tooltip')}>
+                  <Field label={`Travel / floor: ${(currentShaft.travelTimePerFloorMs / 1000).toFixed(0)}s`} tooltip="Per-floor travel time. Total = wait + |floors| × this.">
                     <input
                       type="range"
                       min={500} max={15000} step={500}
@@ -218,7 +231,7 @@ export function WaypointInspector() {
 
         {/* Spawn Weight (ENTRY only) */}
         {node.type === 'entry' && (
-          <Field label={t('waypoint.node.field.spawnWeight', { value: node.spawnWeight.toFixed(1) })} tooltip={t('tooltip.node.spawnWeight')}>
+          <Field label={`Spawn Weight: ${node.spawnWeight.toFixed(1)}`} tooltip={t('tooltip.node.spawnWeight')}>
             <input
               type="range"
               min={0} max={5} step={0.1}
@@ -250,30 +263,30 @@ export function WaypointInspector() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h3 className="panel-section">
-            {t('waypoint.edge.title')}
+            Edge Inspector
           </h3>
           <button
             onClick={() => { removeEdge(selectedEdgeId); selectEdge(null); }}
             className="p-1 rounded hover:bg-destructive/20 text-destructive"
-            title={t('waypoint.edge.delete')}
+            title="Delete edge"
           >
             <Trash2 size={12} />
           </button>
         </div>
 
         {/* Direction */}
-        <Field label={t('waypoint.edge.direction')}>
+        <Field label="Direction">
           <select
             value={edge.direction}
             onChange={(e) => updateEdge(selectedEdgeId, { direction: e.target.value as any })}
-            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
           >
-            {EDGE_DIR_VALUES.map(v => <option key={v} value={v}>{t(`waypoint.edge.${v}`)}</option>)}
+            {EDGE_DIR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Field>
 
         {/* Pass Weight */}
-        <Field label={t('waypoint.edge.passWeight', { value: edge.passWeight.toFixed(2) })}>
+        <Field label={`Pass Weight: ${edge.passWeight.toFixed(2)}`}>
           <input
             type="range"
             min={0} max={2} step={0.05}
@@ -284,13 +297,13 @@ export function WaypointInspector() {
         </Field>
 
         {/* Cost */}
-        <Field label={t('waypoint.edge.cost', { value: Math.round(edge.cost) })}>
+        <Field label={`Cost: ${Math.round(edge.cost)}px`}>
           <input
             type="number"
             min={1} max={5000}
             value={Math.round(edge.cost)}
             onChange={(e) => updateEdge(selectedEdgeId, { cost: parseInt(e.target.value) || 1 })}
-            className="w-20 text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
+            className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
           />
         </Field>
 

@@ -95,19 +95,19 @@ export function SpawnConfig() {
     <div>
       <EntryPolicySection />
 
-      <CollapsibleSection id="spawn-presets" title={t('spawnConfig.presets')}>
+      <CollapsibleSection id="spawn-presets" title="Presets">
         <VisitorPresets />
       </CollapsibleSection>
 
-      <CollapsibleSection id="spawn-settings" title={t('spawnConfig.settings')} defaultOpen>
-        <div className="mb-2 p-1.5 rounded-lg bg-secondary/50 border border-border">
+      <CollapsibleSection id="spawn-settings" title="Spawn Settings" defaultOpen>
+        <div className="mb-2 p-1.5 rounded bg-secondary/50 border border-border">
           <div className="text-[9px] text-muted-foreground mb-1">{t('spawn.mode.label')}</div>
           <div className="grid grid-cols-2 gap-1">
             <button
               onClick={() => setMode('time')}
               disabled={isLocked}
               title={t('spawn.mode.timeHint')}
-              className={`px-1.5 py-1 rounded-lg text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
                 mode === 'time'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-transparent border-border hover:border-primary/50'
@@ -119,7 +119,7 @@ export function SpawnConfig() {
               onClick={() => setMode('person')}
               disabled={isLocked}
               title={t('spawn.mode.personHint')}
-              className={`px-1.5 py-1 rounded-lg text-[10px] font-medium border transition-colors disabled:opacity-50 ${
+              className={`px-1.5 py-1 rounded text-[10px] font-medium border transition-colors disabled:opacity-50 ${
                 mode === 'person'
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'bg-transparent border-border hover:border-primary/50'
@@ -131,13 +131,13 @@ export function SpawnConfig() {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <NumField
-            label={t('spawnConfig.totalVisitors')}
+            label="Total Visitors"
             value={dist?.totalCount ?? 200}
             onChange={(v) => updateDist('totalCount', v)}
             disabled={isLocked}
           />
           <NumField
-            label={t('spawnConfig.maxConcurrent')}
+            label="Max Concurrent"
             // Clamp displayed value to Total — Max > Total is a dead setting
             // (cumulative cap fires first). Intermediate keystrokes on Total
             // would corrupt the stored Max, so we only clamp for display and
@@ -148,18 +148,18 @@ export function SpawnConfig() {
           />
           <div>
             <NumField
-              label={isMultiSlot ? t('spawnConfig.spawnRate.multiSlot') : t('spawnConfig.spawnRate')}
+              label={isMultiSlot ? 'Spawn Rate /min (multi-slot)' : 'Spawn Rate /min'}
               value={Math.round(rateRps * 60 * 10) / 10}
               onChange={updateSpawnRatePerMin}
               disabled={isLocked || isMultiSlot}
               step={1}
             />
             {isMultiSlot && (
-              <p className="text-[8px] text-muted-foreground mt-0.5">{t('spawnConfig.spawnRate.editInSlots')}</p>
+              <p className="text-[8px] text-muted-foreground mt-0.5">Edit in Time Slots</p>
             )}
           </div>
           <NumField
-            label={t('spawnConfig.duration')}
+            label="Duration (min)"
             value={durationMin}
             onChange={(v) => updateConfig('duration', v * 60000)}
             disabled={isLocked}
@@ -194,7 +194,7 @@ export function SpawnConfig() {
           </div>
           <div>
             <NumField
-              label={t('spawnConfig.seed')}
+              label="Seed"
               value={config?.seed ?? 42}
               onChange={(v) => updateConfig('seed', v)}
               disabled={isLocked}
@@ -204,14 +204,14 @@ export function SpawnConfig() {
                 onClick={() => updateConfig('seed', Math.floor(Math.random() * 99999))}
                 className="text-[8px] text-primary mt-0.5 hover:underline"
               >
-                {t('spawnConfig.seed.randomize')}
+                🎲 Randomize
               </button>
             )}
           </div>
         </div>
       </CollapsibleSection>
 
-      <CollapsibleSection id="spawn-slots" title={t('spawnConfig.timeSlots')} count={slotsCount}>
+      <CollapsibleSection id="spawn-slots" title="Time Slots" count={slotsCount}>
         <TimeSlotEditor />
       </CollapsibleSection>
     </div>

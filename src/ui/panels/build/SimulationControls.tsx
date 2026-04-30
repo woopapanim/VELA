@@ -146,7 +146,7 @@ export function SimulationControls() {
         if (state.phase === 'completed' && !milestonesHit.current.has(-1)) {
           milestonesHit.current.add(-1);
           setDensityGrids(eng.getDensityGrids());
-          toast('success', t('simControls.toast.completed'));
+          toast('success', '✅ Simulation completed!');
           // Final snapshot + run record capture (parity with ControlBar.tsx).
           const finalStore = useStore.getState();
           const finalSnapshot = assembleKpiSnapshot(
@@ -188,7 +188,7 @@ export function SimulationControls() {
       for (const m of [50, 100, 150, 200, 300, 500]) {
         if (count >= m && !milestonesHit.current.has(m)) {
           milestonesHit.current.add(m);
-          toast('success', t('simControls.toast.milestone', { count: m }));
+          toast('success', `🏆 ${m} agents reached!`);
         }
       }
 
@@ -218,7 +218,7 @@ export function SimulationControls() {
             if (!milestonesHit.current.has(key as any)) {
               milestonesHit.current.add(key as any);
               const zone = currentStore.zones.find((z) => z.id === bn.zoneId);
-              toast('warning', t('simControls.toast.bottleneck', { zone: zone?.name ?? '?', score: Math.round(bn.score * 100) }));
+              toast('warning', `⚠️ ${zone?.name ?? '?'} bottleneck (${Math.round(bn.score * 100)})`);
             }
           }
         }
@@ -311,14 +311,14 @@ export function SimulationControls() {
   const durationMin = Math.floor(durationMs / 60000);
   const modeBadge =
     simMode === 'person'
-      ? t('simControls.modeBadge.person', { count: totalCount, min: durationMin })
-      : t('simControls.modeBadge.time', { count: totalCount, min: durationMin });
+      ? `👥 사람 기준 · ${totalCount}명 · 최대 ${durationMin}분`
+      : `🕐 시간 기준 · ${durationMin}분 · 최대 ${totalCount}명`;
 
   return (
     <div className="space-y-3">
       {/* Mode summary badge */}
       {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
-        <div className="px-2 py-1 rounded-lg bg-secondary/50 text-[10px] text-muted-foreground text-center font-data">
+        <div className="px-2 py-1 rounded bg-secondary/50 text-[10px] text-muted-foreground text-center font-data">
           {modeBadge}
         </div>
       )}
@@ -329,7 +329,7 @@ export function SimulationControls() {
             onClick={handleStart}
             className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
-            <Play className="w-3.5 h-3.5" /> {t('simControls.start')}
+            <Play className="w-3.5 h-3.5" /> Start
           </button>
         )}
         {phase === SIMULATION_PHASE.RUNNING && (
@@ -337,7 +337,7 @@ export function SimulationControls() {
             onClick={handlePause}
             className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
-            <Pause className="w-3.5 h-3.5" /> {t('simControls.pause')}
+            <Pause className="w-3.5 h-3.5" /> Pause
           </button>
         )}
         {phase === SIMULATION_PHASE.PAUSED && (
@@ -345,7 +345,7 @@ export function SimulationControls() {
             onClick={handleResume}
             className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
-            <Play className="w-3.5 h-3.5" /> {t('simControls.resume')}
+            <Play className="w-3.5 h-3.5" /> Resume
           </button>
         )}
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
@@ -353,7 +353,7 @@ export function SimulationControls() {
             onClick={requestStop}
             className="flex-1 min-w-0 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform"
           >
-            <Square className="w-3.5 h-3.5" /> {t('simControls.stop')}
+            <Square className="w-3.5 h-3.5" /> Stop
           </button>
         )}
       </div>
@@ -365,7 +365,7 @@ export function SimulationControls() {
           className={`shrink-0 flex items-center justify-center w-9 h-9 text-xs rounded-xl transition-colors active:scale-95 ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          title={t('simControls.heatmap.toggle')}
+          title="Toggle Heatmap"
         >
           <Thermometer className="w-3.5 h-3.5" />
         </button>
@@ -387,7 +387,7 @@ export function SimulationControls() {
       {/* Speed */}
       {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
         <div className="flex items-center gap-1">
-          <span className="text-[9px] text-muted-foreground">{t('simControls.speed')}</span>
+          <span className="text-[9px] text-muted-foreground">Speed</span>
           {[1, 3, 5, 10, 20, 30].map((spd) => {
             const active = speed === spd;
             return (
@@ -399,7 +399,7 @@ export function SimulationControls() {
                   }
                   setSpeed(spd);
                 }}
-                className={`px-1.5 py-0.5 text-[9px] rounded-md transition-colors ${
+                className={`px-1.5 py-0.5 text-[9px] rounded transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground font-semibold'
                     : 'bg-secondary hover:bg-accent'
@@ -414,19 +414,19 @@ export function SimulationControls() {
       {/* Status */}
       <div className="grid grid-cols-2 gap-1 text-[10px]">
         <div className="flex justify-between px-2 py-1 rounded-lg bg-secondary/50">
-          <span className="text-muted-foreground">{t('simControls.phase')}</span>
+          <span className="text-muted-foreground">Phase</span>
           <span className="font-data font-medium uppercase">{phase}</span>
         </div>
         <div className="flex justify-between px-2 py-1 rounded-lg bg-secondary/50">
-          <span className="text-muted-foreground">{t('simControls.elapsed')}</span>
+          <span className="text-muted-foreground">Elapsed</span>
           <span className="font-data font-medium">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
         </div>
         <div className="flex justify-between px-2 py-1 rounded-lg bg-secondary/50">
-          <span className="text-muted-foreground">{t('simControls.activeAgents')}</span>
+          <span className="text-muted-foreground">Active Agents</span>
           <span className="font-data font-medium text-primary">{activeCount}</span>
         </div>
         <div className="flex justify-between px-2 py-1 rounded-lg bg-secondary/50">
-          <span className="text-muted-foreground">{t('simControls.tick')}</span>
+          <span className="text-muted-foreground">Tick</span>
           <span className="font-data font-medium">{timeState.tickCount}</span>
         </div>
       </div>
