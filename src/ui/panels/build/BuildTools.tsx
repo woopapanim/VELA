@@ -297,11 +297,9 @@ export function BuildTools({ task }: BuildToolsProps = {}) {
                       : 'bg-secondary/60 border-transparent hover:bg-accent hover:border-border'
                   }`}
                   title={t(descKey)}
-                  style={active ? undefined : {
-                    backgroundImage: `linear-gradient(90deg, ${color}18 0%, transparent 60%)`,
-                  }}
+                  style={active ? undefined : { boxShadow: `inset 3px 0 0 ${color}40` }}
                 >
-                  <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   {label}
                 </button>
               );

@@ -26,14 +26,14 @@ export function BuildLayout({ onRun, onAnalyze }: Props) {
   const isDirty = useStore(selectScenarioDirty);
   const canRun = !!scenario && zoneCount > 0 && mediaCount > 0;
   const runHint = !scenario
-    ? t('build.topBar.runReason.noScenario')
+    ? 'Load or create a scenario first'
     : zoneCount === 0
-    ? t('build.topBar.runReason.noZone')
+    ? 'Add at least one zone'
     : mediaCount === 0
-    ? t('build.topBar.runReason.noMedia')
+    ? 'Add at least one exhibit'
     : isDirty
     ? t('project.dirty.title')
-    : t('build.topBar.runReason.ready');
+    : 'Run simulation';
 
   const guardedRun = useCallback(() => {
     if (isDirty) {

@@ -72,7 +72,7 @@ export function RegionsPanel() {
     <div className="bento-box p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="panel-section flex items-center gap-1.5">
-          {t('regions.title', { count: floors.length })}
+          Regions ({floors.length})
           <InfoTooltip text={t('regions.tooltip')} />
         </h2>
         {!isSimRunning && (
@@ -81,19 +81,19 @@ export function RegionsPanel() {
               <button
                 onClick={relayoutFloors}
                 className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
-                title={t('regions.action.arrange.title')}
+                title="Auto-arrange regions side-by-side by level"
               >
                 <LayoutGrid className="w-3 h-3" />
-                {t('regions.action.arrange')}
+                Arrange
               </button>
             )}
             <button
               onClick={addFloor}
               className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
-              title={t('regions.action.add.title')}
+              title="Add floor"
             >
               <Plus className="w-3 h-3" />
-              {t('regions.action.add')}
+              Add
             </button>
           </div>
         )}
@@ -152,7 +152,7 @@ export function RegionsPanel() {
                         setEditingId(null);
                       }}
                       className="text-[var(--status-success)] hover:opacity-80"
-                      title={t('regions.action.save')}
+                      title="Save"
                     >
                       <Check className="w-3 h-3" />
                     </button>
@@ -163,7 +163,7 @@ export function RegionsPanel() {
                       {floor.name}
                     </span>
                     <span className="text-muted-foreground font-data text-[9px] w-14 text-right shrink-0 tabular-nums">
-                      {t('regions.zoneCount', { count: zoneCount })}
+                      {zoneCount} {zoneCount === 1 ? 'zone' : 'zones'}
                     </span>
 
                     {/* Overlay icon — always visible for discoverability. Opening the
@@ -278,7 +278,7 @@ export function RegionsPanel() {
                       className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded-xl bg-secondary hover:bg-accent transition-colors"
                     >
                       <ImageIcon className="w-3.5 h-3.5" />
-                      {t('regions.overlay.upload')}
+                      Upload Image
                     </button>
                   ) : isLocked ? (
                     <div className="flex gap-1">
@@ -290,26 +290,26 @@ export function RegionsPanel() {
                         className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded-xl bg-secondary hover:bg-accent transition-colors"
                       >
                         <Pencil className="w-3 h-3" />
-                        {t('regions.overlay.edit')}
+                        Edit
                       </button>
                       <button
                         onClick={() => openFilePicker(id)}
                         className="flex items-center justify-center gap-1 px-2 py-1.5 text-[10px] rounded-xl bg-secondary hover:bg-accent transition-colors text-muted-foreground"
                       >
                         <ImageIcon className="w-3 h-3" />
-                        {t('regions.overlay.replace')}
+                        Replace
                       </button>
                       <button
                         onClick={() => updateFloorCanvas(id, { bgHidden: !isBgHidden })}
                         className="flex items-center justify-center px-2 py-1.5 rounded-xl bg-secondary hover:bg-accent transition-colors text-muted-foreground"
-                        title={isBgHidden ? t('regions.overlay.show') : t('regions.overlay.hide')}
+                        title={isBgHidden ? 'Show overlay' : 'Hide overlay'}
                       >
                         {isBgHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                       <button
                         onClick={() => handleRemoveOverlay(id)}
                         className="flex items-center justify-center px-2 py-1.5 rounded-xl bg-secondary hover:bg-[var(--status-danger)]/20 transition-colors"
-                        title={t('regions.overlay.remove')}
+                        title="Remove overlay"
                       >
                         <X className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
@@ -327,20 +327,20 @@ export function RegionsPanel() {
                         <button
                           onClick={() => updateFloorCanvas(id, { bgHidden: !isBgHidden })}
                           className="flex items-center justify-center px-2 py-1.5 rounded-xl bg-secondary hover:bg-accent transition-colors text-muted-foreground"
-                          title={isBgHidden ? t('regions.overlay.show') : t('regions.overlay.hide')}
+                          title={isBgHidden ? 'Show overlay' : 'Hide overlay'}
                         >
                           {isBgHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
                         <button
                           onClick={() => handleRemoveOverlay(id)}
                           className="flex items-center justify-center px-2 py-1.5 rounded-xl bg-secondary hover:bg-[var(--status-danger)]/20 transition-colors"
-                          title={t('regions.overlay.remove')}
+                          title="Remove overlay"
                         >
                           <X className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] text-muted-foreground w-8">{t('regions.overlay.scale')}</span>
+                        <span className="text-[9px] text-muted-foreground w-8">Scale</span>
                         <input
                           type="range"
                           min={0.05}
