@@ -462,7 +462,7 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
       }
       main={
         <div className="h-full overflow-hidden">
-          <div className="h-full flex flex-col p-4 gap-3 max-w-[1280px] mx-auto overflow-y-auto">
+          <div className="h-full flex flex-col px-5 py-4 gap-3 max-w-[1440px] mx-auto overflow-y-auto">
             <PerspectiveGrid
               snapshot={latestSnapshot}
               zones={zones}
@@ -528,11 +528,11 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
             {/* BOTTOM — ACTIONS (prominent buttons, 데이터 있을 때만) */}
             {actions.length > 0 && (
               <section className="flex-shrink-0">
-                <h2 className="text-xs uppercase tracking-wider font-semibold text-foreground/80 mb-2 flex items-center gap-1.5">
-                  <ChevronRight className="w-3.5 h-3.5 text-primary" />
+                <h2 className="text-[10px] uppercase tracking-wider font-semibold text-foreground/80 mb-2 flex items-center gap-1.5">
+                  <ChevronRight className="w-3 h-3 text-primary" />
                   {t('analyze.cockpit.actions.title')}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                   {actions.map((a) => (
                     <ActionCard key={a.id} action={a} ctaLabel={t('analyze.cockpit.action.cta')} onClick={() => handleAction(a)} />
                   ))}
@@ -547,8 +547,8 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
           className="w-72 border-l border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-hidden"
           aria-label="Insights rail"
         >
-          <div className="px-3 py-2.5 border-b border-border flex-shrink-0">
-            <h2 className="text-sm font-semibold tracking-tight">{t('analyze.rail.title')}</h2>
+          <div className="px-3 py-2 border-b border-border flex-shrink-0">
+            <h2 className="text-[13px] font-semibold tracking-tight">{t('analyze.rail.title')}</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
               {t('analyze.rail.hint')}
             </p>
@@ -684,8 +684,8 @@ function ActionCard({
   action, ctaLabel, onClick,
 }: { action: CockpitAction; ctaLabel: string; onClick: () => void }) {
   const accent = action.level === 'critical'
-    ? 'border-[var(--status-danger)]/40 bg-[var(--status-danger)]/5 hover:border-[var(--status-danger)] hover:bg-[var(--status-danger)]/10'
-    : 'border-[var(--status-warning)]/40 bg-[var(--status-warning)]/5 hover:border-[var(--status-warning)] hover:bg-[var(--status-warning)]/10';
+    ? 'border-[var(--status-danger)]/35 bg-[var(--status-danger)]/[0.04] hover:border-[var(--status-danger)]/70 hover:bg-[var(--status-danger)]/10'
+    : 'border-[var(--status-warning)]/35 bg-[var(--status-warning)]/[0.04] hover:border-[var(--status-warning)]/70 hover:bg-[var(--status-warning)]/10';
   const dot = action.level === 'critical'
     ? 'bg-[var(--status-danger)]'
     : 'bg-[var(--status-warning)]';
@@ -696,20 +696,20 @@ function ActionCard({
     <button
       type="button"
       onClick={onClick}
-      className={`group relative text-left rounded-xl border-2 p-5 transition-all hover:shadow-lg hover:-translate-y-0.5 flex flex-col ${accent}`}
+      className={`group relative text-left rounded-xl border p-3.5 transition-all hover:shadow-md flex flex-col ${accent}`}
     >
-      <div className="flex items-start gap-2.5 flex-1">
-        <span className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${dot}`} />
+      <div className="flex items-start gap-2 flex-1">
+        <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${dot}`} />
         <div className="flex-1 min-w-0">
-          <div className="text-base font-semibold text-foreground leading-snug">{action.title}</div>
-          <p className="text-sm text-muted-foreground mt-1.5 leading-snug">
+          <div className="text-[13px] font-semibold tracking-tight text-foreground leading-snug">{action.title}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
             {action.detail}
           </p>
         </div>
       </div>
-      <div className={`mt-3 pt-3 border-t border-border/40 flex items-center justify-between text-xs font-semibold uppercase tracking-wider ${ctaColor}`}>
+      <div className={`mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider ${ctaColor}`}>
         <span>{ctaLabel}</span>
-        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
       </div>
     </button>
   );

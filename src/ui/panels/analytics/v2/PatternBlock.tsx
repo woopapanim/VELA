@@ -110,7 +110,7 @@ export function PatternBlock({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-[var(--surface)] p-4 space-y-4">
+    <section className="rounded-xl border border-border bg-[var(--surface)] p-3.5 space-y-3.5">
       {hasTimePattern && (
         <TimeSection
           pattern={pattern!}

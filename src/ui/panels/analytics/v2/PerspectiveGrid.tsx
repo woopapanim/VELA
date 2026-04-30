@@ -119,12 +119,12 @@ export function PerspectiveGrid(props: Props) {
   return (
     <div className="flex flex-col gap-3">
       {/* Verdict — 한 줄 strip */}
-      <section className={`rounded-xl border ${V.ring} ${V.bg} px-4 py-2.5 flex items-center gap-3`}>
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${V.iconBg} flex-shrink-0`}>
-          <VIcon className={`w-4 h-4 ${V.text}`} />
+      <section className={`rounded-xl border ${V.ring} ${V.bg} px-3.5 py-2 flex items-center gap-2.5`}>
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center ${V.iconBg} flex-shrink-0`}>
+          <VIcon className={`w-3.5 h-3.5 ${V.text}`} />
         </div>
         <div className="flex-1 min-w-0 flex items-baseline gap-3">
-          <h2 className={`text-sm font-semibold tracking-tight ${V.text} truncate`}>
+          <h2 className={`text-[13px] font-semibold tracking-tight ${V.text} truncate`}>
             {V.headline}
           </h2>
           {props.purposeLabel && (
