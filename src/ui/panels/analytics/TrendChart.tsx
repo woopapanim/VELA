@@ -15,7 +15,7 @@ import { useTheme } from '@/ui/components/ThemeProvider';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler);
 
-export function TrendChart() {
+export function TrendChart({ fill = false }: { fill?: boolean } = {}) {
   const kpiHistory = useStore((s) => s.kpiHistory);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
@@ -137,6 +137,21 @@ export function TrendChart() {
   );
 
   if (kpiHistory.length < 3) return null;
+
+  if (fill) {
+    return (
+      <div className="h-full flex flex-col min-h-0">
+        <div className="flex-1 min-h-0">
+          <Line data={data} options={options} />
+        </div>
+        <div className="flex justify-center gap-4 mt-2 flex-shrink-0">
+          <LegendDot color={isDark ? '#f87171' : '#ef4444'} label="Peak Util %" />
+          <LegendDot color={isDark ? '#fbbf24' : '#f59e0b'} label="Fatigue %" />
+          <LegendDot color={isDark ? '#60a5fa' : '#3b82f6'} label="Visitors" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bento-box p-4">
