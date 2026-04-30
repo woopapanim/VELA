@@ -26,9 +26,7 @@ interface Props {
 }
 
 // Task-scoped tool panel (240px). Active task 의 도구 + 안내만.
-// 기존 BuildTools 는 zones/exhibits/flow 를 통합 — 1차에서는 그대로 재사용,
-// 후속 iteration 에서 task 별 분리. 현재는 dock 의 active task 표시가
-// 사용자에게 컨텍스트 전달 역할.
+// BuildTools 는 task prop 으로 분기 — zones=zone 도구, exhibits=media 도구, flow=node/edge.
 export function TaskPanel({ task }: Props) {
   return (
     <aside className="w-60 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-y-auto">
@@ -39,7 +37,7 @@ export function TaskPanel({ task }: Props) {
       <div className="flex-1 p-3 space-y-3">
         {task === 'region' && <RegionsPanel />}
         {task === 'visitors' && <VisitorConfig />}
-        {(task === 'zones' || task === 'exhibits' || task === 'flow') && <BuildTools />}
+        {(task === 'zones' || task === 'exhibits' || task === 'flow') && <BuildTools task={task} />}
         {task === 'zones' && <ZoneTemplates />}
       </div>
       <div className="border-t border-border p-3">
