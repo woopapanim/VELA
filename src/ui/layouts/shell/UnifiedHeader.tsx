@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useStore } from '@/stores';
+import { useT } from '@/i18n';
 import { ThemeToggle } from '../../components/ThemeToggle';
 import { LanguageToggle } from '../../components/LanguageToggle';
 import { HelpButton } from '../../components/HelpOverlay';
@@ -22,19 +23,23 @@ interface Props {
   leftSlot?: ReactNode;
 }
 
-const STAGE_LABEL: Record<Stage, string> = {
-  build: '1 Build',
-  simulate: '2 Simulate',
-  analyze: '3 Analyze',
+const STAGE_KEY: Record<Stage, string> = {
+  build: 'build.topBar.stage.build',
+  simulate: 'build.topBar.stage.simulate',
+  analyze: 'build.topBar.stage.analyze',
+};
+
+const STAGE_NUM: Record<Stage, string> = {
+  build: '1',
+  simulate: '2',
+  analyze: '3',
 };
 
 const STAGE_ORDER: Stage[] = ['build', 'simulate', 'analyze'];
 
-// 모든 phase 가 동일하게 쓰는 56px 헤더. 좌: VELA + 시나리오 + leftSlot.
-// 가운데: 1·2·3 stage breadcrumb (방문 가능한 stage 는 클릭 가능, 현재는 highlight,
-// 완료된 이전 stage 는 ✓). 우: 페이지 액션 + 공통 utility (Help/Lang/Theme).
 export function UnifiedHeader({ current, nav, rightSlot, leftSlot }: Props) {
   const scenario = useStore((s) => s.scenario);
+  const t = useT();
 
   return (
     <header className="flex items-center justify-between px-4 h-14 border-b border-border bg-[var(--surface)] flex-shrink-0">
@@ -68,7 +73,7 @@ export function UnifiedHeader({ current, nav, rightSlot, leftSlot }: Props) {
                       : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                 >
-                  {STAGE_LABEL[stage]}{isPast && ' ✓'}
+                  {STAGE_NUM[stage]} {t(STAGE_KEY[stage])}{isPast && ' ✓'}
                 </button>
               ) : (
                 <span
@@ -78,7 +83,7 @@ export function UnifiedHeader({ current, nav, rightSlot, leftSlot }: Props) {
                       : 'text-muted-foreground/50'
                   }`}
                 >
-                  {STAGE_LABEL[stage]}
+                  {STAGE_NUM[stage]} {t(STAGE_KEY[stage])}
                 </span>
               )}
             </div>

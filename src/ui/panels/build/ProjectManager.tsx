@@ -312,7 +312,7 @@ export function ProjectManager() {
           disabled={isRunning}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-opacity"
         >
-          <Plus className="w-3.5 h-3.5" /> New
+          <Plus className="w-3.5 h-3.5" /> {t('project.action.new')}
         </button>
         <button
           onClick={handleSave}
@@ -323,7 +323,7 @@ export function ProjectManager() {
               : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
         >
-          <Save className="w-3.5 h-3.5" /> Save
+          <Save className="w-3.5 h-3.5" /> {t('project.action.save')}
           {isDirty && (
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--status-warning)] ring-2 ring-[var(--surface)]" />
           )}
@@ -344,7 +344,7 @@ export function ProjectManager() {
             value={scenario.meta.name}
             onChange={(e) => updateScenarioMeta({ name: e.target.value })}
             className="flex-1 min-w-0 px-2 py-1 font-medium rounded-lg bg-transparent border border-border hover:bg-secondary/50 focus:bg-secondary transition-colors"
-            placeholder="Project name"
+            placeholder={t('project.namePlaceholder')}
           />
           {isDirty && (
             <span
@@ -357,7 +357,7 @@ export function ProjectManager() {
           <button
             onClick={handleExport}
             className="ml-0.5 text-muted-foreground hover:text-foreground text-[9px] font-data"
-            title="Export JSON"
+            title={t('project.action.exportJson')}
           >
             ↗
           </button>
@@ -368,7 +368,7 @@ export function ProjectManager() {
       {history.length > 0 && (
         <div>
           <p className="panel-label mb-1.5 flex items-center gap-1">
-            <Clock className="w-3 h-3" /> Recent
+            <Clock className="w-3 h-3" /> {t('project.recent')}
           </p>
           <div className="space-y-1 max-h-28 overflow-y-auto">
             {history

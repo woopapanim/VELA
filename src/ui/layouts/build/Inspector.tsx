@@ -1,21 +1,24 @@
 import { X } from 'lucide-react';
 import { useStore } from '@/stores';
+import { useT } from '@/i18n';
 import { ZoneEditor } from '../../panels/build/ZoneEditor';
 import { MediaEditor } from '../../panels/build/MediaEditor';
 import { WaypointInspector } from '../../panels/build/WaypointInspector';
 
-// 우측 슬라이드인 인스펙터. canvas 위에 absolute 로 떠 있고, 선택된 객체가
-// 있을 때만 노출. 좌/우 column 영구 점유 X — 필요할 때만 등장.
-// 닫기 버튼 = 모든 selection 해제.
 export function Inspector() {
   const selectedZoneId = useStore((s) => s.selectedZoneId);
   const selectedMediaId = useStore((s) => s.selectedMediaId);
   const selectedWaypointId = useStore((s) => s.selectedWaypointId);
+  const t = useT();
 
   const isOpen = !!selectedZoneId || !!selectedMediaId || !!selectedWaypointId;
   if (!isOpen) return null;
 
-  const kind = selectedZoneId ? 'Zone' : selectedMediaId ? 'Exhibit' : 'Waypoint';
+  const kind = selectedZoneId
+    ? t('build.inspector.kind.zone')
+    : selectedMediaId
+    ? t('build.inspector.kind.exhibit')
+    : t('build.inspector.kind.waypoint');
 
   const handleClose = () => {
     const s = useStore.getState();
@@ -34,7 +37,7 @@ export function Inspector() {
           type="button"
           onClick={handleClose}
           className="p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-          title="Close"
+          title={t('build.inspector.close')}
         >
           <X className="w-3.5 h-3.5" />
         </button>

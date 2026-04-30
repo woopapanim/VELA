@@ -33,11 +33,11 @@ export function BuildActionBar({ canRun, isDirty, onRun, hint }: Props) {
         onClick={onRun}
         disabled={!canRun}
         title={hint}
-        aria-label={t('sim.start') ?? 'Run'}
+        aria-label={t('build.topBar.run')}
         className={`flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)] ${buttonClass}`}
       >
         <Play className="w-3.5 h-3.5" aria-hidden="true" />
-        Run
+        {t('build.topBar.run')}
       </button>
       {showHint && (
         <div className="flex-1 min-w-0 flex items-center text-[11px] text-muted-foreground">

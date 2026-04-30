@@ -43,7 +43,7 @@ interface TemplateOutput {
 
 interface ZoneTemplate {
   id: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
   descKey: string;
   generate: (floorId: FloorId) => TemplateOutput;
@@ -119,7 +119,7 @@ function makeEdge(
 const TEMPLATES: ZoneTemplate[] = [
   {
     id: 'linear',
-    label: 'Linear',
+    labelKey: 'zoneTemplate.linear.label',
     icon: Rows3,
     descKey: 'zoneTemplate.linear.desc',
     generate: (floorId) => {
@@ -146,7 +146,7 @@ const TEMPLATES: ZoneTemplate[] = [
   },
   {
     id: 'hub_spoke',
-    label: 'Hub & Spoke',
+    labelKey: 'zoneTemplate.hub.label',
     icon: Circle,
     descKey: 'zoneTemplate.hub.desc',
     generate: (floorId) => {
@@ -179,7 +179,7 @@ const TEMPLATES: ZoneTemplate[] = [
   },
   {
     id: 'grid',
-    label: 'Grid',
+    labelKey: 'zoneTemplate.grid.label',
     icon: LayoutGrid,
     descKey: 'zoneTemplate.grid.desc',
     generate: (floorId) => {
@@ -234,7 +234,7 @@ const TEMPLATES: ZoneTemplate[] = [
   },
   {
     id: 'large_hall',
-    label: 'Large Hall',
+    labelKey: 'zoneTemplate.hall.label',
     icon: Maximize2,
     descKey: 'zoneTemplate.hall.desc',
     generate: (floorId) => {
@@ -298,9 +298,9 @@ export function ZoneTemplates() {
 
   return (
     <div>
-      <p className="panel-label mb-1.5">Zone Templates</p>
+      <p className="panel-label mb-1.5">{t('zoneTemplate.section.title')}</p>
       <div className="grid grid-cols-2 gap-1">
-        {TEMPLATES.map(({ id, label, icon: Icon, descKey }) => (
+        {TEMPLATES.map(({ id, labelKey, icon: Icon, descKey }) => (
           <button
             key={id}
             onClick={() => applyTemplate(id)}
@@ -309,7 +309,7 @@ export function ZoneTemplates() {
           >
             <Icon className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] font-medium">{label}</p>
+              <p className="text-[10px] font-medium">{t(labelKey)}</p>
               <p className="text-[8px] text-muted-foreground leading-tight">{t(descKey)}</p>
             </div>
           </button>

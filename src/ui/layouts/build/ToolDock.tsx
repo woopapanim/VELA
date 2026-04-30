@@ -1,5 +1,6 @@
 import { LayoutGrid, Square, Sparkles, Spline, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
+import { useT } from '@/i18n';
 
 export type BuildTask = 'region' | 'zones' | 'exhibits' | 'flow' | 'visitors';
 
@@ -13,22 +14,20 @@ interface Props {
 const TASKS: ReadonlyArray<{
   id: BuildTask;
   icon: typeof LayoutGrid;
-  label: string;
 }> = [
-  { id: 'region', icon: LayoutGrid, label: 'Region' },
-  { id: 'zones', icon: Square, label: 'Zones' },
-  { id: 'exhibits', icon: Sparkles, label: 'Exhibits' },
-  { id: 'flow', icon: Spline, label: 'Flow' },
-  { id: 'visitors', icon: Users, label: 'Visitors' },
+  { id: 'region', icon: LayoutGrid },
+  { id: 'zones', icon: Square },
+  { id: 'exhibits', icon: Sparkles },
+  { id: 'flow', icon: Spline },
+  { id: 'visitors', icon: Users },
 ];
 
-// Build 단계 task 도구 buttons. StageRail 의 bottom slot 으로 들어감.
-// 자체 aside 래퍼는 폐기 — shell 의 rail 에 포함됨.
 export function ToolDock({ active, onChange, panelOpen, onTogglePanel }: Props) {
   const floors = useStore((s) => s.floors);
   const zones = useStore((s) => s.zones);
   const media = useStore((s) => s.media);
   const waypointGraph = useStore((s) => s.waypointGraph);
+  const t = useT();
 
   const done: Record<BuildTask, boolean> = {
     region: floors.length > 0,
@@ -40,7 +39,7 @@ export function ToolDock({ active, onChange, panelOpen, onTogglePanel }: Props) 
 
   return (
     <>
-      {TASKS.map(({ id, icon: Icon, label }) => {
+      {TASKS.map(({ id, icon: Icon }) => {
         const isActive = active === id;
         const isDone = done[id];
         return (
@@ -48,7 +47,7 @@ export function ToolDock({ active, onChange, panelOpen, onTogglePanel }: Props) 
             key={id}
             type="button"
             onClick={() => onChange(id)}
-            title={label}
+            title={t(`build.task.${id}`)}
             className={`relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors
               ${isActive
                 ? 'bg-primary/15 text-primary'
@@ -65,7 +64,7 @@ export function ToolDock({ active, onChange, panelOpen, onTogglePanel }: Props) 
         <button
           type="button"
           onClick={onTogglePanel}
-          title={panelOpen ? 'Collapse' : 'Expand'}
+          title={panelOpen ? t('build.toolDock.collapse') : t('build.toolDock.expand')}
           className="w-10 h-10 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
         >
           {panelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}

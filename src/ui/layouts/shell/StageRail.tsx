@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Wrench, Play, BarChart3 } from 'lucide-react';
+import { useT } from '@/i18n';
 import type { Stage } from './UnifiedHeader';
 
 interface StageNav {
@@ -11,23 +12,21 @@ interface StageNav {
 interface Props {
   current: Stage;
   nav: StageNav;
-  /** 하단에 붙는 stage-internal 도구. Build 의 task icons 등. */
   bottom?: ReactNode;
 }
 
-const STAGES: { id: Stage; icon: typeof Wrench; label: string }[] = [
-  { id: 'build', icon: Wrench, label: '1 Build' },
-  { id: 'simulate', icon: Play, label: '2 Simulate' },
-  { id: 'analyze', icon: BarChart3, label: '3 Analyze' },
+const STAGES: { id: Stage; icon: typeof Wrench; num: string; key: string }[] = [
+  { id: 'build', icon: Wrench, num: '1', key: 'build.topBar.stage.build' },
+  { id: 'simulate', icon: Play, num: '2', key: 'build.topBar.stage.simulate' },
+  { id: 'analyze', icon: BarChart3, num: '3', key: 'build.topBar.stage.analyze' },
 ];
 
-// 모든 phase 좌측 56px 영구 rail. 상단: 1·2·3 stage 점프. 하단: stage 별 도구.
-// "Build 만 rail 있고 Simulate/Analyze 는 없음" 비대칭 폐기.
 export function StageRail({ current, nav, bottom }: Props) {
+  const t = useT();
   return (
     <aside className="w-14 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0">
       <div className="flex flex-col items-center gap-1 py-2">
-        {STAGES.map(({ id, icon: Icon, label }) => {
+        {STAGES.map(({ id, icon: Icon, num, key }) => {
           const isCurrent = id === current;
           const handler = nav[id];
           const clickable = !isCurrent && !!handler;
@@ -40,7 +39,7 @@ export function StageRail({ current, nav, bottom }: Props) {
               type="button"
               onClick={handler}
               disabled={!clickable}
-              title={label}
+              title={`${num} ${t(key)}`}
               className={`relative w-10 h-10 rounded-lg flex items-center justify-center transition-colors
                 ${
                   isCurrent
