@@ -21,6 +21,9 @@ export interface ZoneUtilization {
   readonly watchingCount: number;   // agents currently WATCHING media
   readonly waitingCount: number;    // agents currently WAITING for media
   readonly timestamp: number;
+  // Step 2 (2026-04-30): 이 zone 의 bottleneckIndex.score 가 임계 이상이었던 누적 시간.
+  // simulationTimeMs 와 함께 정체 시간 비율 (cumulativeCongestedMs / simulationTimeMs) 산출.
+  readonly cumulativeCongestedMs: number;
 }
 
 // ---- Bottleneck Index ----

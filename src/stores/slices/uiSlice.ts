@@ -42,6 +42,8 @@ export interface UiSlice {
   showLabels: boolean;
   showBackground: boolean;
   camera: CameraState;
+  /** Analyze action card → Build 진입 시 카메라가 향할 world 좌표. CanvasPanel 이 mount 후 적용·소비. */
+  focusTarget: { x: number; y: number; zoom?: number } | null;
   isPanelCollapsed: { left: boolean; right: boolean };
   polygonEditMode: boolean;
   mediaPolygonEditMode: boolean;
@@ -50,6 +52,7 @@ export interface UiSlice {
   // Actions
   selectZone: (zoneId: string | null) => void;
   selectMedia: (mediaId: string | null) => void;
+  setFocusTarget: (target: { x: number; y: number; zoom?: number } | null) => void;
   setActivePanel: (panel: ActivePanel) => void;
   setOverlayMode: (mode: OverlayMode) => void;
   toggleGrid: () => void;
@@ -73,6 +76,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   showLabels: true,
   showBackground: true,
   camera: { x: 0, y: 0, zoom: 1 },
+  focusTarget: null,
   isPanelCollapsed: { left: false, right: false },
   polygonEditMode: false,
   mediaPolygonEditMode: false,
@@ -80,6 +84,7 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
 
   selectZone: (zoneId) => set({ selectedZoneId: zoneId, selectedMediaId: null }),
   selectMedia: (mediaId) => set({ selectedMediaId: mediaId, selectedZoneId: null }),
+  setFocusTarget: (target) => set({ focusTarget: target }),
   setActivePanel: (panel) => set({ activePanel: panel }),
   setOverlayMode: (mode) => set({ overlayMode: mode }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),

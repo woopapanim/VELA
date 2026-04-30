@@ -5,6 +5,8 @@ export const selectZones = (s: StoreState) => s.zones;
 export const selectMedia = (s: StoreState) => s.media;
 export const selectFloors = (s: StoreState) => s.floors;
 export const selectActiveFloorId = (s: StoreState) => s.activeFloorId;
+export const selectScenarioDirty = (s: StoreState) =>
+  !!s.scenario && s.scenario !== s.lastSavedScenarioRef;
 export const selectActiveFloorZones = (s: StoreState) => {
   if (!s.activeFloorId) return s.zones;
   const floor = s.floors.find((f) => (f.id as string) === s.activeFloorId);

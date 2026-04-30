@@ -5,6 +5,7 @@ import { calculateFlowEfficiency } from './calculators/flow';
 import { calculateFatigueDistribution } from './calculators/fatigue';
 import { calculateSkipRate } from './calculators/skipRate';
 import { calculateVisitDurations } from './calculators/visitDuration';
+import { accumulateCongestionTime } from './calculators/congestion';
 
 export function assembleKpiSnapshot(
   zones: readonly ZoneConfig[],
@@ -13,11 +14,20 @@ export function assembleKpiSnapshot(
   simTimeMs: number,
   totalExited?: number,
 ): KpiSnapshot {
+  const utilizations = calculateZoneUtilization(zones, visitors, simTimeMs);
+  const bottlenecks = calculateBottleneckIndex(zones, visitors);
+  const congestedMap = accumulateCongestionTime(bottlenecks, simTimeMs);
+
+  const zoneUtilizations = utilizations.map((u) => ({
+    ...u,
+    cumulativeCongestedMs: congestedMap.get(u.zoneId as string) ?? 0,
+  }));
+
   return {
     simulationTimeMs: simTimeMs,
     floorId: null, // aggregated across all floors
-    zoneUtilizations: calculateZoneUtilization(zones, visitors, simTimeMs),
-    bottlenecks: calculateBottleneckIndex(zones, visitors),
+    zoneUtilizations,
+    bottlenecks,
     visitDurations: calculateVisitDurations(zones),
     flowEfficiency: calculateFlowEfficiency(visitors, simTimeMs, totalExited, zones.length),
     fatigueDistribution: calculateFatigueDistribution(visitors),

@@ -3,6 +3,9 @@ import { Trophy, X, BarChart3 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 
+// 한번 닫은 run 은 다시 띄우지 않음. Analyze ↔ Simulate 왕복 시 remount 돼도 유지되도록 module scope.
+let dismissedRunId: string | null = null;
+
 interface Props {
   onAnalyze?: () => void;
 }
@@ -10,25 +13,24 @@ interface Props {
 export function CompletionModal({ onAnalyze }: Props) {
   const t = useT();
   const phase = useStore((s) => s.phase);
+  const runId = useStore((s) => s.runId);
   const timeState = useStore((s) => s.timeState);
   const [show, setShow] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (phase === 'completed' && !dismissed) {
+    if (phase === 'completed' && runId && dismissedRunId !== runId) {
       setShow(true);
     }
-    if (phase === 'idle') {
-      setDismissed(false);
+    if (phase === 'idle' || phase === 'running') {
       setShow(false);
     }
-  }, [phase, dismissed]);
+  }, [phase, runId]);
 
   if (!show) return null;
 
   const mins = Math.floor(timeState.elapsed / 60000);
 
-  const dismiss = () => { setShow(false); setDismissed(true); };
+  const dismiss = () => { setShow(false); dismissedRunId = runId; };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">

@@ -1,11 +1,13 @@
 import { useRef, useCallback, useState, useMemo, useEffect } from 'react';
 import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
 import { useStore } from '@/stores';
+import { selectScenarioDirty } from '@/stores/selectors';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
 import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
+import { resetCongestionTracking } from '@/analytics/calculators/congestion';
 import type { OverlayMode } from '@/stores';
 import { useT } from '@/i18n';
 
@@ -36,6 +38,8 @@ export function ControlBar() {
   const t = useT();
   const loopRef = useRef<SimulationLoop | null>(null);
   const engineRef = useRef<SimulationEngine | null>(null);
+  const runStartedAtRef = useRef<number>(0);
+  const dirtyAtStartRef = useRef<boolean>(false);
   const { toast } = useToast();
   const milestonesHit = useRef(new Set<number>());
   const [showStopConfirm, setShowStopConfirm] = useState(false);
@@ -53,6 +57,7 @@ export function ControlBar() {
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const pushSnapshot = useStore((s) => s.pushSnapshot);
+  const captureRun = useStore((s) => s.captureRun);
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
   const clearHistory = useStore((s) => s.clearHistory);
@@ -171,6 +176,30 @@ export function ControlBar() {
             eng.getTotalExited(),
           );
           pushSnapshot(finalSnapshot);
+          // Capture run record (post-pushSnapshot so kpiHistory includes the final entry).
+          const afterPush = useStore.getState();
+          if (afterPush.scenario && afterPush.runId) {
+            captureRun({
+              runId: afterPush.runId,
+              startedAt: runStartedAtRef.current || Date.now(),
+              scenario: afterPush.scenario,
+              dirtyAtCapture: dirtyAtStartRef.current,
+              visitors: eng.getVisitors(),
+              spawnByNode: eng.getSpawnByNode(),
+              exitByNode: eng.getExitByNode(),
+              totalSpawned: eng.getTotalSpawned(),
+              totalExited: eng.getTotalExited(),
+              latestSnapshot: finalSnapshot,
+              kpiHistory: afterPush.kpiHistory,
+              zoneCount: afterPush.zones.length,
+              entryQueue: {
+                totalArrived: afterPush.entryQueue.totalArrived,
+                totalAdmitted: afterPush.entryQueue.totalAdmitted,
+                totalAbandoned: afterPush.entryQueue.totalAbandoned,
+                recentAdmitAvgWaitMs: afterPush.entryQueue.recentAdmitAvgWaitMs,
+              },
+            });
+          }
         }
       }
 
@@ -225,9 +254,12 @@ export function ControlBar() {
 
     clearReplay();
     resetPeakOccupancy();
+    resetCongestionTracking();
     milestonesHit.current.clear();
     loopRef.current = loop;
     setRunId(makeRunId(store.scenario));
+    runStartedAtRef.current = Date.now();
+    dirtyAtStartRef.current = selectScenarioDirty(store);
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
   }, [updateSimState, setPhase, t, toast, resetSim, setShaftQueues, setDensityGrids, pushSnapshot, pushReplayFrame, clearReplay, setRunId]);
@@ -295,38 +327,38 @@ export function ControlBar() {
         {(phase === SIMULATION_PHASE.IDLE || phase === SIMULATION_PHASE.COMPLETED) && (
           <button
             onClick={handleStart}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
+            className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
             aria-label="시뮬레이션 시작"
           >
-            <Play className="w-4 h-4" aria-hidden="true" /> Start
+            <Play className="w-3.5 h-3.5" aria-hidden="true" /> Start
           </button>
         )}
         {phase === SIMULATION_PHASE.RUNNING && (
           <button
             onClick={handlePause}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-warning)]"
+            className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-warning)]"
             aria-label="일시정지"
           >
-            <Pause className="w-4 h-4" aria-hidden="true" /> Pause
+            <Pause className="w-3.5 h-3.5" aria-hidden="true" /> Pause
           </button>
         )}
         {phase === SIMULATION_PHASE.PAUSED && (
           <button
             onClick={handleResume}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
+            className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
             aria-label="재개"
           >
-            <Play className="w-4 h-4" aria-hidden="true" /> Resume
+            <Play className="w-3.5 h-3.5" aria-hidden="true" /> Resume
           </button>
         )}
         {(phase === SIMULATION_PHASE.RUNNING || phase === SIMULATION_PHASE.PAUSED) && (
           <button
             onClick={requestStop}
-            className="flex items-center justify-center w-9 h-9 rounded-lg bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-danger)]"
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-danger)]"
             aria-label="중지"
             title="Stop"
           >
-            <Square className="w-4 h-4" aria-hidden="true" />
+            <Square className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -415,23 +447,23 @@ export function ControlBar() {
         </div>
         <button
           onClick={toggleHeatmap}
-          className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary ${
+          className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
           aria-label="히트맵 토글"
           aria-pressed={overlayMode === 'heatmap'}
           title="Toggle Heatmap"
         >
-          <Thermometer className="w-4 h-4" aria-hidden="true" />
+          <Thermometer className="w-3.5 h-3.5" aria-hidden="true" />
         </button>
         <button
           onClick={handlePin}
           disabled={phase === SIMULATION_PHASE.IDLE}
-          className="relative flex items-center justify-center w-9 h-9 rounded-lg bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary"
+          className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary"
           aria-label={`현재 순간 핀 (${pinCount}개 저장됨)`}
           title={`${t('pinpoint.action.pin')} (P)`}
         >
-          <Pin className="w-4 h-4" aria-hidden="true" />
+          <Pin className="w-3.5 h-3.5" aria-hidden="true" />
           {pinCount > 0 && (
             <span
               className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center text-[9px] font-data font-semibold rounded-full bg-primary text-primary-foreground border border-background"
