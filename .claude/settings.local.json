@@ -81,7 +81,15 @@
       "Bash(echo \"exit=$?\")",
       "Bash(curl -sI http://localhost:5173)",
       "Bash(identify public/sample_img.png)",
-      "Bash(sips -g pixelWidth -g pixelHeight public/sample_img.png)"
+      "Bash(sips -g pixelWidth -g pixelHeight public/sample_img.png)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"boot=%{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(npx vitest *)",
+      "Bash(echo \"---exit $?---\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/suhan/AION mark01/.claude/worktrees/affectionate-jones-1b7d1a/test_bidirectional.json'\\)\\); print\\('zones:', len\\(d.get\\('zones',[]\\)\\)\\); print\\('media:', len\\(d.get\\('media',[]\\)\\)\\); print\\('duration:', d.get\\('simulationConfig',{}\\).get\\('duration'\\)\\); print\\('timeScale:', d.get\\('simulationConfig',{}\\).get\\('timeScale'\\)\\); print\\('totalCount:', d.get\\('visitorDistribution',{}\\).get\\('totalCount'\\)\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/suhan/AION mark01/.claude/worktrees/affectionate-jones-1b7d1a/112.json'\\)\\); print\\('zones:', len\\(d.get\\('zones',[]\\)\\)\\); print\\('media:', len\\(d.get\\('media',[]\\)\\)\\); print\\('duration:', d.get\\('simulationConfig',{}\\).get\\('duration'\\)\\); print\\('hasGraph:', 'waypointGraph' in d\\); g=d.get\\('waypointGraph'\\) or {}; print\\('nodes:', len\\(g.get\\('nodes',[]\\)\\)\\); print\\('edges:', len\\(g.get\\('edges',[]\\)\\)\\); print\\('entries:', len\\([n for n in g.get\\('nodes',[]\\) if n.get\\('type'\\)=='entry']\\)\\); print\\('exits:', len\\([n for n in g.get\\('nodes',[]\\) if n.get\\('type'\\)=='exit']\\)\\)\")",
+      "WebFetch(domain:8d1459a1-97dc-4ae7-9baf-88c6126a26f4.claudeusercontent.com)",
+      "Bash(echo \"---exit:$?---\")"
     ]
   }
 }
