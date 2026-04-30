@@ -6,11 +6,11 @@ import type { Vector2D } from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import { useT } from '@/i18n';
 
-const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
-  analog: { label: 'Analog', color: '#a78bfa' },
-  passive_media: { label: 'Passive', color: '#3b82f6' },
-  active: { label: 'Active', color: '#f59e0b' },
-  immersive: { label: 'Immersive', color: '#ec4899' },
+const CATEGORY_BADGE: Record<string, { key: string; color: string }> = {
+  analog: { key: 'mediaEditor.category.analog', color: '#a78bfa' },
+  passive_media: { key: 'mediaEditor.category.passive', color: '#3b82f6' },
+  active: { key: 'mediaEditor.category.active', color: '#f59e0b' },
+  immersive: { key: 'mediaEditor.category.immersive', color: '#ec4899' },
 };
 
 export function MediaEditor() {
@@ -44,19 +44,19 @@ export function MediaEditor() {
   return (
     <div data-editor="media" className="bento-box p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold flex items-center gap-1.5">
+        <h3 className="panel-title flex items-center gap-1.5">
           {(() => {
             const cat = (m as any).category;
             const badge = CATEGORY_BADGE[cat];
             return badge ? (
-              <span className="px-1.5 py-0.5 rounded text-[8px] font-medium text-white" style={{ backgroundColor: badge.color }}>
-                {badge.label}
+              <span className="px-1.5 py-0.5 rounded-md text-[8px] font-medium text-white" style={{ backgroundColor: badge.color }}>
+                {t(badge.key)}
               </span>
             ) : (
               <div className={`w-2 h-2 rounded-sm ${interactionType === 'active' ? 'bg-amber-400' : 'bg-blue-400'}`} />
             );
           })()}
-          Edit Media
+          {t('mediaEditor.title')}
         </h3>
         {!isLocked && (
           <button onClick={() => removeMedia(selectedMediaId!)} className="text-muted-foreground hover:text-destructive">
@@ -67,7 +67,7 @@ export function MediaEditor() {
 
       {/* Name */}
       <div>
-        <label className="panel-label">Name</label>
+        <label className="panel-label">{t('mediaEditor.field.name')}</label>
         <input
           value={(m as any).name || m.type.replace(/_/g, ' ')}
           onChange={(e) => handleUpdate('name', e.target.value)}
@@ -80,7 +80,7 @@ export function MediaEditor() {
       {(m as any).shape !== 'custom' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="panel-label">Width (m)</label>
+            <label className="panel-label">{t('mediaEditor.field.width')}</label>
             <input type="number" step="0.5" min="0.5" max="20"
               value={m.size.width}
               onChange={(e) => handleUpdate('size', { ...m.size, width: parseFloat(e.target.value) || 1 })}
@@ -89,7 +89,7 @@ export function MediaEditor() {
             />
           </div>
           <div>
-            <label className="panel-label">Height (m)</label>
+            <label className="panel-label">{t('mediaEditor.field.height')}</label>
             <input type="number" step="0.5" min="0.5" max="20"
               value={m.size.height}
               onChange={(e) => handleUpdate('size', { ...m.size, height: parseFloat(e.target.value) || 1 })}
@@ -104,7 +104,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="panel-label">Orientation</label>
+            <label className="panel-label">{t('mediaEditor.field.orientation')}</label>
             <InfoTooltip text={t('tooltip.media.orientation')} />
           </div>
           <span className="text-[9px] font-data">{m.orientation}°</span>
@@ -119,7 +119,7 @@ export function MediaEditor() {
 
       {/* Shape */}
       <div>
-        <label className="panel-label">Shape</label>
+        <label className="panel-label">{t('mediaEditor.field.shape')}</label>
         <select
           value={(m as any).shape || 'rect'}
           onChange={(e) => {
@@ -161,10 +161,10 @@ export function MediaEditor() {
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="rect">Rectangle</option>
-          <option value="circle">Circle</option>
-          <option value="ellipse">Ellipse</option>
-          <option value="custom">Polygon</option>
+          <option value="rect">{t('mediaEditor.shape.rect')}</option>
+          <option value="circle">{t('mediaEditor.shape.circle')}</option>
+          <option value="ellipse">{t('mediaEditor.shape.ellipse')}</option>
+          <option value="custom">{t('mediaEditor.shape.custom')}</option>
         </select>
       </div>
 
@@ -185,7 +185,7 @@ export function MediaEditor() {
       {/* Interaction Type */}
       <div>
         <div className="flex items-center gap-1">
-          <label className="panel-label">Interaction</label>
+          <label className="panel-label">{t('mediaEditor.field.interaction')}</label>
           <InfoTooltip text={t('tooltip.media.interaction')} />
         </div>
         <select
@@ -194,17 +194,17 @@ export function MediaEditor() {
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="passive">Passive</option>
-          <option value="active">Active</option>
-          <option value="staged">Staged</option>
-          <option value="analog">Analog</option>
+          <option value="passive">{t('mediaEditor.interaction.passive')}</option>
+          <option value="active">{t('mediaEditor.interaction.active')}</option>
+          <option value="staged">{t('mediaEditor.interaction.staged')}</option>
+          <option value="analog">{t('mediaEditor.interaction.analog')}</option>
         </select>
       </div>
 
       {/* Omnidirectional */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <label className="panel-label">Omnidirectional</label>
+          <label className="panel-label">{t('mediaEditor.field.omnidirectional')}</label>
           <InfoTooltip text={t('tooltip.media.omnidirectional')} />
         </div>
         <button
@@ -214,7 +214,7 @@ export function MediaEditor() {
             (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {(m as any).omnidirectional ? '360°' : 'Front'}
+          {(m as any).omnidirectional ? t('mediaEditor.omni.on') : t('mediaEditor.omni.off')}
         </button>
       </div>
 
@@ -222,7 +222,7 @@ export function MediaEditor() {
       {interactionType === 'staged' && (
         <div>
           <div className="flex items-center gap-1">
-            <label className="panel-label">Session Interval (s)</label>
+            <label className="panel-label">{t('mediaEditor.field.sessionInterval')}</label>
             <InfoTooltip text={t('tooltip.media.stageInterval')} />
           </div>
           <input type="number" step="10" min="10"
@@ -239,7 +239,7 @@ export function MediaEditor() {
       <div className="grid grid-cols-2 gap-2">
         <div>
           <div className="flex items-center gap-1">
-            <label className="panel-label">Capacity</label>
+            <label className="panel-label">{t('mediaEditor.field.capacity')}</label>
             <InfoTooltip text={t('tooltip.media.capacity')} />
           </div>
           <input type="number" min="1" max="200"
@@ -250,12 +250,12 @@ export function MediaEditor() {
           />
         </div>
         <div>
-          <label className="panel-label">Auto Cap</label>
+          <label className="panel-label">{t('mediaEditor.field.autoCap')}</label>
           <div className="flex items-center gap-1 mt-0.5">
             <span className="text-[10px] font-data text-muted-foreground">{autoCapacity}</span>
             {!isLocked && (
               <button onClick={() => handleUpdate('capacity', autoCapacity)}
-                className="text-[8px] text-primary hover:underline">Apply</button>
+                className="text-[8px] text-primary hover:underline">{t('mediaEditor.field.autoCap.apply')}</button>
             )}
           </div>
         </div>
@@ -265,7 +265,7 @@ export function MediaEditor() {
       {/* Engagement Time */}
       <div>
         <div className="flex items-center gap-1">
-          <label className="panel-label">Engagement (s)</label>
+          <label className="panel-label">{t('mediaEditor.field.engagement')}</label>
           <InfoTooltip text={t('tooltip.media.engagement')} />
         </div>
         <input type="number" step="5" min="1"
@@ -281,7 +281,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="panel-label">View Distance (m)</label>
+            <label className="panel-label">{t('mediaEditor.field.viewDistance')}</label>
             <InfoTooltip text={t('tooltip.media.viewDistance')} />
           </div>
           <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
@@ -299,7 +299,7 @@ export function MediaEditor() {
       <div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="panel-label">Attractiveness</label>
+            <label className="panel-label">{t('mediaEditor.field.attractiveness')}</label>
             <InfoTooltip text={t('tooltip.media.attractiveness')} />
           </div>
           <span className="text-[9px] font-data">{m.attractiveness.toFixed(1)}</span>
@@ -315,8 +315,8 @@ export function MediaEditor() {
       {/* Must-visit (hero exhibit) — forces visit regardless of fatigue */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <label className="panel-label">Must Visit</label>
-          <InfoTooltip text="히어로 전시 — 모든 관람객이 반드시 관람. skip·대기 포기 로직 무시. 체류는 프로필×피로에 따라 단축." />
+          <label className="panel-label">{t('mediaEditor.field.mustVisit')}</label>
+          <InfoTooltip text={t('mediaEditor.mustVisit.tooltip')} />
         </div>
         <button
           onClick={() => handleUpdate('mustVisit', !(m as any).mustVisit)}
@@ -327,7 +327,7 @@ export function MediaEditor() {
               : 'bg-secondary text-muted-foreground'
           } disabled:opacity-50`}
         >
-          {(m as any).mustVisit ? '★ Hero' : 'Off'}
+          {(m as any).mustVisit ? t('mediaEditor.mustVisit.on') : t('mediaEditor.mustVisit.off')}
         </button>
       </div>
 
@@ -335,7 +335,7 @@ export function MediaEditor() {
       {interactionType !== 'analog' && (
       <div>
         <div className="flex items-center gap-1">
-          <label className="panel-label">Queue Behavior</label>
+          <label className="panel-label">{t('mediaEditor.field.queueBehavior')}</label>
           <InfoTooltip text={t('tooltip.media.queueBehavior')} />
         </div>
         <select
@@ -344,9 +344,9 @@ export function MediaEditor() {
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
-          <option value="none">None</option>
-          <option value="linear">Linear</option>
-          <option value="area">Area</option>
+          <option value="none">{t('mediaEditor.queue.none')}</option>
+          <option value="linear">{t('mediaEditor.queue.linear')}</option>
+          <option value="area">{t('mediaEditor.queue.area')}</option>
         </select>
       </div>
       )}
@@ -354,7 +354,7 @@ export function MediaEditor() {
       {/* Group Friendly */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <label className="panel-label">Group Friendly</label>
+          <label className="panel-label">{t('mediaEditor.field.groupFriendly')}</label>
           <InfoTooltip text={t('tooltip.media.groupFriendly')} />
         </div>
         <button
@@ -364,7 +364,7 @@ export function MediaEditor() {
             (m as any).groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {(m as any).groupFriendly ? 'Yes' : 'No'}
+          {(m as any).groupFriendly ? t('mediaEditor.group.yes') : t('mediaEditor.group.no')}
         </button>
       </div>
     </div>

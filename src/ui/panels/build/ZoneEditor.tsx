@@ -146,11 +146,12 @@ export function ZoneEditor() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: zone.color }} />
-          <h2 className="panel-title">Edit Zone</h2>
+          <h2 className="panel-title">{t('zoneEditor.title')}</h2>
         </div>
         {!isLocked && (
           <button
             onClick={handleDelete}
+            title={t('zoneEditor.delete.title')}
             className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -159,48 +160,48 @@ export function ZoneEditor() {
       </div>
 
       <div className="space-y-2">
-        <Field label="Name" value={zone.name} onChange={(v) => handleUpdate('name', v)} disabled={isLocked} />
+        <Field label={t('zoneEditor.field.name')} value={zone.name} onChange={(v) => handleUpdate('name', v)} disabled={isLocked} />
         <div className="grid grid-cols-2 gap-2">
-          <Field label="Capacity" value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} tooltip={t('tooltip.zone.capacity')} />
+          <Field label={t('zoneEditor.field.capacity')} value={String(zone.capacity)} type="number" onChange={(v) => handleUpdate('capacity', parseInt(v) || 0)} disabled={isLocked} tooltip={t('tooltip.zone.capacity')} />
           <div>
-            <Field label="Area (m²)" value={String(zone.area)} type="number" onChange={(v) => handleUpdate('area', parseFloat(v) || 0)} disabled={isLocked} />
-            {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">Auto-calc (net)</button>}
+            <Field label={t('zoneEditor.field.area')} value={String(zone.area)} type="number" onChange={(v) => handleUpdate('area', parseFloat(v) || 0)} disabled={isLocked} />
+            {!isLocked && <button onClick={handleRecalcArea} className="text-[8px] text-primary mt-0.5 hover:underline">{t('zoneEditor.field.autoCalc')}</button>}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="panel-label">Type</label>
+            <label className="panel-label">{t('zoneEditor.field.type')}</label>
             <select value={zone.type} onChange={(e) => handleUpdate('type', e.target.value)} disabled={isLocked}
               className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
-              <option value="entrance">Entrance</option>
-              <option value="exhibition">Exhibition</option>
-              <option value="rest">Rest</option>
-              <option value="stage">Stage</option>
-              <option value="exit">Exit</option>
+              <option value="entrance">{t('zoneEditor.type.entrance')}</option>
+              <option value="exhibition">{t('zoneEditor.type.exhibition')}</option>
+              <option value="rest">{t('zoneEditor.type.rest')}</option>
+              <option value="stage">{t('zoneEditor.type.stage')}</option>
+              <option value="exit">{t('zoneEditor.type.exit')}</option>
             </select>
           </div>
           <div>
-            <label className="panel-label">Flow</label>
+            <label className="panel-label">{t('zoneEditor.field.flow')}</label>
             <select value={zone.flowType} onChange={(e) => handleUpdate('flowType', e.target.value)} disabled={isLocked}
               className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
-              <option value="free">Free</option>
-              <option value="guided">Guided</option>
-              <option value="one_way">One-Way</option>
+              <option value="free">{t('zoneEditor.flow.free')}</option>
+              <option value="guided">{t('zoneEditor.flow.guided')}</option>
+              <option value="one_way">{t('zoneEditor.flow.oneWay')}</option>
             </select>
           </div>
         </div>
         <div>
-          <label className="panel-label">Shape</label>
+          <label className="panel-label">{t('zoneEditor.field.shape')}</label>
           <select value={zone.shape} onChange={(e) => handleUpdate('shape', e.target.value)} disabled={isLocked}
             className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50">
-            <option value="rect">Rectangle</option>
-            <option value="circle">Circle</option>
-            <option value="l_top_left">L (Top-Left)</option>
-            <option value="l_top_right">L (Top-Right)</option>
-            <option value="l_bottom_left">L (Bottom-Left)</option>
-            <option value="l_bottom_right">L (Bottom-Right)</option>
-            <option value="o_ring">O-Ring</option>
-            <option value="custom">Polygon (Custom)</option>
+            <option value="rect">{t('zoneEditor.shape.rect')}</option>
+            <option value="circle">{t('zoneEditor.shape.circle')}</option>
+            <option value="l_top_left">{t('zoneEditor.shape.lTopLeft')}</option>
+            <option value="l_top_right">{t('zoneEditor.shape.lTopRight')}</option>
+            <option value="l_bottom_left">{t('zoneEditor.shape.lBottomLeft')}</option>
+            <option value="l_bottom_right">{t('zoneEditor.shape.lBottomRight')}</option>
+            <option value="o_ring">{t('zoneEditor.shape.oRing')}</option>
+            <option value="custom">{t('zoneEditor.shape.custom')}</option>
           </select>
           {isPolygonEditing && (
             <button
@@ -221,21 +222,21 @@ export function ZoneEditor() {
           )}
         </div>
         <div>
-          <label className="panel-label">Attractiveness</label>
+          <label className="panel-label">{t('zoneEditor.field.attractiveness')}</label>
           <input type="range" min="0" max="1" step="0.05" value={zone.attractiveness}
             onChange={(e) => handleUpdate('attractiveness', parseFloat(e.target.value))} disabled={isLocked}
             className="w-full mt-0.5" />
           <div className="flex justify-between text-[9px] text-muted-foreground">
-            <span>Low</span>
+            <span>{t('zoneEditor.field.attractiveness.low')}</span>
             <span className="font-data">{zone.attractiveness.toFixed(2)}</span>
-            <span>High</span>
+            <span>{t('zoneEditor.field.attractiveness.high')}</span>
           </div>
         </div>
         {/* Must-visit (hero zone) — forces visit regardless of fatigue */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <label className="panel-label">Must Visit</label>
-            <InfoTooltip text="히어로 존 — 모든 관람객이 반드시 방문. 피로·skip 로직 무시." />
+            <label className="panel-label">{t('zoneEditor.field.mustVisit')}</label>
+            <InfoTooltip text={t('zoneEditor.mustVisit.tooltip')} />
           </div>
           <button
             onClick={() => {
@@ -249,13 +250,13 @@ export function ZoneEditor() {
                 : 'bg-secondary text-muted-foreground'
             } disabled:opacity-50`}
           >
-            {(zone as any).mustVisit ? '★ Hero' : 'Off'}
+            {(zone as any).mustVisit ? t('zoneEditor.mustVisit.on') : t('zoneEditor.mustVisit.off')}
           </button>
         </div>
         {/* Gateway Mode Toggle */}
         {zone.type === 'gateway' && (
           <div className="pt-2 border-t border-border">
-            <span className="panel-label block mb-1">Gateway Direction</span>
+            <span className="panel-label block mb-1">{t('zoneEditor.gateway.label')}</span>
             <div className="flex gap-1">
               {(['spawn', 'both', 'exit'] as const).map(mode => (
                 <button
@@ -271,14 +272,19 @@ export function ZoneEditor() {
                       : 'bg-secondary border-border hover:bg-muted'
                   } disabled:opacity-50`}
                 >
-                  {mode === 'spawn' ? '↓ Spawn' : mode === 'exit' ? '↑ Exit' : '↕ Both'}
+                  {mode === 'spawn' ? t('zoneEditor.gateway.spawn') : mode === 'exit' ? t('zoneEditor.gateway.exit') : t('zoneEditor.gateway.both')}
                 </button>
               ))}
             </div>
           </div>
         )}
         <div className="text-[10px] text-muted-foreground font-data">
-          {(zone.bounds.w / MEDIA_SCALE).toFixed(1)}×{(zone.bounds.h / MEDIA_SCALE).toFixed(1)}m · {zone.shape} · {media.filter(m => (m.zoneId as string) === (zone.id as string)).length} media
+          {t('zoneEditor.summary', {
+            w: (zone.bounds.w / MEDIA_SCALE).toFixed(1),
+            h: (zone.bounds.h / MEDIA_SCALE).toFixed(1),
+            shape: zone.shape,
+            count: media.filter(m => (m.zoneId as string) === (zone.id as string)).length,
+          })}
         </div>
       </div>
     </div>
