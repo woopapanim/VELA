@@ -11,12 +11,19 @@ export function CanvasToolbar() {
   const camera = useStore((s) => s.camera);
   const scenario = useStore((s) => s.scenario);
   const activeFloorId = useStore((s) => s.activeFloorId);
+  const selectedZoneId = useStore((s) => s.selectedZoneId);
+  const selectedMediaId = useStore((s) => s.selectedMediaId);
+  const selectedWaypointId = useStore((s) => s.selectedWaypointId);
+  const inspectorOpen = !!selectedZoneId || !!selectedMediaId || !!selectedWaypointId;
   const hasBackground = !!scenario?.floors.find(
     (f) => (f.id as string) === activeFloorId,
   )?.canvas.backgroundImage;
 
   return (
-    <div className="absolute top-3 right-3 flex gap-1 z-10">
+    <div
+      className="absolute top-3 flex gap-1 z-30 transition-[right] duration-150"
+      style={{ right: inspectorOpen ? '332px' : '12px' }}
+    >
       <ToolbarBtn active={showGrid} onClick={toggleGrid} icon={Grid3x3} label="Grid" />
       <ToolbarBtn active={showLabels} onClick={toggleLabels} icon={Tag} label="Labels" />
       {hasBackground && (

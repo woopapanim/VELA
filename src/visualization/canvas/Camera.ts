@@ -24,8 +24,10 @@ export class Camera {
     this.y += worldBefore.y - worldAfter.y;
   }
 
-  apply(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  apply(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number, dpr: number = 1) {
+    // Start from DPR-scaled identity so all downstream draws operate in CSS pixel
+    // coordinates while still filling the high-DPI backing buffer crisply.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.translate(canvasWidth / 2, canvasHeight / 2);
     ctx.scale(this.zoom, this.zoom);
     ctx.translate(-this.x - canvasWidth / 2, -this.y - canvasHeight / 2);

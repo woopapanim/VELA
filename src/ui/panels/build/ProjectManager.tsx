@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Plus, Save, FolderOpen, Trash2, Clock } from 'lucide-react';
 import { useStore } from '@/stores';
+import { selectScenarioDirty } from '@/stores/selectors';
 import { useToast } from '@/ui/components/Toast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
@@ -42,6 +43,7 @@ export function ProjectManager() {
   const setPins = useStore((s) => s.setPins);
   const clearPins = useStore((s) => s.clearPins);
   const phase = useStore((s) => s.phase);
+  const isDirty = useStore(selectScenarioDirty);
   const { toast } = useToast();
   const t = useT();
 
@@ -315,9 +317,16 @@ export function ProjectManager() {
         <button
           onClick={handleSave}
           disabled={!scenario}
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 transition-colors"
+          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl disabled:opacity-40 transition-colors relative ${
+            isDirty
+              ? 'bg-[var(--status-warning)]/15 text-[var(--status-warning)] border border-[var(--status-warning)]/40 hover:bg-[var(--status-warning)]/25'
+              : 'bg-secondary text-secondary-foreground hover:bg-accent'
+          }`}
         >
           <Save className="w-3.5 h-3.5" /> Save
+          {isDirty && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--status-warning)] ring-2 ring-[var(--surface)]" />
+          )}
         </button>
         <button
           onClick={handleOpen}
@@ -330,16 +339,24 @@ export function ProjectManager() {
 
       {/* Project Info */}
       {scenario && (
-        <div className="flex items-center justify-between text-[10px]">
+        <div className="flex items-center justify-between gap-1 text-[10px]">
           <input
             value={scenario.meta.name}
             onChange={(e) => updateScenarioMeta({ name: e.target.value })}
-            className="flex-1 px-2 py-1 font-medium rounded-lg bg-transparent border border-border hover:bg-secondary/50 focus:bg-secondary transition-colors"
+            className="flex-1 min-w-0 px-2 py-1 font-medium rounded-lg bg-transparent border border-border hover:bg-secondary/50 focus:bg-secondary transition-colors"
             placeholder="Project name"
           />
+          {isDirty && (
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-[var(--status-warning)]/15 text-[var(--status-warning)] border border-[var(--status-warning)]/30 whitespace-nowrap"
+              title={t('project.dirty.title')}
+            >
+              {t('project.dirty.badge')}
+            </span>
+          )}
           <button
             onClick={handleExport}
-            className="ml-1 text-muted-foreground hover:text-foreground text-[9px] font-data"
+            className="ml-0.5 text-muted-foreground hover:text-foreground text-[9px] font-data"
             title="Export JSON"
           >
             ↗

@@ -19,7 +19,7 @@ const NODE_COLORS: Record<string, { fill: string; stroke: string; label: string 
 };
 
 const EDGE_COLOR_DARK = 'rgba(148, 163, 184, 0.6)';  // slate-400 (dark bg)
-const EDGE_COLOR_LIGHT = 'rgba(71, 85, 105, 0.7)';   // slate-600 (light bg)
+const EDGE_COLOR_LIGHT = 'rgba(71, 85, 105, 0.5)';   // slate-600 (light bg) — soft but legible
 const EDGE_COLOR_SELECTED = 'rgba(99, 102, 241, 0.8)'; // indigo-500
 
 /**

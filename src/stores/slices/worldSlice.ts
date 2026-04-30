@@ -198,6 +198,12 @@ export interface WorldSlice {
   media: MediaPlacement[];
   activeFloorId: string | null;
   scenario: Scenario | null;
+  /**
+   * 마지막으로 저장(또는 로드) 된 시나리오 ref. setScenario 시에만 갱신.
+   * dirty 여부는 selector 로 derive: `state.scenario !== state.lastSavedScenarioRef`.
+   * 다른 mutation 들은 scenario ref 만 바꾸므로 자동으로 dirty 가 됨.
+   */
+  lastSavedScenarioRef: Scenario | null;
   waypointGraph: WaypointGraph | null;
   shafts: ElevatorShaft[];
 
@@ -241,6 +247,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   media: [],
   activeFloorId: null,
   scenario: null,
+  lastSavedScenarioRef: null,
   waypointGraph: null,
   shafts: [],
 
@@ -333,8 +340,10 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
     const expandedFloors = expandCanvasForZones(floorsArr, zonesArr, activeFloorId);
     const shaftsArr: ElevatorShaft[] = [...(scenario.shafts ?? [])];
+    const finalScenario = { ...scenario, floors: expandedFloors, zones: zonesArr, media: mediaArr, waypointGraph: graphArr ?? undefined, shafts: shaftsArr };
     set({
-      scenario: { ...scenario, floors: expandedFloors, zones: zonesArr, media: mediaArr, waypointGraph: graphArr ?? undefined, shafts: shaftsArr },
+      scenario: finalScenario,
+      lastSavedScenarioRef: finalScenario,
       floors: expandedFloors,
       zones: zonesArr,
       media: mediaArr,
@@ -905,6 +914,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       media: [],
       activeFloorId: null,
       scenario: null,
+      lastSavedScenarioRef: null,
       waypointGraph: null,
       shafts: [],
     }),

@@ -1,11 +1,13 @@
 import { useRef, useCallback, useState } from 'react';
 import { Play, Pause, Square, Thermometer, AlertTriangle, Pin } from 'lucide-react';
 import { useStore } from '@/stores';
+import { selectScenarioDirty } from '@/stores/selectors';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
 import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
 import { useToast } from '@/ui/components/Toast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
+import { resetCongestionTracking } from '@/analytics/calculators/congestion';
 import type { OverlayMode } from '@/stores';
 import { useT } from '@/i18n';
 
@@ -36,6 +38,8 @@ export function SimulationControls() {
   const t = useT();
   const loopRef = useRef<SimulationLoop | null>(null);
   const engineRef = useRef<SimulationEngine | null>(null);
+  const runStartedAtRef = useRef<number>(0);
+  const dirtyAtStartRef = useRef<boolean>(false);
   const { toast } = useToast();
   const milestonesHit = useRef(new Set<number>());
   const [showStopConfirm, setShowStopConfirm] = useState(false);
@@ -53,6 +57,7 @@ export function SimulationControls() {
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const pushSnapshot = useStore((s) => s.pushSnapshot);
+  const captureRun = useStore((s) => s.captureRun);
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
   const clearHistory = useStore((s) => s.clearHistory);
@@ -142,6 +147,39 @@ export function SimulationControls() {
           milestonesHit.current.add(-1);
           setDensityGrids(eng.getDensityGrids());
           toast('success', '✅ Simulation completed!');
+          // Final snapshot + run record capture (parity with ControlBar.tsx).
+          const finalStore = useStore.getState();
+          const finalSnapshot = assembleKpiSnapshot(
+            finalStore.zones,
+            finalStore.media,
+            eng.getVisitors(),
+            state.timeState.elapsed,
+            eng.getTotalExited(),
+          );
+          pushSnapshot(finalSnapshot);
+          const afterPush = useStore.getState();
+          if (afterPush.scenario && afterPush.runId) {
+            captureRun({
+              runId: afterPush.runId,
+              startedAt: runStartedAtRef.current || Date.now(),
+              scenario: afterPush.scenario,
+              dirtyAtCapture: dirtyAtStartRef.current,
+              visitors: eng.getVisitors(),
+              spawnByNode: eng.getSpawnByNode(),
+              exitByNode: eng.getExitByNode(),
+              totalSpawned: eng.getTotalSpawned(),
+              totalExited: eng.getTotalExited(),
+              latestSnapshot: finalSnapshot,
+              kpiHistory: afterPush.kpiHistory,
+              zoneCount: afterPush.zones.length,
+              entryQueue: {
+                totalArrived: afterPush.entryQueue.totalArrived,
+                totalAdmitted: afterPush.entryQueue.totalAdmitted,
+                totalAbandoned: afterPush.entryQueue.totalAbandoned,
+                recentAdmitAvgWaitMs: afterPush.entryQueue.recentAdmitAvgWaitMs,
+              },
+            });
+          }
         }
       }
 
@@ -205,9 +243,12 @@ export function SimulationControls() {
 
     clearReplay();
     resetPeakOccupancy();
+    resetCongestionTracking();
     milestonesHit.current.clear();
     loopRef.current = loop;
     setRunId(makeRunId(store.scenario));
+    runStartedAtRef.current = Date.now();
+    dirtyAtStartRef.current = selectScenarioDirty(store);
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
   }, [updateSimState, setPhase]);

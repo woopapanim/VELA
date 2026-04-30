@@ -85,7 +85,18 @@ function closestPointOnSeg(px: number, py: number, ax: number, ay: number, bx: n
   return { x: ax + t * dx, y: ay + t * dy };
 }
 
-export function CanvasPanel() {
+interface CanvasPanelProps {
+  /**
+   * When true, all scenario-mutating mouse interactions (move/resize/rotate
+   * zones, media, waypoints, gates, floors, polygon edits, edge bend insert)
+   * are disabled. Pan, zoom, click-to-select for inspection, and agent-follow
+   * via double-click remain active. Used by Simulate/Analyze to prevent the
+   * canvas from being treated as an editor while a run is loaded.
+   */
+  readOnly?: boolean;
+}
+
+export function CanvasPanel({ readOnly = false }: CanvasPanelProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const managerRef = useRef<CanvasManager | null>(null);
@@ -97,6 +108,8 @@ export function CanvasPanel() {
   // Store selectors (used by event handlers, not render loop)
   const zones = useStore((s) => s.zones);
   const setCamera = useStore((s) => s.setCamera);
+  const focusTarget = useStore((s) => s.focusTarget);
+  const setFocusTarget = useStore((s) => s.setFocusTarget);
 
   // Initialize canvas manager
   useEffect(() => {
@@ -106,6 +119,12 @@ export function CanvasPanel() {
 
     const manager = new CanvasManager(canvas);
     managerRef.current = manager;
+
+    // Restore camera from store so Build ⇄ Simulate remount does not reset pan/zoom.
+    const storedCamera = useStore.getState().camera;
+    manager.camera.x = storedCamera.x;
+    manager.camera.y = storedCamera.y;
+    manager.camera.zoom = storedCamera.zoom;
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
@@ -128,9 +147,12 @@ export function CanvasPanel() {
   // Auto zoom-to-fit when scenario loads
   // 시나리오 JSON 로드 시 한 번에 다수 zone 이 들어옴 → 화면 맞춤.
   // 사용자가 빈 캔버스에 zone 을 하나씩 추가하는 경우는 스킵 (현재 viewport/zoom 유지).
+  // Build ⇄ Simulate 이동 시 remount 되어도 store 에 카메라가 남아있으면 그걸 신뢰 — 재맞춤 금지.
   const prevZoneCount = useRef(0);
   useEffect(() => {
-    const isScenarioLoad = zones.length >= 2 && prevZoneCount.current === 0;
+    const cam = useStore.getState().camera;
+    const cameraIsDefault = cam.x === 0 && cam.y === 0 && cam.zoom === 1;
+    const isScenarioLoad = zones.length >= 2 && prevZoneCount.current === 0 && cameraIsDefault;
     if (isScenarioLoad && managerRef.current) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const z of zones) {
@@ -152,6 +174,23 @@ export function CanvasPanel() {
     }
     prevZoneCount.current = zones.length;
   }, [zones.length, setCamera]);
+
+  // Analyze action card 등이 setFocusTarget(world center) 으로 요청한 위치로 카메라 이동.
+  // mount 직후·target 변경 시 모두 동작. 적용 후 target 은 소비.
+  useEffect(() => {
+    if (!focusTarget) return;
+    const container = containerRef.current;
+    const manager = managerRef.current;
+    if (!container || !manager) return;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const zoom = focusTarget.zoom ?? Math.max(1, manager.camera.zoom);
+    manager.camera.zoom = Math.max(0.2, Math.min(5, zoom));
+    manager.camera.x = focusTarget.x - rect.width / 2;
+    manager.camera.y = focusTarget.y - rect.height / 2;
+    setCamera({ x: manager.camera.x, y: manager.camera.y, zoom: manager.camera.zoom });
+    setFocusTarget(null);
+  }, [focusTarget, setCamera, setFocusTarget]);
 
   // Continuous render loop — always draws current state
   useEffect(() => {
@@ -429,6 +468,11 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       e.preventDefault();
       return;
     }
+
+    // Read-only viewport (Simulate / Analyze): block all drag-arming for
+    // editing. Click-to-select still works via the click handler since
+    // dragMode stays 'none' and didDrag stays false on mouseup.
+    if (readOnly) return;
 
     // Floor corner resize (selected floor only) OR label drag — sim not running.
     if (e.button === 0 && world) {
@@ -1074,7 +1118,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         selectZone(null);
       }
     }
-  }, [editorMode, selectZone, setEditorMode]);
+  }, [editorMode, selectZone, setEditorMode, readOnly]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (didDrag.current) return;
@@ -1865,7 +1909,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const graph = store.waypointGraph;
 
     // ── 엣지 더블클릭: 중간에 bend 노드 삽입하여 엣지 분할 (단순 꺾기) ──
-    if (graph && store.phase === 'idle') {
+    // Read-only viewport (Simulate / Analyze) skips bend insertion entirely —
+    // double-click in those stages is reserved for agent follow.
+    if (!readOnly && graph && store.phase === 'idle') {
       for (const edge of graph.edges) {
         const from = graph.nodes.find(n => n.id === edge.fromId);
         const to = graph.nodes.find(n => n.id === edge.toId);
@@ -1936,7 +1982,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     } else {
       setFollowAgent(null);
     }
-  }, [setFollowAgent, editorMode, setEditorMode]);
+  }, [setFollowAgent, editorMode, setEditorMode, readOnly]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

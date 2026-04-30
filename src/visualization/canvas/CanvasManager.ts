@@ -55,6 +55,9 @@ export class CanvasManager {
   camera: Camera;
   private heatmapRenderer: HeatmapRenderer;
   private initialized = false;
+  private dpr: number;
+  private cssWidth = 0;
+  private cssHeight = 0;
   // Per-floor background image cache. Keyed by floorId; each entry holds
   // the loaded <img> plus the src it was loaded from so we can detect replacements.
   private bgImages: Map<string, { img: HTMLImageElement; src: string }> = new Map();
@@ -64,30 +67,41 @@ export class CanvasManager {
     this.ctx = canvas.getContext('2d')!;
     this.camera = new Camera();
     this.heatmapRenderer = new HeatmapRenderer();
+    this.dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
   }
 
-  init(width: number, height: number) {
-    this.canvas.width = width;
-    this.canvas.height = height;
-    this.heatmapRenderer.init(width, height);
+  init(cssWidth: number, cssHeight: number) {
+    // Re-read DPR each init in case the user dragged across monitors with
+    // different pixel ratios; ResizeObserver fires on layout changes either way.
+    this.dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+    this.cssWidth = cssWidth;
+    this.cssHeight = cssHeight;
+    // Backing buffer in physical pixels; CSS size keeps layout in CSS pixels.
+    this.canvas.width = Math.max(1, Math.round(cssWidth * this.dpr));
+    this.canvas.height = Math.max(1, Math.round(cssHeight * this.dpr));
+    this.canvas.style.width = `${cssWidth}px`;
+    this.canvas.style.height = `${cssHeight}px`;
+    this.heatmapRenderer.init(cssWidth, cssHeight);
     this.initialized = true;
   }
 
   render(state: RenderState) {
     const { ctx } = this;
     const { canvasWidth, canvasHeight, isDark } = state;
+    const liveDpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
 
-    // Auto-init if needed
-    if (!this.initialized || this.canvas.width !== canvasWidth || this.canvas.height !== canvasHeight) {
+    // Auto-init if size or DPR changed
+    if (!this.initialized || this.cssWidth !== canvasWidth || this.cssHeight !== canvasHeight || this.dpr !== liveDpr) {
       this.init(canvasWidth, canvasHeight);
     }
 
-    // Clear
+    // Clear in physical pixels
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Apply camera transform
-    this.camera.apply(ctx, canvasWidth, canvasHeight);
+    // Apply camera transform — Camera.apply prepends DPR scaling so all
+    // subsequent draws use CSS-pixel coords on the high-DPI backing buffer.
+    this.camera.apply(ctx, canvasWidth, canvasHeight, this.dpr);
 
     // 0. Background image (floor plan overlay) — shared canvas: render every
     // visible floor's overlay at its own offset/scale. Handles are drawn only
@@ -258,8 +272,9 @@ export class CanvasManager {
     // 8. Visitors (topmost)
     renderVisitors(ctx, state.visitors, state.groups, isDark, true, state.followAgentId);
 
-    // Reset transform to screen-space
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Reset transform to CSS-pixel screen-space (with DPR scale baked in so
+    // ruler text stays crisp on high-DPI displays).
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     // 9. Ruler (screen-space)
     if (state.showGrid) {
