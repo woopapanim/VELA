@@ -93,7 +93,7 @@ export function MediaCardsList() {
           Exhibits
         </h3>
         <p className="text-[11px] text-muted-foreground">
-          시작 후 전시물별 관람·스킵 표시.
+          Per-exhibit watch/skip metrics appear after start.
         </p>
       </section>
     );
@@ -113,7 +113,7 @@ export function MediaCardsList() {
         >
           Exhibits
         </h3>
-        <span className="text-[10px] text-muted-foreground font-data" aria-label={`${sorted.length}개 전시물`}>
+        <span className="text-[10px] text-muted-foreground font-data" aria-label={`${sorted.length} exhibits`}>
           {sorted.length}
         </span>
       </div>
@@ -133,11 +133,11 @@ function MediaRow({ m }: { m: MediaSummary }) {
   const ariaLabel = [
     m.zoneName,
     m.name,
-    m.isHot ? '인기 전시물' : null,
-    `현재 관람 ${m.watching}/${m.capacity}`,
-    m.watchCount + m.skipCount > 0 ? `스킵률 ${skipPct}%` : null,
-    m.watchCount > 0 ? `누적 ${m.watchCount}회` : null,
-    m.waiting > 0 ? `대기 ${m.waiting}명` : null,
+    m.isHot ? 'Popular' : null,
+    `Watching ${m.watching}/${m.capacity}`,
+    m.watchCount + m.skipCount > 0 ? `Skip rate ${skipPct}%` : null,
+    m.watchCount > 0 ? `Total ${m.watchCount}` : null,
+    m.waiting > 0 ? `Waiting ${m.waiting}` : null,
   ].filter(Boolean).join(', ');
 
   return (
@@ -153,7 +153,7 @@ function MediaRow({ m }: { m: MediaSummary }) {
         {m.isHot && (
           <span
             className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-semibold bg-[var(--status-warning)]/20 text-[var(--status-warning)]"
-            aria-label="인기 전시물"
+            aria-label="Popular exhibit"
           >
             <Flame className="w-2.5 h-2.5" /> HOT
           </span>
@@ -164,31 +164,31 @@ function MediaRow({ m }: { m: MediaSummary }) {
       <div className="grid grid-cols-3 gap-1 text-[10px]">
         <Stat
           icon={<Eye className="w-2.5 h-2.5" aria-hidden="true" />}
-          label="관람"
+          label="Watch"
           value={`${m.watching}/${m.capacity}`}
           tone={m.watching >= m.capacity * 0.8 ? 'warn' : 'normal'}
-          srLabel={`현재 관람 ${m.watching}, 정원 ${m.capacity}`}
+          srLabel={`Watching ${m.watching}, capacity ${m.capacity}`}
         />
         <Stat
           icon={<SkipForward className="w-2.5 h-2.5" aria-hidden="true" />}
-          label="스킵"
+          label="Skip"
           value={m.watchCount + m.skipCount > 0 ? `${skipPct}%` : '–'}
           tone={isHighSkip ? 'danger' : 'normal'}
-          srLabel={`스킵률 ${skipPct}%`}
+          srLabel={`Skip rate ${skipPct}%`}
         />
         <Stat
-          label="누적"
+          label="Total"
           value={m.watchCount.toString()}
           tone="normal"
-          srLabel={`누적 관람 ${m.watchCount}회${m.avgWatchSec > 0 ? `, 평균 ${m.avgWatchSec}초` : ''}`}
+          srLabel={`Total watched ${m.watchCount}${m.avgWatchSec > 0 ? `, avg ${m.avgWatchSec}s` : ''}`}
         />
       </div>
 
       {/* Sub-row — avg watch time, waiting */}
       {(m.avgWatchSec > 0 || m.waiting > 0) && (
         <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground font-data">
-          {m.avgWatchSec > 0 && <span>평균 {m.avgWatchSec}s</span>}
-          {m.waiting > 0 && <span className="text-[var(--status-warning)]">대기 {m.waiting}</span>}
+          {m.avgWatchSec > 0 && <span>avg {m.avgWatchSec}s</span>}
+          {m.waiting > 0 && <span className="text-[var(--status-warning)]">wait {m.waiting}</span>}
         </div>
       )}
     </li>

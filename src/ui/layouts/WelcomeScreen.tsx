@@ -93,9 +93,10 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
         engagementWeights: { quick: 30, explorer: 40, immersive: 30 },
         groupRatio: 0.3,
         spawnRatePerSecond: 0.2,
+        totalCountAuto: true,
       },
       simulationConfig: {
-        fixedDeltaTime: 1000 / 60, duration: 10_800_000, timeScale: 3,
+        fixedDeltaTime: 1000 / 60, duration: 3_600_000, timeScale: 3,
         maxVisitors: 500, seed: Math.floor(Math.random() * 99999),
         physics: DEFAULT_PHYSICS, skipThreshold: DEFAULT_SKIP_THRESHOLD,
         recommendedDurationAuto: true,

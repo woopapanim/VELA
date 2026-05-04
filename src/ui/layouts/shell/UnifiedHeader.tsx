@@ -16,6 +16,10 @@ interface Props {
   current: Stage;
   /** 각 stage 로 점프 가능한 콜백. undefined 면 disabled (아직 도달 불가). */
   nav: StageNav;
+  /** disabled 상태 stage 에 hover 시 표시할 hint (왜 못 가는지). */
+  navDisabledHints?: Partial<Record<Stage, string | undefined>>;
+  /** disabled stage 클릭 시 호출 — hint 를 toast 등으로 가시화하기 위한 훅. */
+  onNavDisabledClick?: (stage: Stage, hint: string) => void;
   /** 우측 stage 별 액션 (Run / 진행 ring 등). */
   rightSlot?: ReactNode;
   /** 좌측 식별자 영역의 추가 노드 (back 버튼 등은 더 이상 권장 안 함 — breadcrumb 으로 통합). */
@@ -33,7 +37,7 @@ const STAGE_ORDER: Stage[] = ['build', 'simulate', 'analyze'];
 // 모든 phase 가 동일하게 쓰는 56px 헤더. 좌: VELA + 시나리오 + leftSlot.
 // 가운데: 1·2·3 stage breadcrumb (방문 가능한 stage 는 클릭 가능, 현재는 highlight,
 // 완료된 이전 stage 는 ✓). 우: 페이지 액션 + 공통 utility (Help/Lang/Theme).
-export function UnifiedHeader({ current, nav, rightSlot, leftSlot }: Props) {
+export function UnifiedHeader({ current, nav, navDisabledHints, onNavDisabledClick, rightSlot, leftSlot }: Props) {
   const scenario = useStore((s) => s.scenario);
 
   return (
@@ -70,17 +74,36 @@ export function UnifiedHeader({ current, nav, rightSlot, leftSlot }: Props) {
                 >
                   {STAGE_LABEL[stage]}{isPast && ' ✓'}
                 </button>
-              ) : (
-                <span
-                  className={`px-2 py-0.5 rounded-full ${
-                    isCurrent
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-muted-foreground/50'
-                  }`}
-                >
-                  {STAGE_LABEL[stage]}
-                </span>
-              )}
+              ) : (() => {
+                const hint = !isCurrent ? navDisabledHints?.[stage] : undefined;
+                if (hint && onNavDisabledClick) {
+                  // hover/click 모두에서 조건을 노출 — title 만 깔면 사용자가 ? 커서만 보고 끝.
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => onNavDisabledClick(stage, hint)}
+                      title={hint}
+                      className="px-2 py-0.5 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+                    >
+                      {STAGE_LABEL[stage]}
+                    </button>
+                  );
+                }
+                return (
+                  <span
+                    title={hint}
+                    className={`px-2 py-0.5 rounded-full ${
+                      isCurrent
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : hint
+                        ? 'text-muted-foreground/60 cursor-help'
+                        : 'text-muted-foreground/50'
+                    }`}
+                  >
+                    {STAGE_LABEL[stage]}
+                  </span>
+                );
+              })()}
             </div>
           );
         })}

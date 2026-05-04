@@ -1,4 +1,5 @@
-import { LayoutGrid, Square, Sparkles, Spline, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Map, Square, Sparkles, Spline, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 
 export type BuildTask = 'region' | 'zones' | 'exhibits' | 'flow' | 'visitors';
@@ -12,10 +13,10 @@ interface Props {
 
 const TASKS: ReadonlyArray<{
   id: BuildTask;
-  icon: typeof LayoutGrid;
+  icon: LucideIcon;
   label: string;
 }> = [
-  { id: 'region', icon: LayoutGrid, label: 'Region' },
+  { id: 'region', icon: Map, label: 'Region' },
   { id: 'zones', icon: Square, label: 'Zones' },
   { id: 'exhibits', icon: Sparkles, label: 'Exhibits' },
   { id: 'flow', icon: Spline, label: 'Flow' },

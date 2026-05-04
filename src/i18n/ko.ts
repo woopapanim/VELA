@@ -134,6 +134,11 @@ export const ko: Dict = {
   'analyze.bento.bottlenecks': '병목 구역',
   'analyze.bento.skipHotspots': '스킵 핫스팟',
   'analyze.bento.entryExit': '입출구 흐름',
+  // 짧은 탭 라벨 (HotspotsRail 의 4-tab strip 용 — 긴 라벨은 줄바꿈됨).
+  'analyze.tab.bottlenecks': '병목',
+  'analyze.tab.skip': '스킵',
+  'analyze.tab.flow': '출입',
+  'analyze.tab.engagement': '몰입',
   'analyze.bento.entryExit.sessionEnd': '시뮬 종료 시 잔류',
   'analyze.bento.engagement': '관람 깊이',
   'analyze.bento.empty': '항목 없음',

@@ -16,6 +16,17 @@ const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
   { value: 'portal', label: 'Portal' },
 ];
 
+const NODE_TYPE_COLOR: Record<WaypointType, string> = {
+  entry:     '#22c55e',
+  exit:      '#ef4444',
+  zone:      '#3b82f6',
+  attractor: '#f59e0b',
+  hub:       '#8b5cf6',
+  rest:      '#f59e0b',
+  bend:      '#94a3b8',
+  portal:    '#06b6d4',
+};
+
 const EDGE_DIR_OPTIONS = [
   { value: 'directed', label: 'Directed →' },
   { value: 'bidirectional', label: 'Bidirectional ↔' },
@@ -72,26 +83,28 @@ export function WaypointInspector() {
     if (!node) return null;
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="panel-section">
-            Node Inspector
-          </h3>
+      <div data-editor="waypoint" className="bento-box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: NODE_TYPE_COLOR[node.type] }} />
+            <h2 className="panel-title">Edit Node</h2>
+          </div>
           <button
             onClick={() => { removeWaypoint(selectedWaypointId); selectWaypoint(null); }}
-            className="p-1 rounded hover:bg-destructive/20 text-destructive"
+            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
             title="Delete node"
           >
-            <Trash2 size={12} />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
+        <div className="space-y-2">
         {/* Type */}
         <Field label="Type">
           <select
             value={node.type}
             onChange={(e) => updateWaypoint(selectedWaypointId, { type: e.target.value as WaypointType })}
-            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
           >
             {NODE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -103,7 +116,7 @@ export function WaypointInspector() {
             type="text"
             value={node.label}
             onChange={(e) => updateWaypoint(selectedWaypointId, { label: e.target.value })}
-            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
             placeholder={t('waypoint.namePlaceholder')}
           />
         </Field>
@@ -142,7 +155,7 @@ export function WaypointInspector() {
               min={1} max={500}
               value={node.capacity}
               onChange={(e) => updateWaypoint(selectedWaypointId, { capacity: parseInt(e.target.value) || 1 })}
-              className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+              className="w-20 text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
             />
           </Field>
         )}
@@ -172,7 +185,7 @@ export function WaypointInspector() {
                     }
                     updateWaypoint(selectedWaypointId, { shaftId: (val || null) as any });
                   }}
-                  className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+                  className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
                 >
                   <option value="">— None —</option>
                   {shafts.map(sh => {
@@ -193,7 +206,7 @@ export function WaypointInspector() {
                       type="text"
                       value={currentShaft.name}
                       onChange={(e) => updateShaft(currentShaft.id as string, { name: e.target.value })}
-                      className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+                      className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
                     />
                   </Field>
                   <Field label={`Capacity: ${currentShaft.capacity}`} tooltip="Max agents inside the cabin per trip.">
@@ -247,6 +260,7 @@ export function WaypointInspector() {
           pos: ({Math.round(node.position.x)}, {Math.round(node.position.y)})
           {node.zoneId && ` · zone: ${(node.zoneId as string).slice(0, 8)}`}
         </div>
+        </div>
       </div>
     );
   }
@@ -260,26 +274,28 @@ export function WaypointInspector() {
     const toNode = graph.nodes.find(n => n.id === edge.toId);
 
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h3 className="panel-section">
-            Edge Inspector
-          </h3>
+      <div data-editor="edge" className="bento-box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#6366f1' }} />
+            <h2 className="panel-title">Edit Edge</h2>
+          </div>
           <button
             onClick={() => { removeEdge(selectedEdgeId); selectEdge(null); }}
-            className="p-1 rounded hover:bg-destructive/20 text-destructive"
+            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
             title="Delete edge"
           >
-            <Trash2 size={12} />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
 
+        <div className="space-y-2">
         {/* Direction */}
         <Field label="Direction">
           <select
             value={edge.direction}
             onChange={(e) => updateEdge(selectedEdgeId, { direction: e.target.value as any })}
-            className="w-full text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+            className="w-full text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
           >
             {EDGE_DIR_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -303,13 +319,14 @@ export function WaypointInspector() {
             min={1} max={5000}
             value={Math.round(edge.cost)}
             onChange={(e) => updateEdge(selectedEdgeId, { cost: parseInt(e.target.value) || 1 })}
-            className="w-20 text-[11px] px-2 py-1 rounded bg-secondary border border-border"
+            className="w-20 text-[11px] px-2 py-1 rounded-lg bg-secondary border border-border"
           />
         </Field>
 
         {/* From/To labels */}
         <div className="text-[9px] text-muted-foreground mt-1">
           {fromNode?.label || fromNode?.type || '?'} → {toNode?.label || toNode?.type || '?'}
+        </div>
         </div>
       </div>
     );

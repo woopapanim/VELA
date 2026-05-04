@@ -43,8 +43,8 @@ export function useLiveInsights(): LiveInsight[] {
       out.push({
         id: `bn_${b.zoneId as string}`,
         severity: sev,
-        title: `${zone?.name ?? '?'} 병목`,
-        detail: `score ${Math.round(b.score * 100)}${b.isGroupInduced ? ' · 단체 영향' : ''}`,
+        title: `${zone?.name ?? '?'} bottleneck`,
+        detail: `score ${Math.round(b.score * 100)}${b.isGroupInduced ? ' · group-induced' : ''}`,
         category: 'bottleneck',
       });
     }
@@ -58,8 +58,8 @@ export function useLiveInsights(): LiveInsight[] {
       out.push({
         id: `cap_${utilTop.zoneId as string}`,
         severity: utilTop.ratio > 0.95 ? 'critical' : 'warn',
-        title: `${zone?.name ?? '?'} 수용 ${Math.round(utilTop.ratio * 100)}%`,
-        detail: `${utilTop.currentOccupancy}/${utilTop.capacity}명`,
+        title: `${zone?.name ?? '?'} occupancy ${Math.round(utilTop.ratio * 100)}%`,
+        detail: `${utilTop.currentOccupancy}/${utilTop.capacity}`,
         category: 'capacity',
       });
     }
@@ -73,8 +73,8 @@ export function useLiveInsights(): LiveInsight[] {
       out.push({
         id: `skip_${skipTop.mediaId as string}`,
         severity: skipTop.rate > 0.7 ? 'warn' : 'info',
-        title: `${m?.name ?? '?'} 스킵 ${Math.round(skipTop.rate * 100)}%`,
-        detail: `${skipTop.skipCount}/${skipTop.totalApproaches} 접근`,
+        title: `${m?.name ?? '?'} skip ${Math.round(skipTop.rate * 100)}%`,
+        detail: `${skipTop.skipCount}/${skipTop.totalApproaches} approaches`,
         category: 'skip',
       });
     }
@@ -88,8 +88,8 @@ export function useLiveInsights(): LiveInsight[] {
         out.push({
           id: 'early_exit',
           severity: ratio > 0.5 ? 'critical' : 'warn',
-          title: `조기이탈 ${Math.round(ratio * 100)}%`,
-          detail: `${earlyExitCount}/${exited.length} 명이 1개 zone 만 보고 나감`,
+          title: `Early exit ${Math.round(ratio * 100)}%`,
+          detail: `${earlyExitCount}/${exited.length} left after seeing only 1 zone`,
           category: 'early-exit',
         });
       }
@@ -108,8 +108,8 @@ export function useLiveInsights(): LiveInsight[] {
         out.push({
           id: 'gate_imbalance',
           severity: 'info',
-          title: '입출구 편중',
-          detail: `Entry ${Math.round(spawnConcentration * 100)}% / Exit ${Math.round(exitConcentration * 100)}% 단일 노드 집중`,
+          title: 'Entry/Exit imbalance',
+          detail: `Entry ${Math.round(spawnConcentration * 100)}% / Exit ${Math.round(exitConcentration * 100)}% concentrated on single node`,
           category: 'balance',
         });
       }

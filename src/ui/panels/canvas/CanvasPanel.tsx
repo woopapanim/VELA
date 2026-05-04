@@ -221,6 +221,8 @@ export function CanvasPanel({ readOnly = false }: CanvasPanelProps = {}) {
             showGates: store.showGates,
             showLabels: store.showLabels,
             showBackground: store.showBackground,
+            showWaypointNodes: store.showWaypointNodes,
+            showWaypointEdges: store.showWaypointEdges,
             isDark: resolvedTheme === 'dark',
             canvasWidth: rect.width,
             canvasHeight: rect.height,
@@ -1122,6 +1124,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (didDrag.current) return;
+    // Read-only viewport (Simulate / Analyze): no zone/region/media/node selection.
+    // Toolbar shift + Inspector overlay only make sense in Build.
+    if (readOnly) return;
     const world = getWorldPos(e);
     if (!world) return;
     const store = useStore.getState();
@@ -2099,7 +2104,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     >
       <canvas ref={canvasRef} className="absolute inset-0" />
       <SpeedIndicator />
-      <CanvasToolbar />
+      <CanvasToolbar readOnly={readOnly} />
       <CanvasContextMenu menu={menu} onClose={hideMenu} />
       <PropertyPopover popover={popover} onClose={hidePopover} />
       <VisitorPopover canvasRef={canvasRef} managerRef={managerRef} />

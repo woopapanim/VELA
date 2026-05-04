@@ -311,8 +311,8 @@ export function SimulationControls() {
   const durationMin = Math.floor(durationMs / 60000);
   const modeBadge =
     simMode === 'person'
-      ? `👥 사람 기준 · ${totalCount}명 · 최대 ${durationMin}분`
-      : `🕐 시간 기준 · ${durationMin}분 · 최대 ${totalCount}명`;
+      ? `Person · ${totalCount} visitors · max ${durationMin} min`
+      : `Time · ${durationMin} min · max ${totalCount} visitors`;
 
   return (
     <div className="space-y-3">

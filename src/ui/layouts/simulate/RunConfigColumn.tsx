@@ -14,15 +14,15 @@ export function RunConfigColumn() {
   const isReplayable = (phase === 'completed' || phase === 'paused') && replayCount > 0;
 
   return (
-    <aside className="w-64 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-hidden">
+    <aside className="w-60 border-r border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-hidden">
       <div className="px-3 py-2.5 border-b border-border flex-shrink-0">
         <h2 className="text-xs font-semibold tracking-tight">
-          {isIdle ? 'Run config' : '현재 설정'}
+          {isIdle ? 'Run config' : 'Current settings'}
         </h2>
         <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug">
           {isIdle
-            ? 'Spawn · Duration · Seed · Skip — 어떻게 돌릴까'
-            : '실행 중 — 변경하려면 Stop 후 다시 설정'}
+            ? 'Spawn · Duration · Seed · Skip — how to run'
+            : 'Running — Stop to change settings'}
         </p>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">

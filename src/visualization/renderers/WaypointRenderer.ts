@@ -37,6 +37,8 @@ export function renderWaypoints(
   zoom: number = 1,
   showLabels: boolean = true,
   shaftQueues?: ReadonlyMap<string, ShaftQueueSnapshot>,
+  showNodes: boolean = true,
+  showEdges: boolean = true,
 ) {
   // Build a per-portal lookup { count, maxProgress } so each portal can render its
   // own badge + progress arc regardless of which shaft it belongs to.
@@ -67,7 +69,7 @@ export function renderWaypoints(
   for (const node of graph.nodes) nodeMap.set(node.id as string, node);
 
   // ── 1. Edges ──
-  for (const edge of graph.edges) {
+  if (showEdges) for (const edge of graph.edges) {
     const from = nodeMap.get(edge.fromId as string);
     const to = nodeMap.get(edge.toId as string);
     if (!from || !to) continue;
@@ -106,7 +108,7 @@ export function renderWaypoints(
   }
 
   // ── 2. Nodes ──
-  for (const node of graph.nodes) {
+  if (showNodes) for (const node of graph.nodes) {
     const isSelected = (node.id as string) === selectedNodeId;
     const r = isSelected ? NODE_RADIUS_SELECTED : NODE_RADIUS;
     const colors = NODE_COLORS[node.type] ?? NODE_COLORS.zone;

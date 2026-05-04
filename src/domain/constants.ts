@@ -156,6 +156,27 @@ export function computeAutoRecommendedDurationMs(zoneCount: number, mediaCount: 
   return minutes * 60_000;
 }
 
+// ---- Total Visitors Auto ----
+// Capacity × turnover. Density 4 m²/p (museum comfort, ASHRAE/NFPA exhibit-hall
+// guideline ~3-5 m²/p; ours 4 sits mid-range — vs the 2.5 m²/p safety standard
+// used in densityAnalysis to flag overcrowding). Turnover = duration / recStay.
+// Clamped to ≥ 1 so short sims still spawn at least one peak's worth.
+export const COMFORT_DENSITY_M2_PER_PERSON = 4.0;
+export const TOTAL_VISITORS_AUTO_MIN = 10;
+export const TOTAL_VISITORS_AUTO_MAX = 5000;
+
+export function computeAutoTotalVisitors(
+  totalAreaM2: number,
+  durationMs: number,
+  recommendedDurationMs: number,
+): number {
+  if (totalAreaM2 <= 0 || recommendedDurationMs <= 0) return TOTAL_VISITORS_AUTO_MIN;
+  const peak = totalAreaM2 / COMFORT_DENSITY_M2_PER_PERSON;
+  const turnover = Math.max(1, durationMs / recommendedDurationMs);
+  const raw = Math.round(peak * turnover);
+  return Math.max(TOTAL_VISITORS_AUTO_MIN, Math.min(TOTAL_VISITORS_AUTO_MAX, raw));
+}
+
 // ---- Completion / Early-exit thresholds (share of total zones) ----
 // 80% 완주 기준은 자유 관람 패턴에서 비현실적이라 70% 로 완화.
 // 조기이탈 기준은 20% 유지 — 메인 컨텐츠 극히 일부만 본 이탈자를 잡기 위함.

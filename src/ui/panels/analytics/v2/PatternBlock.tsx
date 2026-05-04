@@ -3,6 +3,7 @@ import type { TimeSlicePattern, TrendShape, MetricTrend } from '@/analytics/patt
 import type { ZoneSlicePattern, ZoneSliceEntry } from '@/analytics/patterns/zoneSlices';
 import type { ProfileEngagement, VisitorProfileType } from '@/domain';
 import { NORMS, evaluateNorm, type NormStatus } from '@/analytics/norms';
+import { Sparkline } from '@/ui/components/Sparkline';
 
 interface Props {
   pattern: TimeSlicePattern | null;
@@ -26,11 +27,12 @@ interface MetricRow {
   shape: TrendShape;
 }
 
+// Monochrome 기본, bad 만 빨강. 셀마다 색을 덮으면 verdict strip 위계가 무너진다 (2026-04-30).
 const STATUS_BG: Record<NormStatus, string> = {
-  good:    'bg-[var(--status-success)]/15 text-[var(--status-success)]',
-  warn:    'bg-[var(--status-warning)]/15 text-[var(--status-warning)]',
-  bad:     'bg-[var(--status-danger)]/15 text-[var(--status-danger)]',
-  unknown: 'bg-secondary/40 text-muted-foreground',
+  good:    'bg-secondary/40 text-foreground/85',
+  warn:    'bg-foreground/[0.06] text-foreground',
+  bad:     'bg-[var(--status-danger)]/12 text-[var(--status-danger)]',
+  unknown: 'bg-secondary/25 text-muted-foreground',
 };
 
 const SHAPE_LABEL: Record<TrendShape, string> = {
@@ -42,12 +44,13 @@ const SHAPE_LABEL: Record<TrendShape, string> = {
   unknown: '—',
 };
 
+// 추세 라벨도 bad-급(악화/late_spike) 만 빨강. 그 외는 monochrome.
 const SHAPE_TONE: Record<TrendShape, string> = {
   flat: 'text-muted-foreground',
-  worsening: 'text-[var(--status-warning)]',
-  improving: 'text-[var(--status-success)]',
+  worsening: 'text-[var(--status-danger)]',
+  improving: 'text-foreground/75',
   late_spike: 'text-[var(--status-danger)]',
-  early_spike: 'text-[var(--status-warning)]',
+  early_spike: 'text-foreground/70',
   unknown: 'text-muted-foreground/60',
 };
 
@@ -109,38 +112,41 @@ export function PatternBlock({
     return null;
   }
 
+  // 각 서브섹션 = 독립 카드 (border/bg). 외곽 wrapper 폐기 — 사용자가 "카드 구분해줘" (2026-04-30).
+  // 시간/공간 패턴은 lg+ 2-col, 페르소나는 가변 col 수라 full-width row.
+  const cardCls = 'rounded-xl border border-border bg-[var(--surface)] p-3.5';
   return (
-    <section className="rounded-xl border border-border bg-[var(--surface)] p-3.5 space-y-3.5">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       {hasTimePattern && (
-        <TimeSection
-          pattern={pattern!}
-          onSelectSlice={onSelectSlice}
-          selectedSliceIndex={selectedSliceIndex ?? null}
-        />
-      )}
-      {hasTimePattern && hasZonePattern && (
-        <div className="border-t border-border/50" aria-hidden />
+        <section className={cardCls}>
+          <TimeSection
+            pattern={pattern!}
+            onSelectSlice={onSelectSlice}
+            selectedSliceIndex={selectedSliceIndex ?? null}
+          />
+        </section>
       )}
       {hasZonePattern && (
-        <SpaceSection
-          pattern={zonePattern!}
-          onSelectZone={onSelectZone}
-          selectedZoneId={selectedZoneId ?? null}
-        />
-      )}
-      {(hasTimePattern || hasZonePattern) && hasPersonaData && (
-        <div className="border-t border-border/50" aria-hidden />
+        <section className={cardCls}>
+          <SpaceSection
+            pattern={zonePattern!}
+            onSelectZone={onSelectZone}
+            selectedZoneId={selectedZoneId ?? null}
+          />
+        </section>
       )}
       {hasPersonaData && (
-        <PersonaSection
-          entries={profileEntries}
-          zoneCount={zoneCount}
-          mediaCount={mediaCount}
-          onSelectProfile={onSelectProfile}
-          selectedProfile={selectedProfile ?? null}
-        />
+        <section className={`${cardCls} lg:col-span-2`}>
+          <PersonaSection
+            entries={profileEntries}
+            zoneCount={zoneCount}
+            mediaCount={mediaCount}
+            onSelectProfile={onSelectProfile}
+            selectedProfile={selectedProfile ?? null}
+          />
+        </section>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -199,77 +205,136 @@ function TimeSection({
         {trend.highlight && <Highlight trend={trend.highlight} />}
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="min-w-[480px]">
-          <div className="grid grid-cols-[120px_repeat(4,minmax(0,1fr))_72px] gap-2 mb-1.5 px-1">
-            <span aria-hidden />
-            {slices.map((s) => {
-              const isSelected = selectedSliceIndex === s.index;
-              if (!interactive) {
-                return (
-                  <span
-                    key={s.index}
-                    className="text-[10px] uppercase tracking-wider text-muted-foreground/70 text-center"
-                  >
-                    {s.label}
-                  </span>
-                );
-              }
-              return (
-                <button
-                  key={s.index}
-                  type="button"
-                  onClick={() => onSelectSlice!(s.index)}
-                  className={`text-[10px] uppercase tracking-wider text-center rounded-md px-1.5 py-0.5 transition-colors ${
-                    isSelected
-                      ? 'bg-primary/10 ring-1 ring-primary/40 text-foreground'
-                      : 'text-muted-foreground/70 hover:bg-secondary/50 hover:text-foreground focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30'
-                  }`}
-                  aria-pressed={isSelected}
-                >
-                  {s.label}
-                </button>
-              );
-            })}
-            <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 text-right">
-              추세
-            </span>
-          </div>
+      {/* Slice 선택 strip — drilldown 진입점 */}
+      <div className="flex items-center gap-1 mb-2 text-[10px]">
+        {slices.map((s) => {
+          const isSelected = selectedSliceIndex === s.index;
+          if (!interactive) {
+            return (
+              <span
+                key={s.index}
+                className="px-2 py-0.5 rounded-full bg-secondary/40 text-muted-foreground uppercase tracking-wider"
+              >
+                {s.label}
+              </span>
+            );
+          }
+          return (
+            <button
+              key={s.index}
+              type="button"
+              onClick={() => onSelectSlice!(s.index)}
+              className={`px-2 py-0.5 rounded-full uppercase tracking-wider transition-colors ${
+                isSelected
+                  ? 'bg-primary/15 ring-1 ring-primary/40 text-foreground'
+                  : 'bg-secondary/30 text-muted-foreground/80 hover:bg-secondary hover:text-foreground'
+              }`}
+              aria-pressed={isSelected}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
 
-          <div className="space-y-1">
-            {rows.map((row) => (
-              <TimeRow key={row.label} row={row} sliceCount={slices.length} />
-            ))}
-          </div>
-        </div>
+      <div className="space-y-1.5">
+        {rows.map((row) => (
+          <TimeRow key={row.label} row={row} />
+        ))}
       </div>
     </div>
   );
 }
 
-function TimeRow({ row, sliceCount }: { row: MetricRow; sliceCount: number }) {
-  void sliceCount;
+function TimeRow({ row }: { row: MetricRow }) {
+  const lastVal = row.values[row.values.length - 1];
+  const lastStatus: NormStatus = lastVal === null ? 'unknown' : row.evaluate(lastVal);
+  // Worst slice — 가장 심각한 시점의 라벨
+  const worstSlice = pickWorstSlice(row);
+  const sparkStatus: 'good' | 'warn' | 'bad' | 'unknown' =
+    row.values.some((v) => v !== null && row.evaluate(v) === 'bad')
+      ? 'bad'
+      : row.values.some((v) => v !== null && row.evaluate(v) === 'warn')
+      ? 'warn'
+      : lastStatus;
+
+  // norm threshold (bad 진입 임계) — sparkline 위 dashed line 으로.
+  const threshold = pickThreshold(row);
+  const numericValues = row.values.map((v) => (v === null ? null : v));
+  const finite = numericValues.filter((v): v is number => v !== null);
+  // 도메인: ratio metric (0~1) 은 0~max(현재값·임계·0.4) 로 고정해 평탄해보이지 않게.
+  // throughput 처럼 norm 없는 metric 은 min/max 자동.
+  const isRatioMetric = threshold !== null;
+  const max = finite.length > 0 ? Math.max(...finite) : 1;
+  const min = finite.length > 0 ? Math.min(...finite) : 0;
+  const domain: [number, number] | undefined = finite.length > 0
+    ? isRatioMetric
+      ? [0, Math.max(max * 1.1, (threshold ?? 0) * 1.3, 0.4)]
+      : [Math.max(0, min - (max - min) * 0.1), max + (max - min) * 0.1 + 1]
+    : undefined;
+
   return (
-    <div className="grid grid-cols-[120px_repeat(4,minmax(0,1fr))_72px] gap-2 items-center">
+    <div className="grid grid-cols-[88px_1fr_56px_88px] gap-2 items-center">
       <span className="text-[11px] text-muted-foreground/90 truncate">{row.label}</span>
-      {row.values.map((v, i) => {
-        const status: NormStatus = v === null ? 'unknown' : row.evaluate(v);
-        return (
-          <div
-            key={i}
-            className={`h-7 rounded-md flex items-center justify-center text-[11px] font-data tabular-nums ${STATUS_BG[status]}`}
-            title={v === null ? '데이터 부족' : `${row.label}: ${row.formatter(v)}`}
-          >
-            {v === null ? '—' : row.formatter(v)}
-          </div>
-        );
-      })}
+      <div className="h-7 flex items-center">
+        <Sparkline
+          data={numericValues}
+          width={180}
+          height={28}
+          status={sparkStatus}
+          threshold={threshold ?? undefined}
+          domain={domain}
+          fill
+          endDot
+          className="w-full"
+        />
+      </div>
+      <span
+        className={`text-[11px] font-data tabular-nums text-right ${
+          lastStatus === 'bad' ? 'text-[var(--status-danger)]'
+          : lastStatus === 'warn' ? 'text-foreground'
+          : lastStatus === 'unknown' ? 'text-muted-foreground'
+          : 'text-foreground/85'
+        }`}
+        title={lastVal === null ? '데이터 부족' : `최종 ${row.formatter(lastVal)}`}
+      >
+        {lastVal === null ? '—' : row.formatter(lastVal)}
+      </span>
       <div className={`flex items-center justify-end gap-1 text-[10px] ${SHAPE_TONE[row.shape]}`}>
         <ShapeIcon shape={row.shape} />
-        <span className="truncate">{SHAPE_LABEL[row.shape]}</span>
+        <span className="truncate">
+          {worstSlice ? `${SHAPE_LABEL[row.shape]} · ${worstSlice}↑` : SHAPE_LABEL[row.shape]}
+        </span>
       </div>
     </div>
   );
+}
+
+function pickWorstSlice(row: MetricRow): string | null {
+  let worstIdx = -1;
+  let worstRank = -1;
+  for (let i = 0; i < row.values.length; i++) {
+    const v = row.values[i];
+    if (v === null) continue;
+    const s = row.evaluate(v);
+    const rank = s === 'bad' ? 3 : s === 'warn' ? 2 : 0;
+    if (rank > worstRank) { worstRank = rank; worstIdx = i; }
+  }
+  // 슬라이스 라벨은 P1/P2/P3/P4 형식 (대문자) — 위치만 짚어주면 충분.
+  if (worstIdx === -1 || worstRank === 0) return null;
+  return `P${worstIdx + 1}`;
+}
+
+// row.label → norm threshold 0~1 범위에서 (bad 진입선).
+function pickThreshold(row: MetricRow): number | null {
+  // congestion·skip·fatigue 는 모두 lower_is_better, 0~1 ratio.
+  // throughput 은 norm 없음.
+  switch (row.label) {
+    case '정체 시간%': return NORMS.congestion_time_ratio.warnAt;
+    case '스킵률':     return NORMS.skip_rate.warnAt;
+    case '평균 피로도': return NORMS.fatigue_mean.warnAt;
+    default: return null;
+  }
 }
 
 function Highlight({ trend }: { trend: MetricTrend }) {
@@ -345,8 +410,8 @@ function SpaceSection({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[480px]">
-          <div className="grid grid-cols-[140px_repeat(3,minmax(0,1fr))] gap-2 mb-1.5 px-1">
+        <div className="min-w-[360px]">
+          <div className="grid grid-cols-[110px_repeat(3,minmax(0,1fr))] gap-2 mb-1.5 px-1">
             <span aria-hidden />
             {SPACE_METRICS.map((m) => (
               <span
@@ -407,7 +472,7 @@ function SpaceRow({
 
   if (!interactive) {
     return (
-      <div className="grid grid-cols-[140px_repeat(3,minmax(0,1fr))] gap-2 items-center">
+      <div className="grid grid-cols-[110px_repeat(3,minmax(0,1fr))] gap-2 items-center">
         {cells}
       </div>
     );
@@ -417,7 +482,7 @@ function SpaceRow({
     <button
       type="button"
       onClick={() => onSelect!(entry.zoneId)}
-      className={`grid grid-cols-[140px_repeat(3,minmax(0,1fr))] gap-2 items-center w-full rounded-md px-1 py-0.5 transition-colors text-left ${
+      className={`grid grid-cols-[110px_repeat(3,minmax(0,1fr))] gap-2 items-center w-full rounded-md px-1 py-0.5 transition-colors text-left ${
         isSelected
           ? 'bg-primary/10 ring-1 ring-primary/40'
           : 'hover:bg-secondary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30'
@@ -542,7 +607,7 @@ function PersonaSection({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[480px]">
+        <div className="min-w-[360px]">
           <div
             className="grid gap-2 mb-1.5 px-1"
             style={{ gridTemplateColumns: `120px repeat(${entries.length}, minmax(0, 1fr))` }}

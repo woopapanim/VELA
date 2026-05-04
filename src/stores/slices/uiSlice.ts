@@ -41,6 +41,8 @@ export interface UiSlice {
   showGates: boolean;
   showLabels: boolean;
   showBackground: boolean;
+  showWaypointNodes: boolean;
+  showWaypointEdges: boolean;
   camera: CameraState;
   /** Analyze action card → Build 진입 시 카메라가 향할 world 좌표. CanvasPanel 이 mount 후 적용·소비. */
   focusTarget: { x: number; y: number; zoom?: number } | null;
@@ -59,6 +61,8 @@ export interface UiSlice {
   toggleGates: () => void;
   toggleLabels: () => void;
   toggleBackground: () => void;
+  toggleWaypointNodes: () => void;
+  toggleWaypointEdges: () => void;
   setCamera: (camera: Partial<CameraState>) => void;
   togglePanel: (side: 'left' | 'right') => void;
   setPolygonEditMode: (on: boolean) => void;
@@ -75,6 +79,8 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   showGates: true,
   showLabels: true,
   showBackground: true,
+  showWaypointNodes: true,
+  showWaypointEdges: true,
   camera: { x: 0, y: 0, zoom: 1 },
   focusTarget: null,
   isPanelCollapsed: { left: false, right: false },
@@ -91,6 +97,8 @@ export const createUiSlice: StateCreator<UiSlice, [], [], UiSlice> = (set) => ({
   toggleGates: () => set((s) => ({ showGates: !s.showGates })),
   toggleLabels: () => set((s) => ({ showLabels: !s.showLabels })),
   toggleBackground: () => set((s) => ({ showBackground: !s.showBackground })),
+  toggleWaypointNodes: () => set((s) => ({ showWaypointNodes: !s.showWaypointNodes })),
+  toggleWaypointEdges: () => set((s) => ({ showWaypointEdges: !s.showWaypointEdges })),
   setCamera: (camera) => set((s) => ({ camera: { ...s.camera, ...camera } })),
   setPolygonEditMode: (on) => set({ polygonEditMode: on }),
   setMediaPolygonEditMode: (on) => set({ mediaPolygonEditMode: on }),
