@@ -15,7 +15,7 @@ export function MonitoringPanel() {
       <div className="px-3 py-2.5 border-b border-border flex-shrink-0">
         <h2 className="text-sm font-semibold tracking-tight">Live monitoring</h2>
         <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-          현재 상태 · 위험 신호 · zone & 전시물
+          Current state · Risk signals · Zones & exhibits
         </p>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-3">

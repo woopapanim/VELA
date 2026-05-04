@@ -137,6 +137,11 @@ export const en: Dict = {
   'analyze.bento.bottlenecks': 'Bottleneck zones',
   'analyze.bento.skipHotspots': 'Skip hotspots',
   'analyze.bento.entryExit': 'Entry / Exit flow',
+  // Short tab labels for HotspotsRail's 4-tab strip — full labels wrap.
+  'analyze.tab.bottlenecks': 'Jams',
+  'analyze.tab.skip': 'Skip',
+  'analyze.tab.flow': 'Flow',
+  'analyze.tab.engagement': 'Depth',
   'analyze.bento.entryExit.sessionEnd': 'Still in venue at session end',
   'analyze.bento.engagement': 'Engagement depth',
   'analyze.engagement.avgZones': 'Avg zones / visitor',

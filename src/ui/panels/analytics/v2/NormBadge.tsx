@@ -8,10 +8,12 @@ interface Props {
   displayValue: string;  // "12%", "1.4 m²/person" 등
 }
 
+// 색은 dot 한 곳에서만. 숫자 텍스트는 monochrome (foreground) — 카드별 강조가
+// 사방에 깔리는 게 verdict strip 위계를 무너뜨려서.
 const STATUS_STYLE: Record<NormStatus, { dot: string; text: string }> = {
-  good:    { dot: 'bg-[var(--status-success)]', text: 'text-[var(--status-success)]' },
-  warn:    { dot: 'bg-[var(--status-warning)]', text: 'text-[var(--status-warning)]' },
-  bad:     { dot: 'bg-[var(--status-danger)]',  text: 'text-[var(--status-danger)]' },
+  good:    { dot: 'bg-[var(--status-success)]', text: 'text-foreground' },
+  warn:    { dot: 'bg-[var(--status-warning)]', text: 'text-foreground' },
+  bad:     { dot: 'bg-[var(--status-danger)]',  text: 'text-foreground' },
   unknown: { dot: 'bg-muted-foreground/40',     text: 'text-muted-foreground' },
 };
 

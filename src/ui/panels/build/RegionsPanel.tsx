@@ -70,34 +70,33 @@ export function RegionsPanel() {
 
   return (
     <div className="bento-box p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="panel-section flex items-center gap-1.5">
-          Regions ({floors.length})
-          <InfoTooltip text={t('regions.tooltip')} />
-        </h2>
-        {!isSimRunning && (
-          <div className="flex items-center gap-1">
-            {floors.length > 1 && (
-              <button
-                onClick={relayoutFloors}
-                className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
-                title="Auto-arrange regions side-by-side by level"
-              >
-                <LayoutGrid className="w-3 h-3" />
-                Arrange
-              </button>
-            )}
+      <h2 className="panel-section flex items-center gap-1.5 mb-2">
+        <span>Regions</span>
+        <span className="text-muted-foreground font-data text-[10px]">{floors.length}</span>
+        <InfoTooltip text={t('regions.tooltip')} />
+      </h2>
+      {!isSimRunning && (
+        <div className="flex items-center gap-1 mb-3">
+          <button
+            onClick={addFloor}
+            className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
+            title="Add floor"
+          >
+            <Plus className="w-3 h-3" />
+            Add region
+          </button>
+          {floors.length > 1 && (
             <button
-              onClick={addFloor}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
-              title="Add floor"
+              onClick={relayoutFloors}
+              className="flex items-center justify-center gap-1 px-2 py-1.5 text-[11px] rounded-lg border border-dashed border-border text-muted-foreground hover:text-foreground hover:bg-accent hover:border-solid transition-colors"
+              title="Auto-arrange regions side-by-side by level"
             >
-              <Plus className="w-3 h-3" />
-              Add
+              <LayoutGrid className="w-3 h-3" />
+              Arrange
             </button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-1">
         {ordered.map((floor, listIdx) => {
@@ -269,7 +268,7 @@ export function RegionsPanel() {
               {/* Inline overlay editor */}
               {isOverlayOpen && !isSimRunning && !isEditing && (
                 <div
-                  className="ml-7 mt-1 mb-1 pl-2 border-l border-border space-y-1.5 py-1"
+                  className="mt-1 mb-1.5 space-y-1.5 py-1"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {!hasOverlay ? (

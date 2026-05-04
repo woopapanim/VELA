@@ -160,6 +160,8 @@ export interface VisitorDistribution {
   readonly groupRatio: number; // 0-1 (legacy fallback)
   readonly spawnRatePerSecond: number;
   readonly categoryWeights?: Readonly<Record<VisitorCategory, number>>; // new: category-based spawning
+  // true = 면적 × 회전(duration / recommendedStay) 으로 자동 산출. false/undefined = 수동.
+  readonly totalCountAuto?: boolean;
 }
 
 // ---- Time Slot Config ----

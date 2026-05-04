@@ -12,7 +12,7 @@ export function RunConfigPanel() {
   if (!scenario) {
     return (
       <div className="p-3 text-[10px] text-muted-foreground">
-        시나리오를 먼저 선택하세요.
+        Select a scenario first.
       </div>
     );
   }

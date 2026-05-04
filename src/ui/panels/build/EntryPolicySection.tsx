@@ -58,14 +58,14 @@ export function EntryPolicySection() {
               key={mode}
               onClick={() => setMode(mode)}
               disabled={isLocked}
-              className={`p-1.5 rounded text-left border transition-colors disabled:opacity-50 ${
+              className={`p-1.5 rounded-lg text-left border transition-colors disabled:opacity-50 ${
                 active
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-secondary border-border hover:border-primary/50'
+                  ? 'bg-primary/15 border-primary/60 text-foreground'
+                  : 'bg-secondary/60 border-transparent hover:bg-accent hover:border-border'
               }`}
             >
               <p className="text-[10px] font-medium">{t(labelKey)}</p>
-              <p className={`text-[8px] leading-tight ${active ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+              <p className={`text-[8px] leading-tight ${active ? 'text-foreground/70' : 'text-muted-foreground'}`}>
                 {t(descKey)}
               </p>
             </button>

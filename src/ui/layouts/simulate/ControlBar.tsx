@@ -320,7 +320,7 @@ export function ControlBar() {
     <div
       className="border-t border-border bg-[var(--surface)] flex items-center gap-3 px-4 h-14 flex-shrink-0"
       role="toolbar"
-      aria-label="시뮬레이션 컨트롤"
+      aria-label="Simulation controls"
     >
       {/* Action buttons */}
       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -328,7 +328,7 @@ export function ControlBar() {
           <button
             onClick={handleStart}
             className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
-            aria-label="시뮬레이션 시작"
+            aria-label="Start simulation"
           >
             <Play className="w-3.5 h-3.5" aria-hidden="true" /> Start
           </button>
@@ -337,7 +337,7 @@ export function ControlBar() {
           <button
             onClick={handlePause}
             className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-warning)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-warning)]"
-            aria-label="일시정지"
+            aria-label="Pause"
           >
             <Pause className="w-3.5 h-3.5" aria-hidden="true" /> Pause
           </button>
@@ -346,7 +346,7 @@ export function ControlBar() {
           <button
             onClick={handleResume}
             className="flex items-center gap-1 px-2.5 h-8 text-[11px] font-semibold rounded-lg bg-[var(--status-success)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-success)]"
-            aria-label="재개"
+            aria-label="Resume"
           >
             <Play className="w-3.5 h-3.5" aria-hidden="true" /> Resume
           </button>
@@ -355,7 +355,7 @@ export function ControlBar() {
           <button
             onClick={requestStop}
             className="flex items-center justify-center w-8 h-8 rounded-lg bg-[var(--status-danger)] text-white hover:opacity-90 active:scale-[0.98] transition-transform focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--status-danger)]"
-            aria-label="중지"
+            aria-label="Stop"
             title="Stop"
           >
             <Square className="w-3.5 h-3.5" aria-hidden="true" />
@@ -367,7 +367,7 @@ export function ControlBar() {
       <div className="flex-1 min-w-0 flex items-center gap-3">
         <span
           className="text-[11px] text-foreground/80 font-data tabular-nums flex-shrink-0"
-          aria-label={`경과 시간 ${mm}분 ${ss}초`}
+          aria-label={`Elapsed ${mm}m ${ss}s`}
         >
           {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
         </span>
@@ -379,7 +379,7 @@ export function ControlBar() {
               aria-valuenow={Math.round(pct)}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label={`진행률 ${Math.round(pct)}%`}
+              aria-label={`Progress ${Math.round(pct)}%`}
             >
               <div className="absolute top-0 left-0 h-full bg-primary" style={{ width: `${pct}%` }} />
               {markers.map((m, i) => {
@@ -389,8 +389,8 @@ export function ControlBar() {
                     key={i}
                     className="absolute top-0 w-0.5 h-full bg-[var(--status-warning)]"
                     style={{ left: `${x}%` }}
-                    title={`병목 — ${Math.floor(m.t / 60000)}:${String(Math.floor((m.t % 60000) / 1000)).padStart(2, '0')}`}
-                    aria-label={`병목 마커 ${Math.floor(m.t / 60000)}분 ${Math.floor((m.t % 60000) / 1000)}초`}
+                    title={`Bottleneck — ${Math.floor(m.t / 60000)}:${String(Math.floor((m.t % 60000) / 1000)).padStart(2, '0')}`}
+                    aria-label={`Bottleneck marker ${Math.floor(m.t / 60000)}m ${Math.floor((m.t % 60000) / 1000)}s`}
                   />
                 );
               })}
@@ -401,7 +401,7 @@ export function ControlBar() {
         </div>
         <span
           className="text-[11px] text-foreground/80 font-data tabular-nums flex-shrink-0"
-          aria-label={`총 ${tm}분 ${ts}초`}
+          aria-label={`Duration ${tm}m ${ts}s`}
         >
           {String(tm).padStart(2, '0')}:{String(ts).padStart(2, '0')}
         </span>
@@ -412,7 +412,7 @@ export function ControlBar() {
         <div
           className="flex items-center gap-1 flex-shrink-0 border-l border-border pl-3"
           role="group"
-          aria-label="배속 선택"
+          aria-label="Speed"
         >
           <span className="text-[10px] text-muted-foreground" aria-hidden="true">Speed</span>
           {[1, 3, 5, 10, 20, 30].map((spd) => {
@@ -430,7 +430,7 @@ export function ControlBar() {
                   active ? 'bg-primary text-primary-foreground font-semibold' : 'bg-secondary hover:bg-accent text-foreground/90'
                 }`}
                 aria-pressed={active}
-                aria-label={`${spd}배속`}
+                aria-label={`${spd}x speed`}
               >{spd}x</button>
             );
           })}
@@ -441,7 +441,7 @@ export function ControlBar() {
       <div className="flex items-center gap-2 flex-shrink-0 border-l border-border pl-3">
         <div
           className="text-[11px] font-data tabular-nums text-foreground/80"
-          aria-label={`현재 활성 방문객 ${activeCount}명`}
+          aria-label={`${activeCount} active visitors`}
         >
           <span className="text-primary font-semibold">{activeCount}</span> <span aria-hidden="true">active</span>
         </div>
@@ -450,7 +450,7 @@ export function ControlBar() {
           className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary ${
             overlayMode === 'heatmap' ? 'bg-primary text-primary-foreground' : 'bg-secondary text-secondary-foreground hover:bg-accent'
           }`}
-          aria-label="히트맵 토글"
+          aria-label="Toggle heatmap"
           aria-pressed={overlayMode === 'heatmap'}
           title="Toggle Heatmap"
         >
@@ -460,7 +460,7 @@ export function ControlBar() {
           onClick={handlePin}
           disabled={phase === SIMULATION_PHASE.IDLE}
           className="relative flex items-center justify-center w-8 h-8 rounded-lg bg-secondary text-secondary-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors active:scale-95 focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-primary"
-          aria-label={`현재 순간 핀 (${pinCount}개 저장됨)`}
+          aria-label={`Pin current moment (${pinCount} saved)`}
           title={`${t('pinpoint.action.pin')} (P)`}
         >
           <Pin className="w-3.5 h-3.5" aria-hidden="true" />

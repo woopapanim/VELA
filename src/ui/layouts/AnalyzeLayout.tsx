@@ -1,14 +1,18 @@
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
-  Activity, Zap, MoveHorizontal, Eye, Download,
-  ChevronRight, History, ChevronDown, X,
+  Activity, Zap, Eye, Download, Flame, ChevronRight,
 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { AppShell, StageRail, UnifiedHeader } from './shell';
+import { ChapterNav, type Chapter } from './analyze/ChapterNav';
+import { HotspotsRail } from './analyze/HotspotsRail';
+import { DrilldownSheet } from './analyze/DrilldownSheet';
+import { ActionCard, type CockpitAction } from './analyze/ActionCard';
+import { RunSwitcher } from './analyze/RunSwitcher';
 import type { ZoneId, MediaId, RunRecord } from '@/domain';
 import { useToast } from '@/ui/components/Toast';
-import { PerspectiveGrid, PatternBlock, DrilldownPanel, MediaDrilldownPanel, TimeDrilldownPanel, PersonaDrilldownPanel, CapacityRecommendationCard } from '@/ui/panels/analytics/v2';
+import { PerspectiveGrid, PatternBlock, SpatialHeatmap, CapacityRecommendationCard } from '@/ui/panels/analytics/v2';
 import { computeTimeSlices } from '@/analytics/patterns/timeSlices';
 import { computeZoneSlices } from '@/analytics/patterns/zoneSlices';
 import { computeZoneBreakdown } from '@/analytics/breakdown/zoneBreakdown';
@@ -22,17 +26,6 @@ import { summarizeEngagementByProfile } from '@/stores/slices/analyticsSlice';
 interface Props {
   onBackToSimulate: () => void;
   onBackToBuild: () => void;
-}
-
-type T = (k: string, params?: Record<string, string | number>) => string;
-
-interface CockpitAction {
-  id: string;
-  level: 'critical' | 'warning';
-  title: string;
-  detail: string;
-  zoneId?: ZoneId;
-  mediaId?: MediaId;
 }
 
 export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
@@ -51,11 +44,19 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
   const liveExitByNode = useStore((s) => s.exitByNode);
   const liveEntryQueue = useStore((s) => s.entryQueue);
   const graph = useStore((s) => s.waypointGraph);
+  const liveDensityGrids = useStore((s) => s.densityGrids);
   const runRecords = useStore((s) => s.runRecords);
   const activeRunId = useStore((s) => s.activeRunId);
   const setActiveRunId = useStore((s) => s.setActiveRunId);
   const removeRunRecord = useStore((s) => s.removeRunRecord);
   const scenario = useStore((s) => s.scenario);
+  const setOverlayMode = useStore((s) => s.setOverlayMode);
+
+  // Analyze 진입 시 Simulate 에서 켜둔 heatmap/flow 오버레이 초기화 — Analyze 는 자체 시각화를
+  // 가지므로 캔버스 오버레이가 남아있으면 해석 충돌. 마운트 시 한 번만 (2026-04-30).
+  useEffect(() => {
+    setOverlayMode('none');
+  }, [setOverlayMode]);
 
   const activeRecord = useMemo<RunRecord | null>(
     () => (activeRunId ? runRecords.find((r) => r.id === activeRunId) ?? null : null),
@@ -398,6 +399,18 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
     return list.slice(0, 3);
   }, [peakUtil, peakZoneName, topSkipMedia, entryExitFlow, t]);
 
+  const [scrollRoot, setScrollRoot] = useState<HTMLDivElement | null>(null);
+
+  const hasSpatialData = !!latestSnapshot && zones.length > 0;
+
+  const chapters = useMemo<Chapter[]>(() => [
+    { id: 'verdict',        label: '위험 신호',     Icon: Activity,    available: true },
+    { id: 'spatial',        label: '공간 분포',     Icon: Flame,       available: hasSpatialData },
+    { id: 'pattern',        label: '시간·공간 패턴', Icon: ChevronRight, available: true },
+    { id: 'recommendation', label: '운영 권장',     Icon: Eye,         available: capacityRecommendation.recommendedConcurrent > 0 },
+    { id: 'actions',        label: '액션',          Icon: Zap,         available: actions.length > 0 },
+  ], [hasSpatialData, capacityRecommendation.recommendedConcurrent, actions.length]);
+
   const handleAction = (action: CockpitAction) => {
     const s = useStore.getState();
     if (action.zoneId) {
@@ -460,11 +473,17 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
           nav={{ build: onBackToBuild, simulate: onBackToSimulate }}
         />
       }
+      left={<ChapterNav scrollRoot={scrollRoot} chapters={chapters} />}
       main={
         <div className="h-full overflow-hidden">
-          <div className="h-full flex flex-col px-5 py-4 gap-3 max-w-[1440px] mx-auto overflow-y-auto">
+          <div
+            ref={(el) => setScrollRoot(el)}
+            className="h-full flex flex-col px-5 py-4 gap-4 max-w-[1280px] mx-auto overflow-y-auto scroll-smooth"
+          >
+            <section id="verdict" className="scroll-mt-4">
             <PerspectiveGrid
               snapshot={latestSnapshot}
+              kpiHistory={kpiHistory}
               zones={zones}
               media={media}
               totalSpawned={totalSpawned}
@@ -473,8 +492,24 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
               entryStats={entryStats}
               layout="auto"
             />
+            </section>
+
+            {/* SPATIAL HEATMAP — 도면 위 zone 별 점유율 시각화 (2026-04-30).
+                중요한 자리에 큼지막하게 — verdict 와 PatternBlock 사이.
+                live density 는 store 에서 직접 가져오지 않고 여기서 주입 (테스트성 + replay 일관성). */}
+            {hasSpatialData && (
+              <SpatialHeatmap
+                zones={zones}
+                snapshot={latestSnapshot}
+                densityGrids={liveDensityGrids}
+                waypointGraph={graph}
+                onSelectZone={toggleZoneDrilldown}
+                selectedZoneId={drilldownTarget?.kind === 'zone' ? drilldownTarget.id : null}
+              />
+            )}
 
             {/* MIDDLE — PATTERN (시간 슬라이스 + persona 분해) */}
+            <section id="pattern" className="scroll-mt-4">
             <PatternBlock
               pattern={timeSlicePattern}
               zonePattern={zoneSlicePattern}
@@ -488,46 +523,25 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
               onSelectProfile={togglePersonaDrilldown}
               selectedProfile={drilldownTarget?.kind === 'persona' ? drilldownTarget.profile : null}
             />
+            </section>
 
-            {/* DRILLDOWN — zone 또는 media 분해 */}
-            {zoneBreakdown && (
-              <DrilldownPanel
-                breakdown={zoneBreakdown}
-                onClose={() => setDrilldownTarget(null)}
-                onForkToBuild={handleForkZoneToBuild}
-              />
-            )}
-            {mediaBreakdown && (
-              <MediaDrilldownPanel
-                breakdown={mediaBreakdown}
-                onClose={() => setDrilldownTarget(null)}
-                onForkToBuild={handleForkMediaToBuild}
-              />
-            )}
-            {timeBreakdown && (
-              <TimeDrilldownPanel
-                breakdown={timeBreakdown}
-                onClose={() => setDrilldownTarget(null)}
-              />
-            )}
-            {personaBreakdown && (
-              <PersonaDrilldownPanel
-                breakdown={personaBreakdown}
-                onClose={() => setDrilldownTarget(null)}
-              />
-            )}
+            {/* Drilldown 은 main 흐름 끊지 않게 우측 sheet 로 이동 (2026-04-30).
+                여기 main 칼럼에는 더 이상 렌더하지 않음. */}
 
-            {/* OPERATIONS RECOMMENDATION — 산식 기반 권장 capacity (Step 4a) */}
+            {/* OPERATIONS RECOMMENDATION — 산식 기반 권장 capacity (Step 4a).
+                full-width 차지하지 않도록 max-width 제한 (2026-04-30). */}
             {capacityRecommendation.recommendedConcurrent > 0 && (
-              <CapacityRecommendationCard
-                recommendation={capacityRecommendation}
-                sweepInput={sweepInput}
-              />
+              <section id="recommendation" className="scroll-mt-4 max-w-[920px]">
+                <CapacityRecommendationCard
+                  recommendation={capacityRecommendation}
+                  sweepInput={sweepInput}
+                />
+              </section>
             )}
 
             {/* BOTTOM — ACTIONS (prominent buttons, 데이터 있을 때만) */}
             {actions.length > 0 && (
-              <section className="flex-shrink-0">
+              <section id="actions" className="flex-shrink-0 scroll-mt-4">
                 <h2 className="text-[10px] uppercase tracking-wider font-semibold text-foreground/80 mb-2 flex items-center gap-1.5">
                   <ChevronRight className="w-3 h-3 text-primary" />
                   {t('analyze.cockpit.actions.title')}
@@ -543,375 +557,32 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
         </div>
       }
       right={
-        <aside
-          className="w-72 border-l border-border bg-[var(--surface)] flex flex-col flex-shrink-0 overflow-hidden"
-          aria-label="Insights rail"
-        >
-          <div className="px-3 py-2 border-b border-border flex-shrink-0">
-            <h2 className="text-[13px] font-semibold tracking-tight">{t('analyze.rail.title')}</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-              {t('analyze.rail.hint')}
-            </p>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            <RailCard title={t('analyze.bento.bottlenecks')} Icon={Activity}>
-              {topBottlenecks.length === 0 ? (
-                <Empty t={t} />
-              ) : (
-                <ul className="space-y-1.5">
-                  {topBottlenecks.map((b, i) => (
-                    <li key={i} className="flex items-center gap-2 text-[11px]">
-                      <span className="flex-1 truncate">{b.name}</span>
-                      <div className="w-16 h-1.5 rounded-full bg-secondary overflow-hidden">
-                        <div
-                          className="h-full bg-[var(--status-warning)]"
-                          style={{ width: `${Math.round(b.score * 100)}%` }}
-                        />
-                      </div>
-                      <span className="font-data tabular-nums w-9 text-right text-muted-foreground">
-                        {Math.round(b.score * 100)}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </RailCard>
-
-            <RailCard title={t('analyze.bento.skipHotspots')} Icon={Zap}>
-              {topSkipMedia.length === 0 ? (
-                <Empty t={t} />
-              ) : (
-                <ul className="space-y-1">
-                  {topSkipMedia.map((m) => {
-                    const isSelected = drilldownTarget?.kind === 'media' && drilldownTarget.id === m.id;
-                    return (
-                      <li key={m.id}>
-                        <button
-                          type="button"
-                          onClick={() => toggleMediaDrilldown(m.id)}
-                          className={`w-full flex items-center gap-2 text-[11px] rounded-md px-1.5 py-1 transition-colors text-left ${
-                            isSelected
-                              ? 'bg-primary/10 ring-1 ring-primary/40'
-                              : 'hover:bg-secondary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30'
-                          }`}
-                          aria-pressed={isSelected}
-                        >
-                          <span className="flex-1 truncate">{m.name}</span>
-                          <span className="font-data tabular-nums text-muted-foreground">
-                            {m.skipCount}회
-                          </span>
-                          <span className="font-data tabular-nums w-9 text-right text-[var(--status-danger)]">
-                            {Math.round(m.rate * 100)}%
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </RailCard>
-
-            <RailCard title={t('analyze.bento.entryExit')} Icon={MoveHorizontal}>
-              {entryExitFlow.entries.length === 0 && entryExitFlow.exits.length === 0 ? (
-                <Empty t={t} />
-              ) : (
-                <div className="space-y-1">
-                  {entryExitFlow.entries.map((e, i) => (
-                    <div key={`in-${i}`} className="flex items-center gap-2 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--status-success)] shrink-0" />
-                      <span className="flex-1 truncate">{e.name}</span>
-                      <span className="font-data tabular-nums text-[var(--status-success)]">
-                        {e.count} in
-                      </span>
-                    </div>
-                  ))}
-                  {entryExitFlow.exits.map((e, i) => (
-                    <div key={`out-${i}`} className="flex items-center gap-2 text-[11px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--status-danger)] shrink-0" />
-                      <span className="flex-1 truncate">{e.name}</span>
-                      <span className="font-data tabular-nums text-[var(--status-danger)]">
-                        {e.count} out
-                      </span>
-                    </div>
-                  ))}
-                  {entryExitFlow.unaccountedExits > 0 && (
-                    <div className="flex items-center gap-2 text-[11px] pt-1.5 mt-1.5 border-t border-border/40">
-                      <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-                      <span className="flex-1 truncate text-muted-foreground italic">
-                        {t('analyze.bento.entryExit.sessionEnd')}
-                      </span>
-                      <span className="font-data tabular-nums text-muted-foreground">
-                        {entryExitFlow.unaccountedExits}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </RailCard>
-
-            <RailCard title={t('analyze.bento.engagement')} Icon={Eye}>
-              {totalExited === 0 ? (
-                <Empty t={t} />
-              ) : (
-                <div className="space-y-1.5 text-[11px]">
-                  <Row
-                    label={t('analyze.engagement.avgZones')}
-                    value={`${engagementSummary.avgZones.toFixed(1)} / ${zones.length}`}
-                  />
-                  <Row
-                    label={t('analyze.engagement.avgMedia')}
-                    value={`${engagementSummary.avgMedia.toFixed(1)} / ${media.length}`}
-                  />
-                  <Row
-                    label={t('analyze.engagement.avgDwell')}
-                    value={`${engagementSummary.avgDwellSec.toFixed(0)}s`}
-                  />
-                  <Row
-                    label={t('analyze.engagement.fullCompletion')}
-                    value={`${Math.round(engagementSummary.fullCompletion * 100)}%`}
-                  />
-                </div>
-              )}
-            </RailCard>
-          </div>
-        </aside>
+        drilldownTarget ? (
+          <DrilldownSheet
+            kind={drilldownTarget.kind}
+            zoneBreakdown={zoneBreakdown}
+            mediaBreakdown={mediaBreakdown}
+            timeBreakdown={timeBreakdown}
+            personaBreakdown={personaBreakdown}
+            onClose={() => setDrilldownTarget(null)}
+            onForkZone={handleForkZoneToBuild}
+            onForkMedia={handleForkMediaToBuild}
+          />
+        ) : (
+          <HotspotsRail
+            t={t}
+            topBottlenecks={topBottlenecks}
+            topSkipMedia={topSkipMedia}
+            entryExitFlow={entryExitFlow}
+            engagementSummary={engagementSummary}
+            zoneCount={zones.length}
+            mediaCount={media.length}
+            totalExited={totalExited}
+            selectedMediaId={null}
+            onSelectMedia={toggleMediaDrilldown}
+          />
+        )
       }
     />
-  );
-}
-
-function ActionCard({
-  action, ctaLabel, onClick,
-}: { action: CockpitAction; ctaLabel: string; onClick: () => void }) {
-  const accent = action.level === 'critical'
-    ? 'border-[var(--status-danger)]/35 bg-[var(--status-danger)]/[0.04] hover:border-[var(--status-danger)]/70 hover:bg-[var(--status-danger)]/10'
-    : 'border-[var(--status-warning)]/35 bg-[var(--status-warning)]/[0.04] hover:border-[var(--status-warning)]/70 hover:bg-[var(--status-warning)]/10';
-  const dot = action.level === 'critical'
-    ? 'bg-[var(--status-danger)]'
-    : 'bg-[var(--status-warning)]';
-  const ctaColor = action.level === 'critical'
-    ? 'text-[var(--status-danger)]'
-    : 'text-[var(--status-warning)]';
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group relative text-left rounded-xl border p-3.5 transition-all hover:shadow-md flex flex-col ${accent}`}
-    >
-      <div className="flex items-start gap-2 flex-1">
-        <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${dot}`} />
-        <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold tracking-tight text-foreground leading-snug">{action.title}</div>
-          <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-            {action.detail}
-          </p>
-        </div>
-      </div>
-      <div className={`mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider ${ctaColor}`}>
-        <span>{ctaLabel}</span>
-        <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-      </div>
-    </button>
-  );
-}
-
-function RailCard({
-  title, Icon, children,
-}: { title: string; Icon: typeof Activity; children: React.ReactNode }) {
-  return (
-    <section className="rounded-xl border border-border bg-background/40 p-3">
-      <h3 className="text-[10px] uppercase tracking-wider font-semibold text-foreground/80 flex items-center gap-1.5 mb-2">
-        <Icon className="w-3 h-3 text-primary" />
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
-function Empty({ t }: { t: T }) {
-  return <p className="text-[11px] text-muted-foreground italic py-2">{t('analyze.bento.empty')}</p>;
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-data tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-// ── RunSwitcher ──────────────────────────────────────────────────────────
-// 같은 시나리오 (id+version+contentHash) 끼리 묶어서 보여주는 드롭다운.
-// dirty-at-capture run 은 별도 그룹 (= 다른 contentHash) 으로 자동 분리되며 "변경됨" 태그가 붙는다.
-// 이렇게 해야 baseline 묶음 안에서만 비교가 의미 있다.
-interface RunGroup {
-  readonly key: string;
-  readonly scenarioName: string;
-  readonly version: number;
-  readonly contentHash: string;
-  readonly dirty: boolean;
-  readonly records: readonly RunRecord[];
-}
-
-function groupRecords(records: readonly RunRecord[]): RunGroup[] {
-  const map = new Map<string, RunGroup>();
-  for (const r of records) {
-    const key = `${r.scenarioId}|v${r.scenarioVersion}|${r.contentHash}`;
-    const existing = map.get(key);
-    if (existing) {
-      (existing.records as RunRecord[]).push(r);
-    } else {
-      map.set(key, {
-        key,
-        scenarioName: r.scenarioName,
-        version: r.scenarioVersion,
-        contentHash: r.contentHash,
-        dirty: r.dirtyAtCapture,
-        records: [r],
-      });
-    }
-  }
-  // 그룹 내부 — 최신 run 먼저
-  // 그룹 사이 — 가장 최근 run 시간이 늦은 그룹 먼저
-  const groups = Array.from(map.values()).map((g) => ({
-    ...g,
-    records: [...g.records].sort((a, b) => b.endedAt - a.endedAt),
-  }));
-  groups.sort((a, b) => (b.records[0]?.endedAt ?? 0) - (a.records[0]?.endedAt ?? 0));
-  return groups;
-}
-
-function formatRunTime(ms: number): string {
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function RunSwitcher({
-  records, activeRunId, onSelect, onRemove, t,
-}: {
-  records: readonly RunRecord[];
-  activeRunId: string | null;
-  onSelect: (id: string | null) => void;
-  onRemove: (id: string) => void;
-  t: T;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement | null>(null);
-  const activeRecord = activeRunId ? records.find((r) => r.id === activeRunId) ?? null : null;
-  const groups = useMemo(() => groupRecords(records), [records]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
-  if (records.length === 0) {
-    return (
-      <div className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-secondary/40 text-muted-foreground text-xs">
-        <History className="w-3.5 h-3.5" />
-        {t('analyze.runs.live')}
-      </div>
-    );
-  }
-
-  const buttonLabel = activeRecord
-    ? `${activeRecord.scenarioName} · v${activeRecord.scenarioVersion}${activeRecord.dirtyAtCapture ? ` · ${t('analyze.runs.dirtyTag')}` : ''}`
-    : t('analyze.runs.live');
-  const buttonSub = activeRecord ? formatRunTime(activeRecord.endedAt) : '';
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 px-3 h-8 rounded-lg bg-secondary text-foreground text-xs font-medium hover:bg-accent transition-colors max-w-[280px]"
-        title={t('analyze.runs.tooltip')}
-      >
-        <History className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="truncate">{buttonLabel}</span>
-        {buttonSub && (
-          <span className="font-data tabular-nums text-muted-foreground/80 flex-shrink-0">
-            {buttonSub}
-          </span>
-        )}
-        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[360px] max-h-[420px] overflow-y-auto bg-popover border border-border rounded-lg shadow-lg z-50 py-1">
-          <button
-            type="button"
-            onClick={() => { onSelect(null); setOpen(false); }}
-            className={`w-full text-left px-3 py-2 text-xs hover:bg-accent flex items-center justify-between ${
-              activeRunId === null ? 'bg-accent/60' : ''
-            }`}
-          >
-            <span className="font-medium">{t('analyze.runs.live')}</span>
-            <span className="text-[10px] text-muted-foreground">{t('analyze.runs.live.hint')}</span>
-          </button>
-          {groups.map((g) => (
-            <div key={g.key} className="border-t border-border/40 pt-1 mt-1 first:border-t-0 first:pt-0 first:mt-0">
-              <div className="px-3 py-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
-                <span className="truncate flex-1">{g.scenarioName}</span>
-                <span className="font-data tabular-nums">v{g.version}</span>
-                {g.dirty && (
-                  <span className="px-1 py-0.5 rounded bg-[var(--status-warning)]/15 text-[var(--status-warning)] text-[9px] font-semibold">
-                    {t('analyze.runs.dirtyTag')}
-                  </span>
-                )}
-                <span className="font-data tabular-nums text-muted-foreground/60">#{g.contentHash.slice(0, 4)}</span>
-              </div>
-              {g.records.map((r) => {
-                const isActive = r.id === activeRunId;
-                return (
-                  <div
-                    key={r.id}
-                    className={`group flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-accent ${
-                      isActive ? 'bg-accent/60' : ''
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => { onSelect(r.id); setOpen(false); }}
-                      className="flex-1 text-left flex items-center gap-2 min-w-0"
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        isActive ? 'bg-primary' : 'bg-muted-foreground/40'
-                      }`} />
-                      <span className="font-data tabular-nums text-muted-foreground flex-shrink-0">
-                        {formatRunTime(r.endedAt)}
-                      </span>
-                      <span className="font-data tabular-nums text-foreground/80 flex-shrink-0">
-                        {r.totalSpawned}→{r.totalExited}
-                      </span>
-                      <span className="font-data tabular-nums text-muted-foreground/80 flex-shrink-0">
-                        {Math.round((r.latestSnapshot.flowEfficiency.completionRate ?? 0) * 100)}%
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(t('analyze.runs.removeConfirm'))) onRemove(r.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-secondary text-muted-foreground hover:text-foreground transition-opacity"
-                      title={t('analyze.runs.remove')}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }

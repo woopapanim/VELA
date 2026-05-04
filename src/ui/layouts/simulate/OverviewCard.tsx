@@ -44,7 +44,7 @@ export function OverviewCard() {
       </div>
 
       {/* 큰 숫자 — 현재 active */}
-      <div className="flex items-baseline gap-1.5 mb-3" aria-label={`현재 활성 방문객 ${active}명`}>
+      <div className="flex items-baseline gap-1.5 mb-3" aria-label={`${active} active visitors`}>
         <span className="text-3xl font-data font-semibold tabular-nums text-foreground" aria-hidden="true">{active}</span>
         <span className="text-[11px] text-muted-foreground" aria-hidden="true">active</span>
       </div>
@@ -61,7 +61,7 @@ export function OverviewCard() {
           aria-valuenow={Math.round(progress * 100)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`진행률 ${Math.round(progress * 100)}%`}
+          aria-label={`Progress ${Math.round(progress * 100)}%`}
         >
           <div
             className="h-full bg-primary transition-[width] duration-300"
@@ -72,17 +72,17 @@ export function OverviewCard() {
 
       {/* 보조 수치 3개 */}
       <div className="grid grid-cols-3 gap-1.5">
-        <Mini label="Spawned" value={totalSpawned.toString()} srLabel={`총 스폰 ${totalSpawned}명`} />
-        <Mini label="Exited" value={totalExited.toString()} srLabel={`총 퇴장 ${totalExited}명`} />
+        <Mini label="Spawned" value={totalSpawned.toString()} srLabel={`Total spawned ${totalSpawned}`} />
+        <Mini label="Exited" value={totalExited.toString()} srLabel={`Total exited ${totalExited}`} />
         <Mini
           label="/min"
           value={throughput < 10 ? throughput.toFixed(1) : Math.round(throughput).toString()}
-          srLabel={`분당 처리량 ${throughput.toFixed(1)}명`}
+          srLabel={`Throughput ${throughput.toFixed(1)} per minute`}
         />
       </div>
 
       {totalSpawned > 0 && (
-        <div className="mt-2 text-[10px] text-foreground/70 font-data" aria-label={`퇴장 비율 ${Math.round(exitRatio * 100)}%`}>
+        <div className="mt-2 text-[10px] text-foreground/70 font-data" aria-label={`Exit ratio ${Math.round(exitRatio * 100)}%`}>
           Exit ratio <span className="text-foreground font-semibold">{Math.round(exitRatio * 100)}%</span>
         </div>
       )}

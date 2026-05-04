@@ -35,6 +35,8 @@ export interface RenderState {
   gridSize: number;
   pixelToMeterScale: number;
   showBackground: boolean;
+  showWaypointNodes: boolean;
+  showWaypointEdges: boolean;
   simPhase?: string;
   waypointGraph?: WaypointGraph | null;
   selectedWaypointId?: string | null;
@@ -242,7 +244,7 @@ export class CanvasManager {
 
     // 4c. Waypoint graph (nodes + edges + ghost preview)
     if (visibleGraph && visibleGraph.nodes.length > 0) {
-      renderWaypoints(ctx, visibleGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels, state.shaftQueues);
+      renderWaypoints(ctx, visibleGraph, state.selectedWaypointId ?? null, state.selectedEdgeId ?? null, isDark, state.ghostNode ?? null, this.camera.zoom, state.showLabels, state.shaftQueues, state.showWaypointNodes, state.showWaypointEdges);
     } else if (state.ghostNode) {
       renderWaypoints(ctx, { nodes: [], edges: [] }, null, null, isDark, state.ghostNode, this.camera.zoom, state.showLabels);
     }

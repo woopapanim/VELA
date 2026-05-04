@@ -1,43 +1,56 @@
 import { useCallback, useState } from 'react';
-import { Plus, Monitor, MousePointer2, Circle, GitBranch, Sparkles } from 'lucide-react';
+import { Circle, GitBranch, Sparkles } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { ZoneConfig, ZoneId, MediaId, FloorId, MediaPlacement, WaypointType } from '@/domain';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
-import { useT } from '@/i18n';
 import { AnalyzeFloorPlan } from './AnalyzeFloorPlan';
 
+const NODE_TYPES: ReadonlyArray<{
+  type: WaypointType;
+  label: string;
+  color: string;
+  desc: string;
+}> = [
+  { type: 'entry',     label: 'Entry',     color: '#22c55e', desc: 'Spawn point' },
+  { type: 'exit',      label: 'Exit',      color: '#ef4444', desc: 'Exit point' },
+  { type: 'zone',      label: 'Zone',      color: '#3b82f6', desc: 'Exhibition stop' },
+  { type: 'attractor', label: 'Attractor', color: '#f59e0b', desc: 'High-attraction target' },
+  { type: 'hub',       label: 'Hub',       color: '#8b5cf6', desc: 'Junction / branch' },
+  { type: 'rest',      label: 'Rest',      color: '#f59e0b', desc: 'Rest / buffer' },
+  { type: 'portal',    label: 'Portal',    color: '#06b6d4', desc: 'Cross-floor / building transit hub' },
+];
+
 const ZONE_TYPES = [
-  { type: 'lobby',      label: '로비',   color: '#14b8a6' },
-  { type: 'exhibition', label: '전시실', color: '#3b82f6' },
-  { type: 'corridor',   label: '복도',   color: '#6b7280' },
-  { type: 'rest',       label: '휴게',   color: '#f59e0b' },
-  { type: 'stage',      label: '스테이지', color: '#a855f7' },
+  { type: 'lobby',      label: 'Lobby',      color: '#14b8a6' },
+  { type: 'exhibition', label: 'Exhibition', color: '#3b82f6' },
+  { type: 'corridor',   label: 'Corridor',   color: '#6b7280' },
+  { type: 'rest',       label: 'Rest',       color: '#f59e0b' },
+  { type: 'stage',      label: 'Stage',      color: '#a855f7' },
 ] as const;
 
-// 미디어 타입 → 한국어 라벨. domain/types/media.ts 의 주석을 명시적 라벨로 승격.
-const MEDIA_LABEL_KO: Record<string, string> = {
-  artifact:           '실물 전시',
-  diorama:            '디오라마',
-  documents:          '문서·도서',
-  graphic_sign:       '그래픽 사인',
-  media_wall:         '미디어 월',
-  video_wall:         '비디오 월',
-  projection_mapping: '프로젝션',
-  single_display:     '단일 디스플레이',
-  kiosk:              '키오스크',
-  touch_table:        '터치 테이블',
-  interaction_media:  '인터랙션 미디어',
-  hands_on_model:     '핸즈온 모형',
-  vr_ar_station:      'VR/AR 스테이션',
-  immersive_room:     '몰입형 룸',
-  simulator_4d:       '4D 시뮬레이터',
+const MEDIA_LABELS: Record<string, string> = {
+  artifact:           'Artifact',
+  diorama:            'Diorama',
+  documents:          'Documents',
+  graphic_sign:       'Graphic Sign',
+  media_wall:         'Media Wall',
+  video_wall:         'Video Wall',
+  projection_mapping: 'Projection',
+  single_display:     'Display',
+  kiosk:              'Kiosk',
+  touch_table:        'Touch Table',
+  interaction_media:  'Interactive',
+  hands_on_model:     'Hands-on',
+  vr_ar_station:      'VR/AR',
+  immersive_room:     'Immersive Room',
+  simulator_4d:       '4D Simulator',
 };
 
 const MEDIA_QUICK_CATEGORIES = [
-  { label: '아날로그', color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
-  { label: '패시브',   color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
-  { label: '액티브',   color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
-  { label: '몰입형',   color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
+  { label: 'Analog',    color: '#a78bfa', items: ['artifact', 'diorama', 'documents', 'graphic_sign'] },
+  { label: 'Passive',   color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
+  { label: 'Active',    color: '#f59e0b', items: ['kiosk', 'touch_table', 'interaction_media', 'hands_on_model'] },
+  { label: 'Immersive', color: '#ec4899', items: ['vr_ar_station', 'immersive_room', 'simulator_4d'] },
 ] as const;
 
 let _zoneCounter = 100;
@@ -76,7 +89,6 @@ export function BuildTools({ task }: BuildToolsProps = {}) {
   const activeFloorId = useStore((s) => s.activeFloorId);
   const phase = useStore((s) => s.phase);
   const pendingWaypointType = useStore((s) => s.pendingWaypointType);
-  const t = useT();
   const [showAnalyzer, setShowAnalyzer] = useState(false);
 
   const isSimRunning = phase === 'running'; // paused = editable
@@ -204,194 +216,125 @@ export function BuildTools({ task }: BuildToolsProps = {}) {
 
   return (
     <div className="space-y-3">
-      <h2 className="panel-section">도구</h2>
-
-      <div className="space-y-1">
-        <ModeBtn
-          active={editorMode === 'select'}
-          onClick={() => setEditorMode('select')}
-          icon={MousePointer2}
-          label="선택"
-          fullWidth
-        />
-        {showZoneTool && showMediaTool && (
-          <div className="grid grid-cols-2 gap-1">
-            <ModeBtn
-              active={editorMode === 'create-zone'}
-              onClick={() => setEditorMode('create-zone')}
-              icon={Plus}
-              label="존"
-              disabled={isSimRunning}
-            />
-            <ModeBtn
-              active={editorMode === 'place-media'}
-              onClick={() => setEditorMode('place-media')}
-              icon={Monitor}
-              label="미디어"
-              disabled={isSimRunning}
-            />
-          </div>
-        )}
-        {showZoneTool && !showMediaTool && (
-          <ModeBtn
-            active={editorMode === 'create-zone'}
-            onClick={() => setEditorMode('create-zone')}
-            icon={Plus}
-            label="존 추가"
-            disabled={isSimRunning}
-            fullWidth
-          />
-        )}
-        {showMediaTool && !showZoneTool && (
-          <ModeBtn
-            active={editorMode === 'place-media'}
-            onClick={() => setEditorMode('place-media')}
-            icon={Monitor}
-            label="미디어 배치"
-            disabled={isSimRunning}
-            fullWidth
-          />
-        )}
-        {showGraphTool && (
-          <div className="grid grid-cols-2 gap-1">
-            <ModeBtn
-              active={editorMode === 'place-waypoint'}
-              onClick={() => setEditorMode('place-waypoint')}
-              icon={Circle}
-              label="노드"
-              disabled={isSimRunning}
-            />
-            <ModeBtn
-              active={editorMode === 'connect-waypoint'}
-              onClick={() => setEditorMode('connect-waypoint')}
-              icon={GitBranch}
-              label="엣지"
-              disabled={isSimRunning}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Waypoint Node Placement */}
-      {showGraphTool && editorMode === 'place-waypoint' && !isSimRunning && (
+      {/* Zones — chips always visible */}
+      {showZoneTool && !isSimRunning && (
         <div>
-          <p className="panel-label mb-1.5">노드 추가</p>
-          <div className="grid grid-cols-2 gap-1">
-            {([
-              { type: 'entry' as WaypointType,     label: '입구',      color: '#22c55e', descKey: 'build.node.entry.desc' },
-              { type: 'exit' as WaypointType,      label: '출구',      color: '#ef4444', descKey: 'build.node.exit.desc' },
-              { type: 'zone' as WaypointType,      label: '존',        color: '#3b82f6', descKey: 'build.node.zone.desc' },
-              { type: 'attractor' as WaypointType, label: '관심 포인트', color: '#f59e0b', descKey: 'build.node.attractor.desc' },
-              { type: 'hub' as WaypointType,       label: '허브',      color: '#8b5cf6', descKey: 'build.node.hub.desc' },
-              { type: 'rest' as WaypointType,      label: '휴게',      color: '#f59e0b', descKey: 'build.node.rest.desc' },
-              { type: 'portal' as WaypointType,    label: '포털',      color: '#06b6d4', descKey: 'build.node.portal.desc' },
-            ]).map(({ type, label, color, descKey }) => {
-              const active = pendingWaypointType === type;
-              return (
-                <button
-                  key={type}
-                  onClick={() => useStore.getState().setPendingWaypointType(type)}
-                  className={`flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg transition-colors border ${
-                    active
-                      ? 'bg-primary/15 border-primary/60 text-foreground'
-                      : 'bg-secondary/60 border-transparent hover:bg-accent hover:border-border'
-                  }`}
-                  title={t(descKey)}
-                  style={active ? undefined : { boxShadow: `inset 3px 0 0 ${color}40` }}
-                >
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[9px] text-muted-foreground mt-1">{t('build.hint.placeNode')}</p>
-        </div>
-      )}
-
-      {/* Edge Connection Guide */}
-      {showGraphTool && editorMode === 'connect-waypoint' && !isSimRunning && (
-        <div className="px-3 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px]">
-          <p className="font-medium text-indigo-400 mb-1">{t('build.hint.edgeMode.title')}</p>
-          <p className="text-muted-foreground">{t('build.hint.edgeMode.body')}</p>
-        </div>
-      )}
-
-      {/* Zone Creation — 미디어 배치 영역 */}
-      {showZoneTool && editorMode === 'create-zone' && !isSimRunning && (
-        <div>
-          <p className="panel-label mb-1.5">존 추가</p>
+          <p className="panel-label mb-1.5">Add Zone</p>
           <div className="grid grid-cols-2 gap-1">
             {ZONE_TYPES.map(({ type, label, color }) => (
-              <button
+              <Chip
                 key={type}
                 onClick={() => handleCreateZone(type)}
-                className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg transition-colors border border-transparent bg-secondary/60 hover:bg-accent hover:border-border"
-                style={{
-                  backgroundImage: `linear-gradient(90deg, ${color}18 0%, transparent 60%)`,
-                }}
-              >
-                <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                {label}
-              </button>
+                color={color}
+                label={label}
+              />
             ))}
           </div>
-          <p className="text-[9px] text-muted-foreground mt-1">{t('build.hint.zoneArea')}</p>
+          <p className="text-[9px] text-muted-foreground mt-1">
+            Zone = media placement area. Use Node/Edge for flow.
+          </p>
         </div>
       )}
 
-      {/* Media Placement — categorized */}
-      {showMediaTool && editorMode === 'place-media' && selectedZoneId && !isSimRunning && (
-        <div className="space-y-2.5">
-          <p className="panel-label">선택한 존에 미디어 배치</p>
-          {MEDIA_QUICK_CATEGORIES.map(({ label, color, items }) => (
-            <div key={label}>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                <span className="panel-label">{label}</span>
+      {/* Exhibits — chips always visible (require zone selection) */}
+      {showMediaTool && !isSimRunning && (
+        selectedZoneId ? (
+          <div className="space-y-2.5">
+            <p className="panel-label">Place exhibit in selected zone</p>
+            {MEDIA_QUICK_CATEGORIES.map(({ label, color, items }) => (
+              <div key={label}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                  <span className="panel-label">{label}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  {items.map((type) => (
+                    <Chip
+                      key={type}
+                      onClick={() => handlePlaceMedia(type)}
+                      color={color}
+                      label={MEDIA_LABELS[type] ?? type.replace(/_/g, ' ')}
+                    />
+                  ))}
+                </div>
               </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[10px] text-muted-foreground">
+            Select a zone first.
+          </p>
+        )
+      )}
+
+      {/* Flow — Node / Edge mode toggle (canvas behavior depends on mode) */}
+      {showGraphTool && (
+        <>
+          <div>
+            <p className="panel-label mb-1.5">Mode</p>
+            <div className="grid grid-cols-2 gap-1">
+              <Chip
+                onClick={() => setEditorMode('place-waypoint')}
+                color="#3b82f6"
+                label="Node"
+                icon={Circle}
+                active={editorMode === 'place-waypoint'}
+                disabled={isSimRunning}
+              />
+              <Chip
+                onClick={() => setEditorMode('connect-waypoint')}
+                color="#6366f1"
+                label="Edge"
+                icon={GitBranch}
+                active={editorMode === 'connect-waypoint'}
+                disabled={isSimRunning}
+              />
+            </div>
+          </div>
+
+          {editorMode === 'place-waypoint' && !isSimRunning && (
+            <div>
+              <p className="panel-label mb-1.5">Add Node</p>
               <div className="grid grid-cols-2 gap-1">
-                {items.map((type) => (
-                  <button
+                {NODE_TYPES.map(({ type, label, color, desc }) => (
+                  <Chip
                     key={type}
-                    onClick={() => handlePlaceMedia(type)}
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg bg-secondary/60 hover:bg-accent transition-colors text-left border border-transparent hover:border-border"
-                    style={{
-                      backgroundImage: `linear-gradient(90deg, ${color}1a 0%, transparent 70%)`,
-                    }}
-                  >
-                    <span className="w-1 h-1 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                    <span className="truncate">{MEDIA_LABEL_KO[type] ?? type.replace(/_/g, ' ')}</span>
-                  </button>
+                    onClick={() => useStore.getState().setPendingWaypointType(type)}
+                    color={color}
+                    label={label}
+                    title={desc}
+                    active={pendingWaypointType === type}
+                  />
                 ))}
               </div>
+              <p className="text-[9px] text-muted-foreground mt-1">Click canvas to place node</p>
             </div>
-          ))}
-        </div>
+          )}
+
+          {editorMode === 'connect-waypoint' && !isSimRunning && (
+            <div className="px-2.5 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-[10px]">
+              <p className="font-medium text-indigo-400 mb-1">Edge connection mode</p>
+              <p className="text-muted-foreground">Click first node → click second node to connect</p>
+            </div>
+          )}
+        </>
       )}
 
-      {showMediaTool && editorMode === 'place-media' && !selectedZoneId && (
-        <p className="text-[10px] text-muted-foreground">
-          먼저 존을 선택하세요.
-        </p>
-      )}
-
-      {isSimRunning && editorMode !== 'select' && (
+      {isSimRunning && (
         <p className="text-[10px] text-[var(--status-warning)]">
-          편집은 시뮬레이션 정지 후에 가능합니다.
+          Editing is available when the simulation is stopped.
         </p>
       )}
 
-      {/* AI Auto-Setup — zones 단계에서만 표시 (도면 분석 = zone 자동 생성). */}
       {!isSimRunning && task === 'zones' && (
         <div>
-          <p className="panel-label mb-1.5">AI 자동 설정</p>
+          <p className="panel-label mb-1.5">AI Auto-Setup</p>
           <button
             onClick={() => setShowAnalyzer(true)}
             className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] rounded-xl bg-primary/15 hover:bg-primary/25 text-primary transition-colors ring-1 ring-primary/30"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            도면 분석 (AI)
+            Analyze Floor Plan
           </button>
         </div>
       )}
@@ -406,35 +349,43 @@ export function BuildTools({ task }: BuildToolsProps = {}) {
   );
 }
 
-function ModeBtn({
-  active,
+function Chip({
   onClick,
-  icon: Icon,
+  color,
   label,
+  icon: Icon,
+  active,
   disabled,
-  fullWidth,
+  title,
 }: {
-  active: boolean;
   onClick: () => void;
-  icon: React.ComponentType<{ className?: string }>;
+  color: string;
   label: string;
+  icon?: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  active?: boolean;
   disabled?: boolean;
-  fullWidth?: boolean;
+  title?: string;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${fullWidth ? 'w-full' : 'flex-1'} flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl transition-all ${
+      title={title}
+      className={`flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg transition-colors border ${
         active
-          ? 'bg-primary text-primary-foreground'
+          ? 'bg-primary/15 border-primary/60 text-foreground'
           : disabled
-            ? 'bg-secondary/50 text-muted-foreground opacity-50 cursor-not-allowed'
-            : 'bg-secondary text-secondary-foreground hover:bg-accent'
+            ? 'bg-secondary/40 border-transparent text-muted-foreground opacity-50 cursor-not-allowed'
+            : 'bg-secondary/60 border-transparent hover:bg-accent hover:border-border'
       }`}
+      style={!active && !disabled ? { backgroundImage: `linear-gradient(90deg, ${color}18 0%, transparent 60%)` } : undefined}
     >
-      <Icon className="w-3.5 h-3.5" />
-      {label}
+      {Icon ? (
+        <Icon className="w-3 h-3 flex-shrink-0" style={{ color }} />
+      ) : (
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+      )}
+      <span className="truncate">{label}</span>
     </button>
   );
 }

@@ -23,8 +23,8 @@ export function RunSummary() {
   return (
     <div className="space-y-3">
       <Section title="Mode">
-        <Row label="Type" value={mode === 'person' ? '사람 기준' : '시간 기준'} />
-        <Row label="Total" value={`${dist.totalCount}명`} />
+        <Row label="Type" value={mode === 'person' ? 'Person' : 'Time'} />
+        <Row label="Total" value={`${dist.totalCount}`} />
         <Row label="Duration" value={`${Math.round(config.duration / 60000)} min`} />
         <Row label="Spawn" value={`${(rateRps * 60).toFixed(1)}/min${isMultiSlot ? ` · ${slots.length} slots` : ''}`} />
         <Row label="Seed" value={String(config.seed ?? 0)} />

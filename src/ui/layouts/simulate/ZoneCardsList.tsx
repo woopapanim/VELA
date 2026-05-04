@@ -25,7 +25,7 @@ export function ZoneCardsList() {
         >
           Zones
         </h3>
-        <p className="text-[11px] text-muted-foreground">시작 후 zone 별 점유/대기 표시.</p>
+        <p className="text-[11px] text-muted-foreground">Per-zone occupancy and queue appear after start.</p>
       </section>
     );
   }
@@ -42,7 +42,7 @@ export function ZoneCardsList() {
         >
           Zones
         </h3>
-        <span className="text-[10px] text-muted-foreground font-data" aria-label={`${sorted.length}개 zone`}>
+        <span className="text-[10px] text-muted-foreground font-data" aria-label={`${sorted.length} zones`}>
           {sorted.length}
         </span>
       </div>
@@ -62,10 +62,10 @@ function ZoneRow({ s }: { s: ZoneSummary }) {
 
   const ariaLabel = [
     `${s.name}`,
-    `점유 ${ratioPct}% (${s.currentOccupancy}/${s.capacity})`,
-    isBn ? `병목 score ${Math.round(s.bottleneckScore * 100)}` : null,
-    dwellSec > 0 ? `평균 체류 ${dwellSec}초` : null,
-    s.watchingCount > 0 ? `관람중 ${s.watchingCount}명` : null,
+    `Occupancy ${ratioPct}% (${s.currentOccupancy}/${s.capacity})`,
+    isBn ? `Bottleneck score ${Math.round(s.bottleneckScore * 100)}` : null,
+    dwellSec > 0 ? `Avg dwell ${dwellSec}s` : null,
+    s.watchingCount > 0 ? `Watching ${s.watchingCount}` : null,
   ].filter(Boolean).join(', ');
 
   return (
@@ -82,7 +82,7 @@ function ZoneRow({ s }: { s: ZoneSummary }) {
         {isBn && (
           <AlertTriangle
             className="w-3.5 h-3.5 text-[var(--status-warning)] flex-shrink-0"
-            aria-label="병목 발생"
+            aria-label="Bottleneck"
           />
         )}
         <span
@@ -99,7 +99,7 @@ function ZoneRow({ s }: { s: ZoneSummary }) {
         aria-valuenow={ratioPct}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label={`${s.name} 점유율`}
+        aria-label={`${s.name} occupancy`}
       >
         <div
           className={`h-full transition-[width] duration-300 ${
@@ -116,7 +116,7 @@ function ZoneRow({ s }: { s: ZoneSummary }) {
         <span className="font-semibold">{ratioPct}%</span>
         <div className="flex items-center gap-2">
           {dwellSec > 0 && <span>{dwellSec}s avg</span>}
-          {s.watchingCount > 0 && <span>{s.watchingCount} 관람</span>}
+          {s.watchingCount > 0 && <span>{s.watchingCount} watching</span>}
         </div>
       </div>
     </li>

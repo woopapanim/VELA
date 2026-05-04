@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState as __useState } from 'react';
-import { Trash2, X, Plus, Star } from 'lucide-react';
+import {
+  Trash2, X, Plus, Star,
+  Archive, FileText, Box, Image as ImageIcon, Tv2, Monitor, Sparkles,
+  Tablet, Hand, Wrench, Eye, Maximize2, Gamepad2,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft } from '@/domain';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
@@ -691,6 +696,42 @@ export function PropertyPopover({ popover, onClose }: {
 }
 
 // ── Media categories for quick-add ──
+const MEDIA_LABELS: Record<string, string> = {
+  artifact:           'Artifact',
+  diorama:            'Diorama',
+  documents:          'Documents',
+  graphic_sign:       'Graphic Sign',
+  media_wall:         'Media Wall',
+  video_wall:         'Video Wall',
+  projection_mapping: 'Projection',
+  single_display:     'Display',
+  kiosk:              'Kiosk',
+  touch_table:        'Touch Table',
+  interaction_media:  'Interactive',
+  hands_on_model:     'Hands-on',
+  vr_ar_station:      'VR / AR',
+  immersive_room:     'Immersive',
+  simulator_4d:       '4D Sim',
+};
+
+const MEDIA_ICONS: Record<string, LucideIcon> = {
+  artifact:           Archive,
+  diorama:            Box,
+  documents:          FileText,
+  graphic_sign:       ImageIcon,
+  media_wall:         Tv2,
+  video_wall:         Monitor,
+  projection_mapping: Sparkles,
+  single_display:     Monitor,
+  kiosk:              Tablet,
+  touch_table:        Hand,
+  interaction_media:  Hand,
+  hands_on_model:     Wrench,
+  vr_ar_station:      Eye,
+  immersive_room:     Maximize2,
+  simulator_4d:       Gamepad2,
+};
+
 const MEDIA_CATEGORIES = [
   { key: 'analog', label: 'Analog', color: '#a78bfa', items: ['artifact', 'documents', 'diorama', 'graphic_sign'] },
   { key: 'passive_media', label: 'Passive', color: '#3b82f6', items: ['media_wall', 'video_wall', 'projection_mapping', 'single_display'] },
@@ -809,7 +850,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
         className="flex items-center gap-1 w-full px-2 py-1.5 text-[10px] rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
       >
         <Plus size={10} />
-        Add Media
+        Add Exhibit
         <span className="text-[8px] text-muted-foreground ml-auto">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -823,17 +864,23 @@ function AddMediaInline({ zoneId, zoneBounds }: {
                 <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: color }} />
                 <span className="panel-label">{label}</span>
               </div>
-              <div className="grid grid-cols-2 gap-0.5">
-                {items.map(type => (
-                  <button
-                    key={type}
-                    onClick={() => handleAdd(type)}
-                    className="px-1.5 py-1 text-[9px] rounded bg-secondary hover:bg-accent text-left truncate transition-colors"
-                    style={{ borderLeft: `2px solid ${color}` }}
-                  >
-                    {type.replace(/_/g, ' ')}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-1">
+                {items.map(type => {
+                  const Icon = MEDIA_ICONS[type];
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => handleAdd(type)}
+                      className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] rounded-lg border border-transparent bg-secondary/60 hover:bg-accent hover:border-border text-left transition-colors"
+                      style={{ backgroundImage: `linear-gradient(90deg, ${color}18 0%, transparent 60%)` }}
+                    >
+                      {Icon
+                        ? <Icon className="w-3 h-3 flex-shrink-0" style={{ color }} />
+                        : <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />}
+                      <span className="truncate">{MEDIA_LABELS[type] ?? type.replace(/_/g, ' ')}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}

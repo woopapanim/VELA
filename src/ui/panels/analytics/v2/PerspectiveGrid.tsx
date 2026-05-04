@@ -1,17 +1,16 @@
+import { useMemo } from 'react';
 import { CheckCircle2, AlertTriangle, AlertOctagon, Info, Layout, Image, Users, AlertTriangle as Friction } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { KpiSnapshot, ZoneConfig, MediaPlacement } from '@/domain';
+import type { KpiSnapshot, KpiTimeSeriesEntry, ZoneConfig, MediaPlacement } from '@/domain';
 import {
   aggregateVerdict,
   type VerdictLevel,
   type NormStatus,
 } from '@/analytics/norms';
 import {
-  SpaceCard, ArtworkCard, OperationsCard, RiskCard,
-  computeSpaceMetrics, computeArtworkMetrics, computeOperationsMetrics, computeRiskMetrics,
+  buildAllCardData, PerspectiveSlot,
+  type CardData, type PerspectiveKey,
 } from './cards';
-
-type PerspectiveKey = 'space' | 'artwork' | 'operations' | 'risk';
 
 export interface EntryStatsInput {
   readonly totalArrived: number;
@@ -23,6 +22,7 @@ export interface EntryStatsInput {
 
 interface Props {
   snapshot: KpiSnapshot | null;
+  kpiHistory?: readonly KpiTimeSeriesEntry[];
   zones: readonly ZoneConfig[];
   media: readonly MediaPlacement[];
   totalSpawned: number;
@@ -86,21 +86,26 @@ const PERSPECTIVE_META: Record<PerspectiveKey, { label: string; Icon: LucideIcon
 };
 
 export function PerspectiveGrid(props: Props) {
-  const cardProps = {
+  // 4 관점 모두 한 번에 compute. 이전엔 statusByKey 산출 + Card 내부에서 각각 또 compute 해 8회 호출됐음 (2026-05-04).
+  const cardData = useMemo(() => buildAllCardData({
     snapshot: props.snapshot,
+    kpiHistory: props.kpiHistory,
     zones: props.zones,
     media: props.media,
     totalSpawned: props.totalSpawned,
     totalExited: props.totalExited,
     fatigueMean: props.fatigueMean,
     entryStats: props.entryStats,
-  };
+  }), [
+    props.snapshot, props.kpiHistory, props.zones, props.media,
+    props.totalSpawned, props.totalExited, props.fatigueMean, props.entryStats,
+  ]);
 
   const statusByKey: Record<PerspectiveKey, NormStatus> = {
-    space:      computeSpaceMetrics(cardProps).status,
-    artwork:    computeArtworkMetrics(cardProps).status,
-    operations: computeOperationsMetrics(cardProps).status,
-    risk:       computeRiskMetrics(cardProps).status,
+    space:      cardData.space.status,
+    artwork:    cardData.artwork.status,
+    operations: cardData.operations.status,
+    risk:       cardData.risk.status,
   };
 
   const allStatuses = Object.values(statusByKey);
@@ -108,13 +113,11 @@ export function PerspectiveGrid(props: Props) {
   const V = VERDICT[verdict];
   const VIcon = V.Icon;
 
-  // Auto layout: 데이터 있고 worst=bad/warn 일 때 비대칭 (worst 가 primary)
+  // 항상 비대칭 (hero+sub) — 단조한 4-equal grid 폐기 (2026-04-30).
+  // hero = 가장 주의 필요한 관점 (worst), 나머지는 우측 stack.
   const order: PerspectiveKey[] = ['space', 'artwork', 'operations', 'risk'];
   const worstKey = pickWorstKey(statusByKey, props.primaryPerspective);
-  const layout = props.layout ?? 'auto';
-  const useConcrete =
-    layout === 'concrete' ||
-    (layout === 'auto' && (verdict === 'risk' || verdict === 'review'));
+  const riskCount = order.filter((k) => statusByKey[k] === 'bad' || statusByKey[k] === 'warn').length;
 
   return (
     <div className="flex flex-col gap-3">
@@ -127,6 +130,11 @@ export function PerspectiveGrid(props: Props) {
           <h2 className={`text-[13px] font-semibold tracking-tight ${V.text} truncate`}>
             {V.headline}
           </h2>
+          {verdict !== 'empty' && verdict !== 'ok' && (
+            <span className="text-[10px] font-data tabular-nums text-muted-foreground flex-shrink-0">
+              {riskCount}/4 관점 주의
+            </span>
+          )}
           {props.purposeLabel && (
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
               · {props.purposeLabel}
@@ -149,17 +157,8 @@ export function PerspectiveGrid(props: Props) {
         </div>
       </section>
 
-      {/* 4 관점 카드 */}
-      {useConcrete ? (
-        <ConcreteLayout cardProps={cardProps} primary={worstKey} />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <SpaceCard {...cardProps} />
-          <ArtworkCard {...cardProps} />
-          <OperationsCard {...cardProps} />
-          <RiskCard {...cardProps} />
-        </div>
-      )}
+      {/* 4 관점 카드 — 항상 hero+sub 비대칭 */}
+      <ConcreteLayout cardData={cardData} primary={worstKey} />
     </div>
   );
 }
@@ -175,30 +174,25 @@ function pickWorstKey(
 }
 
 function ConcreteLayout({
-  cardProps, primary,
+  cardData, primary,
 }: {
-  cardProps: Parameters<typeof SpaceCard>[0];
+  cardData: Record<PerspectiveKey, CardData>;
   primary: PerspectiveKey;
 }) {
-  const cardMap: Record<PerspectiveKey, typeof SpaceCard> = {
-    space: SpaceCard,
-    artwork: ArtworkCard,
-    operations: OperationsCard,
-    risk: RiskCard,
-  };
   const order: PerspectiveKey[] = ['space', 'artwork', 'operations', 'risk'];
   const others = order.filter((k) => k !== primary);
-  const Primary = cardMap[primary];
 
-  // Primary 를 위쪽 wide, 나머지 3 을 아래 가로 분할 — 좁은 칼럼 truncation 방지 + 시각 위계 유지.
+  // Primary 좌측 2/3 + 나머지 3 개 우측 1/3 stack. grid 의 row-span 강제 stretching
+  // 이 빈 공간 만드는 이슈가 있어 flex 2-col 로 — 두 칼럼 각자의 내용 높이로 자연 정렬 (2026-04-30).
   return (
-    <div className="flex flex-col gap-3">
-      <Primary {...cardProps} size="large" />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {others.map((k) => {
-          const Card = cardMap[k];
-          return <Card key={k} {...cardProps} />;
-        })}
+    <div className="flex flex-col md:flex-row gap-3">
+      <div className="md:flex-[2] min-w-0">
+        <PerspectiveSlot perspectiveKey={primary} data={cardData[primary]} size="large" />
+      </div>
+      <div className="md:flex-1 min-w-0 flex flex-col gap-3">
+        {others.map((k) => (
+          <PerspectiveSlot key={k} perspectiveKey={k} data={cardData[k]} size="compact" />
+        ))}
       </div>
     </div>
   );
