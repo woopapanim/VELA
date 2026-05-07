@@ -1,4 +1,5 @@
 import type { DensityGrid, Visitor } from '@/domain';
+import { ramp, softMax } from '@/analytics/spatial/synthesizeDensity';
 
 /**
  * Floor-wide density heatmap.
@@ -99,69 +100,6 @@ export class HeatmapRenderer {
   }
 }
 
-function softMax(data: Float32Array): number {
-  // Use the 95th-percentile nonzero cell as the "hot" reference. O(n) + O(k log k) with a tiny bucket sort.
-  let max = 0;
-  let nonzero = 0;
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i];
-    if (v > 0) {
-      nonzero++;
-      if (v > max) max = v;
-    }
-  }
-  if (nonzero === 0 || max === 0) return 0;
-
-  // For small grids just return max (percentile collapses to max anyway).
-  if (nonzero < 32) return max;
-
-  // Histogram-based 95th percentile — 64 buckets is plenty for heatmap colors.
-  const B = 64;
-  const hist = new Uint32Array(B);
-  for (let i = 0; i < data.length; i++) {
-    const v = data[i];
-    if (v <= 0) continue;
-    const b = Math.min(B - 1, Math.floor((v / max) * B));
-    hist[b]++;
-  }
-  const target = Math.floor(nonzero * 0.80);
-  let acc = 0;
-  for (let b = 0; b < B; b++) {
-    acc += hist[b];
-    if (acc >= target) {
-      return ((b + 1) / B) * max;
-    }
-  }
-  return max;
-}
-
-/**
- * Classic dwell-heat ramp: transparent → cool blue → teal → green → yellow → red.
- * Alpha ramps up with intensity so cold cells stay readable over the floor plan.
- */
-function ramp(t: number): [number, number, number, number] {
-  const stops: Array<[number, number, number, number]> = [
-    [0.00, 40, 80, 200],   // deep blue
-    [0.25, 40, 180, 220],  // cyan
-    [0.50, 80, 220, 120],  // green
-    [0.75, 250, 210, 60],  // yellow
-    [1.00, 230, 60, 60],   // red
-  ];
-  let lo = stops[0];
-  let hi = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (t >= stops[i][0] && t <= stops[i + 1][0]) {
-      lo = stops[i];
-      hi = stops[i + 1];
-      break;
-    }
-  }
-  const span = hi[0] - lo[0];
-  const k = span > 0 ? (t - lo[0]) / span : 0;
-  const r = Math.round(lo[1] + (hi[1] - lo[1]) * k);
-  const g = Math.round(lo[2] + (hi[2] - lo[2]) * k);
-  const b = Math.round(lo[3] + (hi[3] - lo[3]) * k);
-  // Alpha: ease up from 140 to 240 across intensity so cold zones are visible but not dominant.
-  const a = Math.round(140 + 100 * t);
-  return [r, g, b, a];
-}
+// `softMax` (80th-percentile soft max) and `ramp` (cool→hot color gradient) are
+// imported from `@/analytics/spatial/synthesizeDensity` so the live heatmap and
+// the synthesized (replay) heatmap share a single source of truth.

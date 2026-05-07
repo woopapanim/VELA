@@ -10,7 +10,7 @@ import type { DensityGrid, KpiSnapshot, WaypointGraph, ZoneConfig } from '@/doma
  * Cool blue → cyan → green → yellow → red 의 클래식 dwell-heat ramp.
  * `t` = 0~1 정규화 강도. 반환은 RGBA 0-255.
  *
- * `HeatmapRenderer.ramp` 와 동일 — 두 곳에서 공유해 일관된 색감 유지.
+ * 단일 출처(SSoT) — live heatmap (`HeatmapRenderer`) 과 합성 heatmap 양쪽이 이 함수를 import.
  */
 export function ramp(t: number): [number, number, number, number] {
   const stops: Array<[number, number, number, number]> = [
