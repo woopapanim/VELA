@@ -74,12 +74,16 @@ interface RegressionBundle {
   /** Early exit bucket distribution — for 조기이탈 45% issue. */
   earlyExit: {
     total: number;
+    /** Sim-wide canExit trigger distribution (post-hoc inference). */
+    triggerCounts: Record<string, number>;
     buckets: Array<{
       label: string;
       count: number;
       pct: number;
       avgFatigue: number;
       avgMediaVisited: number;
+      /** Per-bucket trigger distribution. */
+      triggerDist: Record<string, number>;
     }>;
   };
   /** Current visitor action distribution at capture time. */
@@ -226,12 +230,14 @@ function buildBundle(label: string): RegressionBundle {
     },
     earlyExit: {
       total: earlyExitRaw.total ?? 0,
+      triggerCounts: { ...(earlyExitRaw.triggerCounts ?? {}) },
       buckets: (earlyExitRaw.buckets ?? []).map((b: any) => ({
         label: String(b.label),
         count: b.count,
         pct: b.pct,
         avgFatigue: b.avgFatigue,
         avgMediaVisited: b.avgMediaVisited,
+        triggerDist: { ...(b.triggerDist ?? {}) },
       })),
     },
     actionCounts,
@@ -311,8 +317,9 @@ function diffBundles(a: RegressionBundle, b: RegressionBundle, opts: DiffOptions
   compareNumber('congestion.total', a.congestion.total, b.congestion.total, merged, out);
   compareRecord('congestion.byIntType', a.congestion.byIntType, b.congestion.byIntType, merged, out);
 
-  // Early exit totals
+  // Early exit totals + per-trigger distribution
   compareNumber('earlyExit.total', a.earlyExit.total, b.earlyExit.total, merged, out);
+  compareRecord('earlyExit.triggerCounts', a.earlyExit.triggerCounts, b.earlyExit.triggerCounts, merged, out);
 
   // Per-zone utilization (compare by zoneId)
   const zoneA = new Map(a.zoneUtilizations.map((z) => [z.zoneId, z]));

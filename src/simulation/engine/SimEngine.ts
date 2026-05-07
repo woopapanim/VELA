@@ -48,7 +48,12 @@ import { separation, wander, obstacleAvoidance, followLeader, groupCohesion } fr
 import { getZonePolygon, getZoneWalls } from './transit';
 import { combineSteeringPriority, type WeightedSteering } from '../steering/combiner';
 import { ZoneGraph } from '../pathfinding/navigation';
-import { WaypointNavigator } from '../pathfinding/waypointGraph';
+import {
+  WaypointNavigator,
+  EXIT_VISIT_RATIO,
+  EXIT_FATIGUE_THRESHOLD,
+  MAX_TOTAL_DWELL_MS,
+} from '../pathfinding/waypointGraph';
 import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration, filterMustVisitCandidates } from '../behavior/EngagementBehavior';
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
 import { generateSpawnBatch, getActiveTimeSlot, resetSpawnerIds } from '../spawner/VisitorSpawner';
@@ -182,6 +187,8 @@ export class SimulationEngine {
 
   // ---- Diagnostics: per-exit context (조기이탈 원인 분석) ----
   // 에이전트가 isActive=false 가 될 때마다 1 entry 추가. diagnoseEarlyExit() 로 덤프.
+  // inferredTrigger: post-hoc 추론으로 selectNextNode 의 어떤 canExit 조건이 발화했는지 식별.
+  // 정확하지 않을 수 있는 케이스(stuck-at-node 등)는 'unknown' 처리.
   private _exitLog: Array<{
     visitorId: string;
     zonesVisited: number;
@@ -192,6 +199,8 @@ export class SimulationEngine {
     exitNodeId: string | null;
     exitedAtMs: number;
     exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
+    inferredTrigger: 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
+      | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended' | 'unknown';
   }> = [];
 
   // group caches (rebuilt each tick)
@@ -427,6 +436,8 @@ export class SimulationEngine {
    */
   diagnoseEarlyExit(): {
     total: number;
+    /** 시뮬 전체에서 각 inferredTrigger 가 발화한 횟수. 조기이탈 dominant cause 판정용. */
+    triggerCounts: Record<string, number>;
     buckets: Array<{
       label: string;
       range: [number, number];
@@ -435,6 +446,8 @@ export class SimulationEngine {
       avgFatigue: number;
       avgMediaVisited: number;
       avgDwellMin: number;
+      /** 이 버킷 내부에서 inferredTrigger 분포 — 어떤 조건이 이 zonesVisited 구간을 만들었나. */
+      triggerDist: Record<string, number>;
       lastZoneDist: Array<{ zoneId: string; zoneName: string; count: number }>;
       exitNodeDist: Array<{ nodeId: string; count: number }>;
     }>;
@@ -442,6 +455,13 @@ export class SimulationEngine {
   } {
     const log = this._exitLog;
     const total = log.length;
+
+    // 시뮬 전체 트리거 분포
+    const triggerCounts: Record<string, number> = {};
+    for (const e of log) {
+      triggerCounts[e.inferredTrigger] = (triggerCounts[e.inferredTrigger] ?? 0) + 1;
+    }
+
     const defs: Array<{ label: string; range: [number, number] }> = [
       { label: '0 zones (즉시 이탈)', range: [0, 0] },
       { label: '1-2 zones (조기 이탈)', range: [1, 2] },
@@ -455,10 +475,12 @@ export class SimulationEngine {
         count > 0 ? entries.reduce((s, e) => s + sel(e), 0) / count : 0;
       const zoneCounts = new Map<string, number>();
       const nodeCounts = new Map<string, number>();
+      const triggerDist: Record<string, number> = {};
       for (const e of entries) {
         const zKey = e.lastZoneId ?? '(none)';
         zoneCounts.set(zKey, (zoneCounts.get(zKey) ?? 0) + 1);
         if (e.exitNodeId) nodeCounts.set(e.exitNodeId, (nodeCounts.get(e.exitNodeId) ?? 0) + 1);
+        triggerDist[e.inferredTrigger] = (triggerDist[e.inferredTrigger] ?? 0) + 1;
       }
       return {
         label, range, count,
@@ -466,6 +488,7 @@ export class SimulationEngine {
         avgFatigue: Math.round(avg(e => e.fatigue) * 100) / 100,
         avgMediaVisited: Math.round(avg(e => e.mediaVisited) * 10) / 10,
         avgDwellMin: Math.round(avg(e => e.totalDwellMs) / 6000) / 10,
+        triggerDist,
         lastZoneDist: Array.from(zoneCounts.entries())
           .map(([zoneId, count]) => ({
             zoneId,
@@ -478,7 +501,7 @@ export class SimulationEngine {
           .sort((a, b) => b.count - a.count),
       };
     });
-    return { total, buckets };
+    return { total, triggerCounts, buckets };
   }
 
   /**
@@ -2993,17 +3016,48 @@ export class SimulationEngine {
     nowMs: number,
     exitReason: 'normal' | 'physics-stuck' | 'sim-ended' = 'normal',
   ) {
+    const totalDwellMs = Math.max(0, nowMs - v.enteredAt);
     this._exitLog.push({
       visitorId: v.id as string,
       zonesVisited: v.visitedZoneIds.length,
       mediaVisited: v.visitedMediaIds.length,
       fatigue: v.fatigue,
-      totalDwellMs: Math.max(0, nowMs - v.enteredAt),
+      totalDwellMs,
       lastZoneId: (v.currentZoneId as string | null) ?? null,
       exitNodeId,
       exitedAtMs: nowMs,
       exitReason,
+      inferredTrigger: this.inferExitTrigger(v, totalDwellMs, exitReason),
     });
+  }
+
+  /**
+   * Post-hoc 추론 — exit 시점 visitor 상태로 selectNextNode 의 canExit 조건 중
+   * 무엇이 dominant 였을지 추정.
+   *
+   * 한계: stuck-at-node (60s 단일 노드 체류) 는 노드별 timing 이 없어서 'unknown' 처리.
+   * 우선순위는 selectNextNode 의 분기 순서와 동일 — 먼저 발화 가능한 조건 우선.
+   */
+  private inferExitTrigger(
+    v: Visitor,
+    totalDwellMs: number,
+    exitReason: 'normal' | 'physics-stuck' | 'sim-ended',
+  ): 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
+   | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended' | 'unknown' {
+    if (exitReason === 'physics-stuck') return 'physics-stuck';
+    if (exitReason === 'sim-ended') return 'sim-ended';
+
+    if (totalDwellMs >= MAX_TOTAL_DWELL_MS) return 'maxDwell';
+    if (v.visitBudgetMs > 0 && totalDwellMs >= v.visitBudgetMs) return 'budgetExceeded';
+
+    const essentialCount = this.waypointNav?.getEssentialCount() ?? 0;
+    if (essentialCount > 0) {
+      const visited = v.visitedZoneIds.length;
+      if (visited >= essentialCount) return 'allEssentialDone';
+      if (visited / essentialCount >= EXIT_VISIT_RATIO) return 'visitRatio';
+    }
+    if (v.fatigue >= EXIT_FATIGUE_THRESHOLD) return 'fatigueThreshold';
+    return 'unknown'; // stuck-at-node 또는 체크 누락 케이스
   }
 
   /** Graph mode: visitor arrived at target node */

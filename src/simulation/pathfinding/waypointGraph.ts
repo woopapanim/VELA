@@ -22,13 +22,14 @@ const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
 // EXIT 노드 진입 조건 — 피로 3시간 스케일 + 60~90분 평균 관람 기준으로 맞춤
-const EXIT_VISIT_RATIO = 0.65;   // 필수 노드 65% 방문 후 EXIT 허용 (이전 0.9 — 3시간 피로 모델과 맞지 않음)
-const EXIT_FATIGUE_THRESHOLD = 0.45; // 피로 45% 이상 (약 60~90분 관람 시 도달)
+// exported: SimEngine 의 post-hoc 트리거 추론(`inferExitTrigger`) 에서 사용. 변경 시 동기 유지.
+export const EXIT_VISIT_RATIO = 0.65;   // 필수 노드 65% 방문 후 EXIT 허용 (이전 0.9 — 3시간 피로 모델과 맞지 않음)
+export const EXIT_FATIGUE_THRESHOLD = 0.45; // 피로 45% 이상 (약 60~90분 관람 시 도달)
 
 // Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성
-const STUCK_AT_NODE_MS = 60_000;             // 동일 노드에 60초 이상 체류 = 실제 끼임
-const MAX_TOTAL_DWELL_MS = 3 * 60 * 60_000;  // 전체 체류 3시간 초과 (피로 스케일과 맞춤,
-                                             // 이전 15분은 관람 타임아웃이 아닌 진짜 stuck escape용)
+export const STUCK_AT_NODE_MS = 60_000;             // 동일 노드에 60초 이상 체류 = 실제 끼임
+export const MAX_TOTAL_DWELL_MS = 3 * 60 * 60_000;  // 전체 체류 3시간 초과 (피로 스케일과 맞춤,
+                                                    // 이전 15분은 관람 타임아웃이 아닌 진짜 stuck escape용)
 
 export class WaypointNavigator {
   private adjacency = new Map<string, { node: WaypointNode; edge: WaypointEdge }[]>();
@@ -564,6 +565,11 @@ export class WaypointNavigator {
       }
     }
     return null;
+  }
+
+  /** 그래프 빌드 시 산출된 필수 노드 수 (zone + attractor + shaft). 진단용. */
+  getEssentialCount(): number {
+    return this.essentialCount;
   }
 
   private countVisitedEssential(pathLog: readonly PathLogEntry[]): number {

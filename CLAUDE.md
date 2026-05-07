@@ -69,6 +69,7 @@ domain ← simulation ← stores → analytics
 
 ### 진단 도구
 - `window.__simEngine.diagnoseCongestion()` — 라이브 CONGESTED + 누적 timeout 집계.
+- `window.__simEngine.diagnoseEarlyExit()` — 조기이탈 버킷 분포 + **`triggerCounts`** (시뮬 전체 inferredTrigger 분포) + 버킷별 `triggerDist`. 어떤 canExit 조건(`budgetExceeded` / `allEssentialDone` / `visitRatio` / `fatigueThreshold` / `maxDwell` / `physics-stuck` / `unknown`)이 dominant 인지 식별.
 
 ## 구현 상태
 | 기능 | 상태 |
