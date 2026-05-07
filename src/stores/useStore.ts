@@ -7,6 +7,7 @@ import { createEditorSlice, type EditorSlice } from './slices/editorSlice';
 import { createReplaySlice, type ReplaySlice } from './slices/replaySlice';
 import { createUndoSlice, type UndoSlice } from './slices/undoSlice';
 import { createPinpointSlice, type PinpointSlice } from './slices/pinpointSlice';
+import { attachToWindow as attachRegressionHarness } from '@/simulation/regression/harness';
 
 export type StoreState = WorldSlice & SimSlice & UiSlice & AnalyticsSlice & EditorSlice & ReplaySlice & UndoSlice & PinpointSlice;
 
@@ -20,5 +21,8 @@ export const useStore = create<StoreState>()((...a) => ({
   ...createUndoSlice(...a),
   ...createPinpointSlice(...a),
 }));
-if (typeof window !== 'undefined') (window as any).__store = useStore;
+if (typeof window !== 'undefined') {
+  (window as any).__store = useStore;
+  attachRegressionHarness();
+}
 

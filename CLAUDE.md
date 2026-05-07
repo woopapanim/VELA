@@ -95,5 +95,29 @@ domain ← simulation ← stores → analytics
 ## 작업 규칙
 - 기능 하나 완성 → 시뮬레이션 테스트 → 커밋. 한 세션에 한 기능.
 - `window.__store`로 브라우저 콘솔에서 store 접근 가능
-- 시뮬레이션 데이터 정합성: `totalSpawned = active + totalExited` 항상 검증
+- 시뮬레이션 데이터 정합성:
+  - **unlimited 정책**: `totalSpawned = active + totalExited`
+  - **policyActive 정책**: `totalSpawned + totalAbandoned = active + totalExited + queueSize`
 - Zone 배열 순서: [0]=spawn, [last]=exit, 중간=exhibition/rest/stage
+
+## 회귀 검증 (엔진 수정 시 필수)
+엔진 동작에 영향을 주는 변경 전후 동일 시나리오/시드를 돌려 KPI를 비교한다. 결정성은 `createSeededRandom` (Mulberry32) 으로 보장.
+
+```js
+// 1) 변경 전 — 시나리오 시드/duration 고정 후 시뮬 완료까지 실행
+__regression.capture('before-fix')
+
+// 2) 엔진 수정 후 — 같은 시드 다시 실행
+__regression.capture('after-fix')
+
+// 3) 차이 확인
+__regression.diff('before-fix', 'after-fix')
+
+// 보조
+__regression.list()                // 저장된 라벨
+__regression.load('before-fix')    // bundle 객체
+__regression.exportJSON('label')   // 백업용 JSON
+__regression.clear()               // 전체 삭제
+```
+
+`scenarioFingerprint` (seed/duration/timeScale/totalVisitors/zoneCount/mediaCount) 가 다르면 비교가 무효 — diff 출력 상단에 경고로 표시된다. KPI 항목별 임계값은 `harness.ts:DEFAULT_DIFF` 참조.
