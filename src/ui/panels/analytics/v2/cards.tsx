@@ -380,7 +380,8 @@ export function computeRiskMetrics(props: CardProps): {
     };
   }
 
-  // 병목 score 최대값 + 임계 초과 zone 수.
+  // 병목 score 최대값 + 심각 병목 zone 수 (warnAt 이상 = '흐름 단절급').
+  // warn 레벨(goodAt~warnAt)은 '최고 병목 score' 메트릭과 reading 의 topStatus 분기에서 별도로 표현된다.
   let topScore = 0;
   let topZoneId = '';
   let bottleneckCount = 0;
@@ -389,7 +390,7 @@ export function computeRiskMetrics(props: CardProps): {
       topScore = b.score;
       topZoneId = b.zoneId as string;
     }
-    if (b.score >= NORMS.bottleneck_score.goodAt) bottleneckCount++;
+    if (b.score >= NORMS.bottleneck_score.warnAt) bottleneckCount++;
   }
   const topStatus = evaluateNorm(NORMS.bottleneck_score, topScore);
 
@@ -458,7 +459,7 @@ export function computeRiskMetrics(props: CardProps): {
 
   const status = aggregateStatuses(metrics);
   const reading = readRiskReading({
-    topStatus, bottleneckCount, topZoneId, zones,
+    topStatus, topZoneId, zones,
     rejectionStatus, waitStatus,
     rejectionRate: hasEntryData ? entryStats!.rejectionRate : null,
     congestionStatus,
@@ -472,7 +473,6 @@ export function computeRiskMetrics(props: CardProps): {
 
 function readRiskReading(opts: {
   topStatus: NormStatus;
-  bottleneckCount: number;
   topZoneId: string;
   zones: readonly ZoneConfig[];
   rejectionStatus: NormStatus;
@@ -508,9 +508,8 @@ function readRiskReading(opts: {
   if (opts.waitStatus === 'warn') {
     return '외부 대기 시간이 권장보다 긺 — 처리 속도가 도착 속도에 거의 못 미침. 입장 흐름 점검 가치.';
   }
-  if (opts.bottleneckCount > 0) {
-    return `경미한 병목 ${opts.bottleneckCount}곳 발견. 임계 수준은 아니므로 즉시 조치보다는 시간 추세로 추적.`;
-  }
+  // bottleneckCount 는 warnAt(0.8) 이상만 세므로 이 지점에서는 항상 0.
+  // (>0 이면 상위의 topStatus === 'bad' 분기에서 먼저 처리되어 여기까지 오지 않음)
   return '병목·정체·입장 신호 모두 안정. 현재 시나리오에서 흐름 차단 요소 없음.';
 }
 

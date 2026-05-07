@@ -80,9 +80,21 @@ export function HeatRanking() {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row) => (
-            <tr key={row.id} className="hover:bg-secondary/30 cursor-pointer"
-              onClick={() => useStore.getState().selectZone(row.id)}>
+          {sorted.map((row) => {
+            const select = () => useStore.getState().selectZone(row.id);
+            return (
+            <tr key={row.id}
+              className="hover:bg-secondary/30 cursor-pointer focus:outline-none focus:bg-secondary/40 focus:ring-1 focus:ring-primary/40"
+              role="button"
+              tabIndex={0}
+              aria-label={`${row.name} 선택 — 사용률 ${Math.round(row.utilization * 100)}%, 점유 ${row.occupancy}/${row.capacity}`}
+              onClick={select}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  select();
+                }
+              }}>
               <td className="py-0.5">
                 <div className="flex items-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: row.color }} />
@@ -97,7 +109,8 @@ export function HeatRanking() {
                 {row.density < 100 ? row.density.toFixed(1) : '—'}
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>
