@@ -3668,10 +3668,20 @@ export class SimulationEngine {
       // cut through unrelated zones). Now push out of any zone on this floor
       // that is NOT the source or destination zone, so corridors stay valid
       // but walls of unrelated zones block passage.
+      //
+      // 2026-05-09 (Phase 4 #2): hub/bend 노드는 node.zoneId 가 비어있을 수 있다.
+      // 이 경우 srcZoneId/dstZoneId 가 null 이 되어 에이전트의 물리적 zone 이
+      // 제외 목록에 들어가지 못하고 pushOutsidePolygon 이 진동을 유발한다 (60s
+      // MOVING_TIMEOUT). 노드 zoneId 가 비면 노드 위치로 zoneIdAtPoint fallback —
+      // 코리도(어떤 zone 에도 속하지 않는) hub 는 여전히 null 반환이라 기존 동작 유지,
+      // zone 내부의 hub 만 새로 인식된다.
+      const floorId = v.currentFloorId as string;
       const srcNode = v.currentNodeId ? this.waypointNav?.getNode(v.currentNodeId) : null;
       const dstNode = v.targetNodeId ? this.waypointNav?.getNode(v.targetNodeId) : null;
-      const srcZoneId = (srcNode?.zoneId as string | null) ?? null;
-      const dstZoneId = (dstNode?.zoneId as string | null) ?? null;
+      const srcZoneId = (srcNode?.zoneId as string | null)
+        ?? (srcNode ? this.zoneIdAtPoint(srcNode.position, floorId) : null);
+      const dstZoneId = (dstNode?.zoneId as string | null)
+        ?? (dstNode ? this.zoneIdAtPoint(dstNode.position, floorId) : null);
       for (const zone of this.world.zones) {
         if (zone.floorId !== v.currentFloorId) continue;
         const zid = zone.id as string;
