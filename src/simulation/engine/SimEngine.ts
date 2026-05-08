@@ -2346,7 +2346,7 @@ export class SimulationEngine {
     return null;
   }
 
-  /** getAnalogSlotPosition 의 cap 파라미터화 버전 (softCap 기반 분산).
+  /** Cap-parameterized analog slot (softCap 기반 분산).
    *  marginPx 기본값 = 8 (에이전트 반경 고려 — 미디어 hitbox 와 겹치지 않게).
    *  과밀 시 pickAnalogSlot 이 marginPx=24 로 큐 링을 만들어 분리한다.
    */
@@ -2424,61 +2424,8 @@ export class SimulationEngine {
     return this.clampToMediaZone(m, pt);
   }
 
-  /** Get analog viewing slot — just outside the media box (legacy) */
-  private getAnalogSlotPosition(m: MediaPlacement, slotIndex: number): Vector2D {
-    const pw = m.size.width * MEDIA_SCALE;
-    const ph = m.size.height * MEDIA_SCALE;
-    const cap = Math.max(1, m.capacity);
-    const margin = 8; // px outside the box edge
-
-    if ((m as any).omnidirectional) {
-      // 360° distribution around the box perimeter
-      const perimeter = 2 * (pw + ph);
-      const spacing = perimeter / cap;
-      const dist = spacing * slotIndex;
-
-      // Walk around the perimeter: top → right → bottom → left
-      const halfW = pw / 2 + margin;
-      const halfH = ph / 2 + margin;
-      let d = dist;
-      if (d < pw) {
-        // Top edge
-        return { x: m.position.x - pw / 2 + d, y: m.position.y - halfH };
-      }
-      d -= pw;
-      if (d < ph) {
-        // Right edge
-        return { x: m.position.x + halfW, y: m.position.y - ph / 2 + d };
-      }
-      d -= ph;
-      if (d < pw) {
-        // Bottom edge
-        return { x: m.position.x + pw / 2 - d, y: m.position.y + halfH };
-      }
-      d -= pw;
-      // Left edge
-      return { x: m.position.x - halfW, y: m.position.y + ph / 2 - d };
-    }
-
-    // Directional: slots along the front face, just outside
-    const rad = (m.orientation * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const frontDist = ph / 2 + margin;
-
-    const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
-    const col = slotIndex % cols;
-    const row = Math.floor(slotIndex / cols);
-
-    // Spread along media width (tangent), rows go further from media
-    const localX = (col - (cols - 1) / 2) * (pw / Math.max(cols, 1));
-    const rowDist = frontDist + row * 10;
-
-    return {
-      x: m.position.x + localX * cos + sin * rowDist,
-      y: m.position.y + localX * sin - cos * rowDist,
-    };
-  }
+  // Removed dead `getAnalogSlotPosition` helper — superseded by getAnalogSlotWithCap
+  // (above), which parameterizes the cap and applies softCap-aware spreading.
 
   /** Get the waiting position (in front of media, outside media rect) */
   private getMediaWaitPoint(m: MediaPlacement): Vector2D {

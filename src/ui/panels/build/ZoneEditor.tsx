@@ -11,7 +11,9 @@ function repositionGatesForShape(
   gates: any[],
   bounds: { x: number; y: number; w: number; h: number },
   shape: string,
-  lRatioX: number,
+  // _lRatioX kept in signature so callers don't need to change; only lRatioY is
+  // used in the L-shape midpoint math (after the bx-removal cleanup in PR #8).
+  _lRatioX: number,
   lRatioY: number,
 ): any[] {
   const { x, y, w, h } = bounds;
