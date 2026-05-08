@@ -1,8 +1,8 @@
 import { Clock, AlertTriangle, MapPin, Eye, Scale } from 'lucide-react';
 import type { TimeBreakdown } from '@/analytics/breakdown/timeBreakdown';
 import { NORMS, evaluateNorm, type NormStatus } from '@/analytics/norms';
+import { STATUS_BG, pct, formatMs } from './DrilldownShared.utils';
 import {
-  STATUS_BG, pct, formatMs,
   DrilldownHeader, SubCard, MetricRow,
 } from './DrilldownShared';
 

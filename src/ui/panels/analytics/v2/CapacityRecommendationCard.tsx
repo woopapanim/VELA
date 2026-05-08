@@ -7,7 +7,7 @@ import {
   type SweepVariant,
   type SweepVariantResult,
 } from '@/analytics/recommendations/sweepCapacity';
-import { STATUS_BG, STATUS_BAR } from './DrilldownShared';
+import { STATUS_BG, STATUS_BAR } from './DrilldownShared.utils';
 
 interface Props {
   recommendation: CapacityRecommendation;

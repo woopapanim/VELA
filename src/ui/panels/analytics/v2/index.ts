@@ -8,9 +8,10 @@ export { TimeDrilldownPanel } from './TimeDrilldownPanel';
 export { PersonaDrilldownPanel } from './PersonaDrilldownPanel';
 export { CapacityRecommendationCard } from './CapacityRecommendationCard';
 export {
-  buildAllCardData, PerspectiveSlot,
+  buildAllCardData,
   computeSpaceMetrics, computeArtworkMetrics, computeOperationsMetrics, computeRiskMetrics,
   type CardData, type PerspectiveKey,
-} from './cards';
+} from './cards.compute';
+export { PerspectiveSlot } from './cards';
 export { NormBadge } from './NormBadge';
 export { ConfidenceBadge } from './ConfidenceBadge';

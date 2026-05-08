@@ -1,37 +1,11 @@
 import { X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { NormStatus } from '@/analytics/norms';
+import { STATUS_BG, STATUS_BAR, STATUS_STROKE, pct } from './DrilldownShared.utils';
 
-export const STATUS_BG: Record<NormStatus, string> = {
-  good:    'bg-[var(--status-success)]/15 text-[var(--status-success)]',
-  warn:    'bg-[var(--status-warning)]/15 text-[var(--status-warning)]',
-  bad:     'bg-[var(--status-danger)]/15 text-[var(--status-danger)]',
-  unknown: 'bg-secondary/40 text-muted-foreground',
-};
-
-export const STATUS_BAR: Record<NormStatus, string> = {
-  good:    'bg-[var(--status-success)]',
-  warn:    'bg-[var(--status-warning)]',
-  bad:     'bg-[var(--status-danger)]',
-  unknown: 'bg-muted-foreground/40',
-};
-
-export const STATUS_STROKE: Record<NormStatus, string> = {
-  good:    'stroke-[var(--status-success)]',
-  warn:    'stroke-[var(--status-warning)]',
-  bad:     'stroke-[var(--status-danger)]',
-  unknown: 'stroke-muted-foreground/40',
-};
-
-export function pct(v: number): string {
-  return `${Math.round(v * 100)}%`;
-}
-
-export function formatMs(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${(ms / 60_000).toFixed(1)}m`;
-}
+// Constants (STATUS_*, pct, formatMs) live in DrilldownShared.utils.ts so
+// this file only exports React components — required for Fast Refresh
+// to hot-reload edits without a full page reload.
 
 export function DrilldownHeader({
   Icon, title, kicker, reading, onClose, onForkToBuild, forkLabel,

@@ -2,8 +2,8 @@ import { Eye, AlertTriangle, Users, TrendingUp, MapPin } from 'lucide-react';
 import type { MediaBreakdown } from '@/analytics/breakdown/mediaBreakdown';
 import type { VisitorProfileType } from '@/domain';
 import { NORMS, evaluateNorm } from '@/analytics/norms';
+import { STATUS_BG, pct } from './DrilldownShared.utils';
 import {
-  STATUS_BG, pct,
   DrilldownHeader, SubCard, MetricRow, Sparkline,
 } from './DrilldownShared';
 
