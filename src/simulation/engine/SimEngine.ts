@@ -105,6 +105,29 @@ export interface SimulationWorld {
   totalVisitors?: number;  // 누적 입장 상한 (default: Infinity)
 }
 
+/* ─── diagnostics types ─── */
+
+/**
+ * Per-exit log entry — recorded when a visitor's isActive flips to false.
+ * Extracted from the class so `diagnoseEarlyExit().raw` can reference the
+ * shape via a named type instead of `typeof this._exitLog` (the latter
+ * needs an explicit `this:` annotation that interferes with class methods).
+ */
+export interface ExitLogEntry {
+  visitorId: string;
+  zonesVisited: number;
+  mediaVisited: number;
+  fatigue: number;
+  totalDwellMs: number;
+  lastZoneId: string | null;
+  exitNodeId: string | null;
+  exitedAtMs: number;
+  exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
+  inferredTrigger: 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
+    | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
+    | 'nodeStuck' | 'unknown';
+}
+
 /* ─── engine ─── */
 
 export class SimulationEngine {
@@ -190,20 +213,7 @@ export class SimulationEngine {
   // 에이전트가 isActive=false 가 될 때마다 1 entry 추가. diagnoseEarlyExit() 로 덤프.
   // inferredTrigger: post-hoc 추론으로 selectNextNode 의 어떤 canExit 조건이 발화했는지 식별.
   // 정확하지 않을 수 있는 케이스(stuck-at-node 등)는 'unknown' 처리.
-  private _exitLog: Array<{
-    visitorId: string;
-    zonesVisited: number;
-    mediaVisited: number;
-    fatigue: number;
-    totalDwellMs: number;
-    lastZoneId: string | null;
-    exitNodeId: string | null;
-    exitedAtMs: number;
-    exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
-    inferredTrigger: 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
-      | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
-      | 'nodeStuck' | 'unknown';
-  }> = [];
+  private _exitLog: ExitLogEntry[] = [];
 
   // group caches (rebuilt each tick)
   private groupMemberPositions = new Map<string, Vector2D[]>();
@@ -453,7 +463,7 @@ export class SimulationEngine {
       lastZoneDist: Array<{ zoneId: string; zoneName: string; count: number }>;
       exitNodeDist: Array<{ nodeId: string; count: number }>;
     }>;
-    raw?: typeof this._exitLog;
+    raw?: readonly ExitLogEntry[];
   } {
     const log = this._exitLog;
     const total = log.length;
@@ -695,7 +705,9 @@ export class SimulationEngine {
     } else if (hitDurationCap) {
       completing = true;
     }
-    if (completing && this.state.phase !== SIMULATION_PHASE.COMPLETED) {
+    // Cast widens the narrowed phase type (early-return at function top pinned it to RUNNING)
+    // so the defensive double-complete guard is expressible.
+    if (completing && (this.state.phase as string) !== SIMULATION_PHASE.COMPLETED) {
       this.finalizeActiveOnCompletion();
       this.state.phase = SIMULATION_PHASE.COMPLETED;
     }

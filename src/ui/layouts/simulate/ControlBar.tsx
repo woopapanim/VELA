@@ -18,7 +18,12 @@ function hashSignature(s: string): string {
   return (h >>> 0).toString(16).padStart(8, '0').slice(0, 6);
 }
 
-function makeRunId(scenario: { zones: unknown[]; media: unknown[]; waypointGraph?: { nodes: unknown[]; edges: unknown[] }; visitorDistribution: { totalCount: number } }): string {
+function makeRunId(scenario: {
+  zones: readonly unknown[];
+  media: readonly unknown[];
+  waypointGraph?: { nodes: readonly unknown[]; edges: readonly unknown[] } | null;
+  visitorDistribution: { totalCount: number };
+}): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;

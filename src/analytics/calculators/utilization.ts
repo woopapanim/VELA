@@ -10,11 +10,18 @@ export function resetPeakOccupancy() {
   peakMap.clear();
 }
 
+/**
+ * Per-zone occupancy + watching/waiting counts at the current sim instant.
+ * `cumulativeCongestedMs` is intentionally omitted here — the aggregator
+ * (`assembleKpiSnapshot`) merges it from `accumulateCongestionTime` since
+ * tracking that metric needs cross-frame state, not the per-frame view this
+ * function produces.
+ */
 export function calculateZoneUtilization(
   zones: readonly ZoneConfig[],
   visitors: readonly Visitor[],
   simTimeMs: number,
-): ZoneUtilization[] {
+): Omit<ZoneUtilization, 'cumulativeCongestedMs'>[] {
   const occupancyMap = new Map<string, number>();
   const watchingMap = new Map<string, number>();
   const waitingMap = new Map<string, number>();

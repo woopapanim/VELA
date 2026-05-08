@@ -10,9 +10,13 @@ const API_VERSION = '2023-06-01';
 const PROXY_URL = (import.meta.env.VITE_AI_PROXY_URL as string | undefined) || null;
 
 export class AIClientError extends Error {
-  constructor(message: string, public readonly cause?: unknown) {
+  // Parameter properties are disallowed under erasableSyntaxOnly; declare + assign explicitly.
+  readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
     super(message);
     this.name = 'AIClientError';
+    this.cause = cause;
   }
 }
 
