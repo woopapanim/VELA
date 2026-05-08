@@ -1,5 +1,7 @@
-import html2canvas from 'html2canvas-pro';
-import jsPDF from 'jspdf';
+// html2canvas-pro and jspdf are dynamically imported inside exportElementToPdf
+// so the ~300KB combined weight stays out of the initial bundle. They only
+// load when the user actually hits "Export PDF" — the function remains
+// async so callers don't need to change.
 
 const PAGE_W_MM = 210;
 const PAGE_H_MM = 297;
@@ -20,6 +22,12 @@ export async function exportElementToPdf(
   filename: string,
   meta?: { title?: string; subject?: string },
 ): Promise<void> {
+  // Dynamic imports — Vite emits these as separate chunks loaded on demand.
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas-pro'),
+    import('jspdf'),
+  ]);
+
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
   pdf.setProperties({
     title: meta?.title ?? filename,
