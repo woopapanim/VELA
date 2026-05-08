@@ -97,8 +97,10 @@ function buildZoneAnalysis(
       activeVisitorCount: occupancy,
       waitingVisitorCount: waiting,
       flowDirection,
-      // Expose watching too — useful downstream even if not in the original type.
-    } as ZonePointAnalysis & { watchingVisitorCount?: number };
+      // watching is tallied above but not in the original ZonePointAnalysis type;
+      // expose it via type intersection so downstream consumers can access it.
+      watchingVisitorCount: watching,
+    } as ZonePointAnalysis & { watchingVisitorCount: number };
   });
 }
 

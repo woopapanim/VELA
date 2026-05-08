@@ -121,7 +121,6 @@ export function renderGates(
           const outLen = Math.sqrt(outX * outX + outY * outY) || 1;
           const normX = outX / outLen;
           const normY = outY / outLen;
-          const arrowLen = 10;
           const arrowHead = 4;
 
           ctx.globalAlpha = 0.8;

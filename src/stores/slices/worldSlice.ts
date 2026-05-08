@@ -374,7 +374,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
     // Assign explicit bounds to any existing floor that lacks them, so the shared
     // canvas has a visible region outline matching the new-floor default size.
-    let normalizedFloors: FloorConfig[] = s.floors.map((f) => {
+    const normalizedFloors: FloorConfig[] = s.floors.map((f) => {
       if (f.bounds) return f;
       const bbox = computeFloorContentBbox(f, s.zones, s.media, s.waypointGraph);
       if (bbox) {
@@ -592,7 +592,6 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
     set((s) => {
       // If bounds changed, check overlap with other zones
       if (updates.bounds) {
-        const gap = 0;
         const nb = updates.bounds;
         const draggedZone = s.zones.find((z) => (z.id as string) === zoneId);
         const overlaps = s.zones.some((z) => {

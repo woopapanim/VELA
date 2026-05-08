@@ -134,9 +134,7 @@ function detect(req: DetectRequest): WorkerRoom[] {
   const w = imageData.width;
   const h = imageData.height;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mats: { delete(): void }[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const track = <T extends { delete(): void }>(m: T): T => {
     mats.push(m);
     return m;

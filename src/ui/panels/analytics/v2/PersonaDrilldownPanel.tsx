@@ -33,7 +33,7 @@ function deltaStatus(v: number | null, isHigherWorse: boolean, threshold: number
 export function PersonaDrilldownPanel({ breakdown, onClose }: Props) {
   const {
     profileLabel, sampleCount,
-    avgDwellSec, avgZones, avgMedia, fullCompletion, fatigueMean,
+    avgDwellSec, avgZones, fullCompletion, fatigueMean,
     dwellVsAvg, zonesVsAvg, mediaVsAvg, completionVsAvg, fatigueVsAvg,
     underVisitedZones, underVisitedMedia, hasRawVisitors, reading,
   } = breakdown;

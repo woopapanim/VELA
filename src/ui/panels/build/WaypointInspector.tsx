@@ -1,6 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, ShaftId, FloorId, ElevatorShaft } from '@/domain';
+import type { WaypointType, ShaftId, ElevatorShaft } from '@/domain';
 import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';

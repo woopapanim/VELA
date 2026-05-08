@@ -13,7 +13,8 @@ export function findSnapGuides(
   threshold: number = 8,
 ): { guides: SnapGuide[]; snappedBounds: Rect } {
   const guides: SnapGuide[] = [];
-  let { x, y, w, h } = dragBounds;
+  let { x, y } = dragBounds;
+  const { w, h } = dragBounds;
 
   const dragEdges = {
     left: x, right: x + w, centerX: x + w / 2,

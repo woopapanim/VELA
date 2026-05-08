@@ -3,7 +3,7 @@ import type {
   ZoneConfig,
   MediaPlacement,
 } from '@/domain';
-import type { TimeSlicePattern, TimeSlice } from '@/analytics/patterns/timeSlices';
+import type { TimeSlicePattern } from '@/analytics/patterns/timeSlices';
 
 // 단일 시간 구간 (초반/중반/후반/말) 의 "왜 이 시간대인가" breakdown.
 // TimeSection 의 slice 컬럼 클릭 → 이 결과로 답을 채운다.

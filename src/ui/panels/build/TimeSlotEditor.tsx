@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import type { TimeSlotConfig } from '@/domain';
@@ -8,11 +8,15 @@ export function TimeSlotEditor() {
   const setScenario = useStore((s) => s.setScenario);
   const phase = useStore((s) => s.phase);
 
-  if (!scenario) return null;
-
+  // Hooks must be called unconditionally — derived values guard against null scenario
+  // so the early-return below stays safe to perform AFTER all hook declarations.
+  // useMemo on `slots` so useCallback deps don't change every render.
   const isLocked = phase !== 'idle';
-  const slots = scenario.simulationConfig.timeSlots;
-  const duration = scenario.simulationConfig.duration;
+  const slots = useMemo(
+    () => scenario?.simulationConfig.timeSlots ?? [],
+    [scenario],
+  );
+  const duration = scenario?.simulationConfig.duration ?? 0;
 
   const updateSlot = useCallback((index: number, updates: Partial<TimeSlotConfig>) => {
     if (!scenario || isLocked) return;
@@ -55,6 +59,9 @@ export function TimeSlotEditor() {
       },
     });
   }, [scenario, setScenario, slots, isLocked]);
+
+  // Safe to bail out now — all hooks above were called unconditionally.
+  if (!scenario) return null;
 
   return (
     <div className="space-y-2">

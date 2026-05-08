@@ -1,4 +1,4 @@
-import type { WaypointGraph, WaypointNode, WaypointEdge } from '@/domain';
+import type { WaypointGraph, WaypointNode } from '@/domain';
 import type { ShaftQueueSnapshot } from '@/stores';
 
 const NODE_RADIUS = 10;
