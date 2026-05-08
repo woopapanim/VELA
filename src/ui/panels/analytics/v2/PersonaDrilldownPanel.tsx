@@ -1,8 +1,8 @@
 import { Users, AlertTriangle, Scale, MapPin, Eye } from 'lucide-react';
 import type { PersonaBreakdown } from '@/analytics/breakdown/personaBreakdown';
 import { NORMS, evaluateNorm, type NormStatus } from '@/analytics/norms';
+import { STATUS_BG } from './DrilldownShared.utils';
 import {
-  STATUS_BG,
   DrilldownHeader, SubCard, MetricRow,
 } from './DrilldownShared';
 

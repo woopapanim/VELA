@@ -7,10 +7,8 @@ import {
   type VerdictLevel,
   type NormStatus,
 } from '@/analytics/norms';
-import {
-  buildAllCardData, PerspectiveSlot,
-  type CardData, type PerspectiveKey,
-} from './cards';
+import { buildAllCardData, type CardData, type PerspectiveKey } from './cards.compute';
+import { PerspectiveSlot } from './cards';
 
 export interface EntryStatsInput {
   readonly totalArrived: number;
