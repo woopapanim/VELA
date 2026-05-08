@@ -53,6 +53,7 @@ import {
   EXIT_VISIT_RATIO,
   EXIT_FATIGUE_THRESHOLD,
   MAX_TOTAL_DWELL_MS,
+  STUCK_AT_NODE_MS,
 } from '../pathfinding/waypointGraph';
 import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration, filterMustVisitCandidates } from '../behavior/EngagementBehavior';
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
@@ -200,7 +201,8 @@ export class SimulationEngine {
     exitedAtMs: number;
     exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
     inferredTrigger: 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
-      | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended' | 'unknown';
+      | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
+      | 'nodeStuck' | 'unknown';
   }> = [];
 
   // group caches (rebuilt each tick)
@@ -3032,7 +3034,7 @@ export class SimulationEngine {
       exitNodeId,
       exitedAtMs: nowMs,
       exitReason,
-      inferredTrigger: this.inferExitTrigger(v, totalDwellMs, exitReason),
+      inferredTrigger: this.inferExitTrigger(v, totalDwellMs, exitReason, nowMs),
     });
   }
 
@@ -3040,15 +3042,19 @@ export class SimulationEngine {
    * Post-hoc 추론 — exit 시점 visitor 상태로 selectNextNode 의 canExit 조건 중
    * 무엇이 dominant 였을지 추정.
    *
-   * 한계: stuck-at-node (60s 단일 노드 체류) 는 노드별 timing 이 없어서 'unknown' 처리.
    * 우선순위는 selectNextNode 의 분기 순서와 동일 — 먼저 발화 가능한 조건 우선.
+   * 'nodeStuck' 은 fallback 직전 검사 — pathLog 에서 hub/bend/entry 노드의
+   * 60s+ 체류를 찾아 stuck-at-node 케이스를 식별. zone/attractor/rest 노드의
+   * 자연스러운 긴 dwell 은 제외해서 false positive 최소화.
    */
   private inferExitTrigger(
     v: Visitor,
     totalDwellMs: number,
     exitReason: 'normal' | 'physics-stuck' | 'sim-ended',
+    nowMs: number,
   ): 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
-   | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended' | 'unknown' {
+   | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
+   | 'nodeStuck' | 'unknown' {
     if (exitReason === 'physics-stuck') return 'physics-stuck';
     if (exitReason === 'sim-ended') return 'sim-ended';
 
@@ -3062,7 +3068,23 @@ export class SimulationEngine {
       if (visited / essentialCount >= EXIT_VISIT_RATIO) return 'visitRatio';
     }
     if (v.fatigue >= EXIT_FATIGUE_THRESHOLD) return 'fatigueThreshold';
-    return 'unknown'; // stuck-at-node 또는 체크 누락 케이스
+
+    // stuck-at-node 추론: hub/bend/entry 노드에서 60s+ 체류한 흔적이 있으면
+    // selectNextNode 의 stuck flag 가 발화했을 가능성 높음.
+    // ZONE/ATTRACTOR/REST 는 자연 dwell, EXIT 는 종착, PORTAL 은 엘리베이터 대기라
+    // 모두 제외 (false positive 방지).
+    if (this.waypointNav) {
+      for (const e of v.pathLog) {
+        const exitT = e.exitTime || nowMs;
+        const dwell = exitT - e.entryTime;
+        if (dwell < STUCK_AT_NODE_MS) continue;
+        const node = this.waypointNav.getNode(e.nodeId);
+        if (node && (node.type === 'hub' || node.type === 'bend' || node.type === 'entry')) {
+          return 'nodeStuck';
+        }
+      }
+    }
+    return 'unknown';
   }
 
   /** Graph mode: visitor arrived at target node */
