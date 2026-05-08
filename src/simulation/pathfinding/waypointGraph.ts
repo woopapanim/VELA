@@ -23,7 +23,13 @@ const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
 // EXIT 노드 진입 조건 — 피로 3시간 스케일 + 60~90분 평균 관람 기준으로 맞춤
 // exported: SimEngine 의 post-hoc 트리거 추론(`inferExitTrigger`) 에서 사용. 변경 시 동기 유지.
-export const EXIT_VISIT_RATIO = 0.65;   // 필수 노드 65% 방문 후 EXIT 허용 (이전 0.9 — 3시간 피로 모델과 맞지 않음)
+//
+// 2026-05-08 (Phase 4 #1): 0.65 → 0.8 상향. baseline (seed=86081, 16-zone scenario, 200 visitors)
+// 측정 결과 visitRatio 트리거가 dominant (49%, 200건 중 98건) 이며 allEssentialDone=0건.
+// 0.65 임계가 자연스러운 완주를 가로막아 절반 가까운 visitor 가 ⌈0.65×N⌉ 도달 즉시 이탈.
+// 0.8 로 올려 일부 visitor 가 allEssentialDone 까지 도달하도록 유도. 부작용으로
+// budgetExceeded / fatigueThreshold 일부 증가 예상 — diff 로 확인 필요.
+export const EXIT_VISIT_RATIO = 0.8;
 export const EXIT_FATIGUE_THRESHOLD = 0.45; // 피로 45% 이상 (약 60~90분 관람 시 도달)
 
 // Stuck 감지 — 이 시간을 초과하면 강제로 canExit 활성
