@@ -26,8 +26,9 @@ function repositionGatesForShape(
     }));
   }
 
-  // For L-shapes: find the midpoint of the left edge and right edge of the polygon
-  const bx = w * lRatioX, by = h * lRatioY;
+  // For L-shapes: find the midpoint of the left edge and right edge of the polygon.
+  // Only `by` is actually used in the shape-specific edge math below.
+  const by = h * lRatioY;
 
   let leftMid: { x: number; y: number };
   let rightMid: { x: number; y: number };

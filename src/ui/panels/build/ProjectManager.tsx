@@ -27,7 +27,9 @@ function loadHistory(): ProjectEntry[] {
 function saveHistory(entries: ProjectEntry[]) {
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(-20))); // keep last 20
-  } catch {}
+  } catch {
+    // localStorage failures (quota, disabled) are non-fatal — history just stays stale.
+  }
 }
 
 // Keep fileHandle across saves so repeat saves go to the same file

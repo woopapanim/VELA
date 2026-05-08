@@ -39,42 +39,8 @@ function ptInPoly(pts: {x:number;y:number}[], px: number, py: number): boolean {
   return inside;
 }
 
-/** Get zone polygon vertices (L-shapes get actual vertices, rects get 4 corners) */
-function getZonePolygon(zone: { bounds: { x: number; y: number; w: number; h: number }; shape: string; lRatioX?: number; lRatioY?: number; polygon?: readonly {x:number;y:number}[] | null }): {x:number;y:number}[] {
-  if (zone.shape === 'custom' && zone.polygon && zone.polygon.length > 2) {
-    return zone.polygon.map(v => ({ x: v.x, y: v.y }));
-  }
-  const edges = getZoneEdges(zone.bounds, zone.shape as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
-  return edges.map(([a]) => a);
-}
-
-/** Check if two line segments intersect */
-function segmentsIntersect(a1: {x:number;y:number}, a2: {x:number;y:number}, b1: {x:number;y:number}, b2: {x:number;y:number}): boolean {
-  const d1x = a2.x - a1.x, d1y = a2.y - a1.y;
-  const d2x = b2.x - b1.x, d2y = b2.y - b1.y;
-  const cross = d1x * d2y - d1y * d2x;
-  if (Math.abs(cross) < 1e-10) return false;
-  const t = ((b1.x - a1.x) * d2y - (b1.y - a1.y) * d2x) / cross;
-  const u = ((b1.x - a1.x) * d1y - (b1.y - a1.y) * d1x) / cross;
-  return t > 0 && t < 1 && u > 0 && u < 1;
-}
-
-/** Check if two zone polygons overlap (vertex-in-polygon + edge intersection) */
-function polygonsOverlap(polyA: {x:number;y:number}[], polyB: {x:number;y:number}[]): boolean {
-  // Check if any vertex of A is inside B
-  for (const p of polyA) if (ptInPoly(polyB, p.x, p.y)) return true;
-  // Check if any vertex of B is inside A
-  for (const p of polyB) if (ptInPoly(polyA, p.x, p.y)) return true;
-  // Check edge intersections
-  for (let i = 0; i < polyA.length; i++) {
-    const a1 = polyA[i], a2 = polyA[(i + 1) % polyA.length];
-    for (let j = 0; j < polyB.length; j++) {
-      const b1 = polyB[j], b2 = polyB[(j + 1) % polyB.length];
-      if (segmentsIntersect(a1, a2, b1, b2)) return true;
-    }
-  }
-  return false;
-}
+// (Removed dead helpers — getZonePolygon/segmentsIntersect/polygonsOverlap had
+// no callers. ptInPoly + getZoneEdges remain in active use.)
 
 function closestPointOnSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
   const dx = bx - ax, dy = by - ay;
@@ -840,7 +806,6 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
         if (selMedia && (selMedia as any).shape === 'custom' && selMedia.polygon && selMedia.polygon.length > 2) {
           const mRad = (selMedia.orientation * Math.PI) / 180;
-          const mCos = Math.cos(mRad), mSin = Math.sin(mRad);
           // Transform world→local (center-relative, pre-rotation)
           const dx = world.x - selMedia.position.x;
           const dy = world.y - selMedia.position.y;
@@ -1665,7 +1630,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       const ry = Math.max(0.15, Math.min(0.85, (world.y - b.y) / b.h));
       // Reposition gates when L-handle changes
       const shape = zone.shape as string;
-      const bx = b.w * rx, by = b.h * ry;
+      // Only `by` is used in the L-shape midpoint math below; `bx` was an unused leftover.
+      const by = b.h * ry;
       let leftMid = { x: b.x, y: b.y + b.h / 2 };
       let rightMid = { x: b.x + b.w, y: b.y + b.h / 2 };
       if (shape === 'l_top_right') { leftMid = { x: b.x, y: b.y + b.h / 2 }; rightMid = { x: b.x + b.w, y: b.y + by + (b.h - by) / 2 }; }

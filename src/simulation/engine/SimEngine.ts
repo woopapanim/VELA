@@ -2215,7 +2215,6 @@ export class SimulationEngine {
     const SPACING = 14;
     const usableWidth = Math.max(SPACING, pw - SPACING);
     const cols = Math.max(1, Math.min(cap, Math.floor(usableWidth / SPACING) + 1));
-    const rows = Math.ceil(cap / cols);
     const col = slotIndex % cols;
     const row = Math.floor(slotIndex / cols);
 
@@ -2376,7 +2375,7 @@ export class SimulationEngine {
   }
 
   /** Get analog close-up position — nearby the media edge with random jitter (no fixed grid) */
-  private getAnalogClosePosition(m: MediaPlacement, agentPos: Vector2D): Vector2D {
+  private getAnalogClosePosition(m: MediaPlacement, _agentPos: Vector2D): Vector2D {
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
     const margin = 6 + this.rng.next() * 8; // 6–14px outside
@@ -2448,7 +2447,6 @@ export class SimulationEngine {
     const frontDist = ph / 2 + margin;
 
     const cols = Math.min(cap, Math.max(1, Math.floor(pw / 12)));
-    const rows = Math.ceil(cap / cols);
     const col = slotIndex % cols;
     const row = Math.floor(slotIndex / cols);
 
@@ -2780,7 +2778,7 @@ export class SimulationEngine {
     const curNode = this.waypointNav.getNode(input.currentNodeId);
     if (!curNode) return input;
 
-    let v = input;
+    const v = input;
 
     // 1. EXIT 노드 도착 → 퇴장 시퀀스
     if (curNode.type === 'exit') {
@@ -3144,7 +3142,7 @@ export class SimulationEngine {
   }
 
   /** Begin exit sequence: walk to exit gate then off-canvas */
-  private beginExit(v: Visitor, curZone: ZoneConfig): Visitor {
+  private beginExit(v: Visitor, _curZone: ZoneConfig): Visitor {
     // Walk to exit gate, then deactivate on arrival
     return {
       ...v,

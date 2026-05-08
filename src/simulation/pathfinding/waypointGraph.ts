@@ -17,7 +17,8 @@ const W_ATTRACTION = 1.0;
 const W_DISTANCE = 0.3;
 const W_INTEREST = 0.5;
 const W_CROWD = 0.4; // node crowd (원래값 유지)
-const W_VISITED = 9999;
+// W_VISITED removed — visited nodes are now filtered upstream (Set lookup) rather
+// than penalized in the score. The legacy 9999 weight had no callers.
 const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 

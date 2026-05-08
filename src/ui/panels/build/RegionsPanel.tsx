@@ -10,7 +10,6 @@ import { useT } from '@/i18n';
 export function RegionsPanel() {
   const t = useT();
   const floors = useStore((s) => s.floors);
-  const zones = useStore((s) => s.zones);
   const activeFloorId = useStore((s) => s.activeFloorId);
   const setActiveFloor = useStore((s) => s.setActiveFloor);
   const addFloor = useStore((s) => s.addFloor);

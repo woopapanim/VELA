@@ -28,7 +28,9 @@ function deleteFromHistory(id: string) {
   try {
     const entries = loadHistory().filter((e) => e.id !== id);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
-  } catch {}
+  } catch {
+    // localStorage failures (quota, disabled) are non-fatal — history just stays stale.
+  }
 }
 
 export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
@@ -62,7 +64,9 @@ export function WelcomeScreen({ onEnter }: { onEnter: () => void }) {
       if (idx >= 0) existing[idx] = entry;
       else existing.push(entry);
       localStorage.setItem(HISTORY_KEY, JSON.stringify(existing.slice(-20)));
-    } catch {}
+    } catch {
+      // localStorage 실패는 non-fatal — 시나리오 로드는 이미 성공.
+    }
     onEnter();
   }, [setScenario, onEnter, t]);
 

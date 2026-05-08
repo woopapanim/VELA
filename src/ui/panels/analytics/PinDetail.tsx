@@ -4,7 +4,7 @@ import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { diffPins } from '@/analytics/pinpoint';
 import type { PinDeltaEntry } from '@/analytics/pinpoint';
-import type { PinnedTimePoint, ZoneConfig, MediaPlacement } from '@/domain';
+import type { ZoneConfig, MediaPlacement } from '@/domain';
 
 function fmtClock(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
