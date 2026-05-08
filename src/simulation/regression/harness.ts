@@ -1,6 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────
 // Regression validation harness — capture + diff KPI bundles across runs
 // ─────────────────────────────────────────────────────────────────────
+// `any` is used liberally inside this file because the harness reads from
+// dynamically-attached globals (window.__simEngine, window.__store) and
+// loosely-typed engine diagnostics. Strong typing here would couple the
+// debug tool to engine internals and slow iteration; the lint rule is
+// disabled at file scope as a deliberate trade-off.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+//
 // Use case: before changing the simulation engine (e.g. fixing 조기이탈),
 // record a baseline KPI bundle. After the change, capture again and diff.
 // The diff surfaces *intended* effects vs unintended regressions.
@@ -395,7 +402,6 @@ export function createHarness(): RegressionHarness {
     capture(label: string) {
       const bundle = buildBundle(label);
       localStorage.setItem(storageKey(label), JSON.stringify(bundle));
-      // eslint-disable-next-line no-console
       console.log(`[regression] captured "${label}" — sim ${(bundle.time.elapsedMs / 1000).toFixed(1)}s, ${bundle.flow.totalSpawned} spawned, ${bundle.flow.totalExited} exited`);
       return bundle;
     },
@@ -420,7 +426,6 @@ export function createHarness(): RegressionHarness {
     },
     diff(labelA, labelB, opts) {
       const report = this.diffData(labelA, labelB, opts);
-      // eslint-disable-next-line no-console
       console.log(formatDiff(report, labelA, labelB));
     },
     clear(label?: string) {
@@ -452,7 +457,6 @@ export function attachToWindow() {
   if (typeof window === 'undefined') return;
   if (!window.__regression) {
     window.__regression = createHarness();
-    // eslint-disable-next-line no-console
     console.log('[regression] harness attached as window.__regression. Try: __regression.list()');
   }
 }
