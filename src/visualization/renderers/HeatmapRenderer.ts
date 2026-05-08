@@ -82,8 +82,8 @@ export class HeatmapRenderer {
     // Bilinear upscale + Gaussian blur turns per-cell pixels into the smooth
     // "WiFi coverage" gradient. Blur size is tuned to roughly one cell so the
     // step boundaries between adjacent cells fully dissolve.
-    (ctx as any).imageSmoothingEnabled = true;
-    (ctx as any).imageSmoothingQuality = 'high';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     for (const grid of grids) {
       const cnv = this.gridCanvases.get(grid.floorId as string);
