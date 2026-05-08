@@ -54,6 +54,7 @@ import {
   EXIT_FATIGUE_THRESHOLD,
   MAX_TOTAL_DWELL_MS,
   STUCK_AT_NODE_MS,
+  type ForceExitReason,
 } from '../pathfinding/waypointGraph';
 import { selectNextZone, selectNextMedia, shouldSkip, computeEngagementDuration, filterMustVisitCandidates } from '../behavior/EngagementBehavior';
 import { syncFollowerToLeader, getGroupDwellDuration, getCategorySkipMod, isFollower } from '../behavior/GroupBehavior';
@@ -209,10 +210,17 @@ export class SimulationEngine {
   private _stuckByZone = new Map<string, number>();
   private _stuckByIntType = new Map<string, number>();
 
+  // ---- Diagnostics: visitor → 가장 최근 force-exit reason ----
+  // selectNextNode 가 force-exit redirect 를 트리거할 때 waypointNav.getLastForceExit()
+  // 으로 직접 읽어 기록. inferExitTrigger 가 휴리스틱 대신 이 값을 우선 사용.
+  // 단순 'visited via exit hop' 만 기록하면 되므로 visitor 가 deactivate 될 때 제거.
+  private _exitTriggerByVisitor = new Map<string, ForceExitReason>();
+
   // ---- Diagnostics: per-exit context (조기이탈 원인 분석) ----
   // 에이전트가 isActive=false 가 될 때마다 1 entry 추가. diagnoseEarlyExit() 로 덤프.
-  // inferredTrigger: post-hoc 추론으로 selectNextNode 의 어떤 canExit 조건이 발화했는지 식별.
-  // 정확하지 않을 수 있는 케이스(stuck-at-node 등)는 'unknown' 처리.
+  // inferredTrigger: 우선순위
+  //   1) _exitTriggerByVisitor (selectNextNode force-exit 직접 기록 — 100% 정확)
+  //   2) 휴리스틱 (visitRatio / fatigueThreshold / nodeStuck post-hoc 등)
   private _exitLog: ExitLogEntry[] = [];
 
   // group caches (rebuilt each tick)
@@ -2985,6 +2993,12 @@ export class SimulationEngine {
       ? { unvisitedZoneIds: mustZoneIds, unvisitedMediaIds: mustMediaIds }
       : undefined;
     const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx, this.exitTargetCounts);
+    // Capture force-exit reason if it fired this call. Read immediately —
+    // 다음 selectNextNode 호출 시 reset 됨.
+    const forceExitReason = this.waypointNav.getLastForceExit();
+    if (forceExitReason) {
+      this._exitTriggerByVisitor.set(v.id as string, forceExitReason);
+    }
     if (!nextNode) {
       // Orphan 노드 (neighbors === 0): 그래프 상 다음 노드 없음.
       // MOVING+WANDER 로 두면 targetNodeId=null 상태로 영원히 방황 (stuck 타이머
@@ -3019,6 +3033,8 @@ export class SimulationEngine {
       recordZoneExit(v.currentZoneId as string, Math.max(0, now - v.zoneEnteredAtMs));
     }
     this.recordExitContext(v, xid, now);
+    // recordExitContext 가 _exitTriggerByVisitor 를 읽은 후라 안전하게 제거.
+    this._exitTriggerByVisitor.delete(v.id as string);
     return {
       ...v,
       currentAction: VISITOR_ACTION.EXITING,
@@ -3051,13 +3067,18 @@ export class SimulationEngine {
   }
 
   /**
-   * Post-hoc 추론 — exit 시점 visitor 상태로 selectNextNode 의 canExit 조건 중
-   * 무엇이 dominant 였을지 추정.
+   * Exit 시점 사유 결정 — 가능하면 selectNextNode 가 직접 기록한 force-exit reason
+   * 사용 (100% 정확). 그게 없으면(canExit 의 loose 경로 = visitRatio/fatigue, 또는
+   * physics/sim 의 외부 사유) post-hoc 휴리스틱으로 fallback.
    *
-   * 우선순위는 selectNextNode 의 분기 순서와 동일 — 먼저 발화 가능한 조건 우선.
-   * 'nodeStuck' 은 fallback 직전 검사 — pathLog 에서 hub/bend/entry 노드의
-   * 60s+ 체류를 찾아 stuck-at-node 케이스를 식별. zone/attractor/rest 노드의
-   * 자연스러운 긴 dwell 은 제외해서 false positive 최소화.
+   * 정확도 계층:
+   *   1) physics-stuck / sim-ended : exitReason 이 명시적으로 들어옴
+   *   2) maxDwell / nodeStuck / budgetExceeded / allEssentialDone : selectNextNode
+   *      force-exit redirect 시 _exitTriggerByVisitor 에 직접 기록 (정확)
+   *   3) visitRatio / fatigueThreshold : canExit 가 fire 됐지만 force-exit redirect
+   *      는 안 발생한 케이스 — visitor 가 normal scoring 으로 exit node 를 선택함.
+   *      visitor 의 최종 상태로 추론.
+   *   4) unknown : 위 조건 모두 미충족 — 거의 발생 안 해야 정상.
    */
   private inferExitTrigger(
     v: Visitor,
@@ -3070,12 +3091,22 @@ export class SimulationEngine {
     if (exitReason === 'physics-stuck') return 'physics-stuck';
     if (exitReason === 'sim-ended') return 'sim-ended';
 
+    // 1) 직접 기록된 force-exit reason 우선 — 100% 정확.
+    const recorded = this._exitTriggerByVisitor.get(v.id as string);
+    if (recorded) return recorded;
+
+    // 2) findFirstHopToExit 가 null 을 반환했던 rare case 를 위한 fallback —
+    //    force-exit 조건은 충족됐지만 recording 이 안 됐을 수 있다.
     if (totalDwellMs >= MAX_TOTAL_DWELL_MS) return 'maxDwell';
     if (v.visitBudgetMs > 0 && totalDwellMs >= v.visitBudgetMs) return 'budgetExceeded';
 
+    // 3) Force-exit redirect 가 안 났으니 visitor 가 normal scoring 으로 exit 선택한
+    //    경우 — visitRatio 또는 fatigueThreshold 영향. 최종 상태로 추정.
     const essentialCount = this.waypointNav?.getEssentialCount() ?? 0;
     if (essentialCount > 0) {
       const visited = v.visitedZoneIds.length;
+      // visited == essentialCount 인데 force-exit 가 안 잡힌 케이스 (race condition)
+      // 도 allEssentialDone 으로 처리.
       if (visited >= essentialCount) return 'allEssentialDone';
       if (visited / essentialCount >= EXIT_VISIT_RATIO) return 'visitRatio';
     }
