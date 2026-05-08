@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '@/stores';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
@@ -56,7 +56,27 @@ export function AnalyticsPanel() {
   const exitByNode = useStore((s) => s.exitByNode);
   const graph = useStore((s) => s.waypointGraph);
 
-  const activeCount = visitors.filter((v) => v.isActive).length;
+  // Single-pass aggregation over visitors. Replaces 7 separate filter() calls
+  // (activeCount + 5 action buckets + CONGESTED) that ran every render.
+  // CONGESTED = MOVING with speed < 5 (physics-stuck).
+  const agentStats = useMemo(() => {
+    let active = 0;
+    let congested = 0;
+    const byAction = { MOVING: 0, WATCHING: 0, WAITING: 0, RESTING: 0, EXITING: 0 };
+    for (const v of visitors) {
+      if (!v.isActive) continue;
+      active++;
+      const a = v.currentAction;
+      if (a in byAction) byAction[a as keyof typeof byAction]++;
+      if (a === 'MOVING') {
+        const speed = Math.hypot(v.velocity.x, v.velocity.y);
+        if (speed < 5) congested++;
+      }
+    }
+    return { active, byAction, congested };
+  }, [visitors]);
+
+  const activeCount = agentStats.active;
   const elapsed = timeState.elapsed;
   const minutes = Math.floor(elapsed / 60000);
   const seconds = Math.floor((elapsed % 60000) / 1000);
@@ -110,7 +130,7 @@ export function AnalyticsPanel() {
         </h2>
         <div className="space-y-1">
           {(['MOVING', 'WATCHING', 'WAITING', 'RESTING', 'EXITING'] as const).map((action) => {
-            const count = visitors.filter((v) => v.isActive && v.currentAction === action).length;
+            const count = agentStats.byAction[action];
             const pct = activeCount > 0 ? Math.round((count / activeCount) * 100) : 0;
             const barColor =
               action === 'WATCHING' ? 'bg-[var(--status-success)]' :
@@ -133,11 +153,7 @@ export function AnalyticsPanel() {
           })}
           {/* CONGESTED: subset of MOVING — stuck by physics (velocity below crawl speed). */}
           {(() => {
-            const congestedCount = visitors.filter((v) => {
-              if (!v.isActive || v.currentAction !== 'MOVING') return false;
-              const speed = Math.hypot(v.velocity.x, v.velocity.y);
-              return speed < 5;
-            }).length;
+            const congestedCount = agentStats.congested;
             const pct = activeCount > 0 ? Math.round((congestedCount / activeCount) * 100) : 0;
             return (
               <div className="flex items-center gap-2">

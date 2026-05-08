@@ -130,7 +130,9 @@ export function Sparkline({
   if (n < 2) return null;
 
   const xs = data.map((_, i) => (i / (n - 1)) * w);
-  const ys = data.map((d) => h - d.ratio * h);
+  // ratio 는 정의상 0~1. 누적 부동소수점 오차로 1 을 살짝 초과할 수 있어 SVG viewBox 바깥(음수 y)으로
+  // 튀는 것을 방지. 1 초과 자체는 라인 146 의 "최대 N%" 텍스트로 이미 사용자에게 노출됨.
+  const ys = data.map((d) => h - Math.max(0, Math.min(1, d.ratio)) * h);
   const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(' ');
   const last = data[n - 1];
   const maxRatio = data.reduce((m, d) => Math.max(m, d.ratio), 0);
