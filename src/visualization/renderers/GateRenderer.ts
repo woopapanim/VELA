@@ -39,8 +39,8 @@ export function renderGates(
       const halfW = width / 2;
 
       const isCircular = zone.shape === 'circle' || zone.shape === 'o_ring';
-      const gx = (position as any).x;
-      const gy = (position as any).y;
+      const gx = position.x;
+      const gy = position.y;
 
       // Determine gate orientation (angle of the wall it sits on)
       let angle = 0;
@@ -63,7 +63,7 @@ export function renderGates(
         }
       } else {
         // Find closest edge and use its angle
-        const edges = getShapeEdges(b, zone.shape as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
+        const edges = getShapeEdges(b, zone.shape as string, zone.lRatioX ?? 0.5, zone.lRatioY ?? 0.5);
         let bestDist = Infinity;
         for (const [a, e] of edges) {
           const cp = closestPt(gx, gy, a.x, a.y, e.x, e.y);
@@ -112,7 +112,7 @@ export function renderGates(
 
         // Gateway direction arrow
         if (zone.type === 'gateway') {
-          const gwMode = (zone as any).gatewayMode ?? 'both';
+          const gwMode = zone.gatewayMode ?? 'both';
           const cx = zone.bounds.x + zone.bounds.w / 2;
           const cy = zone.bounds.y + zone.bounds.h / 2;
           // Outward direction = away from zone center

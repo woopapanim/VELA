@@ -46,8 +46,8 @@ export function renderMedia(
     const rad = (m.orientation * Math.PI) / 180;
     const watchCount = watchCounts.get(m.id as string) ?? 0;
     const queueCount = queueCounts.get(m.id as string) ?? 0;
-    const isActive = (m as any).interactionType === 'active';
-    const isCustom = (m as any).shape === 'custom' && m.polygon && m.polygon.length > 2;
+    const isActive = m.interactionType === 'active';
+    const isCustom = m.shape === 'custom' && m.polygon && m.polygon.length > 2;
 
     ctx.save();
     ctx.translate(position.x, position.y);
@@ -84,8 +84,8 @@ export function renderMedia(
     else if (ratio >= 0.7) bodyColor = isDark ? 'rgba(250,204,21,0.15)' : 'rgba(250,204,21,0.1)';
     else bodyColor = isDark ? 'rgba(148,163,184,0.15)' : 'rgba(100,116,139,0.1)';
 
-    const isCircle = (m as any).shape === 'circle';
-    const isEllipse = (m as any).shape === 'ellipse';
+    const isCircle = m.shape === 'circle';
+    const isEllipse = m.shape === 'ellipse';
     const circleR = Math.max(pw, ph) / 2;
     const ellipseA = pw / 2; // x-radius
     const ellipseB = ph / 2; // y-radius
@@ -116,8 +116,8 @@ export function renderMedia(
     }
 
     // Border — category-colored
-    const catColor = CATEGORY_BORDER_COLORS[(m as any).category] ?? null;
-    const isOmni = !!(m as any).omnidirectional;
+    const catColor = CATEGORY_BORDER_COLORS[m.category] ?? null;
+    const isOmni = !!m.omnidirectional;
     ctx.strokeStyle = isSelected
       ? (isDark ? '#60a5fa' : '#3b82f6')
       : catColor
@@ -213,7 +213,7 @@ export function renderMedia(
     // ── Media name + category badge (hidden when labels off) ──
     ctx.rotate(-rad); // un-rotate for readable text
     if (showLabels) {
-      const name = (m as any).name || m.type.replace(/_/g, ' ');
+      const name = m.name || m.type.replace(/_/g, ' ');
       const fontSize = fs(Math.max(7, Math.min(10, pw * 0.15)));
       ctx.font = `500 ${fontSize}px Inter, sans-serif`;
       ctx.textAlign = 'center';
@@ -222,7 +222,7 @@ export function renderMedia(
       ctx.fillText(name, 0, 0);
 
       // ── Category badge ──
-      const cat = (m as any).category as string;
+      const cat = m.category;
       const catBadgeColor = CATEGORY_BORDER_COLORS[cat];
       if (catBadgeColor) {
         const catLabels: Record<string, string> = { analog: 'ANALOG', passive_media: 'PASSIVE', active: 'ACTIVE', immersive: 'IMMERSIVE' };
@@ -230,7 +230,7 @@ export function renderMedia(
         ctx.fillStyle = isDark ? catBadgeColor + 'aa' : catBadgeColor + '99';
         ctx.fillText(catLabels[cat] ?? '', 0, fontSize * 0.8);
       } else {
-        const isStaged = (m as any).interactionType === 'staged';
+        const isStaged = m.interactionType === 'staged';
         if (isActive) {
           ctx.font = `${fs(6)}px "JetBrains Mono", monospace`;
           ctx.fillStyle = isDark ? 'rgba(250,204,21,0.6)' : 'rgba(202,138,4,0.6)';
