@@ -385,6 +385,56 @@ function formatDiff(report: ReturnType<typeof diffBundles>, labelA: string, labe
   return lines.join('\n');
 }
 
+// ─── Validation + bulk shape ─────────────────────────────────────────
+
+interface BulkExport {
+  exportedAt: string;
+  source: 'vela-regression-harness';
+  /** version of the bundle shape (bump when RegressionBundle structure changes incompatibly). */
+  version: 1;
+  bundles: Record<string, RegressionBundle>;
+}
+
+/**
+ * Shape-check a parsed object before treating it as a RegressionBundle.
+ * Tolerates extra fields (forward-compat) but requires the keys we actually
+ * compare in diffBundles. Returns null if shape doesn't match — callers
+ * surface a friendly error instead of silently storing garbage.
+ */
+function isRegressionBundle(x: unknown): x is RegressionBundle {
+  if (!x || typeof x !== 'object') return false;
+  const b = x as Record<string, unknown>;
+  return (
+    typeof b.label === 'string' &&
+    typeof b.capturedAt === 'string' &&
+    typeof b.scenario === 'object' && b.scenario !== null &&
+    typeof b.time === 'object' && b.time !== null &&
+    typeof b.flow === 'object' && b.flow !== null &&
+    typeof b.earlyExit === 'object' && b.earlyExit !== null
+  );
+}
+
+// ─── Browser download helper ────────────────────────────────────────
+
+function triggerDownload(filename: string, jsonString: string) {
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  // Revoke after a tick so the browser's download flow finishes reading the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function safeFilename(label: string): string {
+  // Allow alnum, dash, underscore, dot. Replace everything else with _ so the
+  // generated filename is portable across OS file systems.
+  return label.replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
 // ─── Public API ──────────────────────────────────────────────────────
 
 export interface RegressionHarness {
@@ -394,7 +444,24 @@ export interface RegressionHarness {
   diff: (labelA: string, labelB: string, opts?: DiffOptions) => void;
   diffData: (labelA: string, labelB: string, opts?: DiffOptions) => ReturnType<typeof diffBundles>;
   clear: (label?: string) => void;
+  /** Single-bundle JSON string (pretty-printed). */
   exportJSON: (label: string) => string;
+  /**
+   * Trigger a browser download for one or all bundles.
+   * - With a label: downloads `vela-regression-<label>.json`.
+   * - Without a label: downloads `vela-regression-all-<ISO>.json` containing all stored bundles.
+   */
+  download: (label?: string) => void;
+  /**
+   * Parse a JSON string (single bundle or bulk export) and write into localStorage.
+   * Returns the labels that were imported. Throws on invalid shape.
+   * - `overwrite: false` (default) skips labels that already exist; throws if any conflict.
+   * - `overwrite: true` replaces existing labels silently.
+   * - `relabel`: overrides the label of a single-bundle import.
+   */
+  importJSON: (jsonString: string, opts?: { overwrite?: boolean; relabel?: string }) => string[];
+  /** Bulk JSON of every stored bundle — same shape `importJSON` accepts. */
+  exportAll: () => string;
 }
 
 export function createHarness(): RegressionHarness {
@@ -441,6 +508,87 @@ export function createHarness(): RegressionHarness {
       const b = this.load(label);
       if (!b) throw new Error(`bundle "${label}" not found`);
       return JSON.stringify(b, null, 2);
+    },
+    exportAll() {
+      const bundles: Record<string, RegressionBundle> = {};
+      for (const l of listStoredLabels()) {
+        const b = this.load(l);
+        if (b) bundles[l] = b;
+      }
+      const bulk: BulkExport = {
+        exportedAt: new Date().toISOString(),
+        source: 'vela-regression-harness',
+        version: 1,
+        bundles,
+      };
+      return JSON.stringify(bulk, null, 2);
+    },
+    download(label?: string) {
+      if (label) {
+        const json = this.exportJSON(label);
+        triggerDownload(`vela-regression-${safeFilename(label)}.json`, json);
+        console.log(`[regression] downloaded "${label}"`);
+        return;
+      }
+      const json = this.exportAll();
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      triggerDownload(`vela-regression-all-${stamp}.json`, json);
+      console.log(`[regression] downloaded all (${listStoredLabels().length} bundles)`);
+    },
+    importJSON(jsonString: string, opts = {}) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(jsonString);
+      } catch (e) {
+        throw new Error(`invalid JSON: ${(e as Error).message}`);
+      }
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('invalid JSON: not an object');
+      }
+
+      // Bulk export?
+      const maybeBulk = parsed as Partial<BulkExport>;
+      const isBulk = maybeBulk.source === 'vela-regression-harness'
+        && typeof maybeBulk.version === 'number'
+        && maybeBulk.bundles && typeof maybeBulk.bundles === 'object';
+
+      const incoming: Record<string, RegressionBundle> = {};
+      if (isBulk) {
+        for (const [key, b] of Object.entries(maybeBulk.bundles!)) {
+          if (!isRegressionBundle(b)) {
+            throw new Error(`bulk import: bundle "${key}" has invalid shape`);
+          }
+          incoming[opts.relabel && Object.keys(maybeBulk.bundles!).length === 1 ? opts.relabel : key] = b;
+        }
+      } else if (isRegressionBundle(parsed)) {
+        const label = opts.relabel ?? parsed.label;
+        incoming[label] = parsed;
+      } else {
+        throw new Error('invalid JSON: not a regression bundle or bulk export');
+      }
+
+      // Conflict check first (don't write anything if there's a violation).
+      if (!opts.overwrite) {
+        const existing = new Set(listStoredLabels());
+        const conflicts = Object.keys(incoming).filter((k) => existing.has(k));
+        if (conflicts.length > 0) {
+          throw new Error(
+            `import would overwrite ${conflicts.length} existing label(s): ${conflicts.join(', ')}. `
+            + 'Pass { overwrite: true } to replace.',
+          );
+        }
+      }
+
+      // All-or-nothing write.
+      const written: string[] = [];
+      for (const [label, bundle] of Object.entries(incoming)) {
+        // Update bundle.label to match the storage key (after potential relabel).
+        const stored: RegressionBundle = { ...bundle, label };
+        localStorage.setItem(storageKey(label), JSON.stringify(stored));
+        written.push(label);
+      }
+      console.log(`[regression] imported ${written.length} bundle(s): ${written.join(', ')}`);
+      return written;
     },
   };
 }
