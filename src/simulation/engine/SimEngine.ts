@@ -1910,17 +1910,22 @@ export class SimulationEngine {
 
   /** Filter media candidates to those with free capacity (viewers + en-route targeters).
    * All interaction types now queue on arrival (patience-gated skip in stepBehavior),
-   * so we allow arrival up to 1.5× cap for passive/analog and 2× cap for active/staged
-   * (slot + one waiting queue). 포화 미디어는 후보에서 제외해 다른 미디어/존으로 유도.
+   * so we allow arrival up to 1.5× cap. 포화 미디어는 후보에서 제외해 다른 미디어/존으로 유도.
+   *
+   * 2026-05-08 (Phase 4 #3): active/staged slack 2.0 → 1.5 통일.
+   * Baseline (engine-baseline) 측정에서 globalSkipRate 73.5% 의 dominant cause 가
+   * patience-skip 경로(WAITING 한도 초과 후 skip)였고, 2× cap slack 이 cap=2 active 미디어에서
+   * 2 watching + 2 waiting 을 허용 → 물리 수렴 후 waiter 2명이 patience-skip 으로 빠지는 패턴.
+   * 1.5× 로 줄이면 ceil(2×1.5)=3 → 2 watching + 1 waiting 으로 wait 자리 1개 감소.
+   * 부작용 가능성: zone 내 모든 미디어 over-cap 빈도 증가 → bulk-cooldown 경로 증가.
+   * diff 로 확인 필요.
    */
   private filterAvailableMedia(zMedia: readonly MediaPlacement[]): MediaPlacement[] {
     return zMedia.filter(m => {
-      const intType = (m as any).interactionType ?? 'passive';
       const mid = m.id as string;
       const occ = this._tickMediaTargeters.get(mid) ?? 0;
       const cap = this.effectiveMediaCapacity(m);
-      // active/staged: slot + 대기 1회차 (2× cap). passive/analog: 50% slack (1.5× cap).
-      const slack = (intType === 'active' || intType === 'staged') ? 2.0 : 1.5;
+      const slack = 1.5;
       return occ < Math.ceil(cap * slack);
     });
   }
