@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { Plus, Save, FolderOpen, Trash2, Clock } from 'lucide-react';
 import { useStore } from '@/stores';
 import { selectScenarioDirty } from '@/stores/selectors';
-import { useToast } from '@/ui/components/Toast';
+import { useToast } from '@/ui/components/useToast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
 import type { Scenario, ScenarioId, FloorId } from '@/domain';

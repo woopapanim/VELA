@@ -38,7 +38,9 @@ export function NumField({ label, value, onChange, disabled, step = 1 }: {
 }
 
 // ── Category labels ──
-export const CATEGORY_LABELS: Record<string, { label: string; color: string; desc: string }> = {
+// Not exported — only used by CategoryMix below. Adding `export` would
+// re-trigger react-refresh/only-export-components.
+const CATEGORY_LABELS: Record<string, { label: string; color: string; desc: string }> = {
   solo: { label: 'Solo (1)', color: '#60a5fa', desc: `${CATEGORY_CONFIGS.solo.baseSpeed / 20}m/s` },
   small_group: { label: 'Small Group (2-4)', color: '#34d399', desc: `${CATEGORY_CONFIGS.small_group.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.small_group.dwellTimeMultiplier}` },
   guided_tour: { label: 'Guided Tour (10-20)', color: '#f472b6', desc: `${CATEGORY_CONFIGS.guided_tour.baseSpeed / 20}m/s, ×${CATEGORY_CONFIGS.guided_tour.dwellTimeMultiplier}` },

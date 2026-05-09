@@ -11,7 +11,7 @@ import { DrilldownSheet } from './analyze/DrilldownSheet';
 import { ActionCard, type CockpitAction } from './analyze/ActionCard';
 import { RunSwitcher } from './analyze/RunSwitcher';
 import type { ZoneId, MediaId, RunRecord } from '@/domain';
-import { useToast } from '@/ui/components/Toast';
+import { useToast } from '@/ui/components/useToast';
 import { PerspectiveGrid, PatternBlock, SpatialHeatmap, CapacityRecommendationCard } from '@/ui/panels/analytics/v2';
 import { computeTimeSlices } from '@/analytics/patterns/timeSlices';
 import { computeZoneSlices } from '@/analytics/patterns/zoneSlices';

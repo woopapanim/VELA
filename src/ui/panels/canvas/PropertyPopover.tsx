@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState as __useState } from 'react';
+import { useEffect, useRef, useState as useState } from 'react';
 import {
   Trash2, X, Plus, Star,
   Archive, FileText, Box, Image as ImageIcon, Tv2, Monitor, Sparkles,
@@ -14,7 +14,7 @@ import type { MediaPreset } from '@/domain/types/media';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { getZonePolygon } from '@/simulation/engine/transit';
-import { useToast } from '@/ui/components/Toast';
+import { useToast } from '@/ui/components/useToast';
 import { useT } from '@/i18n';
 
 const NODE_TYPE_OPTIONS: { value: WaypointType; label: string }[] = [
@@ -66,28 +66,7 @@ const SHAPE_OPTIONS = [
   { value: 'custom', label: 'Polygon' },
 ];
 
-interface PopoverState {
-  visible: boolean;
-  x: number;
-  y: number;
-  targetType: 'node' | 'edge' | 'media' | 'zone' | null;
-  targetId: string | null;
-}
-
-export function usePropertyPopover() {
-  const [state, setState] = __import_useState<PopoverState>({ visible: false, x: 0, y: 0, targetType: null, targetId: null });
-
-  const show = (x: number, y: number, targetType: PopoverState['targetType'], targetId: string) => {
-    setState({ visible: true, x, y, targetType, targetId });
-  };
-
-  const hide = () => setState(s => ({ ...s, visible: false }));
-
-  return { popover: state, showPopover: show, hidePopover: hide };
-}
-
-// Avoid React import issue — inline useState
-import { useState as __import_useState } from 'react';
+import type { PopoverState } from './usePropertyPopover';
 
 export function PropertyPopover({ popover, onClose }: {
   popover: PopoverState;
@@ -125,7 +104,7 @@ export function PropertyPopover({ popover, onClose }: {
   }, [popover.visible, onClose]);
 
   // Auto-flip when close to viewport edges
-  const [flipped, setFlipped] = __import_useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [flipped, setFlipped] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   useEffect(() => {
     if (!popover.visible) return;
     // Measure actual popover size after paint, then record for next-frame adjustment
@@ -759,7 +738,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
   zoneId: string;
   zoneBounds: { x: number; y: number; w: number; h: number };
 }) {
-  const [open, setOpen] = __useState(false);
+  const [open, setOpen] = useState(false);
   const addMedia = useStore((s) => s.addMedia);
   const { toast } = useToast();
   const t = useT();

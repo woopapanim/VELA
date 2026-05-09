@@ -1,14 +1,5 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-
-type Theme = 'dark' | 'light' | 'system';
-
-interface ThemeContextValue {
-  theme: Theme;
-  resolvedTheme: 'dark' | 'light';
-  setTheme: (theme: Theme) => void;
-}
-
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+import { useEffect, useState, type ReactNode } from 'react';
+import { ThemeContext, type Theme } from './useTheme';
 
 const STORAGE_KEY = 'vela-theme';
 
@@ -52,8 +43,3 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useTheme() {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
-  return ctx;
-}

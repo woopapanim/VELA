@@ -1,10 +1,12 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useStore } from '@/stores';
 import { CanvasManager } from '@/visualization';
-import { useTheme } from '@/ui/components/ThemeProvider';
+import { useTheme } from '@/ui/components/useTheme';
 import { CanvasToolbar } from './CanvasToolbar';
-import { CanvasContextMenu, useContextMenu } from './ContextMenu';
-import { PropertyPopover, usePropertyPopover } from './PropertyPopover';
+import { CanvasContextMenu } from './ContextMenu';
+import { useContextMenu } from './useContextMenu';
+import { PropertyPopover } from './PropertyPopover';
+import { usePropertyPopover } from './usePropertyPopover';
 import { VisitorPopover } from './VisitorPopover';
 import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
