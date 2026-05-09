@@ -125,6 +125,9 @@ export interface MediaPlacement {
   readonly attractiveness: number; // 0-1
   readonly mustVisit?: boolean; // true=히어로 전시물, 모든 관람객이 반드시 관람 (피로·큐 대기 무시)
   readonly attractionRadius: number; // meters — instance override
+  /** Distance (meters) in front of media's front edge where the passive viewing
+   *  slot is anchored. Default 2.0 in UI; SimEngine reads via instance value. */
+  readonly viewDistance?: number;
   readonly interactionType: MediaInteractionType; // passive=관람형, active=체험형, staged=회차형, analog=실물전시
   readonly omnidirectional?: boolean; // true=360도 관람 가능 (analog용, 중앙 전시물)
   readonly shape?: MediaShape; // rect (default), circle, or custom polygon

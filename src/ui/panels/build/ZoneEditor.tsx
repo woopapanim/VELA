@@ -3,19 +3,20 @@ import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { getZonePolygon } from '@/simulation/engine/transit';
 import { ZONE_COLORS, INTERNATIONAL_DENSITY_STANDARD, MEDIA_SCALE } from '@/domain';
+import type { Gate, ZoneConfig, ZoneShape, ZoneType } from '@/domain';
 import { useT } from '@/i18n';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 
 /** Reposition gates to valid wall positions for the given shape */
 function repositionGatesForShape(
-  gates: any[],
+  gates: readonly Gate[],
   bounds: { x: number; y: number; w: number; h: number },
   shape: string,
   // _lRatioX kept in signature so callers don't need to change; only lRatioY is
   // used in the L-shape midpoint math (after the bx-removal cleanup in PR #8).
   _lRatioX: number,
   lRatioY: number,
-): any[] {
+): Gate[] {
   const { x, y, w, h } = bounds;
 
   // For rect/circle: entrance=left center, exit=right center
@@ -85,29 +86,30 @@ export function ZoneEditor() {
       if (field === 'shape') {
         const hasGraph = !!useStore.getState().waypointGraph;
         if (value === 'custom') {
-          const poly = getZonePolygon(zone as any);
-          updateZone(selectedZoneId, { shape: 'custom', polygon: [...poly], gates: [] } as any);
+          const poly = getZonePolygon(zone);
+          updateZone(selectedZoneId, { shape: 'custom', polygon: [...poly], gates: [] });
           useStore.getState().setPolygonEditMode(true);
         } else if (hasGraph) {
           // Graph mode: 게이트 불필요, shape만 변경
-          updateZone(selectedZoneId, { [field]: value, polygon: null, gates: [] } as any);
+          updateZone(selectedZoneId, { shape: value as ZoneShape, polygon: null, gates: [] });
         } else {
           const b = zone.bounds;
-          const gates = repositionGatesForShape(zone.gates as any[], b, value as string, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
-          updateZone(selectedZoneId, { [field]: value, polygon: null, gates } as any);
+          const gates = repositionGatesForShape(zone.gates, b, String(value), zone.lRatioX ?? 0.5, zone.lRatioY ?? 0.5);
+          updateZone(selectedZoneId, { shape: value as ZoneShape, polygon: null, gates });
         }
       } else if (field === 'type') {
-        updateZone(selectedZoneId, { type: value, color: ZONE_COLORS[value as string] ?? zone.color } as any);
+        const typeValue = value as ZoneType;
+        updateZone(selectedZoneId, { type: typeValue, color: ZONE_COLORS[String(value)] ?? zone.color });
       } else if (field === 'area') {
         // Area changed → recalc capacity from new area minus media
-        const newArea = typeof value === 'number' ? value : parseFloat(value as string) || 0;
+        const newArea = typeof value === 'number' ? value : parseFloat(String(value)) || 0;
         const zoneMedia = media.filter(m => (m.zoneId as string) === selectedZoneId);
         const mediaArea = zoneMedia.reduce((sum, m) => sum + m.size.width * m.size.height, 0);
         const effectiveArea = Math.max(1, newArea - mediaArea);
         const capacity = Math.max(1, Math.floor(effectiveArea / INTERNATIONAL_DENSITY_STANDARD));
-        updateZone(selectedZoneId, { area: newArea, capacity } as any);
+        updateZone(selectedZoneId, { area: newArea, capacity });
       } else {
-        updateZone(selectedZoneId, { [field]: value } as any);
+        updateZone(selectedZoneId, { [field]: value } as Partial<ZoneConfig>);
       }
     },
     [selectedZoneId, updateZone, isLocked, zone, media],
@@ -124,7 +126,7 @@ export function ZoneEditor() {
     const effectiveArea = Math.max(1, Math.round((grossArea - mediaArea) * 100) / 100);
     // Capacity = effective area ÷ international density standard (2.5 m²/person)
     const capacity = Math.max(1, Math.floor(effectiveArea / INTERNATIONAL_DENSITY_STANDARD));
-    updateZone(selectedZoneId, { area: effectiveArea, capacity } as any);
+    updateZone(selectedZoneId, { area: effectiveArea, capacity });
   }, [selectedZoneId, isLocked, zone, media, updateZone]);
 
   const polygonEditMode = useStore((s) => s.polygonEditMode);
@@ -243,16 +245,16 @@ export function ZoneEditor() {
           <button
             onClick={() => {
               if (!selectedZoneId || isLocked) return;
-              updateZone(selectedZoneId, { mustVisit: !(zone as any).mustVisit } as any);
+              updateZone(selectedZoneId, { mustVisit: !zone.mustVisit });
             }}
             disabled={isLocked}
             className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
-              (zone as any).mustVisit
+              zone.mustVisit
                 ? 'bg-amber-500/20 text-amber-400 font-semibold'
                 : 'bg-secondary text-muted-foreground'
             } disabled:opacity-50`}
           >
-            {(zone as any).mustVisit ? '★ Hero' : 'Off'}
+            {zone.mustVisit ? '★ Hero' : 'Off'}
           </button>
         </div>
         {/* Gateway Mode Toggle */}
@@ -265,7 +267,7 @@ export function ZoneEditor() {
                   key={mode}
                   onClick={() => {
                     if (!selectedZoneId || isLocked) return;
-                    updateZone(selectedZoneId, { gatewayMode: mode } as any);
+                    updateZone(selectedZoneId, { gatewayMode: mode });
                   }}
                   disabled={isLocked}
                   className={`flex-1 px-1.5 py-1 text-[8px] rounded border ${

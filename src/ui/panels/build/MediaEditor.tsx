@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
-import type { Vector2D } from '@/domain';
+import type { Vector2D, MediaPlacement } from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import { useT } from '@/i18n';
 
@@ -27,21 +27,21 @@ export function MediaEditor() {
   const isLocked = phase === 'running' || phase === 'paused';
 
   const handleUpdate = useCallback(
-    (field: string, value: any) => {
+    <K extends keyof MediaPlacement>(field: K, value: MediaPlacement[K]) => {
       if (!selectedMediaId || isLocked) return;
-      updateMedia(selectedMediaId, { [field]: value } as any);
+      updateMedia(selectedMediaId, { [field]: value } as Partial<MediaPlacement>);
     },
     [selectedMediaId, updateMedia, isLocked],
   );
 
   if (!m) return null;
 
-  const interactionType = (m as any).interactionType || 'passive';
+  const interactionType = m.interactionType || 'passive';
   const autoCapacity = Math.max(1, Math.floor(
     (m.size.width * m.size.height) / MEDIA_SQMETER_PER_PERSON
   ));
 
-  const cat = (m as any).category;
+  const cat = m.category;
   const badge = CATEGORY_BADGE[cat];
   const dotColor = badge?.color ?? (interactionType === 'active' ? '#fbbf24' : '#60a5fa');
 
@@ -68,7 +68,7 @@ export function MediaEditor() {
       <div>
         <label className="panel-label">Name</label>
         <input
-          value={(m as any).name || m.type.replace(/_/g, ' ')}
+          value={m.name || m.type.replace(/_/g, ' ')}
           onChange={(e) => handleUpdate('name', e.target.value)}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
@@ -76,7 +76,7 @@ export function MediaEditor() {
       </div>
 
       {/* Size (hidden for custom polygon — derived from vertices) */}
-      {(m as any).shape !== 'custom' && (
+      {m.shape !== 'custom' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="panel-label">Width (m)</label>
@@ -120,10 +120,12 @@ export function MediaEditor() {
       <div>
         <label className="panel-label">Shape</label>
         <select
-          value={(m as any).shape || 'rect'}
+          value={m.shape || 'rect'}
           onChange={(e) => {
-            const newShape = e.target.value;
-            if (newShape === 'custom' && (m as any).shape !== 'custom') {
+            // <select>'s value type-narrows to string; cast back to MediaShape since
+            // the <option> values are constrained to that union.
+            const newShape = e.target.value as 'rect' | 'circle' | 'ellipse' | 'custom';
+            if (newShape === 'custom' && m.shape !== 'custom') {
               // Convert rect/circle to polygon: generate 4 corners from current size
               const pw = m.size.width * MEDIA_SCALE;
               const ph = m.size.height * MEDIA_SCALE;
@@ -133,9 +135,9 @@ export function MediaEditor() {
                 { x:  pw / 2, y:  ph / 2 },
                 { x: -pw / 2, y:  ph / 2 },
               ];
-              updateMedia(selectedMediaId!, { shape: 'custom', polygon: poly } as any);
+              updateMedia(selectedMediaId!, { shape: 'custom', polygon: poly });
               setMediaPolygonEditMode(true);
-            } else if (newShape !== 'custom' && (m as any).shape === 'custom') {
+            } else if (newShape !== 'custom' && m.shape === 'custom') {
               // Convert polygon back to rect/circle: derive size from polygon AABB
               const poly = m.polygon;
               if (poly && poly.length > 2) {
@@ -148,9 +150,9 @@ export function MediaEditor() {
                 }
                 const w = Math.max(0.5, (maxX - minX) / MEDIA_SCALE);
                 const h = Math.max(0.5, (maxY - minY) / MEDIA_SCALE);
-                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } } as any);
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } });
               } else {
-                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined } as any);
+                updateMedia(selectedMediaId!, { shape: newShape, polygon: undefined });
               }
               setMediaPolygonEditMode(false);
             } else {
@@ -168,7 +170,7 @@ export function MediaEditor() {
       </div>
 
       {/* Polygon edit mode toggle */}
-      {(m as any).shape === 'custom' && !isLocked && (
+      {m.shape === 'custom' && !isLocked && (
         <button
           onClick={() => setMediaPolygonEditMode(!mediaPolygonEditMode)}
           className={`w-full px-2 py-1 text-[10px] rounded-lg border transition-colors ${
@@ -189,7 +191,7 @@ export function MediaEditor() {
         </div>
         <select
           value={interactionType}
-          onChange={(e) => handleUpdate('interactionType', e.target.value)}
+          onChange={(e) => handleUpdate('interactionType', e.target.value as 'passive' | 'active' | 'staged' | 'analog')}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
@@ -207,13 +209,13 @@ export function MediaEditor() {
           <InfoTooltip text={t('tooltip.media.omnidirectional')} />
         </div>
         <button
-          onClick={() => handleUpdate('omnidirectional', !(m as any).omnidirectional)}
+          onClick={() => handleUpdate('omnidirectional', !m.omnidirectional)}
           disabled={isLocked}
           className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
-            (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+            m.omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {(m as any).omnidirectional ? '360°' : 'Front'}
+          {m.omnidirectional ? '360°' : 'Front'}
         </button>
       </div>
 
@@ -225,7 +227,7 @@ export function MediaEditor() {
             <InfoTooltip text={t('tooltip.media.stageInterval')} />
           </div>
           <input type="number" step="10" min="10"
-            value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
+            value={Math.round((m.stageIntervalMs ?? 60000) / 1000)}
             onChange={(e) => handleUpdate('stageIntervalMs', (parseInt(e.target.value) || 60) * 1000)}
             disabled={isLocked}
             className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
@@ -283,10 +285,10 @@ export function MediaEditor() {
             <label className="panel-label">View Distance (m)</label>
             <InfoTooltip text={t('tooltip.media.viewDistance')} />
           </div>
-          <span className="text-[9px] font-data">{((m as any).viewDistance ?? 2.0).toFixed(1)}m</span>
+          <span className="text-[9px] font-data">{(m.viewDistance ?? 2.0).toFixed(1)}m</span>
         </div>
         <input type="range" min="0.5" max="10" step="0.5"
-          value={(m as any).viewDistance ?? 2.0}
+          value={m.viewDistance ?? 2.0}
           onChange={(e) => handleUpdate('viewDistance', parseFloat(e.target.value))}
           disabled={isLocked}
           className="w-full h-1"
@@ -318,15 +320,15 @@ export function MediaEditor() {
           <InfoTooltip text="히어로 전시 — 모든 관람객이 반드시 관람. skip·대기 포기 로직 무시. 체류는 프로필×피로에 따라 단축." />
         </div>
         <button
-          onClick={() => handleUpdate('mustVisit', !(m as any).mustVisit)}
+          onClick={() => handleUpdate('mustVisit', !m.mustVisit)}
           disabled={isLocked}
           className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
-            (m as any).mustVisit
+            m.mustVisit
               ? 'bg-amber-500/20 text-amber-400 font-semibold'
               : 'bg-secondary text-muted-foreground'
           } disabled:opacity-50`}
         >
-          {(m as any).mustVisit ? '★ Hero' : 'Off'}
+          {m.mustVisit ? '★ Hero' : 'Off'}
         </button>
       </div>
 
@@ -338,8 +340,8 @@ export function MediaEditor() {
           <InfoTooltip text={t('tooltip.media.queueBehavior')} />
         </div>
         <select
-          value={(m as any).queueBehavior || 'none'}
-          onChange={(e) => handleUpdate('queueBehavior', e.target.value)}
+          value={m.queueBehavior || 'none'}
+          onChange={(e) => handleUpdate('queueBehavior', e.target.value as 'none' | 'linear' | 'area')}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
@@ -357,13 +359,13 @@ export function MediaEditor() {
           <InfoTooltip text={t('tooltip.media.groupFriendly')} />
         </div>
         <button
-          onClick={() => handleUpdate('groupFriendly', !(m as any).groupFriendly)}
+          onClick={() => handleUpdate('groupFriendly', !m.groupFriendly)}
           disabled={isLocked}
           className={`px-2 py-0.5 text-[9px] rounded-full transition-colors ${
-            (m as any).groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
+            m.groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
           }`}
         >
-          {(m as any).groupFriendly ? 'Yes' : 'No'}
+          {m.groupFriendly ? 'Yes' : 'No'}
         </button>
       </div>
       </div>
