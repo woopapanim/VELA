@@ -2941,11 +2941,27 @@ export class SimulationEngine {
       ? { unvisitedZoneIds: mustZoneIds, unvisitedMediaIds: mustMediaIds }
       : undefined;
     const nextNode = this.waypointNav.selectNextNode(v, curNode.id, this.nodeCrowd, this.rng, this.state.timeState.elapsed, this.zoneOccupancy, zoneCapacity, mustVisitCtx, this.exitTargetCounts);
-    // Capture force-exit reason if it fired this call. Read immediately —
+    // Capture exit trigger reason if it fired this call. Read immediately —
     // 다음 selectNextNode 호출 시 reset 됨.
+    //
+    // Priority model (이름은 ForceExitReason 이지만 의미는 ExitTriggerReason):
+    //   1) Hard force-exit (stuck/maxDwell/budget/allEssentialDone) — 매 발화마다
+    //      덮어쓴다. 마지막 hard 사유가 가장 최신.
+    //   2) Soft canExit (visitRatio/fatigueThreshold) — first-fire 만 기록.
+    //      이미 어떤 사유든 기록돼 있으면 덮어쓰지 않음 (hard 가 우선이고,
+    //      visitRatio 가 한 번 발화한 시점이 더 의미 있음 — 이후 호출마다
+    //      재발화해도 첫 사유 보존).
+    //
+    // 결과: inferExitTrigger 의 visitRatio/fatigueThreshold 휴리스틱 fallback
+    // 이 거의 발화하지 않게 됨 → triggerCounts 정확도 ↑.
     const forceExitReason = this.waypointNav.getLastForceExit();
     if (forceExitReason) {
       this._exitTriggerByVisitor.set(v.id as string, forceExitReason);
+    } else {
+      const softReason = this.waypointNav.getLastSoftCanExitReason();
+      if (softReason && !this._exitTriggerByVisitor.has(v.id as string)) {
+        this._exitTriggerByVisitor.set(v.id as string, softReason);
+      }
     }
     if (!nextNode) {
       // Orphan 노드 (neighbors === 0): 그래프 상 다음 노드 없음.
@@ -3039,7 +3055,9 @@ export class SimulationEngine {
     if (exitReason === 'physics-stuck') return 'physics-stuck';
     if (exitReason === 'sim-ended') return 'sim-ended';
 
-    // 1) 직접 기록된 force-exit reason 우선 — 100% 정확.
+    // 1) 직접 기록된 reason 우선 — 100% 정확.
+    //    Hard force-exit (stuck/budget/allEssentialDone/maxDwell) 또는
+    //    Soft canExit first-fire (visitRatio/fatigueThreshold). 둘 다 여기서 잡힘.
     const recorded = this._exitTriggerByVisitor.get(v.id as string);
     if (recorded) return recorded;
 
@@ -3048,13 +3066,14 @@ export class SimulationEngine {
     if (totalDwellMs >= MAX_TOTAL_DWELL_MS) return 'maxDwell';
     if (v.visitBudgetMs > 0 && totalDwellMs >= v.visitBudgetMs) return 'budgetExceeded';
 
-    // 3) Force-exit redirect 가 안 났으니 visitor 가 normal scoring 으로 exit 선택한
-    //    경우 — visitRatio 또는 fatigueThreshold 영향. 최종 상태로 추정.
+    // 3) Race-condition fallback. visitRatio/fatigueThreshold 는 이제 selectNextNode
+    //    호출 직후 first-fire 로 직접 기록되므로 (1) 에서 거의 항상 잡힌다.
+    //    이 분기에 도달하는 경우는: 마지막 selectNextNode 호출과 exit 사이에
+    //    visitor 가 추가로 zone 을 방문해 essentialCount 를 채운 짧은 윈도우 등.
+    //    여전히 final state 로 best-effort 분류해 'unknown' 비율을 줄인다.
     const essentialCount = this.waypointNav?.getEssentialCount() ?? 0;
     if (essentialCount > 0) {
       const visited = v.visitedZoneIds.length;
-      // visited == essentialCount 인데 force-exit 가 안 잡힌 케이스 (race condition)
-      // 도 allEssentialDone 으로 처리.
       if (visited >= essentialCount) return 'allEssentialDone';
       if (visited / essentialCount >= EXIT_VISIT_RATIO) return 'visitRatio';
     }
