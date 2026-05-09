@@ -1,7 +1,15 @@
 import { useEffect } from 'react';
 import { useStore } from '@/stores';
 import type { OverlayMode } from '@/stores';
+import type { LayoutSnapshot } from '@/stores/slices/undoSlice';
+import type { ZoneConfig, Gate } from '@/domain';
 import { pinCurrentMoment } from '@/analytics';
+
+declare global {
+  interface Window {
+    __vela_clipboard_zone?: ZoneConfig;
+  }
+}
 
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -17,9 +25,9 @@ export function useKeyboardShortcuts() {
         case 'Space': {
           e.preventDefault();
           if (store.phase === 'running') {
-            store.setPhase('paused' as any);
+            store.setPhase('paused');
           } else if (store.phase === 'paused') {
-            store.setPhase('running' as any);
+            store.setPhase('running');
           }
           break;
         }
@@ -98,7 +106,7 @@ export function useKeyboardShortcuts() {
         case 'Z': {
           if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
             e.preventDefault();
-            const applySnapshot = (snapshot: any) => {
+            const applySnapshot = (snapshot: LayoutSnapshot | null) => {
               if (!snapshot || !store.scenario) return;
               // Snapshot carries floors/shafts too — restore them as-is so
               // floor↔zone and shaft↔portal links stay consistent after undo.
@@ -130,7 +138,7 @@ export function useKeyboardShortcuts() {
             e.preventDefault();
             const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
             if (zone) {
-              (window as any).__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
+              window.__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
             }
           }
           break;
@@ -140,7 +148,7 @@ export function useKeyboardShortcuts() {
           // Paste zone (Cmd/Ctrl+V)
           if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
             e.preventDefault();
-            const clipZone = (window as any).__vela_clipboard_zone;
+            const clipZone = window.__vela_clipboard_zone;
             if (clipZone) {
               // suffix 로 random — 빠른 연속 paste 에서 Date.now() 가 동일 ms
               // 일 때 ID 충돌하던 것 방지.
@@ -164,14 +172,15 @@ export function useKeyboardShortcuts() {
                 id: newId,
                 name: clipZone.name + ' (Copy)',
                 bounds: { ...clipZone.bounds, x: tx, y: ty },
-                gates: clipZone.gates.map((g: any, i: number) => ({
+                gates: clipZone.gates.map((g: Gate, i: number): Gate => ({
                   ...g,
-                  id: `g_paste_${suffix}_${i}`,
-                  zoneId: newId,
+                  id: `g_paste_${suffix}_${i}` as Gate['id'],
+                  zoneId: newId as Gate['zoneId'],
                   connectedGateId: null,
                 })),
               };
-              store.addZone(pasted);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              store.addZone(pasted as any);
               store.selectZone(newId);
             }
           }

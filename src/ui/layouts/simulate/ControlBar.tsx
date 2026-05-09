@@ -46,7 +46,7 @@ export function ControlBar() {
   const runStartedAtRef = useRef<number>(0);
   const dirtyAtStartRef = useRef<boolean>(false);
   const { toast } = useToast();
-  const milestonesHit = useRef(new Set<number>());
+  const milestonesHit = useRef(new Set<string | number>());
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [speed, setSpeed] = useState(1);
 
@@ -90,7 +90,7 @@ export function ControlBar() {
     if (!duration) return [];
     const seen = new Set<string>();
     const out: { t: number }[] = [];
-    for (const entry of kpiHistory as any[]) {
+    for (const entry of kpiHistory) {
       for (const bn of entry.snapshot?.bottlenecks ?? []) {
         const key = bn.zoneId as string;
         if (!seen.has(key)) {
@@ -233,8 +233,8 @@ export function ControlBar() {
         for (const bn of snapshot.bottlenecks) {
           if (bn.score > 0.85) {
             const key = `bn_${bn.zoneId as string}_${Math.floor(elapsedNow / 60000)}`;
-            if (!milestonesHit.current.has(key as any)) {
-              milestonesHit.current.add(key as any);
+            if (!milestonesHit.current.has(key)) {
+              milestonesHit.current.add(key);
               const zone = currentStore.zones.find((z) => z.id === bn.zoneId);
               toast('warning', `⚠️ ${zone?.name ?? '?'} bottleneck (${Math.round(bn.score * 100)})`);
             }
@@ -293,7 +293,7 @@ export function ControlBar() {
     clearPins();
     milestonesHit.current.clear();
     setShowStopConfirm(false);
-    setTimeout(() => setPhase('idle' as any), 50);
+    setTimeout(() => setPhase('idle'), 50);
   }, [resetSim, clearHistory, clearReplay, clearPins, setPhase]);
 
   const toggleHeatmap = useCallback(() => {

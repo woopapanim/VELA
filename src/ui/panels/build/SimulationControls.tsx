@@ -46,7 +46,7 @@ export function SimulationControls() {
   const runStartedAtRef = useRef<number>(0);
   const dirtyAtStartRef = useRef<boolean>(false);
   const { toast } = useToast();
-  const milestonesHit = useRef(new Set<number>());
+  const milestonesHit = useRef(new Set<string | number>());
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [speed, setSpeed] = useState(1);
 
@@ -220,8 +220,8 @@ export function SimulationControls() {
         for (const bn of snapshot.bottlenecks) {
           if (bn.score > 0.85) {
             const key = `bn_${bn.zoneId as string}_${Math.floor(elapsed / 60000)}`;
-            if (!milestonesHit.current.has(key as any)) {
-              milestonesHit.current.add(key as any);
+            if (!milestonesHit.current.has(key)) {
+              milestonesHit.current.add(key);
               const zone = currentStore.zones.find((z) => z.id === bn.zoneId);
               toast('warning', `⚠️ ${zone?.name ?? '?'} bottleneck (${Math.round(bn.score * 100)})`);
             }
@@ -287,7 +287,7 @@ export function SimulationControls() {
     clearPins();
     milestonesHit.current.clear();
     setShowStopConfirm(false);
-    setTimeout(() => setPhase('idle' as any), 50);
+    setTimeout(() => setPhase('idle'), 50);
   }, [resetSim, clearHistory, clearReplay, clearPins, setPhase]);
 
   const toggleHeatmap = useCallback(() => {

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Trash2, Eye, EyeOff, Square, Monitor, Circle, GitBranch, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
-import type { ZoneId, MediaId } from '@/domain';
+import type { ZoneId, MediaId, ZoneType, MediaType, WaypointType } from '@/domain';
 
 interface MenuState {
   visible: boolean;
@@ -116,7 +116,7 @@ function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) 
   store.addZone({
     id,
     name: `${zoneType.charAt(0).toUpperCase() + zoneType.slice(1)} ${_ctxZoneCounter}`,
-    type: zoneType as any,
+    type: zoneType as ZoneType,
     shape: 'rect',
     bounds: { x, y, w: zoneW, h: zoneH },
     polygon: null,
@@ -130,6 +130,8 @@ function createZoneAtPosition(zoneType: string, worldX: number, worldY: number) 
     lRatioX: 0.5,
     lRatioY: 0.5,
     metadata: {},
+    // floorId is stamped by worldSlice.addZone from activeFloorId — omit here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any);
   store.selectZone(id as string);
 }
@@ -168,7 +170,7 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
   store.addMedia({
     id,
     name: preset.type.replace(/_/g, ' '),
-    type: mediaType as any,
+    type: mediaType as MediaType,
     category: preset.category,
     zoneId: zone.id,
     position: { x: cx, y: cy },
@@ -179,10 +181,10 @@ function createMediaAtPosition(mediaType: string, worldX: number, worldY: number
     attractiveness: preset.category === 'analog' ? 0.3 : 0.7,
     attractionRadius: preset.attractionRadius,
     interactionType,
-    omnidirectional: (preset as any).omnidirectional ?? false,
+    omnidirectional: preset.omnidirectional ?? false,
     queueBehavior: preset.queueBehavior,
     groupFriendly: preset.groupFriendly,
-  } as any);
+  });
   store.selectMedia(id as string);
 }
 
@@ -319,7 +321,7 @@ export function CanvasContextMenu({ menu, onClose }: {
             {NODE_TYPES.map(({ type, label, color }) => (
               <SubItem key={type} label={label} color={color} onClick={() => {
                 setEditorMode('place-waypoint');
-                useStore.getState().setPendingWaypointType(type as any);
+                useStore.getState().setPendingWaypointType(type as WaypointType);
                 onClose();
               }} />
             ))}
