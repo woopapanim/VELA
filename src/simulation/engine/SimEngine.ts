@@ -129,7 +129,7 @@ export interface ExitLogEntry {
   exitReason: 'normal' | 'physics-stuck' | 'sim-ended';
   inferredTrigger: 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
     | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
-    | 'nodeStuck' | 'unknown';
+    | 'nodeStuck' | 'leaderExited' | 'unknown';
 }
 
 /* ─── engine ─── */
@@ -625,6 +625,75 @@ export class SimulationEngine {
   }
 
   /**
+   * Hard cascade: follower deactivates the same tick its leader does.
+   *
+   * Why: `syncFollowerToLeader` mirrors `currentAction` (IDLE/MOVING/EXITING/
+   * WATCHING/WAITING) but does NOT propagate `isActive=false`. When the leader
+   * reaches its exit gate and `beginExitGraph` flips `isActive` off, followers
+   * lose their tether anchor (line 3534 early-returns) AND skip the zone wall
+   * clamp (line 3676), which lets them drift through walls — the visible
+   * "터짐" the user reported. diagnoseGroupCohesion confirmed this with 81
+   * first-fire orphan events (≈ 50% of all cohesion events).
+   *
+   * Semantics — "guided tour" interpretation: the tour ends when the guide
+   * leaves. Surviving followers complete with the same exit timestamp as
+   * their leader, attributed via `_exitTriggerByVisitor` so diagnoseEarlyExit
+   * groups them under the new `leaderExited` bucket (not visitor's own canExit).
+   *
+   * Bookkeeping mirrors `beginExitGraph`:
+   *   - recordZoneExit (close out current zone dwell)
+   *   - recordExitContext (push to _exitLog with inferredTrigger)
+   *   - _totalExited++ per cascaded follower (matches main-loop convention)
+   *
+   * Determinism: no RNG, no scoring, no group-state mutation. Pure visitor map
+   * mutation gated on leader.isActive — same seed produces identical cascade
+   * timing.
+   *
+   * Returns a new Map so callers can swap atomically. Avoids the in-place
+   * mutation gotcha where the cohesion sweep that runs immediately after
+   * could see an inconsistent (mid-cascade) state.
+   */
+  private cascadeOrphanedFollowers(visitors: Map<string, Visitor>): Map<string, Visitor> {
+    const updated = new Map(visitors);
+    const now = this.state.timeState.elapsed;
+    for (const [, group] of this.state.groups) {
+      if (group.memberIds.length === 0) continue;
+      const leader = updated.get(group.leaderId as string);
+      // Leader still alive → nothing to cascade. Common path, fast exit.
+      if (leader?.isActive) continue;
+
+      for (const mid of group.memberIds) {
+        const m = updated.get(mid as string);
+        if (!m?.isActive) continue;
+        // Defense: skip the leader entry itself (leader.isActive === false here
+        // by definition). Also covers the rare race where leaderId points at a
+        // member id that happens to still appear active under a stale lookup.
+        if ((m.id as string) === (group.leaderId as string)) continue;
+
+        if (m.currentZoneId) {
+          recordZoneExit(m.currentZoneId as string, Math.max(0, now - m.zoneEnteredAtMs));
+        }
+        // Pre-record cause so inferExitTrigger picks 'leaderExited' (priority 1).
+        // recordExitContext reads then beginExitGraph-style code deletes — we
+        // delete inline since this isn't beginExitGraph's path.
+        this._exitTriggerByVisitor.set(m.id as string, 'leaderExited');
+        this.recordExitContext(m, null, now, 'normal');
+        this._exitTriggerByVisitor.delete(m.id as string);
+        this._totalExited++;
+
+        updated.set(m.id as string, {
+          ...m,
+          currentAction: VISITOR_ACTION.EXITING,
+          velocity: { x: 0, y: 0 },
+          isActive: false,
+          exitedAt: now,
+        });
+      }
+    }
+    return updated;
+  }
+
+  /**
    * Per-tick sweep called from the main tick loop AFTER all visitor updates.
    * Compares each follower's post-tether position to its leader and bumps
    * counters / records first-fire events. Pure read-side: never mutates
@@ -1006,7 +1075,7 @@ export class SimulationEngine {
       }
     }
 
-    const next = new Map<string, Visitor>();
+    let next = new Map<string, Visitor>();
     for (const [k, v] of this.state.visitors) {
       if (!v.isActive) { next.set(k, v); continue; }
       let a = this.stepBehavior(v, dt);
@@ -1020,6 +1089,11 @@ export class SimulationEngine {
       if (!a.isActive) this._totalExited++;
       next.set(k, a);
     }
+    // Group-leader cascade: follower deactivates with leader (hard cascade).
+    // MUST run before recordCohesionStats so the cohesion sweep sees the
+    // post-cascade state (newly inactive followers won't inflate orphanedFrames).
+    // recordExitContext / _totalExited bookkeeping mirrors beginExitGraph.
+    next = this.cascadeOrphanedFollowers(next);
     this.state.visitors = next;
 
     // Cohesion diagnostic sweep — read-only inspection AFTER tether ran.
@@ -3230,7 +3304,7 @@ export class SimulationEngine {
     nowMs: number,
   ): 'budgetExceeded' | 'allEssentialDone' | 'visitRatio'
    | 'fatigueThreshold' | 'maxDwell' | 'physics-stuck' | 'sim-ended'
-   | 'nodeStuck' | 'unknown' {
+   | 'nodeStuck' | 'leaderExited' | 'unknown' {
     if (exitReason === 'physics-stuck') return 'physics-stuck';
     if (exitReason === 'sim-ended') return 'sim-ended';
 
