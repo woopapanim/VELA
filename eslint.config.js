@@ -32,6 +32,17 @@ export default defineConfig([
           destructuredArrayIgnorePattern: '^_',
         },
       ],
+      // Baseline-tracked tech debt — currently 76 violations across the
+      // codebase (53 no-explicit-any + 18 react-hooks/refs + 3 immutability
+      // + 2 set-state-in-effect). Downgraded to warn so CI can ratchet via
+      // `--max-warnings <N>`: existing debt doesn't break the build, but a
+      // new violation pushes the count over the cap and fails the gate.
+      // Lower the cap whenever a cleanup PR reduces the number.
+      // See .github/workflows/ci.yml.
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
     },
   },
 ])
