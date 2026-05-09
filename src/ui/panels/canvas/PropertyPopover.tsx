@@ -6,7 +6,11 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useStore } from '@/stores';
-import type { WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft } from '@/domain';
+import type {
+  WaypointType, WaypointNode, MediaPlacement, MediaId, Vector2D, ShaftId, ElevatorShaft,
+  ZoneId, ZoneShape, MediaType, MediaShape, MediaInteractionType, ZoneType, QueueBehavior,
+} from '@/domain';
+import type { MediaPreset } from '@/domain/types/media';
 import { MEDIA_PRESETS, MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import { getShaftFloorIds } from '@/domain/shaftMembership';
 import { getZonePolygon } from '@/simulation/engine/transit';
@@ -285,7 +289,7 @@ export function PropertyPopover({ popover, onClose }: {
                     updateWaypoint(popover.targetId!, { shaftId: id });
                     return;
                   }
-                  updateWaypoint(popover.targetId!, { shaftId: (val || null) as any });
+                  updateWaypoint(popover.targetId!, { shaftId: (val || null) as ShaftId | null });
                 }}
                 className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
                 <option value="">— None —</option>
@@ -360,7 +364,7 @@ export function PropertyPopover({ popover, onClose }: {
 
         {/* Direction + Flip */}
         <Row label="Dir">
-          <select value={edge.direction} onChange={e => updateEdge(popover.targetId!, { direction: e.target.value as any })}
+          <select value={edge.direction} onChange={e => updateEdge(popover.targetId!, { direction: e.target.value as 'directed' | 'bidirectional' })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             <option value="directed">Directed →</option>
             <option value="bidirectional">Bidir ↔</option>
@@ -368,7 +372,7 @@ export function PropertyPopover({ popover, onClose }: {
           {edge.direction === 'directed' && (
             <button
               title="Flip Direction"
-              onClick={() => updateEdge(popover.targetId!, { fromId: edge.toId, toId: edge.fromId } as any)}
+              onClick={() => updateEdge(popover.targetId!, { fromId: edge.toId, toId: edge.fromId })}
               className="px-1.5 py-0.5 rounded bg-secondary hover:bg-accent text-[10px] border border-border"
             >⇄</button>
           )}
@@ -420,8 +424,8 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Type">
           <select value={zone.type} onChange={e => {
-            const newType = e.target.value;
-            updateZone(popover.targetId!, { type: newType as any, color: (ZONE_COLORS[newType] ?? zone.color) as `#${string}` });
+            const newType = e.target.value as ZoneType;
+            updateZone(popover.targetId!, { type: newType, color: (ZONE_COLORS[newType] ?? zone.color) as `#${string}` });
           }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             {ZONE_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -430,12 +434,12 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Shape">
           <select value={zone.shape} onChange={e => {
-            const v = e.target.value;
+            const v = e.target.value as ZoneShape;
             if (v === 'custom') {
-              updateZone(popover.targetId!, { shape: 'custom', polygon: [...getZonePolygon(zone as any)], gates: [] } as any);
+              updateZone(popover.targetId!, { shape: 'custom', polygon: [...getZonePolygon(zone)], gates: [] });
               useStore.getState().setPolygonEditMode(true);
             } else {
-              updateZone(popover.targetId!, { shape: v, polygon: null, gates: [] } as any);
+              updateZone(popover.targetId!, { shape: v, polygon: null, gates: [] });
             }
           }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
@@ -457,16 +461,16 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Hero">
           <button
-            onClick={() => updateZone(popover.targetId!, { mustVisit: !(zone as any).mustVisit } as any)}
-            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${(zone as any).mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
+            onClick={() => updateZone(popover.targetId!, { mustVisit: !zone.mustVisit })}
+            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${zone.mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
           >
-            <Star className={`w-3 h-3 ${(zone as any).mustVisit ? 'fill-amber-400' : ''}`} />
-            {(zone as any).mustVisit ? 'Must Visit' : 'Mark'}
+            <Star className={`w-3 h-3 ${zone.mustVisit ? 'fill-amber-400' : ''}`} />
+            {zone.mustVisit ? 'Must Visit' : 'Mark'}
           </button>
         </Row>
 
         <div className="text-[8px] text-muted-foreground">
-          {(() => { const f = floors.find((fl) => fl.id === zone.floorId) ?? floors[0]; const mpu = (f as any)?.canvas?.scale ?? 0.025; return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`; })()} · {zone.area.toFixed(1)}m² · {zone.shape}
+          {(() => { const f = floors.find((fl) => fl.id === zone.floorId) ?? floors[0]; const mpu = f?.canvas?.scale ?? 0.025; return `${(zone.bounds.w * mpu).toFixed(1)}x${(zone.bounds.h * mpu).toFixed(1)}m`; })()} · {zone.area.toFixed(1)}m² · {zone.shape}
         </div>
 
         {/* Add Media — inline expandable */}
@@ -485,8 +489,8 @@ export function PropertyPopover({ popover, onClose }: {
     const m = media.find(m => (m.id as string) === popover.targetId);
     if (!m) return null;
 
-    const interactionType = (m as any).interactionType ?? 'passive';
-    const shape = (m as any).shape ?? 'rect';
+    const interactionType = m.interactionType ?? 'passive';
+    const shape = m.shape ?? 'rect';
     const autoCapacity = Math.max(1, Math.floor(
       (m.size.width * m.size.height) / MEDIA_SQMETER_PER_PERSON,
     ));
@@ -540,7 +544,7 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Shape">
           <select value={shape} onChange={e => {
-            const newShape = e.target.value;
+            const newShape = e.target.value as MediaShape;
             if (newShape === 'custom' && shape !== 'custom') {
               const pw = m.size.width * MEDIA_SCALE;
               const ph = m.size.height * MEDIA_SCALE;
@@ -550,10 +554,10 @@ export function PropertyPopover({ popover, onClose }: {
                 { x:  pw / 2, y:  ph / 2 },
                 { x: -pw / 2, y:  ph / 2 },
               ];
-              updateMedia(popover.targetId!, { shape: 'custom', polygon: poly } as any);
+              updateMedia(popover.targetId!, { shape: 'custom', polygon: poly });
               useStore.getState().setMediaPolygonEditMode(true);
             } else if (newShape !== 'custom' && shape === 'custom') {
-              const poly = (m as any).polygon;
+              const poly = m.polygon;
               if (poly && poly.length > 2) {
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                 for (const p of poly) {
@@ -564,13 +568,13 @@ export function PropertyPopover({ popover, onClose }: {
                 }
                 const w = Math.max(0.5, (maxX - minX) / MEDIA_SCALE);
                 const h = Math.max(0.5, (maxY - minY) / MEDIA_SCALE);
-                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } } as any);
+                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined, size: { width: w, height: h } });
               } else {
-                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined } as any);
+                updateMedia(popover.targetId!, { shape: newShape, polygon: undefined });
               }
               useStore.getState().setMediaPolygonEditMode(false);
             } else {
-              updateMedia(popover.targetId!, { shape: newShape } as any);
+              updateMedia(popover.targetId!, { shape: newShape });
             }
           }}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
@@ -583,7 +587,7 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Mode">
           <select value={interactionType}
-            onChange={e => updateMedia(popover.targetId!, { interactionType: e.target.value as any })}
+            onChange={e => updateMedia(popover.targetId!, { interactionType: e.target.value as MediaInteractionType })}
             className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
             <option value="passive">Passive</option>
             <option value="active">Active</option>
@@ -595,12 +599,12 @@ export function PropertyPopover({ popover, onClose }: {
         {/* Omnidirectional */}
         <Row label="Omni">
           <button
-            onClick={() => updateMedia(popover.targetId!, { omnidirectional: !(m as any).omnidirectional } as any)}
+            onClick={() => updateMedia(popover.targetId!, { omnidirectional: !m.omnidirectional })}
             className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
-              (m as any).omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
+              m.omnidirectional ? 'bg-violet-500/20 text-violet-400' : 'bg-secondary text-muted-foreground'
             }`}
           >
-            {(m as any).omnidirectional ? '360°' : 'Front'}
+            {m.omnidirectional ? '360°' : 'Front'}
           </button>
         </Row>
 
@@ -608,8 +612,8 @@ export function PropertyPopover({ popover, onClose }: {
         {interactionType === 'staged' && (
           <Row label="Session">
             <input type="number" step="10" min="10"
-              value={Math.round(((m as any).stageIntervalMs ?? 60000) / 1000)}
-              onChange={e => updateMedia(popover.targetId!, { stageIntervalMs: (parseInt(e.target.value) || 60) * 1000 } as any)}
+              value={Math.round((m.stageIntervalMs ?? 60000) / 1000)}
+              onChange={e => updateMedia(popover.targetId!, { stageIntervalMs: (parseInt(e.target.value) || 60) * 1000 })}
               className="w-14 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border" />
             <span className="text-[9px] text-muted-foreground">s</span>
           </Row>
@@ -637,10 +641,10 @@ export function PropertyPopover({ popover, onClose }: {
 
         {/* View Distance (passive only) */}
         {interactionType === 'passive' && (
-          <Row label={`View ${((m as any).viewDistance ?? 2.0).toFixed(1)}m`}>
+          <Row label={`View ${(m.viewDistance ?? 2.0).toFixed(1)}m`}>
             <input type="range" min={0.5} max={10} step={0.5}
-              value={(m as any).viewDistance ?? 2.0}
-              onChange={e => updateMedia(popover.targetId!, { viewDistance: parseFloat(e.target.value) } as any)}
+              value={m.viewDistance ?? 2.0}
+              onChange={e => updateMedia(popover.targetId!, { viewDistance: parseFloat(e.target.value) })}
               className="flex-1" />
           </Row>
         )}
@@ -653,19 +657,19 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Hero">
           <button
-            onClick={() => updateMedia(popover.targetId!, { mustVisit: !(m as any).mustVisit } as any)}
-            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${(m as any).mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
+            onClick={() => updateMedia(popover.targetId!, { mustVisit: !m.mustVisit })}
+            className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border transition-colors ${m.mustVisit ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-secondary text-muted-foreground border-border hover:border-amber-500/40'}`}
           >
-            <Star className={`w-3 h-3 ${(m as any).mustVisit ? 'fill-amber-400' : ''}`} />
-            {(m as any).mustVisit ? 'Must Visit' : 'Mark'}
+            <Star className={`w-3 h-3 ${m.mustVisit ? 'fill-amber-400' : ''}`} />
+            {m.mustVisit ? 'Must Visit' : 'Mark'}
           </button>
         </Row>
 
         {/* Queue (not for analog) */}
         {interactionType !== 'analog' && (
           <Row label="Queue">
-            <select value={(m as any).queueBehavior || 'none'}
-              onChange={e => updateMedia(popover.targetId!, { queueBehavior: e.target.value } as any)}
+            <select value={m.queueBehavior || 'none'}
+              onChange={e => updateMedia(popover.targetId!, { queueBehavior: e.target.value as QueueBehavior })}
               className="flex-1 text-[10px] px-1.5 py-0.5 rounded bg-secondary border border-border">
               <option value="none">None</option>
               <option value="linear">Linear</option>
@@ -676,12 +680,12 @@ export function PropertyPopover({ popover, onClose }: {
 
         <Row label="Group">
           <button
-            onClick={() => updateMedia(popover.targetId!, { groupFriendly: !(m as any).groupFriendly } as any)}
+            onClick={() => updateMedia(popover.targetId!, { groupFriendly: !m.groupFriendly })}
             className={`flex-1 px-2 py-0.5 text-[9px] rounded transition-colors ${
-              (m as any).groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
+              m.groupFriendly ? 'bg-green-500/20 text-green-400' : 'bg-secondary text-muted-foreground'
             }`}
           >
-            {(m as any).groupFriendly ? 'Yes' : 'No'}
+            {m.groupFriendly ? 'Yes' : 'No'}
           </button>
         </Row>
 
@@ -762,7 +766,7 @@ function AddMediaInline({ zoneId, zoneBounds }: {
 
   const handleAdd = (mediaType: string) => {
     ensurePopoverCounter();
-    const preset = (MEDIA_PRESETS as Record<string, any>)[mediaType];
+    const preset = (MEDIA_PRESETS as Record<string, MediaPreset>)[mediaType];
     if (!preset) return;
 
     const SCALE = 20;
@@ -823,9 +827,9 @@ function AddMediaInline({ zoneId, zoneBounds }: {
     const media: MediaPlacement = {
       id: `m_pop_${_popoverMediaId++}` as MediaId,
       name: preset.type.replace(/_/g, ' '),
-      type: mediaType as any,
+      type: mediaType as MediaType,
       category: preset.category,
-      zoneId: zoneId as any,
+      zoneId: zoneId as ZoneId,
       position: { x: px, y: py },
       size: preset.defaultSize,
       orientation: 0,
@@ -833,8 +837,8 @@ function AddMediaInline({ zoneId, zoneBounds }: {
       avgEngagementTimeMs: preset.avgEngagementTimeMs,
       attractiveness: 0.7,
       attractionRadius: preset.attractionRadius,
-      interactionType: interactionType as any,
-      omnidirectional: (preset as any).omnidirectional ?? false,
+      interactionType: interactionType as MediaInteractionType,
+      omnidirectional: preset.omnidirectional ?? false,
       queueBehavior: preset.queueBehavior,
       groupFriendly: preset.groupFriendly,
     };
