@@ -31,6 +31,7 @@ import type {
   Vector2D,
   Gate,
   GateId,
+  MediaId,
   ZoneId,
   WaypointGraph,
   WaypointNode,
@@ -104,6 +105,8 @@ export interface SimulationWorld {
   waypointGraph?: WaypointGraph;
   shafts?: readonly ElevatorShaft[];
   totalVisitors?: number;  // 누적 입장 상한 (default: Infinity)
+  /** Default category mix when a TimeSlot doesn't override via categoryDistribution. */
+  categoryWeights?: Readonly<Record<string, number>>;
 }
 
 /* ─── diagnostics types ─── */
@@ -279,8 +282,8 @@ export class SimulationEngine {
 
     // Initialize staged media state
     for (const m of world.media) {
-      if ((m as any).interactionType === 'staged') {
-        const interval = (m as any).stageIntervalMs ?? 60000;
+      if (m.interactionType === 'staged') {
+        const interval = m.stageIntervalMs ?? 60000;
         this._stagedState.set(m.id as string, {
           phase: 'waiting',
           sessionStartMs: 0,
@@ -407,7 +410,7 @@ export class SimulationEngine {
       const entry = byMedia.get(key) ?? {
         count: 0, sumDist: 0, zoneIds: new Set<string>(),
         mediaName: media?.name ?? '(no media target)',
-        intType: (media as any)?.interactionType ?? '-',
+        intType: media?.interactionType ?? '-',
       };
       entry.count++;
       if (v.targetPosition) {
@@ -598,7 +601,7 @@ export class SimulationEngine {
       const media = this.world.media.find(m => (m.id as string) === mediaId);
       if (!media) continue;
       const engagementMs = media.avgEngagementTimeMs;
-      const interval = (media as any).stageIntervalMs ?? 60000;
+      const interval = media.stageIntervalMs ?? 60000;
 
       if (state.phase === 'waiting') {
         // Check if it's time to start a session
@@ -898,10 +901,10 @@ export class SimulationEngine {
             engagementWeights: slot.engagementDistribution,
             groupRatio: slot.groupRatio,
             spawnRatePerSecond: slot.spawnRatePerSecond,
-            categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
+            categoryWeights: slot.categoryDistribution ?? this.world.categoryWeights,
           };
           const nodeFloorId = (entryNode.floorId as string) || this._defaultFloorId;
-          const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as any, elapsed, this.rng, this.world.config.recommendedDurationMs);
+          const batch = generateSpawnBatch(1, dist, entryNode.position, nodeFloorId as FloorId, elapsed, this.rng, this.world.config.recommendedDurationMs);
           // Deduct actual spawned count from accumulator (groups spawn multiple)
           this.spawnAccumulator -= batch.visitors.length;
           // entry 노드의 zoneId 가 null 이면 (L/polygon zone 바깥-안 구분 실패 등)
@@ -916,8 +919,8 @@ export class SimulationEngine {
             // admittedAt / zoneEnteredAtMs 는 admit 시점에 갱신.
             const arrived: Visitor = {
               ...v,
-              currentZoneId: (resolvedZoneId as any) ?? ('' as any),
-              visitedZoneIds: resolvedZoneId ? [resolvedZoneId as any] : [],
+              currentZoneId: (resolvedZoneId as ZoneId) ?? ('' as ZoneId),
+              visitedZoneIds: resolvedZoneId ? [resolvedZoneId as ZoneId] : [],
               zoneEnteredAtMs: elapsed, // placeholder — admit 시 덮어씀
               currentNodeId: entryNode.id,
               targetNodeId: null,
@@ -961,7 +964,7 @@ export class SimulationEngine {
           engagementWeights: slot.engagementDistribution,
           groupRatio: slot.groupRatio,
           spawnRatePerSecond: slot.spawnRatePerSecond,
-          categoryWeights: (slot as any).categoryDistribution ?? (this.world as any).categoryWeights,
+          categoryWeights: slot.categoryDistribution ?? this.world.categoryWeights,
         };
         const gate = spawnZone.gates[0];
         const batch = generateSpawnBatch(1, dist, spawnPos, gate.floorId, elapsed, this.rng, this.world.config.recommendedDurationMs);
@@ -1219,7 +1222,7 @@ export class SimulationEngine {
         const media = this.world.media.find(m => m.id === v.targetMediaId);
         if (media) {
           const mid = v.targetMediaId as string;
-          const intType = (media as any).interactionType ?? 'passive';
+          const intType = media.interactionType ?? 'passive';
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
           const stagedOpen = intType !== 'staged' || this.isStagedSessionOpen(mid);
           const cap = this.effectiveMediaCapacity(media);
@@ -1231,7 +1234,7 @@ export class SimulationEngine {
               this.ensureMediaStats(mid).totalWaitMs += waitMs;
             }
             this.recordWatchStart(mid, v.id as string);
-            let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
+            let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
             dur = this.applyGroupDwell(v, dur);
             this.engagementTimers.set(v.id as string, dur);
             const watchPos = (intType === 'analog')
@@ -1254,7 +1257,7 @@ export class SimulationEngine {
       const attr = targetMedia?.attractiveness ?? 0.5;
       const catSkipMod = getCategorySkipMod(v.category);
       // mustVisit은 대기 skip 금지 — 지쳐도 끝까지 기다림 (Tier 2).
-      const isMust = !!(targetMedia as any)?.mustVisit;
+      const isMust = !!targetMedia?.mustVisit;
       if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
         // Record skip
         if (v.targetMediaId) {
@@ -1302,7 +1305,7 @@ export class SimulationEngine {
             this._stuckByZone.set(zKey, (this._stuckByZone.get(zKey) ?? 0) + 1);
           }
           const mediaObj = this.world.media.find(m => m.id === tMid);
-          const intType = (mediaObj as any)?.interactionType ?? 'passive';
+          const intType = mediaObj?.interactionType ?? 'passive';
           this._stuckByIntType.set(intType, (this._stuckByIntType.get(intType) ?? 0) + 1);
           this._movingSince.delete(vid);
           // 쿨다운 등록 — 도달 실패한 미디어는 일정 시간 후 재시도 가능.
@@ -1463,7 +1466,7 @@ export class SimulationEngine {
       const media = this.world.media.find(m => m.id === v.targetMediaId);
       if (media) {
         const mid = v.targetMediaId as string;
-        const intType = (media as any).interactionType ?? 'passive';
+        const intType = media.interactionType ?? 'passive';
 
         // ── GROUP FOLLOWER arriving at leader's media: sync to leader's remaining time ──
         if (isFollower(v) && v.groupId) {
@@ -1517,7 +1520,7 @@ export class SimulationEngine {
           // Already waiting — check skip
           const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
           const { skipThreshold } = this.world.config;
-          const isMust = !!(media as any).mustVisit;
+          const isMust = !!media.mustVisit;
           if (!isMust && shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
             this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
             this.recordSkipCooldown(v.id as string, mid);
@@ -1543,7 +1546,7 @@ export class SimulationEngine {
             const { skipThreshold } = this.world.config;
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
-            const isMust = !!(media as any).mustVisit;
+            const isMust = !!media.mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
@@ -1559,7 +1562,7 @@ export class SimulationEngine {
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           // Position: 이미 targetPosition (예약된 slot) 에 도착한 상태 — 덮어쓰지 않음
@@ -1582,7 +1585,7 @@ export class SimulationEngine {
             const { skipThreshold } = this.world.config;
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
-            const isMust = !!(media as any).mustVisit;
+            const isMust = !!media.mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
@@ -1598,7 +1601,7 @@ export class SimulationEngine {
           }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
           return {
@@ -1627,7 +1630,7 @@ export class SimulationEngine {
             const { skipThreshold } = this.world.config;
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
-            const isMust = !!(media as any).mustVisit;
+            const isMust = !!media.mustVisit;
             if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
@@ -1649,7 +1652,7 @@ export class SimulationEngine {
             this.ensureMediaStats(mid).totalWaitMs += waitMs;
           }
           this.recordWatchStart(mid, v.id as string);
-          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!(media as any).mustVisit, profile: v.profile.type });
+          let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
           dur = this.applyGroupDwell(v, dur);
           this.engagementTimers.set(v.id as string, dur);
 
@@ -1786,15 +1789,15 @@ export class SimulationEngine {
   /* ─── Media physics helpers ─── */
 
   private isMediaCircle(m: MediaPlacement): boolean {
-    return (m as any).shape === 'circle';
+    return m.shape === 'circle';
   }
 
   private isMediaEllipse(m: MediaPlacement): boolean {
-    return (m as any).shape === 'ellipse';
+    return m.shape === 'ellipse';
   }
 
   private isMediaPolygon(m: MediaPlacement): boolean {
-    return (m as any).shape === 'custom' && m.polygon != null && m.polygon.length > 2;
+    return m.shape === 'custom' && m.polygon != null && m.polygon.length > 2;
   }
 
   /** Generate polygon vertices (world coords) for ellipse media — for walls/rasterization */
@@ -1895,7 +1898,7 @@ export class SimulationEngine {
    *  - passive/active/staged: declared capacity
    */
   private effectiveMediaCapacity(m: MediaPlacement): number {
-    const intType = (m as any).interactionType ?? 'passive';
+    const intType = m.interactionType ?? 'passive';
     if (intType === 'analog') {
       const pwM = m.size.width, phM = m.size.height;
       const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
@@ -2074,7 +2077,7 @@ export class SimulationEngine {
   }
 
   /** Get slot indices currently occupied by WATCHING visitors at a media */
-  private getUsedMediaSlots(mediaId: any): Set<number> {
+  private getUsedMediaSlots(mediaId: MediaId | string): Set<number> {
     const media = this.world.media.find(m => m.id === mediaId);
     if (!media) return new Set();
     const watchers = Array.from(this.state.visitors.values()).filter(
@@ -2162,8 +2165,8 @@ export class SimulationEngine {
       halfDepth = (m.size.height * MEDIA_SCALE) / 2;
     }
     // viewDistance (meters) = 미디어 "앞면"으로부터 관람자까지 거리 (중심 아님)
-    const viewDistPx = (m as any).viewDistance != null
-      ? halfDepth + (m as any).viewDistance * MEDIA_SCALE
+    const viewDistPx = m.viewDistance != null
+      ? halfDepth + m.viewDistance * MEDIA_SCALE
       : halfDepth + 5;
     const rad = (m.orientation * Math.PI) / 180;
     const pt = {
@@ -2180,7 +2183,7 @@ export class SimulationEngine {
    * - ACTIVE/STAGED: null (Phase C 에서 slot 예약 시스템 확장 예정)
    */
   private computeMediaTargetPos(m: MediaPlacement, agentPos?: Vector2D): Vector2D | null {
-    const intType = (m as any).interactionType ?? 'passive';
+    const intType = m.interactionType ?? 'passive';
     if (intType === 'passive') return this.pickPassiveSlot(m);
     if (intType === 'analog') return this.pickAnalogSlot(m, agentPos);
     if (intType === 'active' || intType === 'staged') return this.pickMediaSlot(m);
@@ -2227,8 +2230,8 @@ export class SimulationEngine {
     const pw = m.size.width * MEDIA_SCALE;
     const ph = m.size.height * MEDIA_SCALE;
     const halfDepth = ph / 2;
-    const viewDistPx = (m as any).viewDistance != null
-      ? (m as any).viewDistance * MEDIA_SCALE
+    const viewDistPx = m.viewDistance != null
+      ? m.viewDistance * MEDIA_SCALE
       : 5;
 
     // 1m = 20px 기준, slot 간 최소 간격 14px(=0.7m)
@@ -2313,7 +2316,7 @@ export class SimulationEngine {
 
     // Omnidirectional + agent position known → pick nearest free slot to agent
     // (avoids forcing agents to detour around the media to reach slot 0)
-    if ((m as any).omnidirectional && agentPos) {
+    if (m.omnidirectional && agentPos) {
       const candidates: { pos: Vector2D; distSq: number }[] = [];
       for (let i = 0; i < softCap; i++) {
         const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
@@ -2355,7 +2358,7 @@ export class SimulationEngine {
     const ph = m.size.height * MEDIA_SCALE;
     const margin = marginPx;
     const effCap = Math.max(1, cap);
-    if ((m as any).omnidirectional) {
+    if (m.omnidirectional) {
       const perimeter = 2 * (pw + ph);
       const spacing = perimeter / effCap;
       const halfW = pw / 2 + margin;
@@ -2385,7 +2388,7 @@ export class SimulationEngine {
 
   /** Clamp a point to the parent zone bounds of a media */
   private clampToMediaZone(m: MediaPlacement, pt: Vector2D): Vector2D {
-    const zone = this.zoneMap.get((m as any).zoneId as string);
+    const zone = this.zoneMap.get(m.zoneId as string);
     if (!zone) return pt;
     const pad = 4;
     return {
@@ -2401,7 +2404,7 @@ export class SimulationEngine {
     const margin = 6 + this.rng.next() * 8; // 6–14px outside
 
     let pt: Vector2D;
-    if ((m as any).omnidirectional) {
+    if (m.omnidirectional) {
       const angle = this.rng.next() * Math.PI * 2;
       const halfW = pw / 2 + margin;
       const halfH = ph / 2 + margin;
@@ -2527,7 +2530,7 @@ export class SimulationEngine {
     }
 
     // 4. Pick next zone
-    let nextZoneId: any = null;
+    let nextZoneId: ZoneId | null = null;
 
     if (middleZones.length === 0) {
       return this.setExitTarget(v, exitZone);
@@ -2575,11 +2578,11 @@ export class SimulationEngine {
   private hasUnvisitedMustVisit(v: Visitor): boolean {
     const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
     for (const z of this.world.zones) {
-      if ((z as any).mustVisit && !visitedZ.has(z.id as string)) return true;
+      if (z.mustVisit && !visitedZ.has(z.id as string)) return true;
     }
     const visitedM = new Set(v.visitedMediaIds.map(m => m as string));
     for (const m of this.world.media) {
-      if ((m as any).mustVisit && !visitedM.has(m.id as string)) return true;
+      if (m.mustVisit && !visitedM.has(m.id as string)) return true;
     }
     return false;
   }
@@ -2765,7 +2768,7 @@ export class SimulationEngine {
         if (candidates.length > 0) {
           // Just-teleported guard: 직전 로그가 같은 shaft의 다른 노드면 이미 도착 → 다음 노드 선택으로 진행
           const prevLog = v.pathLog[v.pathLog.length - 2];
-          const prevNode = prevLog ? this.waypointNav.getNode(prevLog.nodeId as any) : null;
+          const prevNode = prevLog ? this.waypointNav.getNode(prevLog.nodeId) : null;
           const justTeleported = prevNode
             && prevNode.type === 'portal'
             && (prevNode.shaftId as string | undefined) === (curNode.shaftId as string);
@@ -2822,7 +2825,7 @@ export class SimulationEngine {
               ...v,
               position: { x: dest.position.x, y: dest.position.y },
               currentFloorId: dest.floorId,
-              currentZoneId: (destZoneId as any) ?? null,
+              currentZoneId: (destZoneId as ZoneId | null) ?? ('' as ZoneId),
               currentNodeId: dest.id,
               pathLog: newPathLog,
               velocity: { x: 0, y: 0 },
@@ -2927,12 +2930,12 @@ export class SimulationEngine {
     const mustZoneIds = new Set<string>();
     const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
     for (const z of this.world.zones) {
-      if ((z as any).mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
+      if (z.mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
     }
     const mustMediaIds = new Set<string>();
     const visitedM = new Set(v.visitedMediaIds.map(m => m as string));
     for (const m of this.world.media) {
-      if ((m as any).mustVisit && !visitedM.has(m.id as string)) mustMediaIds.add(m.id as string);
+      if (m.mustVisit && !visitedM.has(m.id as string)) mustMediaIds.add(m.id as string);
     }
     const mustVisitCtx = (mustZoneIds.size > 0 || mustMediaIds.size > 0)
       ? { unvisitedZoneIds: mustZoneIds, unvisitedMediaIds: mustMediaIds }
@@ -3085,8 +3088,8 @@ export class SimulationEngine {
     // Update zone if node is in a different zone.
     // attractor/hub/bend 가 zoneId 미할당인 경우가 있으므로 위치 기반 polygon 검사로 보강.
     // (L/polygon zone 에서 bounds rect 체크로는 zoneId 가 누락되기 쉬움.)
-    const resolvedNodeZoneId = (targetNode.zoneId as any)
-      ?? (this.zoneIdAtPoint(targetNode.position, v.currentFloorId as string) as any);
+    const resolvedNodeZoneId = targetNode.zoneId
+      ?? (this.zoneIdAtPoint(targetNode.position, v.currentFloorId as string) as ZoneId | null);
     const newZoneId = resolvedNodeZoneId ?? v.currentZoneId;
     const newVisitedZones = resolvedNodeZoneId && !v.visitedZoneIds.includes(resolvedNodeZoneId)
       ? [...v.visitedZoneIds, resolvedNodeZoneId]
@@ -3191,7 +3194,7 @@ export class SimulationEngine {
       const m = this.world.media.find(m => m.id === v.targetMediaId);
       if (m) {
         if (v.currentAction === VISITOR_ACTION.WATCHING) return this.getMediaWatchPoint(m);
-        const intType = (m as any).interactionType ?? 'passive';
+        const intType = m.interactionType ?? 'passive';
         if (intType === 'passive' || intType === 'analog') {
           return this.getMediaViewPoint(m);
         }
@@ -3289,7 +3292,7 @@ export class SimulationEngine {
           const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
           if (zoneMedia) {
             for (const m of zoneMedia) {
-              const mt = (m as any).interactionType;
+              const mt = m.interactionType;
               if (mt === 'passive') continue;
               if (
                 v.targetMediaId &&
@@ -3341,7 +3344,7 @@ export class SimulationEngine {
         if (zoneMedia) {
           for (const m of zoneMedia) {
             if (v.targetMediaId && (m.id as string) === (v.targetMediaId as string)) continue;
-            if ((m as any).interactionType === 'passive') continue; // passive = no wall
+            if (m.interactionType === 'passive') continue; // passive = no wall
             walls.push(...this.getMediaWalls(m));
           }
         }
@@ -3771,7 +3774,7 @@ export class SimulationEngine {
       const zoneMedia = this.mediaByZone.get(v.currentZoneId as string);
       if (zoneMedia) {
         for (const m of zoneMedia) {
-          const mt = (m as any).interactionType;
+          const mt = m.interactionType;
           if (mt === 'passive') continue; // passive media = no physical barrier
           // Target media 의 hitbox skip 은 slot 이 rect 내부인 경우(active/staged)만.
           // analog 는 slot 이 rect 외부라 skip 하면 관통 발생 → 유지.
@@ -3855,7 +3858,7 @@ export class SimulationEngine {
       mult = FATIGUE_ACTION_MULT.resting;
     } else if (action === VISITOR_ACTION.WATCHING) {
       const media = v.targetMediaId ? this.world.media.find(m => m.id === v.targetMediaId) : null;
-      const cat = media ? (MEDIA_PRESETS as any)[media.type]?.fatigueCategory : null;
+      const cat = media ? MEDIA_PRESETS[media.type]?.fatigueCategory : null;
       if (cat === 'immersive') mult = FATIGUE_ACTION_MULT.focus_immersive;
       else if (cat === 'interactive') mult = FATIGUE_ACTION_MULT.focus_active;
       else if (cat === 'screen') mult = FATIGUE_ACTION_MULT.focus_screen;
