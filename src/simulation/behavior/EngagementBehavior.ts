@@ -7,6 +7,7 @@ import type {
   MediaId,
   ZoneId,
 } from '@/domain';
+import type { MediaPreset } from '@/domain/types/media';
 import { ENGAGEMENT_LEVEL, MEDIA_PRESETS, VISITOR_PROFILE_TYPE } from '@/domain';
 import type { SeededRandom } from '../utils/random';
 
@@ -45,7 +46,7 @@ export function mustVisitDwellMultiplier(
 
 // ---- mustVisit candidate filter ----
 // 후보 중 mustVisit+미방문이 하나라도 있으면 그것들로만 좁힘. 없으면 원본 반환.
-export function filterMustVisitCandidates<T extends { id: any; mustVisit?: boolean }>(
+export function filterMustVisitCandidates<T extends { id: string | { toString(): string }; mustVisit?: boolean }>(
   candidates: readonly T[],
   visitedIds: ReadonlySet<string>,
 ): readonly T[] {
@@ -127,10 +128,10 @@ export function selectNextMedia(
     : null;
   const lastMediaType = lastVisitedMediaId
     ? zoneMedia.find(m => m.id === lastVisitedMediaId)?.type
-      ?? (MEDIA_PRESETS as any)[lastVisitedMediaId]?.type
+      ?? (MEDIA_PRESETS as Record<string, MediaPreset>)[lastVisitedMediaId as string]?.type
     : null;
   const lastFatigueCategory = lastMediaType
-    ? (MEDIA_PRESETS as Record<string, any>)[lastMediaType as string]?.fatigueCategory
+    ? (MEDIA_PRESETS as Record<string, MediaPreset>)[lastMediaType]?.fatigueCategory
     : null;
 
   const weights = candidates.map((m) => {

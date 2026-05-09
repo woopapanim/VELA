@@ -5,7 +5,7 @@ import { selectScenarioDirty } from '@/stores/selectors';
 import { useToast } from '@/ui/components/Toast';
 import { DEFAULT_PHYSICS, DEFAULT_SKIP_THRESHOLD } from '@/domain';
 import { computeAutoRecommendedDurationMs } from '@/domain/constants';
-import type { Scenario } from '@/domain';
+import type { Scenario, ScenarioId, FloorId } from '@/domain';
 import { useT } from '@/i18n';
 
 const HISTORY_KEY = 'vela-project-history';
@@ -32,8 +32,10 @@ function saveHistory(entries: ProjectEntry[]) {
   }
 }
 
-// Keep fileHandle across saves so repeat saves go to the same file
-let _lastFileHandle: any = null;
+// Keep fileHandle across saves so repeat saves go to the same file.
+// FileSystemFileHandle is the W3C File System Access API type — available in
+// Chromium-based browsers; the call sites guard with feature detection.
+let _lastFileHandle: FileSystemFileHandle | null = null;
 
 export function ProjectManager() {
   const scenario = useStore((s) => s.scenario);
@@ -59,7 +61,7 @@ export function ProjectManager() {
 
     const blank: Scenario = {
       meta: {
-        id: `project_${Date.now()}` as any,
+        id: `project_${Date.now()}` as ScenarioId,
         name: 'New Project',
         description: '',
         version: 1,
@@ -69,7 +71,7 @@ export function ProjectManager() {
         updatedAt: Date.now(),
       },
       floors: [{
-        id: 'floor_1f' as any,
+        id: 'floor_1f' as FloorId,
         name: '1F',
         level: 0,
         canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
@@ -150,16 +152,17 @@ export function ProjectManager() {
     if ('showSaveFilePicker' in window) {
       try {
         // Reuse previous file handle if available (same file, no dialog)
-        let fileHandle = _lastFileHandle;
         let pickedNewHandle = false;
-        if (!fileHandle) {
-          fileHandle = await (window as any).showSaveFilePicker({
+        if (!_lastFileHandle) {
+          // File System Access API isn't in TypeScript's stable lib types yet.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          _lastFileHandle = await (window as any).showSaveFilePicker({
             suggestedName: suggestedFileName,
             types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
           });
-          _lastFileHandle = fileHandle;
           pickedNewHandle = true;
         }
+        const fileHandle = _lastFileHandle!;
         // When user picked a new file, adopt its filename as the project name.
         const finalName = pickedNewHandle
           ? (fileHandle.name as string).replace(/\.json$/i, '') || initialName
@@ -172,11 +175,12 @@ export function ProjectManager() {
         commitToHistory(finalScenario);
         toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
         return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err) {
+        if ((err as Error | undefined)?.name === 'AbortError') return;
         // Handle revoked/invalid handle — clear and retry with picker
         _lastFileHandle = null;
         try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const fileHandle = await (window as any).showSaveFilePicker({
             suggestedName: suggestedFileName,
             types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
@@ -191,8 +195,8 @@ export function ProjectManager() {
           commitToHistory(finalScenario);
           toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
           return;
-        } catch (e2: any) {
-          if (e2?.name === 'AbortError') return;
+        } catch (e2) {
+          if ((e2 as Error | undefined)?.name === 'AbortError') return;
         }
       }
     }
@@ -245,6 +249,7 @@ export function ProjectManager() {
     // ── File System Access API (Chrome/Edge) ──
     if ('showOpenFilePicker' in window) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const [fileHandle] = await (window as any).showOpenFilePicker({
           types: [{ description: 'VELA Project', accept: { 'application/json': ['.json'] } }],
           multiple: false,
@@ -253,8 +258,8 @@ export function ProjectManager() {
         const file = await fileHandle.getFile();
         await loadFile(file);
         return;
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return;
+      } catch (err) {
+        if ((err as Error | undefined)?.name === 'AbortError') return;
       }
     }
 

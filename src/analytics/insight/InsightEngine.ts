@@ -1,4 +1,5 @@
 import type { KpiSnapshot, ZoneConfig, MediaPlacement, Visitor, VisitorGroup, InsightEntry } from '@/domain';
+import type { MediaPreset } from '@/domain/types/media';
 import { INTERNATIONAL_DENSITY_STANDARD, MEDIA_PRESETS } from '@/domain';
 
 interface MediaStatsEntry {
@@ -135,8 +136,7 @@ export function generateInsights(
     const nameOf = (id: string): string => {
       const m = mediaById.get(id);
       if (!m) return id.slice(0, 6);
-      const anyM = m as any;
-      return (anyM.name && String(anyM.name).trim()) || String(m.type ?? id).replace(/_/g, ' ');
+      return (m.name && String(m.name).trim()) || String(m.type ?? id).replace(/_/g, ' ');
     };
     const topNames = highSkipMedia
       .slice(0, 3)
@@ -187,8 +187,7 @@ export function generateInsights(
         const s = stats?.skipCount ?? 0;
         const approaches = w + s;
         const rate = approaches >= 3 ? w / approaches : -1;
-        const anyM = m as any;
-        const name = (anyM.name && String(anyM.name).trim())
+        const name = (m.name && String(m.name).trim())
           || String(m.type ?? m.id).replace(/_/g, ' ');
         return { id: m.id as string, name, rate };
       }).filter((e) => e.rate >= 0.6);
@@ -207,7 +206,7 @@ export function generateInsights(
         ? t('insight.flow.rec.withNames', { names: namesText })
         : t('insight.flow.rec'),
       affectedZoneIds: [],
-      affectedMediaIds: topEngagement.map((e) => e.id as any),
+      affectedMediaIds: topEngagement.map((e) => e.id),
       dataEvidence: { metric: 'completion_rate', value: snapshot.flowEfficiency.completionRate, threshold: 0.5 },
     });
   }
@@ -260,7 +259,7 @@ function generateSpaceRoiInsights(
   // Flag media with very low ROI (< 20% of average)
   const lowRoi = roiEntries.filter(e => e.density < avgDensity * 0.2);
   if (lowRoi.length > 0) {
-    const names = lowRoi.slice(0, 3).map(e => (e.m as any).name || e.m.type.replace(/_/g, ' '));
+    const names = lowRoi.slice(0, 3).map(e => e.m.name || e.m.type.replace(/_/g, ' '));
     const worstPct = Math.round((lowRoi[0].density / avgDensity) * 100);
     insights.push({
       severity: 'info',
@@ -277,7 +276,7 @@ function generateSpaceRoiInsights(
   // Flag top performer
   const best = roiEntries[0];
   if (best.density > avgDensity * 2) {
-    const name = (best.m as any).name || best.m.type.replace(/_/g, ' ');
+    const name = best.m.name || best.m.type.replace(/_/g, ' ');
     insights.push({
       severity: 'info',
       category: 'space_roi',
@@ -306,7 +305,7 @@ function generateContentMixInsights(
   const catStats = new Map<string, { totalWatch: number; totalSkip: number; totalWatchMs: number; count: number }>();
 
   for (const m of media) {
-    const cat = (m as any).category as string;
+    const cat = m.category as string;
     if (!cat) continue;
     const stats = mediaStats.get(m.id as string);
     if (!stats) continue;
@@ -346,7 +345,7 @@ function generateContentMixInsights(
           : t('insight.contentMix.layout.rec'),
         affectedZoneIds: [],
         affectedMediaIds: media
-          .filter(m => (m as any).category === cat)
+          .filter(m => m.category === cat)
           .map(m => m.id),
         dataEvidence: { metric: `${cat}_skip_rate`, value: skipRate, threshold: 0.4 },
       });
@@ -370,7 +369,7 @@ function generateGroupImpactInsights(
   // Category distribution
   const catCounts: Record<string, number> = {};
   for (const v of active) {
-    const cat = (v as any).category as string ?? 'solo';
+    const cat = (v.category as string) ?? 'solo';
     catCounts[cat] = (catCounts[cat] ?? 0) + 1;
   }
 
@@ -415,7 +414,7 @@ function generateGroupImpactInsights(
     let soloFatigueSum = 0, soloN = 0;
     let groupFatigueSum = 0, groupN = 0;
     for (const v of active) {
-      const cat = (v as any).category as string ?? 'solo';
+      const cat = (v.category as string) ?? 'solo';
       if (cat === 'solo') { soloFatigueSum += v.fatigue; soloN++; }
       else if (cat === 'small_group' || cat === 'guided_tour') { groupFatigueSum += v.fatigue; groupN++; }
     }
@@ -451,7 +450,7 @@ function generateContentFatigueInsights(
   t: TFn,
 ) {
   // Check fatigue categories: if same fatigueCategory media have high skip rates
-  const presets = MEDIA_PRESETS as Record<string, any>;
+  const presets = MEDIA_PRESETS as Record<string, MediaPreset>;
   const fatigueCatStats = new Map<string, { totalWatch: number; totalSkip: number; mediaCount: number }>();
 
   for (const m of media) {
