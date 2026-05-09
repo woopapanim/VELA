@@ -1,6 +1,14 @@
 import type { StateCreator } from 'zustand';
-import type { FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph, WaypointNode, WaypointEdge, ElevatorShaft } from '@/domain';
+import type {
+  FloorConfig, ZoneConfig, MediaPlacement, Scenario, WaypointGraph,
+  WaypointNode, WaypointEdge, ElevatorShaft, FloorId, ZoneId, Gate,
+} from '@/domain';
 import { zonesOverlap } from '@/domain/zoneGeometry';
+import type { UndoSlice } from './undoSlice';
+
+// Cross-slice access — worldSlice's StateCreator is typed against itself only,
+// so accessing pushUndo from the combined store needs a narrowing cast.
+type WithUndo = Partial<Pick<UndoSlice, 'pushUndo'>>;
 import {
   floorsNeedRelayout,
   layoutFloorsHorizontally,
@@ -72,10 +80,10 @@ function autoLinkGates(zones: readonly ZoneConfig[]): ZoneConfig[] {
   // Apply connections
   return zones.map(z => ({
     ...z,
-    gates: z.gates.map((g: any) => {
+    gates: z.gates.map((g: Gate): Gate => {
       const newConn = newConnections.get(g.id as string);
       if (newConn && !g.connectedGateId) {
-        return { ...g, connectedGateId: newConn };
+        return { ...g, connectedGateId: newConn as Gate['connectedGateId'] };
       }
       return g;
     }),
@@ -114,7 +122,7 @@ function rotatedHalfExtents(w: number, h: number, orientationDeg: number): { hx:
 
 /** Get world-space boundary polygon vertices for a media (shape-aware). */
 function getMediaWorldVertices(m: MediaPlacement): { x: number; y: number }[] {
-  const shape = (m as any).shape;
+  const shape = m.shape;
   const rad = (m.orientation * Math.PI) / 180;
   const cos = Math.cos(rad), sin = Math.sin(rad);
   const toWorld = (lx: number, ly: number) => ({
@@ -253,9 +261,9 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   setScenario: (scenario) => {
     // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
-    const correctedMedia = scenario.media.map((m: any) => {
+    const correctedMedia = scenario.media.map((m) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
-        return { ...m, interactionType: 'analog' };
+        return { ...m, interactionType: 'analog' as const };
       }
       return m;
     });
@@ -271,16 +279,16 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       const fallbackId = (floorsArr[0]?.id as string) ?? 'floor_1f';
       if (floorsArr.length === 0) {
         floorsArr = [{
-          id: fallbackId as any,
+          id: fallbackId as FloorId,
           name: '1F',
           level: 0,
-          canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false } as any,
+          canvas: { width: 1200, height: 800, gridSize: 40, backgroundImage: null, scale: 0.025, bgOffsetX: 0, bgOffsetY: 0, bgScale: 1, bgLocked: false },
           zoneIds: zonesArr.map(z => z.id),
           metadata: {},
         }];
       }
       // Reparent any orphans onto the fallback floor so densityGrids keys match.
-      zonesArr = zonesArr.map(z => floorIdSet.has(z.floorId as string) ? z : { ...z, floorId: fallbackId as any });
+      zonesArr = zonesArr.map(z => floorIdSet.has(z.floorId as string) ? z : { ...z, floorId: fallbackId as FloorId });
     }
     // Preserve user's current activeFloorId if still valid; only fall back to
     // the first floor when nothing was selected or the previous selection no
@@ -332,7 +340,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
             if (!b) return false;
             return x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
           });
-          return { ...n, floorId: (hit?.id ?? fallbackFloorId) as any };
+          return { ...n, floorId: (hit?.id ?? fallbackFloorId) as FloorId };
         });
         graphArr = { ...graphArr, nodes };
       }
@@ -387,7 +395,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       return { ...f, bounds: { x: 0, y: 0, w: regionW, h: regionH } };
     });
 
-    const id = `floor_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` as any;
+    const id = `floor_${Date.now()}_${Math.random().toString(36).slice(2, 6)}` as FloorId;
     // Place the new region to the right of the existing rightmost region on the shared canvas.
     const origin = computeNewFloorOrigin(normalizedFloors, s.zones, s.media, s.waypointGraph);
     const newFloor: FloorConfig = {
@@ -557,11 +565,11 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   addZone: (zone) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
+    (s as WithUndo).pushUndo?.(s.zones, s.media, s.waypointGraph);
     // Free mode: default gates to bidirectional (except entrance/exit zone types)
     const flowMode = s.scenario?.globalFlowMode;
     const zoneToAdd = flowMode === 'free' && zone.type !== 'entrance' && zone.type !== 'exit'
-      ? { ...zone, gates: zone.gates.map((g: any) => ({ ...g, type: 'bidirectional' })) }
+      ? { ...zone, gates: zone.gates.map((g: Gate) => ({ ...g, type: 'bidirectional' as const })) }
       : zone;
     set((s) => {
       // Prevent duplicate zone (React StrictMode can double-invoke)
@@ -571,7 +579,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
       // Stamp floorId so per-floor systems (density grid, heatmap, routing)
       // can key on it. Callers often omit the field — without this, zones
       // end up orphaned and SimEngine silently skips them.
-      const stamped = (zoneToAdd.floorId as any) ? zoneToAdd : { ...zoneToAdd, floorId: targetFloorId as any };
+      const stamped = zoneToAdd.floorId ? zoneToAdd : { ...zoneToAdd, floorId: targetFloorId as FloorId };
       const rawZones = [...s.zones, stamped];
       const newZones = autoLinkGates(rawZones);
       let newFloors = s.floors.map((f) =>
@@ -596,8 +604,8 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
         const draggedZone = s.zones.find((z) => (z.id as string) === zoneId);
         const overlaps = s.zones.some((z) => {
           if ((z.id as string) === zoneId) return false;
-          const updatedA = { bounds: nb, shape: (draggedZone?.shape ?? 'rect') as string, lRatioX: (draggedZone as any)?.lRatioX ?? 0.5, lRatioY: (draggedZone as any)?.lRatioY ?? 0.5, polygon: draggedZone?.polygon };
-          const zB = { bounds: z.bounds, shape: (z.shape ?? 'rect') as string, lRatioX: (z as any).lRatioX ?? 0.5, lRatioY: (z as any).lRatioY ?? 0.5, polygon: z.polygon };
+          const updatedA = { bounds: nb, shape: (draggedZone?.shape ?? 'rect') as string, lRatioX: draggedZone?.lRatioX ?? 0.5, lRatioY: draggedZone?.lRatioY ?? 0.5, polygon: draggedZone?.polygon };
+          const zB = { bounds: z.bounds, shape: (z.shape ?? 'rect') as string, lRatioX: z.lRatioX ?? 0.5, lRatioY: z.lRatioY ?? 0.5, polygon: z.polygon };
           return zonesOverlap(updatedA, zB);
         });
         if (overlaps) return {}; // block update
@@ -656,7 +664,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
                 return { ...f, zoneIds: f.zoneIds.filter(id => (id as string) !== zoneId) };
               }
               if ((f.id as string) === (hitFloor.id as string)) {
-                return { ...f, zoneIds: [...f.zoneIds, zoneId as any] };
+                return { ...f, zoneIds: [...f.zoneIds, zoneId as ZoneId] };
               }
               return f;
             });
@@ -675,7 +683,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   removeZone: (zoneId) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
+    (s as WithUndo).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => {
       const newZones = s.zones.filter((z) => (z.id as string) !== zoneId);
       // Cascade: remove media belonging to this zone
@@ -698,7 +706,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   addMedia: (media) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
+    (s as WithUndo).pushUndo?.(s.zones, s.media, s.waypointGraph);
     // Clamp position inside parent zone (rotation-aware)
     const SCALE = 20;
     const zone = s.zones.find((z) => (z.id as string) === (media.zoneId as string));
@@ -753,7 +761,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   removeMedia: (mediaId) => {
     // Save undo snapshot BEFORE mutation
     const s = get();
-    (s as any).pushUndo?.(s.zones, s.media, s.waypointGraph);
+    (s as WithUndo).pushUndo?.(s.zones, s.media, s.waypointGraph);
     set((s) => {
       const newMedia = s.media.filter((m) => (m.id as string) !== mediaId);
       return {
@@ -767,7 +775,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   addWaypoint: (node) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       const graph = s.waypointGraph ?? { nodes: [], edges: [] };
       if (graph.nodes.some(n => (n.id as string) === (node.id as string))) return {};
@@ -794,7 +802,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   removeWaypoint: (id) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       if (!s.waypointGraph) return {};
       const newNodes = s.waypointGraph.nodes.filter(n => (n.id as string) !== id);
@@ -811,7 +819,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   addEdge: (edge) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       const graph = s.waypointGraph ?? { nodes: [], edges: [] };
       if (graph.edges.some(e => (e.id as string) === (edge.id as string))) return {};
@@ -838,7 +846,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   removeEdge: (id) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       if (!s.waypointGraph) return {};
       const newEdges = s.waypointGraph.edges.filter(e => (e.id as string) !== id);
@@ -860,7 +868,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   addShaft: (shaft) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       if (s.shafts.some(sh => (sh.id as string) === (shaft.id as string))) return {};
       const newShafts = [...s.shafts, shaft];
@@ -884,7 +892,7 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   removeShaft: (id) => {
     const cur = get();
-    (cur as any).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
+    (cur as WithUndo).pushUndo?.(cur.zones, cur.media, cur.waypointGraph);
     set((s) => {
       const newShafts = s.shafts.filter(sh => (sh.id as string) !== id);
       // Also strip shaftId from any elevator nodes that referenced it
