@@ -40,10 +40,26 @@ export const MAX_TOTAL_DWELL_MS = 3 * 60 * 60_000;  // 전체 체류 3시간 초
                                                     // 이전 15분은 관람 타임아웃이 아닌 진짜 stuck escape용)
 
 /**
- * selectNextNode 가 force-exit redirect 를 트리거할 때의 사유.
- * SimEngine 의 inferExitTrigger 가 휴리스틱 대신 정확한 사유로 사용한다.
+ * selectNextNode 가 exit 사유를 직접 보고하는 채널.
+ *
+ * 두 종류:
+ *  - **Hard** (`nodeStuck`/`maxDwell`/`budgetExceeded`/`allEssentialDone`):
+ *    `_lastForceExit` 로 보고. 강제 redirect 동반 → exit 가 확정됨.
+ *  - **Soft** (`visitRatio`/`fatigueThreshold`):
+ *    `_lastSoftCanExitReason` 으로 보고. 강제 redirect 없이 EXIT 보너스만
+ *    적용 → exit 시점이 확률적이지만 "이 사유로 canExit 발화" 사실은
+ *    SimEngine 이 inferExitTrigger 정확도를 위해 first-fire 로 기록.
+ *
+ * 타입 통합 이유: SimEngine 의 `_exitTriggerByVisitor` 가 둘 다 보관
+ * (hard 가 soft 를 덮어쓰는 priority 모델). 의미 차이는 채널로 구분.
  */
-export type ForceExitReason = 'nodeStuck' | 'maxDwell' | 'budgetExceeded' | 'allEssentialDone';
+export type ForceExitReason =
+  | 'nodeStuck'
+  | 'maxDwell'
+  | 'budgetExceeded'
+  | 'allEssentialDone'
+  | 'visitRatio'
+  | 'fatigueThreshold';
 
 export class WaypointNavigator {
   private adjacency = new Map<string, { node: WaypointNode; edge: WaypointEdge }[]>();
@@ -61,6 +77,12 @@ export class WaypointNavigator {
   // 호출 직후에만 의미 있음 — 다음 호출 시작 시 reset 된다.
   // SimEngine 이 visitor 별로 기록해 inferExitTrigger 정확도를 높이는 용도.
   private _lastForceExit?: ForceExitReason;
+
+  // 가장 최근 호출에서 canExit 가 SOFT 경로로 true 가 됐다면 그 사유.
+  // (hard 사유 = stuck/maxDwell/budgetExceeded/allEssentialDone 와 별개 채널.)
+  // hard 사유와 동시에 set 될 수도 있는데, hard 가 우선이므로 SimEngine 은
+  // hard 가 있으면 soft 를 무시한다. 첫 발화만 기록 (덮어쓰지 않음).
+  private _lastSoftCanExitReason?: 'visitRatio' | 'fatigueThreshold';
 
   buildFromGraph(graph: WaypointGraph): void {
     this.adjacency.clear();
@@ -176,8 +198,10 @@ export class WaypointNavigator {
     exitTargetCounts?: ReadonlyMap<string, number>,
   ): WaypointNode | null {
     // Reset force-exit tracking at the start of every call.
-    // 외부 (SimEngine) 는 호출 직후에 getLastForceExit() 로 읽어야 의미 있음.
+    // 외부 (SimEngine) 는 호출 직후에 getLastForceExit() / getLastSoftCanExitReason()
+    // 로 읽어야 의미 있음.
     this._lastForceExit = undefined;
+    this._lastSoftCanExitReason = undefined;
 
     const neighbors = this.getNeighbors(currentNodeId);
     if (neighbors.length === 0) return null;
@@ -218,12 +242,22 @@ export class WaypointNavigator {
       && (now - visitor.enteredAt) >= visitor.visitBudgetMs;
 
     // EXIT 진입 조건 체크
-    const canExit = stuck
-      || budgetExceeded
-      || (!mustOutstanding && (
-        visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO
-        || visitor.fatigue >= EXIT_FATIGUE_THRESHOLD
-      ));
+    const visitRatioMet = !mustOutstanding
+      && visitedCount / Math.max(1, this.essentialCount) >= EXIT_VISIT_RATIO;
+    const fatigueMet = !mustOutstanding && visitor.fatigue >= EXIT_FATIGUE_THRESHOLD;
+    const canExit = stuck || budgetExceeded || visitRatioMet || fatigueMet;
+
+    // Soft canExit 사유 보고 — hard 사유(stuck/budget/allEssentialDone)는
+    // 아래 force-exit redirect 분기에서 _lastForceExit 으로 별도 기록되므로
+    // 여기서는 SOFT 만 기록한다. 둘 중 하나만 충족되어도 이번 호출에서
+    // canExit 가 발화한 사실을 SimEngine 이 first-fire 로 보존.
+    // 우선순위: visitRatio > fatigueThreshold (visitRatio 가 의미적으로
+    // "주 경험의 80% 완료" 라는 더 강한 신호).
+    if (visitRatioMet) {
+      this._lastSoftCanExitReason = 'visitRatio';
+    } else if (fatigueMet) {
+      this._lastSoftCanExitReason = 'fatigueThreshold';
+    }
 
     // Stuck/예산초과/모든 필수노드 방문완료 → EXIT 방향 강제 유도.
     // allEssentialDone 는 mustOutstanding(미방문 히어로 미디어)과 독립적으로 작동한다.
@@ -611,6 +645,18 @@ export class WaypointNavigator {
    */
   getLastForceExit(): ForceExitReason | undefined {
     return this._lastForceExit;
+  }
+
+  /**
+   * 가장 최근 selectNextNode 호출에서 SOFT canExit (visitRatio/fatigueThreshold)
+   * 가 충족됐으면 그 사유. force-exit redirect 와 별개 채널.
+   * 호출 후 즉시 읽지 않으면 다음 호출에서 reset 됨.
+   *
+   * 사용 패턴 (SimEngine): hard 사유가 있으면 그것을 우선 기록하고, 없을 때만
+   * soft 사유를 first-fire 로 기록 (이미 기록된 visitor 는 덮어쓰지 않음).
+   */
+  getLastSoftCanExitReason(): 'visitRatio' | 'fatigueThreshold' | undefined {
+    return this._lastSoftCanExitReason;
   }
 
   private countVisitedEssential(pathLog: readonly PathLogEntry[]): number {
