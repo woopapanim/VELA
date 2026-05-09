@@ -59,7 +59,11 @@ export type ForceExitReason =
   | 'budgetExceeded'
   | 'allEssentialDone'
   | 'visitRatio'
-  | 'fatigueThreshold';
+  | 'fatigueThreshold'
+  // Group-leader cascade — follower 가 leader 의 deactivation 을 따라 같은 tick 에
+  // 함께 exit 한 케이스. canExit 트리거가 아니라 외부(leader exit) 사건. 별도 라벨로
+  // 분류해야 조기이탈 통계에서 leader-derived exit 를 visitor 본인 사유와 섞지 않음.
+  | 'leaderExited';
 
 export class WaypointNavigator {
   private adjacency = new Map<string, { node: WaypointNode; edge: WaypointEdge }[]>();
