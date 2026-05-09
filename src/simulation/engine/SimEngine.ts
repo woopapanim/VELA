@@ -228,28 +228,35 @@ export class SimulationEngine {
 
   // ---- Diagnostics: group cohesion ("터짐" 추적) ----
   // 매 tick 끝에 follower 위치를 leader 와 비교, 다음 카테고리로 분류:
-  //   - orphaned     : leader inactive 인데 follower 가 active (tether anchor 상실)
-  //   - severeBurst  : dist(follower, leader) > 2.0 × boundR (완전 도망)
-  //   - burst        : boundR < dist <= 2.0 × boundR  (살짝 벗어남)
+  //   - orphaned       : leader inactive 인데 follower 가 active (tether anchor 상실)
+  //   - floorMismatch  : leader 와 follower 의 currentFloorId 가 다름 — cross-floor
+  //                       절대좌표 dist 는 의미 없으니 burst/severeBurst 측정에서 제외
+  //                       하고 별도 분류. 실제 시각적 "터짐" 의 주 원인 후보 (PR #25
+  //                       머지 후 측정에서 4-시점 클러스터링 + 그룹 동시 발화 패턴
+  //                       관찰 → portal/floor 워프 직후 follower 가 못 따라감).
+  //   - severeBurst    : dist(follower, leader) > 2.0 × boundR (같은 floor 만)
+  //   - burst          : boundR < dist <= 2.0 × boundR  (같은 floor 만)
   // boundR 공식은 stepFollowerTether 와 동일 (mirroring guarantee).
   // tickStats: 누적 frame×follower 카운터 (dominant cause 판정용 — diagnoseGroupCohesion 의 summary).
-  // events: visitor 별 first-fire 사건 로그 (severeBurst/orphaned 만 기록 — burst 는 노이즈 많아 카운터로만).
+  // events: visitor 별 first-fire 사건 로그 (severeBurst/orphaned/floorMismatch — burst 는 노이즈 많아 카운터로만).
   private _cohesionTickStats = {
     totalTicks: 0,                  // 측정 tick 수
     ticksWithGroups: 0,             // 활성 그룹이 1개 이상 있던 tick
-    burstFrames: 0,                 // boundR < dist <= 2×boundR (follower-tick)
-    severeBurstFrames: 0,           // dist > 2×boundR
+    burstFrames: 0,                 // boundR < dist <= 2×boundR (follower-tick, same floor only)
+    severeBurstFrames: 0,           // dist > 2×boundR (same floor only)
     orphanedFrames: 0,              // leader inactive + follower active
+    floorMismatchFrames: 0,         // leader.currentFloorId !== follower.currentFloorId
   };
   // visitor 별 첫 발화만 events 에 기록. 한 번 사건이 잡힌 visitor 는 다시 안 잡힘
   // (같은 visitor 가 매 frame 카운터를 push 하면 events 가 폭증).
+  // Key 형식: `${visitorId}:${reason}` — 같은 visitor 의 다른 reason 은 별도 키로 둘 다 기록.
   private _cohesionEventLogged = new Set<string>();
   private _cohesionEvents: Array<{
     visitorId: string;
     groupId: string;
     timestamp: number;             // sim.elapsed (ms)
-    reason: 'orphaned' | 'severeBurst';
-    distFromLeader: number;        // px. orphaned 케이스는 -1 (leader 좌표 없음)
+    reason: 'orphaned' | 'severeBurst' | 'floorMismatch';
+    distFromLeader: number;        // px. orphaned/floorMismatch 는 -1 (cross-floor dist 는 의미 없음)
     boundR: number;                // 그 시점의 boundR (디버깅 시 비교용)
   }> = [];
 
@@ -560,16 +567,16 @@ export class SimulationEngine {
    *
    * 콘솔에서: window.__simEngine.diagnoseGroupCohesion()
    *
-   * 해석:
-   *  - orphanedFrames 압도적 → leader 가 follower 보다 먼저 deactivate 되어
-   *    tether anchor 상실 (가장 흔한 가설). fix 방향: 그룹 단위 deactivate
-   *    cascade 또는 leader-fallback (다음 active 멤버 승격).
-   *  - severeBurstFrames 압도적 → portal/floor 전환 같은 leader 의 큰 jump
-   *    한 frame 동안 발생. fix 방향: tether 가 portal 직후 first tick 에
-   *    pre-warp 보장.
-   *  - burstFrames 만 큼 → 정상 personalR 분포 (0.4~1.0×boundR) 의 극단치가
-   *    렌더링 직전 측정에 포함됐을 가능성. 실제 사용자 체감 버그 아닐 수 있음.
-   *  - events 배열의 reason / timestamp / boundR 분포로 시점·규모 확인 가능.
+   * 해석 (dominantCause):
+   *  - orphaned       → leader 가 follower 보다 먼저 deactivate. PR #25 의
+   *                     cascadeOrphanedFollowers 가 정상 작동하면 0.
+   *  - floorMismatch  → leader 와 follower 의 currentFloorId 가 다른 frame.
+   *                     portal/floor 전환 시 follower sync 가 한 tick 이상
+   *                     지연되거나 누락. fix 방향: portal 직후 follower 강제 sync.
+   *  - severeBurst    → 같은 floor 인데 dist > 2×boundR. floorMismatch 분리
+   *                     후의 잔여 = 진짜 대규모 burst. portal 외 다른 sync 갭.
+   *  - burst          → 같은 floor + boundR < dist <= 2×boundR. 작은 흔들림.
+   *                     personalR (0.4~1.0×) 분포의 극단치. 시각적 체감 작음.
    */
   diagnoseGroupCohesion(): {
     /** Tick-level summary counters (frames are follower-tick units, not wall time). */
@@ -577,25 +584,27 @@ export class SimulationEngine {
       totalTicks: number;
       ticksWithGroups: number;
       orphanedFrames: number;
+      floorMismatchFrames: number;
       burstFrames: number;
       severeBurstFrames: number;
       /** Active groups in the world right now (snapshot, not cumulative). */
       activeGroups: number;
     };
     /**
-     * First-fire events per visitor (one per visitor per category).
-     * orphaned + severeBurst only — burst is too noisy and tracked via counter.
+     * First-fire events per visitor per reason (key = visitorId:reason).
+     * orphaned / floorMismatch / severeBurst only — burst is too noisy and
+     * tracked via counter only.
      */
     events: ReadonlyArray<{
       visitorId: string;
       groupId: string;
       timestamp: number;
-      reason: 'orphaned' | 'severeBurst';
+      reason: 'orphaned' | 'severeBurst' | 'floorMismatch';
       distFromLeader: number;
       boundR: number;
     }>;
     /** Dominant cause label — convenience for quick console reading. */
-    dominantCause: 'orphaned' | 'severeBurst' | 'burst' | 'none';
+    dominantCause: 'orphaned' | 'floorMismatch' | 'severeBurst' | 'burst' | 'none';
   } {
     let activeGroups = 0;
     for (const [, g] of this.state.groups) {
@@ -603,10 +612,14 @@ export class SimulationEngine {
       if (leader?.isActive) activeGroups++;
     }
     const s = this._cohesionTickStats;
-    let dominantCause: 'orphaned' | 'severeBurst' | 'burst' | 'none' = 'none';
-    const max = Math.max(s.orphanedFrames, s.severeBurstFrames, s.burstFrames);
+    let dominantCause: 'orphaned' | 'floorMismatch' | 'severeBurst' | 'burst' | 'none' = 'none';
+    // Priority order at ties: orphaned (cascade bug) > floorMismatch (sync bug)
+    // > severeBurst (other tether failure) > burst (cosmetic). Reflects fix
+    // urgency, not just frame count.
+    const max = Math.max(s.orphanedFrames, s.floorMismatchFrames, s.severeBurstFrames, s.burstFrames);
     if (max > 0) {
       if (s.orphanedFrames === max) dominantCause = 'orphaned';
+      else if (s.floorMismatchFrames === max) dominantCause = 'floorMismatch';
       else if (s.severeBurstFrames === max) dominantCause = 'severeBurst';
       else dominantCause = 'burst';
     }
@@ -615,6 +628,7 @@ export class SimulationEngine {
         totalTicks: s.totalTicks,
         ticksWithGroups: s.ticksWithGroups,
         orphanedFrames: s.orphanedFrames,
+        floorMismatchFrames: s.floorMismatchFrames,
         burstFrames: s.burstFrames,
         severeBurstFrames: s.severeBurstFrames,
         activeGroups,
@@ -732,9 +746,25 @@ export class SimulationEngine {
         // Orphaned: leader 가 inactive 인데 follower 는 살아있음.
         // tether 가 line 3534 에서 early-return 하므로 follower 의 위치
         // 제어가 사라진 상태. wall clamp 도 line 3676 에서 스킵 → 자유 표류.
+        // (PR #25 의 cascadeOrphanedFollowers 가 같은 tick 에 follower 를
+        //  deactivate 하므로 정상 케이스에서 0 이어야 함.)
         if (!leader?.isActive) {
           this._cohesionTickStats.orphanedFrames++;
           this.recordCohesionEvent(m.id as string, group.id as string, now, 'orphaned', -1, boundR);
+          continue;
+        }
+
+        // Floor mismatch: cross-floor 절대좌표 dist 는 의미 없음.
+        // syncFollowerToLeader 가 leader 의 floor 변경 시 follower 도 teleport
+        // 하지만 (GroupBehavior.ts line 60-68), 일부 케이스에서 sync 가 한
+        // tick 이상 지연되거나 follower 의 currentAction 이 MOVING/EXITING 이
+        // 아닐 때 teleport 누락 → cross-floor 상태가 길게 지속.
+        // 여기서 별도 카테고리로 분류하면 burst/severeBurst 카운터의 false-alarm
+        // 이 사라지고, floorMismatchFrames 자체가 portal/floor sync 버그 진단의
+        // 정량 지표가 된다.
+        if ((leader.currentFloorId as string | null) !== (m.currentFloorId as string | null)) {
+          this._cohesionTickStats.floorMismatchFrames++;
+          this.recordCohesionEvent(m.id as string, group.id as string, now, 'floorMismatch', -1, boundR);
           continue;
         }
 
@@ -758,7 +788,7 @@ export class SimulationEngine {
     visitorId: string,
     groupId: string,
     timestamp: number,
-    reason: 'orphaned' | 'severeBurst',
+    reason: 'orphaned' | 'severeBurst' | 'floorMismatch',
     distFromLeader: number,
     boundR: number,
   ): void {
