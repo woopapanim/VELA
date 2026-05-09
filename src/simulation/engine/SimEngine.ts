@@ -251,13 +251,33 @@ export class SimulationEngine {
   // (같은 visitor 가 매 frame 카운터를 push 하면 events 가 폭증).
   // Key 형식: `${visitorId}:${reason}` — 같은 visitor 의 다른 reason 은 별도 키로 둘 다 기록.
   private _cohesionEventLogged = new Set<string>();
+  // Enriched payload — PR #25 (cascade) + PR #26 (floorMismatch 분리) 후에도
+  // severeBurst 96.8% 가 남았는데 stepFollowerTether 가 매 tick warp 함을 고려할 때
+  // 모순. position / currentAction / target IDs 를 함께 capture 해 어느 분기에서
+  // 발생하는지 (미디어 워프 / zone gate / shaft / tick-order race / hidden path)
+  // 패턴 분석. orphaned 와 floorMismatch 는 leader.position / floorId 차이 또는
+  // leader 부재라 일부 필드는 null 이지만 follower 상태는 동일하게 채움 (sync 가
+  // 어느 액션 단계에서 끊기는지 보기 위해).
   private _cohesionEvents: Array<{
     visitorId: string;
     groupId: string;
-    timestamp: number;             // sim.elapsed (ms)
+    timestamp: number;                                  // sim.elapsed (ms)
     reason: 'orphaned' | 'severeBurst' | 'floorMismatch';
-    distFromLeader: number;        // px. orphaned/floorMismatch 는 -1 (cross-floor dist 는 의미 없음)
-    boundR: number;                // 그 시점의 boundR (디버깅 시 비교용)
+    distFromLeader: number;                             // px. orphaned/floorMismatch 는 -1.
+    boundR: number;                                     // 그 시점의 boundR.
+    // ---- Enriched diagnostic snapshot ----
+    leaderAction: string | null;                        // null when leader inactive (orphaned)
+    followerAction: string;
+    leaderPos: { x: number; y: number } | null;         // null for orphaned
+    followerPos: { x: number; y: number };
+    leaderFloorId: string | null;
+    followerFloorId: string | null;
+    leaderTargetMediaId: string | null;
+    followerTargetMediaId: string | null;
+    leaderTargetNodeId: string | null;
+    followerTargetNodeId: string | null;
+    leaderCurrentNodeId: string | null;
+    followerCurrentNodeId: string | null;
   }> = [];
 
   // group caches (rebuilt each tick)
@@ -602,6 +622,19 @@ export class SimulationEngine {
       reason: 'orphaned' | 'severeBurst' | 'floorMismatch';
       distFromLeader: number;
       boundR: number;
+      // Enriched diagnostic snapshot at first-fire moment (PR-C-pre):
+      leaderAction: string | null;
+      followerAction: string;
+      leaderPos: { x: number; y: number } | null;
+      followerPos: { x: number; y: number };
+      leaderFloorId: string | null;
+      followerFloorId: string | null;
+      leaderTargetMediaId: string | null;
+      followerTargetMediaId: string | null;
+      leaderTargetNodeId: string | null;
+      followerTargetNodeId: string | null;
+      leaderCurrentNodeId: string | null;
+      followerCurrentNodeId: string | null;
     }>;
     /** Dominant cause label — convenience for quick console reading. */
     dominantCause: 'orphaned' | 'floorMismatch' | 'severeBurst' | 'burst' | 'none';
@@ -750,7 +783,7 @@ export class SimulationEngine {
         //  deactivate 하므로 정상 케이스에서 0 이어야 함.)
         if (!leader?.isActive) {
           this._cohesionTickStats.orphanedFrames++;
-          this.recordCohesionEvent(m.id as string, group.id as string, now, 'orphaned', -1, boundR);
+          this.recordCohesionEvent(group.id as string, now, 'orphaned', -1, boundR, leader, m);
           continue;
         }
 
@@ -764,7 +797,7 @@ export class SimulationEngine {
         // 정량 지표가 된다.
         if ((leader.currentFloorId as string | null) !== (m.currentFloorId as string | null)) {
           this._cohesionTickStats.floorMismatchFrames++;
-          this.recordCohesionEvent(m.id as string, group.id as string, now, 'floorMismatch', -1, boundR);
+          this.recordCohesionEvent(group.id as string, now, 'floorMismatch', -1, boundR, leader, m);
           continue;
         }
 
@@ -773,7 +806,7 @@ export class SimulationEngine {
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > severeBoundR) {
           this._cohesionTickStats.severeBurstFrames++;
-          this.recordCohesionEvent(m.id as string, group.id as string, now, 'severeBurst', dist, boundR);
+          this.recordCohesionEvent(group.id as string, now, 'severeBurst', dist, boundR, leader, m);
         } else if (dist > boundR) {
           this._cohesionTickStats.burstFrames++;
           // burst 는 카운터만 — events log 는 severe 만 (노이즈 폭증 방지).
@@ -785,20 +818,46 @@ export class SimulationEngine {
   }
 
   private recordCohesionEvent(
-    visitorId: string,
     groupId: string,
     timestamp: number,
     reason: 'orphaned' | 'severeBurst' | 'floorMismatch',
     distFromLeader: number,
     boundR: number,
+    leader: Visitor | undefined,            // undefined = orphaned (leader missing/inactive)
+    follower: Visitor,
   ): void {
+    const visitorId = follower.id as string;
     // First-fire only. Same visitor + same reason: ignore subsequent ticks.
     // Different reason (orphaned → severeBurst, etc.) is also ignored —
     // the most interesting moment is the FIRST sign of trouble.
     const key = `${visitorId}:${reason}`;
     if (this._cohesionEventLogged.has(key)) return;
     this._cohesionEventLogged.add(key);
-    this._cohesionEvents.push({ visitorId, groupId, timestamp, reason, distFromLeader, boundR });
+    this._cohesionEvents.push({
+      visitorId,
+      groupId,
+      timestamp,
+      reason,
+      distFromLeader,
+      boundR,
+      // Leader fields are null when leader is missing/inactive (orphaned).
+      // Position 좌표 + currentAction + target IDs 가 함께 있으면 어느 워프
+      // (media slot / zone gate / shaft / tick-order race) 직후 발생인지
+      // 식별 가능. dist 290-317px 같은 일정 값이 어느 구조적 거리 (gate-to-gate,
+      // media slot offset 등) 와 매치되는지도 확인.
+      leaderAction: leader ? (leader.currentAction as string) : null,
+      followerAction: follower.currentAction as string,
+      leaderPos: leader ? { x: leader.position.x, y: leader.position.y } : null,
+      followerPos: { x: follower.position.x, y: follower.position.y },
+      leaderFloorId: leader ? (leader.currentFloorId as string | null) : null,
+      followerFloorId: follower.currentFloorId as string | null,
+      leaderTargetMediaId: leader ? (leader.targetMediaId as string | null) : null,
+      followerTargetMediaId: follower.targetMediaId as string | null,
+      leaderTargetNodeId: leader ? (leader.targetNodeId as string | null) : null,
+      followerTargetNodeId: follower.targetNodeId as string | null,
+      leaderCurrentNodeId: leader ? (leader.currentNodeId as string | null) : null,
+      followerCurrentNodeId: follower.currentNodeId as string | null,
+    });
   }
 
   /**
