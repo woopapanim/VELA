@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs when a new commit lands on the same ref.
+# Saves CI minutes and gives the latest commit faster feedback.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build, Test, Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # `npm ci` honors package-lock.json exactly — fails if lockfile is out
+      # of sync with package.json. Catches forgotten lockfile commits.
+      - name: Install dependencies
+        run: npm ci
+
+      # Build = `tsc -b && vite build`. tsc catches type errors that vitest
+      # alone misses (e.g. vite.config.ts UserConfigExport regression).
+      - name: Build (tsc + vite)
+        run: npm run build
+
+      - name: Test (vitest run)
+        run: npm run test:run
+
+      # Lint baseline: 76 warnings allowed (--max-warnings 76 in package.json).
+      # Adding ANY new violation pushes count to 77 - fails this step.
+      # Cleanup PRs should lower the cap in the same PR they reduce warnings.
+      - name: Lint (baseline ratchet)
+        run: npm run lint
