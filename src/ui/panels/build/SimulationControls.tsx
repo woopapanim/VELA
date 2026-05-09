@@ -256,6 +256,13 @@ export function SimulationControls() {
     dirtyAtStartRef.current = selectScenarioDirty(store);
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
+    // Zustand setters (resetSim, setShaftQueues, setDensityGrids, pushSnapshot,
+    // captureRun, pushReplayFrame, clearReplay, setRunId) are stable references —
+    // their identity doesn't change across renders. toast/t are also stable
+    // (provider-scoped). Only updateSimState + setPhase are listed because lint
+    // can't infer the rest are stable; suppressing the warning would hide
+    // genuine future regressions if any becomes a closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateSimState, setPhase]);
 
   const handlePause = useCallback(() => {

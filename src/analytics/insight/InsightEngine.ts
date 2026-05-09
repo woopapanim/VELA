@@ -1,4 +1,4 @@
-import type { KpiSnapshot, ZoneConfig, MediaPlacement, Visitor, VisitorGroup, InsightEntry } from '@/domain';
+import type { KpiSnapshot, ZoneConfig, MediaPlacement, Visitor, VisitorGroup, InsightEntry, MediaId } from '@/domain';
 import type { MediaPreset } from '@/domain/types/media';
 import { INTERNATIONAL_DENSITY_STANDARD, MEDIA_PRESETS } from '@/domain';
 
@@ -206,7 +206,7 @@ export function generateInsights(
         ? t('insight.flow.rec.withNames', { names: namesText })
         : t('insight.flow.rec'),
       affectedZoneIds: [],
-      affectedMediaIds: topEngagement.map((e) => e.id),
+      affectedMediaIds: topEngagement.map((e) => e.id as MediaId),
       dataEvidence: { metric: 'completion_rate', value: snapshot.flowEfficiency.completionRate, threshold: 0.5 },
     });
   }

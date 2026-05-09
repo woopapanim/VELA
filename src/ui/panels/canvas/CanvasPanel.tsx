@@ -144,6 +144,11 @@ export function CanvasPanel({ readOnly = false }: CanvasPanelProps = {}) {
       }
     }
     prevZoneCount.current = zones.length;
+    // Intentionally observes zones.length only — re-running on every zone
+    // mutation would defeat the "once on initial scenario load" intent.
+    // The body reads zones lazily, which is fine since this only fires when
+    // the count crosses 0 → 2+ (catching the JSON-load batch insert).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zones.length, setCamera]);
 
   // Analyze action card 등이 setFocusTarget(world center) 으로 요청한 위치로 카메라 이동.
@@ -1090,6 +1095,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         selectZone(null);
       }
     }
+    // updateMedia + updateZone are stable Zustand setters — including them
+    // would just churn the callback identity without correctness benefit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorMode, selectZone, setEditorMode, readOnly]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -1207,6 +1215,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     if (anyEdge) { store.selectEdge(anyEdge); selectZone(null); return; }
     if (anyMedia) { selectZone(null); store.selectWaypoint(null); store.selectMedia(anyMedia); return; }
     if (anyZone) { selectZone(anyZone); store.selectWaypoint(null); return; }
+    // readOnly is intentionally read via closure capture at click time —
+    // changes mid-flight don't need to invalidate the callback identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectZone]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -1833,6 +1844,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       }
       didDrag.current = true;
     }
+    // updateMedia is a stable Zustand setter; including it churns identity for
+    // no correctness benefit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCamera, updateZone, editorMode]);
 
   const handleMouseUp = useCallback(() => {
@@ -1960,7 +1974,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     } else {
       setFollowAgent(null);
     }
-  }, [setFollowAgent, editorMode, setEditorMode, readOnly]);
+  }, [setFollowAgent, readOnly]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -2060,6 +2074,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
     // Empty space: show general context menu
     showMenu(e.clientX, e.clientY, world.x, world.y, null);
+    // updateMedia is a stable Zustand setter — see other handlers in this file
+    // for the same pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMenu, showPopover, selectZone]);
 
   return (

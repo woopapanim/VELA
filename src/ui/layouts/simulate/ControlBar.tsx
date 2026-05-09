@@ -267,6 +267,9 @@ export function ControlBar() {
     dirtyAtStartRef.current = selectScenarioDirty(store);
     loop.start();
     setPhase(SIMULATION_PHASE.RUNNING);
+    // captureRun is a stable Zustand setter — listing it would just churn the
+    // callback identity without any safety benefit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateSimState, setPhase, t, toast, resetSim, setShaftQueues, setDensityGrids, pushSnapshot, pushReplayFrame, clearReplay, setRunId]);
 
   const handlePause = useCallback(() => {

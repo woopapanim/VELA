@@ -107,14 +107,16 @@ export function PropertyPopover({ popover, onClose }: {
   const [flipped, setFlipped] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   useEffect(() => {
     if (!popover.visible) return;
-    // Measure actual popover size after paint, then record for next-frame adjustment
+    // Measure actual popover size after paint, then record for next-frame adjustment.
+    // Effect runs on every paint where the size could be stale; the inner
+    // diff check prevents the setState from cascading into an infinite loop.
     if (ref.current) {
       const r = ref.current.getBoundingClientRect();
       if (r.width !== flipped.w || r.height !== flipped.h) {
         setFlipped({ w: r.width, h: r.height });
       }
     }
-  });
+  }, [popover.visible, flipped.w, flipped.h]);
 
   const popoverStyle = (): React.CSSProperties => {
     // Estimate until measured

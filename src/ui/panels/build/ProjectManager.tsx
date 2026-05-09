@@ -213,7 +213,9 @@ export function ProjectManager() {
     URL.revokeObjectURL(url);
     commitToHistory(finalScenario);
     toast('success', t('project.toast.saved', { name: finalScenario.meta.name, version: finalScenario.meta.version }));
-  }, [scenario, setScenario, toast, t]);
+    // scenario read via useStore.getState() inside the callback, not from
+    // closure — exclude from deps to avoid stale-callback churn on every save.
+  }, [setScenario, toast, t]);
 
   // Open JSON file
   const handleOpen = useCallback(async () => {
@@ -276,7 +278,7 @@ export function ProjectManager() {
     };
     input.oncancel = () => { if (document.body.contains(input)) document.body.removeChild(input); };
     input.click();
-  }, [setScenario, resetSim, clearHistory, clearReplay, toast, t]);
+  }, [setScenario, setPins, resetSim, clearHistory, clearReplay, toast, t]);
 
   // Export JSON
   const handleExport = useCallback(() => {
