@@ -226,6 +226,33 @@ export class SimulationEngine {
   //   2) 휴리스틱 (visitRatio / fatigueThreshold / nodeStuck post-hoc 등)
   private _exitLog: ExitLogEntry[] = [];
 
+  // ---- Diagnostics: group cohesion ("터짐" 추적) ----
+  // 매 tick 끝에 follower 위치를 leader 와 비교, 다음 카테고리로 분류:
+  //   - orphaned     : leader inactive 인데 follower 가 active (tether anchor 상실)
+  //   - severeBurst  : dist(follower, leader) > 2.0 × boundR (완전 도망)
+  //   - burst        : boundR < dist <= 2.0 × boundR  (살짝 벗어남)
+  // boundR 공식은 stepFollowerTether 와 동일 (mirroring guarantee).
+  // tickStats: 누적 frame×follower 카운터 (dominant cause 판정용 — diagnoseGroupCohesion 의 summary).
+  // events: visitor 별 first-fire 사건 로그 (severeBurst/orphaned 만 기록 — burst 는 노이즈 많아 카운터로만).
+  private _cohesionTickStats = {
+    totalTicks: 0,                  // 측정 tick 수
+    ticksWithGroups: 0,             // 활성 그룹이 1개 이상 있던 tick
+    burstFrames: 0,                 // boundR < dist <= 2×boundR (follower-tick)
+    severeBurstFrames: 0,           // dist > 2×boundR
+    orphanedFrames: 0,              // leader inactive + follower active
+  };
+  // visitor 별 첫 발화만 events 에 기록. 한 번 사건이 잡힌 visitor 는 다시 안 잡힘
+  // (같은 visitor 가 매 frame 카운터를 push 하면 events 가 폭증).
+  private _cohesionEventLogged = new Set<string>();
+  private _cohesionEvents: Array<{
+    visitorId: string;
+    groupId: string;
+    timestamp: number;             // sim.elapsed (ms)
+    reason: 'orphaned' | 'severeBurst';
+    distFromLeader: number;        // px. orphaned 케이스는 -1 (leader 좌표 없음)
+    boundR: number;                // 그 시점의 boundR (디버깅 시 비교용)
+  }> = [];
+
   // group caches (rebuilt each tick)
   private groupMemberPositions = new Map<string, Vector2D[]>();
   private tourLeaders: { position: Vector2D; radius: number }[] = [];
@@ -525,6 +552,154 @@ export class SimulationEngine {
       };
     });
     return { total, triggerCounts, buckets };
+  }
+
+  /**
+   * 그룹 cohesion 진단. 시뮬 도중 follower 가 leader 의 tether bound 를 벗어난
+   * 정도를 누적 통계 + first-fire 이벤트로 보고.
+   *
+   * 콘솔에서: window.__simEngine.diagnoseGroupCohesion()
+   *
+   * 해석:
+   *  - orphanedFrames 압도적 → leader 가 follower 보다 먼저 deactivate 되어
+   *    tether anchor 상실 (가장 흔한 가설). fix 방향: 그룹 단위 deactivate
+   *    cascade 또는 leader-fallback (다음 active 멤버 승격).
+   *  - severeBurstFrames 압도적 → portal/floor 전환 같은 leader 의 큰 jump
+   *    한 frame 동안 발생. fix 방향: tether 가 portal 직후 first tick 에
+   *    pre-warp 보장.
+   *  - burstFrames 만 큼 → 정상 personalR 분포 (0.4~1.0×boundR) 의 극단치가
+   *    렌더링 직전 측정에 포함됐을 가능성. 실제 사용자 체감 버그 아닐 수 있음.
+   *  - events 배열의 reason / timestamp / boundR 분포로 시점·규모 확인 가능.
+   */
+  diagnoseGroupCohesion(): {
+    /** Tick-level summary counters (frames are follower-tick units, not wall time). */
+    summary: {
+      totalTicks: number;
+      ticksWithGroups: number;
+      orphanedFrames: number;
+      burstFrames: number;
+      severeBurstFrames: number;
+      /** Active groups in the world right now (snapshot, not cumulative). */
+      activeGroups: number;
+    };
+    /**
+     * First-fire events per visitor (one per visitor per category).
+     * orphaned + severeBurst only — burst is too noisy and tracked via counter.
+     */
+    events: ReadonlyArray<{
+      visitorId: string;
+      groupId: string;
+      timestamp: number;
+      reason: 'orphaned' | 'severeBurst';
+      distFromLeader: number;
+      boundR: number;
+    }>;
+    /** Dominant cause label — convenience for quick console reading. */
+    dominantCause: 'orphaned' | 'severeBurst' | 'burst' | 'none';
+  } {
+    let activeGroups = 0;
+    for (const [, g] of this.state.groups) {
+      const leader = this.state.visitors.get(g.leaderId as string);
+      if (leader?.isActive) activeGroups++;
+    }
+    const s = this._cohesionTickStats;
+    let dominantCause: 'orphaned' | 'severeBurst' | 'burst' | 'none' = 'none';
+    const max = Math.max(s.orphanedFrames, s.severeBurstFrames, s.burstFrames);
+    if (max > 0) {
+      if (s.orphanedFrames === max) dominantCause = 'orphaned';
+      else if (s.severeBurstFrames === max) dominantCause = 'severeBurst';
+      else dominantCause = 'burst';
+    }
+    return {
+      summary: {
+        totalTicks: s.totalTicks,
+        ticksWithGroups: s.ticksWithGroups,
+        orphanedFrames: s.orphanedFrames,
+        burstFrames: s.burstFrames,
+        severeBurstFrames: s.severeBurstFrames,
+        activeGroups,
+      },
+      events: this._cohesionEvents,
+      dominantCause,
+    };
+  }
+
+  /**
+   * Per-tick sweep called from the main tick loop AFTER all visitor updates.
+   * Compares each follower's post-tether position to its leader and bumps
+   * counters / records first-fire events. Pure read-side: never mutates
+   * visitor / group state — sim determinism preserved.
+   *
+   * boundR formula MUST stay in sync with stepFollowerTether (line ~3550)
+   * and VisitorRenderer.renderCohesionCircles. If any of these three diverge,
+   * the diagnostic loses meaning (we'd be measuring against a different bound
+   * than the engine enforces / the user sees).
+   */
+  private recordCohesionStats(visitors: Map<string, Visitor>): void {
+    this._cohesionTickStats.totalTicks++;
+    const now = this.state.timeState.elapsed;
+    let sawAnyGroup = false;
+
+    for (const [, group] of this.state.groups) {
+      if (group.memberIds.length === 0) continue;
+      sawAnyGroup = true;
+
+      const leader = visitors.get(group.leaderId as string);
+      const memberCount = group.memberIds.length;
+      const sizeScale = Math.sqrt(memberCount) * 25;
+      const boundR = Math.max(
+        group.maxSpread ?? 40,
+        group.effectiveCollisionRadius ?? 0,
+        sizeScale,
+        30,
+      );
+      const severeBoundR = boundR * 2;
+
+      for (const mid of group.memberIds) {
+        const m = visitors.get(mid as string);
+        if (!m?.isActive) continue;
+        if ((m.id as string) === (group.leaderId as string)) continue;
+
+        // Orphaned: leader 가 inactive 인데 follower 는 살아있음.
+        // tether 가 line 3534 에서 early-return 하므로 follower 의 위치
+        // 제어가 사라진 상태. wall clamp 도 line 3676 에서 스킵 → 자유 표류.
+        if (!leader?.isActive) {
+          this._cohesionTickStats.orphanedFrames++;
+          this.recordCohesionEvent(m.id as string, group.id as string, now, 'orphaned', -1, boundR);
+          continue;
+        }
+
+        const dx = leader.position.x - m.position.x;
+        const dy = leader.position.y - m.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > severeBoundR) {
+          this._cohesionTickStats.severeBurstFrames++;
+          this.recordCohesionEvent(m.id as string, group.id as string, now, 'severeBurst', dist, boundR);
+        } else if (dist > boundR) {
+          this._cohesionTickStats.burstFrames++;
+          // burst 는 카운터만 — events log 는 severe 만 (노이즈 폭증 방지).
+        }
+      }
+    }
+
+    if (sawAnyGroup) this._cohesionTickStats.ticksWithGroups++;
+  }
+
+  private recordCohesionEvent(
+    visitorId: string,
+    groupId: string,
+    timestamp: number,
+    reason: 'orphaned' | 'severeBurst',
+    distFromLeader: number,
+    boundR: number,
+  ): void {
+    // First-fire only. Same visitor + same reason: ignore subsequent ticks.
+    // Different reason (orphaned → severeBurst, etc.) is also ignored —
+    // the most interesting moment is the FIRST sign of trouble.
+    const key = `${visitorId}:${reason}`;
+    if (this._cohesionEventLogged.has(key)) return;
+    this._cohesionEventLogged.add(key);
+    this._cohesionEvents.push({ visitorId, groupId, timestamp, reason, distFromLeader, boundR });
   }
 
   /**
@@ -846,6 +1021,10 @@ export class SimulationEngine {
       next.set(k, a);
     }
     this.state.visitors = next;
+
+    // Cohesion diagnostic sweep — read-only inspection AFTER tether ran.
+    // Side-effect-free for sim determinism (only writes to _cohesion* counters).
+    this.recordCohesionStats(next);
 
     // Accumulate visitor-seconds into the per-floor density grid.
     // Weight = dtS so a visitor standing still for 1 second adds 1.0 to its cell.
