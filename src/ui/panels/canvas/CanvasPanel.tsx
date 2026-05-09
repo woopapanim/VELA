@@ -10,7 +10,10 @@ import { SpeedIndicator } from './SpeedIndicator';
 import { useKeyboardShortcuts } from '@/ui/hooks/useKeyboardShortcuts';
 import { zonesOverlap, getZoneVertices } from '@/domain/zoneGeometry';
 import { findFloorAtPoint, getFloorFrameBounds } from '@/domain/floorLayout';
-import type { FloorConfig, ZoneConfig } from '@/domain';
+import type {
+  FloorConfig, ZoneConfig, MediaPlacement,
+  ZoneId, FloorId, GateId, WaypointId, WaypointEdgeId, ShaftId,
+} from '@/domain';
 
 // Get edge segments for a zone shape (rx, ry = L bend ratios, default 0.5)
 function getZoneEdges(b: { x: number; y: number; w: number; h: number }, shape: string, rx = 0.5, ry = 0.5): Array<[{x:number;y:number},{x:number;y:number}]> {
@@ -171,7 +174,7 @@ export function CanvasPanel({ readOnly = false }: CanvasPanelProps = {}) {
           const store = useStore.getState();
           // Shared-canvas mode: all floors render together on one world plane.
           // activeFloorId is kept only as a UX hint (which region tools currently target).
-          const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+          const fl = store.floors.find((f: FloorConfig) =>(f.id as string) === store.activeFloorId);
           const gridSz = fl?.canvas.gridSize ?? 40;
 
           manager.render({
@@ -407,7 +410,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         if (store.phase === 'running' || store.phase === 'paused') return;
         if (store.selectedMediaId) {
           store.removeMedia(store.selectedMediaId);
-          (store as any).selectMedia(null);
+          store.selectMedia(null);
         } else if (store.selectedZoneId) {
           store.removeZone(store.selectedZoneId);
           store.selectZone(null);
@@ -504,15 +507,15 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           // Connect the two gates
           const allZones = store.zones.map((z) => {
             const updatedGates = z.gates.map((g) => {
-              if ((g.id as string) === pending) return { ...g, connectedGateId: nearestGate!.gateId as any };
-              if ((g.id as string) === nearestGate!.gateId) return { ...g, connectedGateId: pending as any };
+              if ((g.id as string) === pending) return { ...g, connectedGateId: nearestGate!.gateId as GateId };
+              if ((g.id as string) === nearestGate!.gateId) return { ...g, connectedGateId: pending as GateId };
               return g;
             });
             return { ...z, gates: updatedGates };
           });
           // Batch update all zones
           for (const z of allZones) {
-            store.updateZone(z.id as string, { gates: z.gates } as any);
+            store.updateZone(z.id as string, { gates: z.gates });
           }
           store.setPendingGateSource(null);
         }
@@ -585,7 +588,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           }
           const newId = `shaft_${maxN + 1}`;
           store.addShaft({
-            id: newId as any,
+            id: newId as ShaftId,
             name: `Shaft ${maxN + 1}`,
             capacity: 8,
             waitTimeMs: 5000,
@@ -596,20 +599,20 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       }
 
       store.addWaypoint({
-        id: id as any,
+        id: id as WaypointId,
         type: wpType,
         position: { x: world.x, y: world.y },
-        floorId: floorId as any,
+        floorId: floorId as FloorId,
         label: autoLabel,
         attraction: wpType === 'attractor' ? 0.9 : wpType === 'rest' ? 0.2 : 0.5,
         dwellTimeMs: wpType === 'rest' ? 30000 : 0,
         capacity: 20,
         spawnWeight: wpType === 'entry' ? 1.0 : 0,
         lookAt: 0,
-        zoneId: hitZoneId as any ?? null,
+        zoneId: (hitZoneId as ZoneId | null) ?? null,
         mediaId: null,
         ...(wpType === 'portal'
-          ? { shaftId: portalShaftId as any }
+          ? { shaftId: portalShaftId as ShaftId }
           : {}),
       });
       store.selectWaypoint(id);
@@ -653,7 +656,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             const cost = Math.sqrt(dx * dx + dy * dy);
             const edgeId = `e_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
             store.addEdge({
-              id: edgeId as any,
+              id: edgeId as WaypointEdgeId,
               fromId: fromNode.id,
               toId: toNode.id,
               direction: 'bidirectional',
@@ -717,8 +720,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
         // Check L-handle
         if (selZone && !isPolyEditing && (selZone.shape as string).startsWith('l_')) {
-          const rx = (selZone as any).lRatioX ?? 0.5;
-          const ry = (selZone as any).lRatioY ?? 0.5;
+          const rx = selZone.lRatioX ?? 0.5;
+          const ry = selZone.lRatioY ?? 0.5;
           const lx = selZone.bounds.x + selZone.bounds.w * rx;
           const ly = selZone.bounds.y + selZone.bounds.h * ry;
           const ldx = world.x - lx;
@@ -768,7 +771,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             updateZone(store.selectedZoneId!, {
               polygon: newVerts,
               bounds: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY },
-            } as any);
+            });
             dragMode.current = 'vertex';
             dragZoneId.current = store.selectedZoneId;
             dragVertexIdx.current = bestEdge.idx + 1;
@@ -786,8 +789,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         const selZone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
         if (selZone) {
           for (const gate of selZone.gates) {
-            const dx = (gate.position as any).x - world.x;
-            const dy = (gate.position as any).y - world.y;
+            const dx = gate.position.x - world.x;
+            const dy = gate.position.y - world.y;
             if (dx * dx + dy * dy < 225) { // 15px hit radius for easier gate selection
               store.pushUndo(store.zones, store.media, store.waypointGraph);
               dragMode.current = 'gate';
@@ -803,8 +806,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       // Check media polygon vertex/edge (only in mediaPolygonEditMode)
       const MEDIA_SCALE_VAL = 20;
       if (store.selectedMediaId && store.mediaPolygonEditMode) {
-        const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
-        if (selMedia && (selMedia as any).shape === 'custom' && selMedia.polygon && selMedia.polygon.length > 2) {
+        const selMedia = store.media.find((m: MediaPlacement) =>(m.id as string) === store.selectedMediaId);
+        if (selMedia && selMedia.shape === 'custom' && selMedia.polygon && selMedia.polygon.length > 2) {
           const mRad = (selMedia.orientation * Math.PI) / 180;
           // Transform world→local (center-relative, pre-rotation)
           const dx = world.x - selMedia.position.x;
@@ -839,7 +842,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             store.pushUndo(store.zones, store.media, store.waypointGraph);
             const newVerts = [...vts];
             newVerts.splice(bestEdge.idx + 1, 0, { x: bestEdge.pt.x, y: bestEdge.pt.y });
-            updateMedia(store.selectedMediaId, { polygon: newVerts } as any);
+            updateMedia(store.selectedMediaId, { polygon: newVerts });
             dragMode.current = 'media-vertex';
             dragMediaId.current = store.selectedMediaId;
             dragVertexIdx.current = bestEdge.idx + 1;
@@ -852,8 +855,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
       // Check selected media resize handles first (rotated coordinates, skip for custom polygon)
       if (store.selectedMediaId) {
-        const selMedia = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
-        const selShape = (selMedia as any)?.shape;
+        const selMedia = store.media.find((m: MediaPlacement) =>(m.id as string) === store.selectedMediaId);
+        const selShape = selMedia?.shape;
         if (selMedia && selShape !== 'custom') {
           const pw = selMedia.size.width * MEDIA_SCALE_VAL, ph = selMedia.size.height * MEDIA_SCALE_VAL;
           const mRad = (selMedia.orientation * Math.PI) / 180;
@@ -902,7 +905,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         if (corner) {
           store.pushUndo(store.zones, store.media, store.waypointGraph);
           selectZone(z.id as string);
-          (store as any).selectMedia(null);
+          store.selectMedia(null);
           dragMode.current = 'resize';
           dragZoneId.current = z.id as string;
           resizeCorner.current = corner;
@@ -913,11 +916,11 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
       // Check media rotation handle FIRST (handle is outside media rect)
       if (store.selectedMediaId) {
-        const selM = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
+        const selM = store.media.find((m: MediaPlacement) =>(m.id as string) === store.selectedMediaId);
         if (selM) {
           const pw2 = selM.size.width * MEDIA_SCALE_VAL;
           const ph2 = selM.size.height * MEDIA_SCALE_VAL;
-          const mShape2 = (selM as any).shape;
+          const mShape2 = selM.shape;
           let edgeDist2: number;
           if (mShape2 === 'custom' && selM.polygon && selM.polygon.length > 2) {
             let maxNegY = 0;
@@ -946,7 +949,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       // Check media click for move (before zone click)
       for (const m of store.media) {
         let mediaHit = false;
-        const mShape = (m as any).shape;
+        const mShape = m.shape;
         if (mShape === 'custom' && m.polygon && m.polygon.length > 2) {
           // Transform world to local, then point-in-polygon
           const mRad = (m.orientation * Math.PI) / 180;
@@ -983,7 +986,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           dragOffset.current = { x: world.x - m.position.x, y: world.y - m.position.y };
           selectZone(null);
           store.selectWaypoint(null);
-          (store as any).selectMedia(m.id as string);
+          store.selectMedia(m.id as string);
           e.preventDefault();
           return;
         }
@@ -1032,7 +1035,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         // Nothing clicked — check background image for drag/resize
         const manager = managerRef.current;
         if (manager && store.showBackground) {
-          const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+          const fl = store.floors.find((f: FloorConfig) =>(f.id as string) === store.activeFloorId);
           if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false) && !fl.canvas.bgHidden) {
             const bgBounds = manager.getBgImageBounds(
               fl.id as string,
@@ -1167,7 +1170,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     if (hitNothing) {
       selectZone(null);
       store.selectWaypoint(null);
-      (store as any).selectMedia?.(null);
+      store.selectMedia?.(null);
       store.setPendingEdgeSource(null);
       store.setActiveFloor(null);
       if (mode !== 'select') store.setEditorMode('select');
@@ -1186,12 +1189,12 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     }
 
     if (mode === 'place-media') {
-      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
+      if (anyMedia) { store.selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       return;
     }
 
     if (mode === 'create-zone') {
-      if (anyMedia) { (store as any).selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
+      if (anyMedia) { store.selectMedia(anyMedia); selectZone(null); store.selectWaypoint(null); return; }
       selectZone(anyZone);
       store.selectWaypoint(null);
       return;
@@ -1200,7 +1203,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     // ── Select 모드: 전체 레이어 우선순위 ──
     if (anyNode) { store.selectWaypoint(anyNode.id); selectZone(null); return; }
     if (anyEdge) { store.selectEdge(anyEdge); selectZone(null); return; }
-    if (anyMedia) { selectZone(null); store.selectWaypoint(null); (store as any).selectMedia(anyMedia); return; }
+    if (anyMedia) { selectZone(null); store.selectWaypoint(null); store.selectMedia(anyMedia); return; }
     if (anyZone) { selectZone(anyZone); store.selectWaypoint(null); return; }
   }, [selectZone]);
 
@@ -1267,7 +1270,9 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         }
         // Reassign floorId when the node crosses into another floor's frame.
         const hitFloor = findFloorAtPoint(world, store.floors, store.zones);
-        const patch: any = { zoneId: hitZoneId as any ?? null };
+        const patch: { zoneId: ZoneId | null; floorId?: FloorId } = {
+          zoneId: (hitZoneId as ZoneId | null) ?? null,
+        };
         if (hitFloor) patch.floorId = hitFloor.id;
         store.updateWaypoint(dragWaypointId.current, patch);
       }
@@ -1323,8 +1328,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             // L-handle check
             let hitLHandle = false;
             if ((sel.shape as string).startsWith('l_')) {
-              const lrx = (sel as any).lRatioX ?? 0.5;
-              const lry = (sel as any).lRatioY ?? 0.5;
+              const lrx = sel.lRatioX ?? 0.5;
+              const lry = sel.lRatioY ?? 0.5;
               const lhx = sel.bounds.x + sel.bounds.w * lrx;
               const lhy = sel.bounds.y + sel.bounds.h * lry;
               const lhdx = world.x - lhx, lhdy = world.y - lhy;
@@ -1353,8 +1358,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
               // Gate hover
               let onGate = false;
               for (const g of sel.gates) {
-                const gdx = (g.position as any).x - world.x;
-                const gdy = (g.position as any).y - world.y;
+                const gdx = g.position.x - world.x;
+                const gdy = g.position.y - world.y;
                 if (gdx * gdx + gdy * gdy < 225) { onGate = true; break; }
               }
               if (onGate) { el.style.cursor = 'move'; }
@@ -1380,7 +1385,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           let bgCursor = 'default';
           const manager = managerRef.current;
           if (manager && store.showBackground && store.phase !== 'running') {
-            const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+            const fl = store.floors.find((f: FloorConfig) =>(f.id as string) === store.activeFloorId);
             if (fl?.canvas.backgroundImage && !(fl.canvas.bgLocked ?? false) && !fl.canvas.bgHidden) {
               const bgB = manager.getBgImageBounds(fl.id as string, fl.canvas.bgOffsetX ?? 0, fl.canvas.bgOffsetY ?? 0, fl.canvas.bgScale ?? 1);
               if (bgB) {
@@ -1411,7 +1416,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     if (world && (mode === 'bg-move' || mode === 'bg-resize')) {
       const store = useStore.getState();
       if (store.activeFloorId) {
-        const fl = store.floors.find((f: any) => (f.id as string) === store.activeFloorId);
+        const fl = store.floors.find((f: FloorConfig) =>(f.id as string) === store.activeFloorId);
         if (fl) {
           if (mode === 'bg-move') {
             const newX = world.x - dragOffset.current.x;
@@ -1458,20 +1463,20 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const snap = (v: number) => Math.round(v / 10) * 10;
 
     // Check if a zone (with shape) overlaps any other zone (polygon-aware for L-shapes)
-    const overlapsOtherZone = (rect: { x: number; y: number; w: number; h: number }, excludeId: string, draggedZone?: any) => {
+    const overlapsOtherZone = (rect: { x: number; y: number; w: number; h: number }, excludeId: string, draggedZone?: ZoneConfig) => {
       const store = useStore.getState();
       const zA = {
         bounds: rect,
         shape: (draggedZone?.shape ?? 'rect') as string,
-        lRatioX: (draggedZone as any)?.lRatioX ?? 0.5,
-        lRatioY: (draggedZone as any)?.lRatioY ?? 0.5,
+        lRatioX: draggedZone?.lRatioX ?? 0.5,
+        lRatioY: draggedZone?.lRatioY ?? 0.5,
         polygon: draggedZone?.polygon,
       };
       return store.zones.some((z) => {
         if ((z.id as string) === excludeId) return false;
         return zonesOverlap(zA, {
           bounds: z.bounds, shape: (z.shape ?? 'rect') as string,
-          lRatioX: (z as any).lRatioX ?? 0.5, lRatioY: (z as any).lRatioY ?? 0.5,
+          lRatioX: z.lRatioX ?? 0.5, lRatioY: z.lRatioY ?? 0.5,
           polygon: z.polygon,
         });
       });
@@ -1486,7 +1491,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       const dx = newX - zone.bounds.x;
       const dy = newY - zone.bounds.y;
       // Move gates with zone
-      const movedGates = zone.gates.map((g: any) => ({
+      const movedGates = zone.gates.map((g) => ({
         ...g,
         position: { x: g.position.x + dx, y: g.position.y + dy },
       }));
@@ -1517,7 +1522,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
                 return { ...f, zoneIds: f.zoneIds.filter(id => (id as string) !== dragZoneId.current) };
               }
               if ((f.id as string) === (hitFloor.id as string)) {
-                return { ...f, zoneIds: [...f.zoneIds, dragZoneId.current as any] };
+                return { ...f, zoneIds: [...f.zoneIds, dragZoneId.current as unknown as ZoneId] };
               }
               return f;
             });
@@ -1564,7 +1569,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       // Proportionally reposition gates
       const scaleX = ob.w > 0 ? w / ob.w : 1;
       const scaleY = ob.h > 0 ? h / ob.h : 1;
-      const resizedGates = zone.gates.map((g: any) => ({
+      const resizedGates = zone.gates.map((g) => ({
         ...g,
         position: {
           x: x + (g.position.x - ob.x) * scaleX,
@@ -1577,7 +1582,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       const mediaArea = zMedia.reduce((s, m) => s + m.size.width * m.size.height, 0);
       const effectiveArea = Math.max(1, newArea - mediaArea);
       const newCap = Math.max(1, Math.floor(effectiveArea / 2.5));
-      updateZone(dragZoneId.current!, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap } as any);
+      updateZone(dragZoneId.current!, { bounds: { x, y, w, h }, gates: resizedGates, area: newArea, capacity: newCap });
       didDrag.current = true;
     } else if (mode === 'gate' && dragGateId.current && dragZoneId.current && zone) {
       const b = zone.bounds;
@@ -1604,7 +1609,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         }
       } else {
         // Build edge segments for the shape
-        const edges = getZoneEdges(b, sh, (zone as any).lRatioX ?? 0.5, (zone as any).lRatioY ?? 0.5);
+        const edges = getZoneEdges(b, sh, zone.lRatioX ?? 0.5, zone.lRatioY ?? 0.5);
         // Find closest point on any edge
         let bestDist = Infinity;
         gx = world.x; gy = world.y;
@@ -1616,12 +1621,12 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       }
       gx = snap(gx); gy = snap(gy);
 
-      const updatedGates = zone.gates.map((g: any) =>
+      const updatedGates = zone.gates.map((g) =>
         (g.id as string) === dragGateId.current
           ? { ...g, position: { x: gx, y: gy } }
           : g,
       );
-      updateZone(dragZoneId.current, { gates: updatedGates } as any);
+      updateZone(dragZoneId.current, { gates: updatedGates });
       didDrag.current = true;
     } else if (mode === 'l-handle' && dragZoneId.current && zone) {
       // Drag L-shape inner corner ratio
@@ -1638,8 +1643,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       else if (shape === 'l_top_left') { leftMid = { x: b.x, y: b.y + by + (b.h - by) / 2 }; rightMid = { x: b.x + b.w, y: b.y + b.h / 2 }; }
       else if (shape === 'l_bottom_right') { leftMid = { x: b.x, y: b.y + b.h / 2 }; rightMid = { x: b.x + b.w, y: b.y + by / 2 }; }
       else if (shape === 'l_bottom_left') { leftMid = { x: b.x, y: b.y + by / 2 }; rightMid = { x: b.x + b.w, y: b.y + b.h / 2 }; }
-      const updatedGates = zone.gates.map((g: any, i: number) => ({ ...g, position: i === 0 ? leftMid : rightMid }));
-      updateZone(dragZoneId.current, { lRatioX: rx, lRatioY: ry, gates: updatedGates } as any);
+      const updatedGates = zone.gates.map((g, i) => ({ ...g, position: i === 0 ? leftMid : rightMid }));
+      updateZone(dragZoneId.current, { lRatioX: rx, lRatioY: ry, gates: updatedGates });
       didDrag.current = true;
     } else if (mode === 'vertex' && dragZoneId.current && zone && dragVertexIdx.current !== null) {
       const vIdx = dragVertexIdx.current;
@@ -1674,7 +1679,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             continue;
           }
 
-          const verts = getZoneVertices(oz.bounds, oz.shape, (oz as any).lRatioX ?? 0.5, (oz as any).lRatioY ?? 0.5, oz.polygon);
+          const verts = getZoneVertices(oz.bounds, oz.shape, oz.lRatioX ?? 0.5, oz.lRatioY ?? 0.5, oz.polygon);
           for (let ei = 0; ei < verts.length; ei++) {
             const a = verts[ei], b = verts[(ei + 1) % verts.length];
             const cp = closestPointOnSeg(snappedX, snappedY, a.x, a.y, b.x, b.y);
@@ -1710,11 +1715,11 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         updateZone(dragZoneId.current, {
           polygon: newPoly,
           bounds: { x: mnX, y: mnY, w: mxX - mnX, h: mxY - mnY },
-        } as any);
+        });
       }
       didDrag.current = true;
     } else if (mode === 'media-vertex' && dragMediaId.current && dragVertexIdx.current !== null) {
-      const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
+      const m = useStore.getState().media.find((m: MediaPlacement) =>(m.id as string) === dragMediaId.current);
       if (m && m.polygon && dragVertexIdx.current < m.polygon.length) {
         const mRad = (m.orientation * Math.PI) / 180;
         // Transform world to local coords
@@ -1726,7 +1731,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         const snappedX = Math.round(localX / 5) * 5;
         const snappedY = Math.round(localY / 5) * 5;
         const vIdx = dragVertexIdx.current;
-        const newPoly = m.polygon.map((v: any, i: number) =>
+        const newPoly = m.polygon.map((v, i) =>
           i === vIdx ? { x: snappedX, y: snappedY } : { x: v.x, y: v.y }
         );
         // Recompute size from AABB of polygon
@@ -1740,11 +1745,11 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         updateMedia(dragMediaId.current, {
           polygon: newPoly,
           size: { width: (mxX - mnX) / 20, height: (mxY - mnY) / 20 },
-        } as any);
+        });
       }
       didDrag.current = true;
     } else if (mode === 'media-resize' && dragMediaId.current) {
-      const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
+      const m = useStore.getState().media.find((m: MediaPlacement) =>(m.id as string) === dragMediaId.current);
       if (m) {
         const c = resizeCorner.current;
         const MS = 20;
@@ -1759,7 +1764,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
         const halfW = m.size.width * MS / 2;
         const halfH = m.size.height * MS / 2;
         if (c === 'n' || c === 'e' || c === 's' || c === 'w') {
-          const shape = (m as any).shape;
+          const shape = m.shape;
           if (shape === 'ellipse') {
             // Ellipse: e/w → width, n/s → height (independent)
             let newW = m.size.width, newH = m.size.height;
@@ -1799,8 +1804,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       }
       didDrag.current = true;
     } else if (mode === 'media-move' && dragMediaId.current) {
-      const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
-      const parentZone = m ? useStore.getState().zones.find((z: any) => (z.id as string) === (m.zoneId as string)) : null;
+      const m = useStore.getState().media.find((m: MediaPlacement) =>(m.id as string) === dragMediaId.current);
+      const parentZone = m ? useStore.getState().zones.find((z: ZoneConfig) =>(z.id as string) === (m.zoneId as string)) : null;
       let newX = snap(world.x - dragOffset.current.x);
       let newY = snap(world.y - dragOffset.current.y);
       // Clamp inside parent zone
@@ -1816,7 +1821,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
       updateMedia(dragMediaId.current, { position: { x: newX, y: newY } });
       didDrag.current = true;
     } else if (mode === 'media-rotate' && dragMediaId.current) {
-      const m = useStore.getState().media.find((m: any) => (m.id as string) === dragMediaId.current);
+      const m = useStore.getState().media.find((m: MediaPlacement) =>(m.id as string) === dragMediaId.current);
       if (m) {
         const angle = Math.atan2(world.x - m.position.x, -(world.y - m.position.y));
         const deg = ((angle * 180) / Math.PI + 360) % 360;
@@ -1895,7 +1900,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           const midId = `wp_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
           const sameTypeCount = graph.nodes.filter(n => n.type === 'bend').length;
           const midNode = {
-            id: midId as any,
+            id: midId as WaypointId,
             type: 'bend' as const,
             position: { x: Math.round(cp.x), y: Math.round(cp.y) },
             floorId: from.floorId,
@@ -1910,16 +1915,16 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           };
           // 새 엣지 2개: from→mid, mid→to
           const edge1 = {
-            id: `e_${Date.now()}_a` as any,
+            id: `e_${Date.now()}_a` as WaypointEdgeId,
             fromId: edge.fromId,
-            toId: midId as any,
+            toId: midId as WaypointId,
             direction: edge.direction,
             cost: Math.sqrt((from.position.x - cp.x) ** 2 + (from.position.y - cp.y) ** 2),
             passWeight: edge.passWeight,
           };
           const edge2 = {
-            id: `e_${Date.now()}_b` as any,
-            fromId: midId as any,
+            id: `e_${Date.now()}_b` as WaypointEdgeId,
+            fromId: midId as WaypointId,
             toId: edge.toId,
             direction: edge.direction,
             cost: Math.sqrt((to.position.x - cp.x) ** 2 + (to.position.y - cp.y) ** 2),
@@ -1990,8 +1995,8 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
 
     // Media polygon vertex right-click → delete vertex
     if (store.mediaPolygonEditMode && store.selectedMediaId) {
-      const selM = store.media.find((m: any) => (m.id as string) === store.selectedMediaId);
-      if (selM && (selM as any).shape === 'custom' && selM.polygon && selM.polygon.length > 3) {
+      const selM = store.media.find((m: MediaPlacement) =>(m.id as string) === store.selectedMediaId);
+      if (selM && selM.shape === 'custom' && selM.polygon && selM.polygon.length > 3) {
         const mRad = (selM.orientation * Math.PI) / 180;
         const dx = world.x - selM.position.x, dy = world.y - selM.position.y;
         const localX = dx * Math.cos(-mRad) - dy * Math.sin(-mRad);
@@ -2000,7 +2005,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
           const vdx = selM.polygon[vi].x - localX, vdy = selM.polygon[vi].y - localY;
           if (vdx * vdx + vdy * vdy < 64) {
             store.pushUndo(store.zones, store.media, store.waypointGraph);
-            const newPoly = selM.polygon.filter((_: any, i: number) => i !== vi);
+            const newPoly = selM.polygon.filter((_, i) => i !== vi);
             let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
             for (const v of newPoly) {
               if (v.x < mnX) mnX = v.x;
@@ -2011,7 +2016,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
             updateMedia(store.selectedMediaId, {
               polygon: newPoly,
               size: { width: (mxX - mnX) / 20, height: (mxY - mnY) / 20 },
-            } as any);
+            });
             return;
           }
         }
@@ -2022,7 +2027,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
     const MS = 20;
     for (const m of store.media) {
       let mHit = false;
-      if ((m as any).shape === 'custom' && m.polygon && m.polygon.length > 2) {
+      if (m.shape === 'custom' && m.polygon && m.polygon.length > 2) {
         const mRad = (m.orientation * Math.PI) / 180;
         const dx2 = world.x - m.position.x, dy2 = world.y - m.position.y;
         const lx2 = dx2 * Math.cos(-mRad) - dy2 * Math.sin(-mRad);
@@ -2034,7 +2039,7 @@ function hitTestCorner(world: { x: number; y: number }, zone: { bounds: { x: num
                world.y >= m.position.y - ph/2 && world.y <= m.position.y + ph/2;
       }
       if (mHit) {
-        (store as any).selectMedia(m.id as string);
+        store.selectMedia(m.id as string);
         showPopover(e.clientX, e.clientY, 'media', m.id as string);
         return;
       }
