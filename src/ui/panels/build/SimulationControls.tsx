@@ -5,7 +5,7 @@ import { selectScenarioDirty } from '@/stores/selectors';
 import { SimulationEngine, SimulationLoop } from '@/simulation';
 import { SIMULATION_PHASE, KPI_SAMPLE_INTERVAL_MS } from '@/domain';
 import { assembleKpiSnapshot, pinCurrentMoment } from '@/analytics';
-import { useToast } from '@/ui/components/Toast';
+import { useToast } from '@/ui/components/useToast';
 import { resetPeakOccupancy } from '@/analytics/calculators/utilization';
 import { resetCongestionTracking } from '@/analytics/calculators/congestion';
 import type { OverlayMode } from '@/stores';

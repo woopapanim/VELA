@@ -10,7 +10,7 @@ import {
   Filler,
 } from 'chart.js';
 import { useStore } from '@/stores';
-import { useTheme } from '@/ui/components/ThemeProvider';
+import { useTheme } from '@/ui/components/useTheme';
 
 ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Filler);
 

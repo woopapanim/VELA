@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useStore } from '@/stores';
 import { selectScenarioDirty } from '@/stores/selectors';
 import { useT } from '@/i18n';
-import { useToast } from '@/ui/components/Toast';
+import { useToast } from '@/ui/components/useToast';
 import { CanvasPanel } from '../panels/canvas/CanvasPanel';
 import { StatsFooter } from '../components/StatsFooter';
 import { AppShell, StageRail, UnifiedHeader } from './shell';

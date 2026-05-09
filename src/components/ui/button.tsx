@@ -55,4 +55,6 @@ function Button({
   )
 }
 
-export { Button, buttonVariants }
+export { Button }
+// buttonVariants is intentionally not exported — it's only used by Button
+// internally. Adding it back would re-trigger react-refresh/only-export-components.

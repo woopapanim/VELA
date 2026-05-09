@@ -1,39 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Trash2, Eye, EyeOff, Square, Monitor, Circle, GitBranch, ChevronRight } from 'lucide-react';
 import { useStore } from '@/stores';
 import { ZONE_COLORS, MEDIA_PRESETS, MEDIA_SCALE, INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
 import type { ZoneId, MediaId, ZoneType, MediaType, WaypointType } from '@/domain';
-
-interface MenuState {
-  visible: boolean;
-  x: number;
-  y: number;
-  worldX: number;
-  worldY: number;
-  zoneId: string | null;
-}
-
-export function useContextMenu() {
-  const [menu, setMenu] = useState<MenuState>({ visible: false, x: 0, y: 0, worldX: 0, worldY: 0, zoneId: null });
-
-  const show = useCallback((x: number, y: number, worldX: number, worldY: number, zoneId: string | null) => {
-    setMenu({ visible: true, x, y, worldX, worldY, zoneId });
-  }, []);
-
-  const hide = useCallback(() => {
-    setMenu((m) => ({ ...m, visible: false }));
-  }, []);
-
-  useEffect(() => {
-    if (menu.visible) {
-      const handler = () => hide();
-      window.addEventListener('click', handler);
-      return () => window.removeEventListener('click', handler);
-    }
-  }, [menu.visible, hide]);
-
-  return { menu, show, hide };
-}
+import type { MenuState } from './useContextMenu';
 
 const ZONE_TYPES = [
   { type: 'lobby', label: 'Lobby', color: '#14b8a6' },
