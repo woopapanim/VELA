@@ -167,6 +167,43 @@ export class WaypointNavigator {
   }
 
   /**
+   * BFS hop distance from a single source node to every reachable node.
+   *
+   * Used by the human-heuristic nearest-unvisited zone selection: instead
+   * of trusting the spawn-time angular sweep plan (which can put a far zone
+   * next while a closer one sits ignored), the engine asks "which unvisited
+   * zone is fewest hops from where I am right now?" and goes there.
+   *
+   * Hop count (rather than Euclidean distance) matters because the floor
+   * has walls and gates: a zone that's geometrically close but only
+   * reachable via 4 corridor hubs is functionally further than another
+   * zone two hops away. Hop count = the number of doorways the visitor
+   * actually walks through. This is what humans use ("oh that exhibition
+   * is right next door, let me pop in") rather than absolute distance.
+   *
+   * Cost: one BFS per assignNextTargetGraph call. Graph is small (≤ 30
+   * nodes in realistic scenarios) so each call is sub-microsecond.
+   */
+  bfsHopDistances(from: WaypointId): Map<string, number> {
+    const dist = new Map<string, number>();
+    dist.set(from as string, 0);
+    const queue: string[] = [from as string];
+    let head = 0;
+    while (head < queue.length) {
+      const cur = queue[head++];
+      const curDist = dist.get(cur)!;
+      for (const { node } of this.adjacency.get(cur) ?? []) {
+        const nid = node.id as string;
+        if (!dist.has(nid)) {
+          dist.set(nid, curDist + 1);
+          queue.push(nid);
+        }
+      }
+    }
+    return dist;
+  }
+
+  /**
    * Tour planner 가 사용. zone-type 노드들 반환 — 각 essential zone 의 대표
    * waypoint. attractor/portal 은 sequence 에서 제외 (path 따라가다 자연
    * 거치게 됨). 같은 zoneId 의 노드가 여러 개여도 첫 번째만 (zone 단위 plan).
