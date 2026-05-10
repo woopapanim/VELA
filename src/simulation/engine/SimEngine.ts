@@ -757,6 +757,36 @@ export class SimulationEngine {
   }
 
   /**
+   * Logically detach a follower from its group's roster.
+   *
+   * The four sites in stepBehavior that already set `groupId: undefined` on a
+   * stuck/leader-gone follower (line ~1459/1471/1516/1529) historically left
+   * the group's memberIds list untouched. Visitor-side detach was complete,
+   * but `recordCohesionStats` walks `group.memberIds` and re-fetches each
+   * member from `visitors` — meaning the now-solo visitor was still measured
+   * as a follower. Their now-independent path (selectNextNode picking a node
+   * different from the leader's) read as a "diffNode severeBurst" in PR #27
+   * enriched diagnostics: 24 events of `leadNode != folNode`. Visually the
+   * same effect: the follower walks straight lines that ignore the waypoint
+   * graph the rest of the group is on.
+   *
+   * This helper updates the group's memberIds in `state.groups` so the
+   * cohesion sweep stops counting them. Determinism: simulation step path is
+   * unchanged — no scoring, no RNG, no spawn impact. Only the diagnostic
+   * counter denominator and the cascade-eligible roster shrink.
+   *
+   * Call BEFORE returning the detached visitor so the visitor and the group
+   * are mutated in the same logical step.
+   */
+  private detachFollowerFromGroup(visitorId: string, groupId: string): void {
+    const group = this.state.groups.get(groupId);
+    if (!group) return;
+    const newMembers = group.memberIds.filter(mid => (mid as string) !== visitorId);
+    if (newMembers.length === group.memberIds.length) return; // already absent
+    this.state.groups.set(groupId, { ...group, memberIds: newMembers });
+  }
+
+  /**
    * Per-tick sweep called from the main tick loop AFTER all visitor updates.
    * Compares each follower's post-tether position to its leader and bumps
    * counters / records first-fire events. Pure read-side: never mutates
@@ -1451,6 +1481,9 @@ export class SimulationEngine {
             this._movingSince.set(vid, { startMs: this.state.timeState.elapsed, targetMediaId: null, targetNodeId: tNid });
           } else if (tNid && this.state.timeState.elapsed - entry.startMs > 90_000) {
             this._movingSince.delete(vid);
+            // Drop from group roster too — without this, cohesion sweep keeps
+            // counting them as a follower (see detachFollowerFromGroup comment).
+            this.detachFollowerFromGroup(v.id as string, v.groupId as string);
             if (this.waypointNav && v.currentNodeId) {
               const exitHop = this.waypointNav.routeToExit(v.currentNodeId, v.spawnEntryNodeId, this.exitTargetCounts);
               if (exitHop) {
@@ -1508,6 +1541,9 @@ export class SimulationEngine {
       // 기존에는 assignNextTarget 으로 재탐색시켰으나, follower 는 개별 pathLog 가
       // 거의 비어 있어서 새 투어를 처음부터 시작해버렸다("리더 퇴장 후 다시 내부로
       // 들어와 배회" 버그). 대신 즉시 EXIT 방향으로 라우팅한다.
+      // PR #25 cascade 가 같은 tick 에 follower 를 deactivate 하므로 이 분기는
+      // 거의 발화하지 않지만, 방어적으로 group 멤버십도 정리.
+      this.detachFollowerFromGroup(v.id as string, v.groupId as string);
       if (this.waypointNav && v.currentNodeId) {
         const exitHop = this.waypointNav.routeToExit(v.currentNodeId, v.spawnEntryNodeId, this.exitTargetCounts);
         if (exitHop) {
