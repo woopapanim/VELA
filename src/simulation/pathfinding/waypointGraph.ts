@@ -393,19 +393,29 @@ export class WaypointNavigator {
   }
 
   /**
-   * 가중 랜덤으로 ENTRY 노드 선택
+   * 가중 랜덤으로 ENTRY 노드 선택.
+   *
+   * @param rng       시드 RNG
+   * @param isAllowed Optional 필터. 반환값이 false 인 entry 는 후보에서 제외.
+   *                  capacity-aware spawn (entry zone 가득 차면 다른 entry 사용)
+   *                  같은 정책에 사용. 모든 entry 가 제외되면 null 반환 →
+   *                  caller 가 spawn 1 tick 보류.
+   *                  Filter 가 candidates 를 줄이면 가중치는 남은 후보들의
+   *                  spawnWeight 합계로 재정규화 (deterministic).
    */
-  selectEntryNode(rng: SeededRandom): WaypointNode | null {
+  selectEntryNode(rng: SeededRandom, isAllowed?: (n: WaypointNode) => boolean): WaypointNode | null {
     if (this.entryNodes.length === 0) return null;
-    const totalWeight = this.entryNodes.reduce((s, n) => s + n.spawnWeight, 0);
-    if (totalWeight <= 0) return this.entryNodes[Math.floor(rng.next() * this.entryNodes.length)];
+    const candidates = isAllowed ? this.entryNodes.filter(isAllowed) : this.entryNodes;
+    if (candidates.length === 0) return null;
+    const totalWeight = candidates.reduce((s, n) => s + n.spawnWeight, 0);
+    if (totalWeight <= 0) return candidates[Math.floor(rng.next() * candidates.length)];
 
     let roll = rng.next() * totalWeight;
-    for (const node of this.entryNodes) {
+    for (const node of candidates) {
       roll -= node.spawnWeight;
       if (roll <= 0) return node;
     }
-    return this.entryNodes[this.entryNodes.length - 1];
+    return candidates[candidates.length - 1];
   }
 
   /**

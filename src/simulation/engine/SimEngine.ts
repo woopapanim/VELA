@@ -1288,7 +1288,19 @@ export class SimulationEngine {
       while (this.spawnAccumulator >= 1) {
         // ═══ Graph-Point mode: arrive at ENTRY nodes ═══
         if (this.waypointNav) {
-          const entryNode = this.waypointNav.selectEntryNode(this.rng);
+          // Capacity-aware entry filter: skip entries whose zone is at or above
+          // ENTRY_FULL_RATIO (0.8) of capacity. Without this, two entries with
+          // equal spawnWeight = 1 split spawns 50:50 regardless of how full each
+          // zone already is, so a small lobby (Corridor 217, cap 54) and a big
+          // one (Lobby 209, cap 255) both received ~half of arrivals — the small
+          // one bottlenecked instantly and produced the 91 nodeStuck events
+          // that dominated diagnoseEarlyExit. With the filter, the big lobby
+          // absorbs the overflow naturally; if every entry is full, spawn is
+          // deferred one tick (spawnAccumulator stays >= 1, retried next tick).
+          // Determinism: same seed + same scenario + same occupancy snapshot
+          // → same entry. occupancy is itself a deterministic function of
+          // prior ticks, so the chain stays reproducible.
+          const entryNode = this.waypointNav.selectEntryNode(this.rng, n => !this.isEntryZoneFull(n));
           if (!entryNode) { this.spawnAccumulator -= 1; continue; }
 
           const dist = {
@@ -2172,6 +2184,35 @@ export class SimulationEngine {
       if (isPointInPolygon(pos, poly)) return zone.id as string;
     }
     return null;
+  }
+
+  /**
+   * Capacity-aware spawn filter. Returns true when the entry's containing zone
+   * is at or above ENTRY_FULL_RATIO of its capacity — those entries are
+   * temporarily skipped during spawn.
+   *
+   * zoneId on the entry node may be null (zone polygon membership wasn't
+   * resolved at graph build time), so we fall back to point-in-polygon. If
+   * neither resolves a zone, or the zone has no positive capacity defined,
+   * we treat the entry as not-full (permissive default — capacity gating only
+   * applies when the scenario opted into it by setting zone.capacity).
+   *
+   * Threshold = 0.8: leaves a small headroom buffer so newly spawned visitors
+   * can still find space before tripping the cap. Higher (e.g. 1.0) lets the
+   * entry zone reach exact capacity before backpressure, increasing nodeStuck
+   * risk; lower (e.g. 0.5) defers spawns aggressively, can starve the sim.
+   * 0.8 mirrors ZONE_SOFT_FULL_RATIO patterns elsewhere in the engine.
+   */
+  private isEntryZoneFull(entry: WaypointNode): boolean {
+    const ENTRY_FULL_RATIO = 0.8;
+    const floorId = (entry.floorId as string) || this._defaultFloorId;
+    const zoneId = (entry.zoneId as string | null)
+      ?? this.zoneIdAtPoint(entry.position, floorId);
+    if (!zoneId) return false;
+    const zone = this.zoneMap.get(zoneId);
+    if (!zone || !zone.capacity || zone.capacity <= 0) return false;
+    const occ = this.zoneOccupancy.get(zoneId) ?? 0;
+    return occ >= zone.capacity * ENTRY_FULL_RATIO;
   }
 
   /**
