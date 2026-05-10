@@ -23,12 +23,12 @@ const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
 // Direction memory — visitor 의 진행 방향 일관성 보상.
-// 사람은 자유동선에서 무작위로 휘청이지 않고 한 방향(시계방향 등) 잡고 도는 경향.
 // dot product ∈ [-1, 1] × W_DIRECTION → 같은 방향 후보 +, 반대 방향 -.
-// W = 1.5 는 proximity (~4.5) 보다 작아 dominant 안 되지만, 비슷한 점수의
-// 후보들 사이에서 방향 일관성 결정자로 작용. 너무 크면 (3+) 막힌 길도 무시하고
-// 진행 → 너무 작으면 (0.5) 영향 없음. 1.5 = 인터레스트(0.5) 의 3배.
-const W_DIRECTION = 1.5;
+// 첫 시도 W=1.5 가 회귀 (avg ratio 0.71→0.64, nodeStuck +41%). 너무 강해서
+// 막다른 길에서도 같은 방향 고집 → stuck 증가. 약한 hint (0.5) 로 fallback —
+// proximity (~4.5) 의 1/9 수준이라 거의 영향 없지만 동등 점수 후보 중 tie-break
+// 으로만 작용. 이것도 효과 미미하면 PR close + topology 접근.
+const W_DIRECTION = 0.5;
 // 평균 방향 계산에 사용하는 직전 노드 수. K=3 = 약 2-3 hop 의 추세.
 // K=2 면 지그재그에 너무 민감, K=5+ 면 오래된 방향에 갇힘.
 const DIRECTION_K = 3;
