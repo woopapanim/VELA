@@ -13,6 +13,7 @@ import { RunSwitcher } from './analyze/RunSwitcher';
 import type { ZoneId, MediaId, RunRecord } from '@/domain';
 import { useToast } from '@/ui/components/useToast';
 import { PerspectiveGrid, PatternBlock, SpatialHeatmap, CapacityRecommendationCard } from '@/ui/panels/analytics/v2';
+import { SimQualityCard } from '@/ui/panels/analytics/SimQualityCard';
 import { computeTimeSlices } from '@/analytics/patterns/timeSlices';
 import { computeZoneSlices } from '@/analytics/patterns/zoneSlices';
 import { computeZoneBreakdown } from '@/analytics/breakdown/zoneBreakdown';
@@ -499,6 +500,11 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
               layout="auto"
             />
             </section>
+
+            {/* Sim-quality indicator — KPIs above are reliable only when stuck
+                events stay low. Sits near the top so users see data-quality
+                context before reading the verdict deeply. */}
+            <SimQualityCard />
 
             {/* SPATIAL HEATMAP — 도면 위 zone 별 점유율 시각화 (2026-04-30).
                 중요한 자리에 큼지막하게 — verdict 와 PatternBlock 사이.
