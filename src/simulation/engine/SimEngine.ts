@@ -282,6 +282,22 @@ export class SimulationEngine {
 
   // group caches (rebuilt each tick)
   private groupMemberPositions = new Map<string, Vector2D[]>();
+
+  // In-progress visitor map during the current tick's main loop. When a
+  // follower's stepFollowerTether runs, this lets it read the leader's
+  // ALREADY-PROCESSED state for this tick (post-stepBehavior position) instead
+  // of `this.state.visitors`, which still holds the previous tick's snapshot
+  // until the loop completes. Without this hand-off, tether warped followers
+  // toward the leader's STALE position; the cohesion sweep then measured the
+  // leader's NEW position vs the follower's stale-anchored position, producing
+  // a phantom severeBurst with magnitude exactly = the leader's per-tick
+  // position jump (e.g. snap-to-node on arrival). Confirmed via PR #27 enriched
+  // diagnostics: same currentNodeId, same followerTargetNodeId=null, leader at
+  // node coord, follower 295 px away (= the snap distance).
+  // Falls back to `this.state.visitors` when the leader hasn't been processed
+  // yet this tick (Map insertion order has follower before leader — uncommon,
+  // since group leaders typically spawn before followers).
+  private _currentTickNext: Map<string, Visitor> | null = null;
   private tourLeaders: { position: Vector2D; radius: number }[] = [];
 
   // staged media state: tracks session timing per media
@@ -1165,18 +1181,26 @@ export class SimulationEngine {
     }
 
     let next = new Map<string, Visitor>();
-    for (const [k, v] of this.state.visitors) {
-      if (!v.isActive) { next.set(k, v); continue; }
-      let a = this.stepBehavior(v, dt);
-      a = this.stepSteering(a, dtS);
-      a = this.stepPhysics(a, dtS);
-      a = this.stepFollowerSnap(a);
-      a = this.stepFollowerTether(a);
-      a = this.stepCollision(a);
-      a = this.stepFatigue(a, dt);
-      // Count newly deactivated
-      if (!a.isActive) this._totalExited++;
-      next.set(k, a);
+    // Expose the in-progress map so stepFollowerTether can read leaders that
+    // were already processed earlier this tick (see field comment above).
+    // Cleared in finally so a thrown step doesn't leak stale tick state.
+    this._currentTickNext = next;
+    try {
+      for (const [k, v] of this.state.visitors) {
+        if (!v.isActive) { next.set(k, v); continue; }
+        let a = this.stepBehavior(v, dt);
+        a = this.stepSteering(a, dtS);
+        a = this.stepPhysics(a, dtS);
+        a = this.stepFollowerSnap(a);
+        a = this.stepFollowerTether(a);
+        a = this.stepCollision(a);
+        a = this.stepFatigue(a, dt);
+        // Count newly deactivated
+        if (!a.isActive) this._totalExited++;
+        next.set(k, a);
+      }
+    } finally {
+      this._currentTickNext = null;
     }
     // Group-leader cascade: follower deactivates with leader (hard cascade).
     // MUST run before recordCohesionStats so the cohesion sweep sees the
@@ -3891,7 +3915,16 @@ export class SimulationEngine {
 
     const group = this.state.groups.get(v.groupId as string);
     if (!group) return v;
-    const leader = this.state.visitors.get(group.leaderId as string);
+    // Read the leader from this tick's in-progress map first (post-stepBehavior
+    // position), falling back to the previous-tick snapshot only if the leader
+    // hasn't been processed yet (rare: follower spawned before leader). Without
+    // this, the warp anchored on a stale leader.position whenever the leader
+    // jumped within the same tick (snap-to-node on arrival, etc.), and the
+    // cohesion sweep — which sees the new leader.position — measured a phantom
+    // severeBurst exactly the size of that jump. See _currentTickNext comment.
+    const leaderId = group.leaderId as string;
+    const leader = this._currentTickNext?.get(leaderId)
+      ?? this.state.visitors.get(leaderId);
     if (!leader?.isActive) return v;
 
     const dx = leader.position.x - v.position.x;
