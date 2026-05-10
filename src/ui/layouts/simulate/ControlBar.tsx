@@ -62,6 +62,7 @@ export function ControlBar() {
   const overlayMode = useStore((s) => s.overlayMode);
   const setOverlayMode = useStore((s) => s.setOverlayMode);
   const pushSnapshot = useStore((s) => s.pushSnapshot);
+  const setCongestionDiag = useStore((s) => s.setCongestionDiag);
   const captureRun = useStore((s) => s.captureRun);
   const pushReplayFrame = useStore((s) => s.pushReplayFrame);
   const clearReplay = useStore((s) => s.clearReplay);
@@ -229,6 +230,22 @@ export function ControlBar() {
           eng.getTotalExited(),
         );
         pushSnapshot(snapshot);
+
+        // Sim-quality diag: surface engine's stuck-event counters so users see
+        // when KPIs may be skewed by physical/routing escapes (30s/60s timeouts).
+        const cong = eng.diagnoseCongestion?.();
+        if (cong) {
+          setCongestionDiag({
+            stuckByIntType: { ...cong.cumulativeTimeouts.byIntType },
+            stuckByMedia: cong.cumulativeTimeouts.byMedia.slice(0, 5).map((m) => ({
+              mediaId: m.mediaId, mediaName: m.mediaName, count: m.count,
+            })),
+            stuckByZone: cong.cumulativeTimeouts.byZone.slice(0, 5).map((z) => ({
+              zoneId: z.zoneId, zoneName: z.zoneName, count: z.count,
+            })),
+            totalStuck: cong.cumulativeTimeouts.total,
+          });
+        }
 
         for (const bn of snapshot.bottlenecks) {
           if (bn.score > 0.85) {

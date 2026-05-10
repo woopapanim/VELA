@@ -13,6 +13,20 @@ import { computeScenarioContentHash } from '@/analytics/scenarioHash';
 
 const MAX_RUN_RECORDS = 30;
 
+/** Sim-quality diagnostic — accumulates stuck events that the engine had to
+ *  escape via 30s/60s timeouts. NOT visitor behavior; high counts mean the
+ *  simulation hit physical/routing limits and KPIs may be less reliable. */
+export interface CongestionDiag {
+  /** Media-arrival timeout (30s) totals by intent. */
+  readonly stuckByIntType: Readonly<Record<string, number>>;
+  /** Top media where 30s timeouts fired. */
+  readonly stuckByMedia: ReadonlyArray<{ readonly mediaId: string; readonly mediaName: string; readonly count: number }>;
+  /** Top zones where any (media or node) timeouts fired. */
+  readonly stuckByZone: ReadonlyArray<{ readonly zoneId: string; readonly zoneName: string; readonly count: number }>;
+  /** Sum of media-arrival timeouts. */
+  readonly totalStuck: number;
+}
+
 export interface AnalyticsSlice {
   // State
   latestSnapshot: KpiSnapshot | null;
@@ -20,9 +34,11 @@ export interface AnalyticsSlice {
   staticInsights: StaticInsight[];
   runRecords: RunRecord[];
   activeRunId: string | null;
+  congestionDiag: CongestionDiag | null;
 
   // Actions
   pushSnapshot: (snapshot: KpiSnapshot) => void;
+  setCongestionDiag: (diag: CongestionDiag | null) => void;
   setStaticInsights: (insights: StaticInsight[]) => void;
   clearHistory: () => void;
   captureRun: (args: {
@@ -125,6 +141,7 @@ export const createAnalyticsSlice: StateCreator<AnalyticsSlice, [], [], Analytic
   staticInsights: [],
   runRecords: [],
   activeRunId: null,
+  congestionDiag: null,
 
   pushSnapshot: (snapshot) =>
     set((s) => ({
@@ -135,9 +152,11 @@ export const createAnalyticsSlice: StateCreator<AnalyticsSlice, [], [], Analytic
       ],
     })),
 
+  setCongestionDiag: (diag) => set({ congestionDiag: diag }),
+
   setStaticInsights: (insights) => set({ staticInsights: insights }),
 
-  clearHistory: () => set({ latestSnapshot: null, kpiHistory: [], staticInsights: [] }),
+  clearHistory: () => set({ latestSnapshot: null, kpiHistory: [], staticInsights: [], congestionDiag: null }),
 
   captureRun: (args) => {
     const {
