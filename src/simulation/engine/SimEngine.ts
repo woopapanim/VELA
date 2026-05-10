@@ -2230,33 +2230,75 @@ export class SimulationEngine {
       : [...zoneNodes];
     if (candidates.length < 1) return undefined;
 
-    // Floor centroid = bounding box midpoint of all zone nodes (use the
-    // full set, not the candidate-after-filter, so the reference is stable).
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    for (const n of zoneNodes) {
-      if (n.position.x < minX) minX = n.position.x;
-      if (n.position.x > maxX) maxX = n.position.x;
-      if (n.position.y < minY) minY = n.position.y;
-      if (n.position.y > maxY) maxY = n.position.y;
+    // Determine spawn floor — visitor's starting floor is where the spawn
+    // zone is. Resolve through zoneMap (spawn zone has a floor).
+    const spawnZone = spawnZoneId ? this.zoneMap.get(spawnZoneId) : null;
+    const spawnFloorId = spawnZone?.floorId as string | null;
+
+    // Group candidates by floor — visitor finishes the spawn floor first
+    // (no portal hops in the middle of the loop), then crosses to other
+    // floors one at a time. Multi-floor mixing was the dominant residual
+    // problem after the first sweep version: an angular sort across all
+    // floors put e.g. a 2F zone as the 2nd stop, forcing portal hops back
+    // and forth, lengthening every visitor's path and breaking group sync.
+    const sameFloor: WaypointNode[] = [];
+    const otherFloorsByFloor = new Map<string, WaypointNode[]>();
+    for (const n of candidates) {
+      const fid = (n.floorId as string) || '';
+      if (spawnFloorId && fid === spawnFloorId) {
+        sameFloor.push(n);
+      } else {
+        const arr = otherFloorsByFloor.get(fid) ?? [];
+        arr.push(n);
+        otherFloorsByFloor.set(fid, arr);
+      }
     }
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
 
-    const startAngle = Math.atan2(startPos.y - cy, startPos.x - cx);
     const TWO_PI = 2 * Math.PI;
+    // Sweep order within a single floor: angular sort around floor centroid
+    // from the entry angle (clockwise). Exposed as a helper to reuse on
+    // each floor's slice — preserves the sweep coherence per floor.
+    const sweepFloor = (nodes: WaypointNode[], refPos: Vector2D): WaypointNode[] => {
+      if (nodes.length === 0) return [];
+      // Per-floor centroid keeps angles meaningful when floors have very
+      // different bounding boxes. Falls back to the floor's own bbox.
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.position.x < minX) minX = n.position.x;
+        if (n.position.x > maxX) maxX = n.position.x;
+        if (n.position.y < minY) minY = n.position.y;
+        if (n.position.y > maxY) maxY = n.position.y;
+      }
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const startAngle = Math.atan2(refPos.y - cy, refPos.x - cx);
+      const withDelta = nodes.map(n => {
+        const angle = Math.atan2(n.position.y - cy, n.position.x - cx);
+        let delta = angle - startAngle;
+        while (delta < 0) delta += TWO_PI;
+        return { node: n, delta };
+      });
+      withDelta.sort((a, b) => a.delta - b.delta);
+      return withDelta.map(w => w.node);
+    };
 
-    // For each candidate, compute angular delta from start (clockwise).
-    // 시계방향 sweep: angle 가 increasing 방향. atan2 는 [-π, π] 범위라
-    // 음수 diff 는 +2π 로 normalize (full sweep coverage).
-    const withDelta = candidates.map(n => {
-      const angle = Math.atan2(n.position.y - cy, n.position.x - cx);
-      let delta = angle - startAngle;
-      while (delta < 0) delta += TWO_PI;
-      return { node: n, delta };
-    });
-    withDelta.sort((a, b) => a.delta - b.delta);
+    const ordered: WaypointNode[] = [];
+    // 1) Sweep the spawn floor first (loop on home floor).
+    ordered.push(...sweepFloor(sameFloor, startPos));
+    // 2) Then visit other floors. Within each, sweep around its own
+    //    centroid using the *last* visited zone position as the reference
+    //    for angular start (smoother transition than reusing the spawn
+    //    position which is on a different floor).
+    let lastPos: Vector2D = ordered.length > 0
+      ? ordered[ordered.length - 1].position
+      : startPos;
+    for (const [, nodes] of otherFloorsByFloor) {
+      const sorted = sweepFloor(nodes, lastPos);
+      ordered.push(...sorted);
+      if (sorted.length > 0) lastPos = sorted[sorted.length - 1].position;
+    }
 
-    return withDelta.map(w => w.node.zoneId as ZoneId);
+    return ordered.length > 0 ? ordered.map(n => n.zoneId as ZoneId) : undefined;
   }
 
   /**
