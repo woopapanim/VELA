@@ -4342,13 +4342,28 @@ export class SimulationEngine {
         }
       }
     } else if (isGraphAgent && v.currentZoneId) {
-      // Graph agent at rest — clamp to current zone
-      const zone = this.zoneMap.get(v.currentZoneId as string);
-      if (zone) {
-        const poly = getZonePolygon(zone);
-        if (!isPointInPolygon(pos, poly)) {
-          const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
-          pos = clampToPolygon(pos, poly, center);
+      // Graph agent at rest — clamp to current zone.
+      // EXCEPTION: portal nodes are transit points whose physical coordinate
+      // is often outside any zone polygon (portal sits between/above zones,
+      // not inside one). The shaft teleport assigns currentZoneId via
+      // fallbackZoneForFloor() so it's not null, but that fallback zone is
+      // arbitrary. Clamping to that polygon would warp the visitor to the
+      // zone's nearest corner — which is exactly what the user reported:
+      // arrivals showed up at "Lobby 209 우상단 모서리" / "Exhibition 224
+      // 좌하단 모서리" instead of at the portal node coord. Skip clamp on
+      // portal-type currentNode so the visitor stays where the portal puts
+      // them; the next tick begins transit toward the next planned zone via
+      // the normal graph routing, which never needs the visitor inside the
+      // portal's "zone" anyway.
+      const curNode = v.currentNodeId ? this.waypointNav?.getNode(v.currentNodeId) : null;
+      if (curNode?.type !== 'portal') {
+        const zone = this.zoneMap.get(v.currentZoneId as string);
+        if (zone) {
+          const poly = getZonePolygon(zone);
+          if (!isPointInPolygon(pos, poly)) {
+            const center = { x: zone.bounds.x + zone.bounds.w / 2, y: zone.bounds.y + zone.bounds.h / 2 };
+            pos = clampToPolygon(pos, poly, center);
+          }
         }
       }
     } else if (v.currentZoneId) {
