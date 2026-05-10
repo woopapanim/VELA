@@ -2195,58 +2195,68 @@ export class SimulationEngine {
 
   /**
    * Build an ordered tour of zones the visitor will try to visit, computed
-   * once at spawn time. NN-greedy from the entry position over zone-type
-   * waypoint nodes, skipping the spawn-zone (visitor is already inside).
+   * once at spawn time.
    *
-   * Returns undefined when the graph has fewer than 2 reachable zones — in
-   * that case there's nothing to plan, and assignNextTarget falls back to
-   * its existing score-based selection.
+   * Strategy: **angular sweep** (시계방향) from the entry position around the
+   * floor centroid. NN-greedy was tried first (commit 492d4f0) but produced
+   * zigzag tours where the second zone was close to the FIRST zone yet far
+   * from the entry (NN compounds: each step's "nearest" is computed from
+   * the previous step, not the entry). The user reported visually
+   * implausible jumps: visitor went to a near zone then to a distant zone
+   * across the floor. The angular sweep matches the human heuristic of
+   * "pick a direction at the door and go around" — tours trace a coherent
+   * loop covering all zones in order.
    *
-   * NN-greedy was chosen over exact TSP because:
-   *   - exact TSP is overkill for the small zone counts involved (≤ 30)
-   *     and adds dependency for marginal quality gain
-   *   - NN matches the human heuristic ("walk to the closest unseen
-   *     exhibition next") more directly than a globally-optimal tour
-   *   - deterministic given the same start position and zone set
+   * Mechanism:
+   *   1. Compute floor centroid from the bounding box of all zone nodes.
+   *   2. Compute the angle of the entry from centroid as the start angle.
+   *   3. Sort all candidate zones by their angular distance from the start
+   *      angle (clockwise = increasing angle), producing a sweep order.
    *
-   * Diversity across visitors comes for free: different entry positions
-   * (capacity-aware spawn distributes them across multiple lobbies) and
-   * different spawn zones produce different first hops, which cascade
-   * through the greedy choice into materially different tours.
+   * Diversity is automatic: different entry positions yield different
+   * start angles, so different visitors trace different sweeps. Within a
+   * single entry, all visitors share the plan but micro-decisions
+   * (corridor choice via scoreNode) and dynamic re-routing in
+   * assignNextTargetGraph keep their actual paths from being identical.
    *
-   * Note on attractor / portal nodes: deliberately excluded from the
-   * sequence. Those waypoints are passed through during traversal between
-   * zones and are tracked for visit counts via the existing pathLog
-   * mechanism — making the planner zone-only keeps the abstraction
-   * "visitor decides which exhibition to see next", not "which corridor
-   * node to step to next" (that's still scoreNode's job).
+   * Returns undefined when fewer than 1 reachable zone — falls back to
+   * legacy score-only selection.
    */
   private planVisitorTour(startPos: Vector2D, spawnZoneId: string | null): readonly ZoneId[] | undefined {
     if (!this.waypointNav) return undefined;
     const zoneNodes = this.waypointNav.getZoneNodes();
-    // Drop the spawn zone — visitor is already there, no need to plan to it.
     const candidates = spawnZoneId
       ? zoneNodes.filter(n => (n.zoneId as string | null) !== spawnZoneId)
       : [...zoneNodes];
     if (candidates.length < 1) return undefined;
 
-    let cur = startPos;
-    const sequence: ZoneId[] = [];
-    while (candidates.length > 0) {
-      let bestIdx = 0;
-      let bestSq = Infinity;
-      for (let i = 0; i < candidates.length; i++) {
-        const dx = candidates[i].position.x - cur.x;
-        const dy = candidates[i].position.y - cur.y;
-        const sq = dx * dx + dy * dy;
-        if (sq < bestSq) { bestSq = sq; bestIdx = i; }
-      }
-      const next = candidates[bestIdx];
-      sequence.push(next.zoneId as ZoneId);
-      cur = next.position;
-      candidates.splice(bestIdx, 1);
+    // Floor centroid = bounding box midpoint of all zone nodes (use the
+    // full set, not the candidate-after-filter, so the reference is stable).
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const n of zoneNodes) {
+      if (n.position.x < minX) minX = n.position.x;
+      if (n.position.x > maxX) maxX = n.position.x;
+      if (n.position.y < minY) minY = n.position.y;
+      if (n.position.y > maxY) maxY = n.position.y;
     }
-    return sequence.length > 0 ? sequence : undefined;
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+
+    const startAngle = Math.atan2(startPos.y - cy, startPos.x - cx);
+    const TWO_PI = 2 * Math.PI;
+
+    // For each candidate, compute angular delta from start (clockwise).
+    // 시계방향 sweep: angle 가 increasing 방향. atan2 는 [-π, π] 범위라
+    // 음수 diff 는 +2π 로 normalize (full sweep coverage).
+    const withDelta = candidates.map(n => {
+      const angle = Math.atan2(n.position.y - cy, n.position.x - cx);
+      let delta = angle - startAngle;
+      while (delta < 0) delta += TWO_PI;
+      return { node: n, delta };
+    });
+    withDelta.sort((a, b) => a.delta - b.delta);
+
+    return withDelta.map(w => w.node.zoneId as ZoneId);
   }
 
   /**
@@ -3438,20 +3448,46 @@ export class SimulationEngine {
     for (const z of this.world.zones) {
       if (z.mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
     }
-    // Plan-driven goal injection — visitor 가 spawn 시 결정한 NN-greedy tour 의
-    // 다음 unvisited zone 을 mustZoneIds 에 추가. 하나만 (next stop) 넣어
-    // visitor 가 "이번 목표" 에 commit, 도착하면 다음 iteration 에서 sequence 의
-    // 다음 zone 으로 자연스레 진행. selectNextNode 가 mustVisit 컨텍스트의
-    // BFS hop 보너스를 그대로 적용 → 별도 라우팅 코드 불필요.
-    // 이게 ping-pong 의 본질적 fix: 매-tick score 기반 의사결정이 plan 으로
-    // 대체됨 → 같은 hub 왕복할 일 없음 (다음 목표 zone 이 명확).
+    // Plan-driven goal injection (direction sweep) + dynamic NN adjustment.
+    //
+    // 1. Plan provides 큰 흐름 (시계방향 sweep order from spawn entry).
+    //    "오늘 floor 한 바퀴 돌래" 의 인간 휴리스틱.
+    // 2. Dynamic NN 보조: 현재 visitor 위치에서 plan 의 next zone 이 다른
+    //    unvisited zone 보다 *상당히* 멀면 (1.5x 이상) 가까운 거 우선.
+    //    "여기까지 왔는데 옆에 안 본 거 있네, 잠깐 가보자" 의 인간 적응.
+    //    1.5x threshold: 너무 작으면 sweep 깨지고, 너무 크면 zigzag 발생.
+    //
+    // 결과: 큰 그림은 sweep loop, 세부는 dynamic 우회. 두 인간 휴리스틱
+    // 결합. spawn-time NN-greedy 의 zigzag 문제 (commit 492d4f0) 가 sweep 으로
+    // 해결되고, 고정 plan 의 비합리적 jump 문제는 dynamic 으로 완화.
     if (v.plannedZoneSequence && v.plannedZoneSequence.length > 0) {
+      const unvisited: ZoneId[] = [];
       for (const zid of v.plannedZoneSequence) {
-        const id = zid as string;
-        if (!visitedZ.has(id)) {
-          mustZoneIds.add(id);
-          break;
+        if (!visitedZ.has(zid as string)) unvisited.push(zid);
+      }
+      if (unvisited.length > 0) {
+        const planNext = unvisited[0];
+        const curPos = v.position;
+        let nearest: ZoneId | null = null;
+        let nearestDistSq = Infinity;
+        let planNextDistSq = Infinity;
+        for (const zid of unvisited) {
+          const zone = this.zoneMap.get(zid as string);
+          if (!zone) continue;
+          const dx = (zone.bounds.x + zone.bounds.w / 2) - curPos.x;
+          const dy = (zone.bounds.y + zone.bounds.h / 2) - curPos.y;
+          const sq = dx * dx + dy * dy;
+          if (sq < nearestDistSq) { nearestDistSq = sq; nearest = zid; }
+          if (zid === planNext) planNextDistSq = sq;
         }
+        // Default = plan next. Override with nearest if it's at least 1.5x
+        // closer (= dist² ratio 2.25). plan 따라가는 게 기본 동작이고
+        // 극단적 zigzag 만 dynamic 으로 우회.
+        let chosen: ZoneId = planNext;
+        if (nearest && nearest !== planNext && nearestDistSq * 2.25 < planNextDistSq) {
+          chosen = nearest;
+        }
+        mustZoneIds.add(chosen as string);
       }
     }
     const mustMediaIds = new Set<string>();
