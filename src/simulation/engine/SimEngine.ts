@@ -3490,46 +3490,54 @@ export class SimulationEngine {
     for (const z of this.world.zones) {
       if (z.mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
     }
-    // Plan-driven goal injection (direction sweep) + dynamic NN adjustment.
+    // Goal injection: pick the unvisited zone with fewest **graph hops**
+    // from the visitor's current node — the human heuristic of "안 본 곳
+    // 중 옆에 가까운 데 먼저". Replaces the spawn-time angular sweep plan
+    // (PR #33) which forced visitors past closer zones to honor a fixed
+    // order — user reported visitors walking 4 hops past Zone 11/12 to
+    // reach Zone 13 because Zone 13 was "next" in the sweep.
     //
-    // 1. Plan provides 큰 흐름 (시계방향 sweep order from spawn entry).
-    //    "오늘 floor 한 바퀴 돌래" 의 인간 휴리스틱.
-    // 2. Dynamic NN 보조: 현재 visitor 위치에서 plan 의 next zone 이 다른
-    //    unvisited zone 보다 *상당히* 멀면 (1.5x 이상) 가까운 거 우선.
-    //    "여기까지 왔는데 옆에 안 본 거 있네, 잠깐 가보자" 의 인간 적응.
-    //    1.5x threshold: 너무 작으면 sweep 깨지고, 너무 크면 zigzag 발생.
+    // Why graph hops, not Euclidean: walls and gates matter. A zone that's
+    // geometrically close but only reachable via several corridor hubs is
+    // functionally further than another zone two doors over. Humans count
+    // doorways, not pixels. BFS hop count captures this; Euclidean does not.
     //
-    // 결과: 큰 그림은 sweep loop, 세부는 dynamic 우회. 두 인간 휴리스틱
-    // 결합. spawn-time NN-greedy 의 zigzag 문제 (commit 492d4f0) 가 sweep 으로
-    // 해결되고, 고정 plan 의 비합리적 jump 문제는 dynamic 으로 완화.
-    if (v.plannedZoneSequence && v.plannedZoneSequence.length > 0) {
-      const unvisited: ZoneId[] = [];
+    // The plannedZoneSequence is still computed at spawn but used here only
+    // as the "set of zones to visit" (not as ordering). When two unvisited
+    // zones are equidistant in hops, plan-order acts as the tiebreaker so
+    // visitors with similar entries don't all converge on identical paths.
+    //
+    // Cost: one BFS per call (graph ≤ 30 nodes, sub-microsecond).
+    if (v.plannedZoneSequence && v.plannedZoneSequence.length > 0 && this.waypointNav && v.currentNodeId) {
+      const unvisitedSet = new Set<string>();
       for (const zid of v.plannedZoneSequence) {
-        if (!visitedZ.has(zid as string)) unvisited.push(zid);
+        if (!visitedZ.has(zid as string)) unvisitedSet.add(zid as string);
       }
-      if (unvisited.length > 0) {
-        const planNext = unvisited[0];
-        const curPos = v.position;
-        let nearest: ZoneId | null = null;
-        let nearestDistSq = Infinity;
-        let planNextDistSq = Infinity;
-        for (const zid of unvisited) {
-          const zone = this.zoneMap.get(zid as string);
-          if (!zone) continue;
-          const dx = (zone.bounds.x + zone.bounds.w / 2) - curPos.x;
-          const dy = (zone.bounds.y + zone.bounds.h / 2) - curPos.y;
-          const sq = dx * dx + dy * dy;
-          if (sq < nearestDistSq) { nearestDistSq = sq; nearest = zid; }
-          if (zid === planNext) planNextDistSq = sq;
+      if (unvisitedSet.size > 0) {
+        const hops = this.waypointNav.bfsHopDistances(v.currentNodeId);
+        // Map zoneId -> representative zone-node-id with shortest hops.
+        // Some zones have multiple nodes; pick the closest one as the
+        // zone's effective hop distance.
+        let nearestZoneId: string | null = null;
+        let nearestHops = Infinity;
+        let nearestPlanIdx = Infinity;
+        for (const node of this.waypointNav.getZoneNodes()) {
+          const zid = node.zoneId as string | null;
+          if (!zid || !unvisitedSet.has(zid)) continue;
+          const h = hops.get(node.id as string) ?? Infinity;
+          // Plan-order tiebreaker: when hop counts tie, prefer the zone that
+          // appears earlier in this visitor's plan (preserves sweep
+          // diversity across visitors with similar topology).
+          const planIdx = v.plannedZoneSequence.findIndex(z => (z as string) === zid);
+          const better = h < nearestHops
+            || (h === nearestHops && planIdx >= 0 && planIdx < nearestPlanIdx);
+          if (better) {
+            nearestHops = h;
+            nearestZoneId = zid;
+            nearestPlanIdx = planIdx >= 0 ? planIdx : Infinity;
+          }
         }
-        // Default = plan next. Override with nearest if it's at least 1.5x
-        // closer (= dist² ratio 2.25). plan 따라가는 게 기본 동작이고
-        // 극단적 zigzag 만 dynamic 으로 우회.
-        let chosen: ZoneId = planNext;
-        if (nearest && nearest !== planNext && nearestDistSq * 2.25 < planNextDistSq) {
-          chosen = nearest;
-        }
-        mustZoneIds.add(chosen as string);
+        if (nearestZoneId) mustZoneIds.add(nearestZoneId);
       }
     }
     const mustMediaIds = new Set<string>();
