@@ -170,15 +170,38 @@ export function selectNextMedia(
 
 // ---- Skip Logic: should visitor skip current target? ----
 // Formula: waitTime > (patience * attractiveness * skipMultiplier)
+//
+// engagement-aware effective max wait:
+//   The user-configured maxWaitTimeMs is treated as a FLOOR, not a ceiling.
+//   For long-engagement media (e.g. 5-min interactive exhibits) the
+//   effective max scales up to engagementMs * 0.2 (1 min for a 5-min piece)
+//   so visitors don't bail at the configured 30s while a queue that's
+//   physically impossible to clear in that window backs up. Short media
+//   (~1 min passive) keep the configured floor since 12s would feel jumpy.
+//
+//   This was the dominant skip-rate driver in the user's scenario: active
+//   media with cap 5-12 + 5-min engagement times produced 28% skip rate
+//   because the 30s wait floor cleared visitors faster than the queue
+//   could turn over. With engagement-aware scaling, max wait for a 5-min
+//   piece becomes ~60s — long enough that a single rotation might free a
+//   slot.
+//
+//   engagementMs is optional: callers can omit it to keep legacy behavior
+//   (only the user's maxWaitTimeMs floor applies). Passing it opts the
+//   media into the auto-scale.
 export function shouldSkip(
   waitTimeMs: number,
   patience: number,
   attractiveness: number,
   skipMultiplier: number,
   maxWaitTimeMs: number,
+  engagementMs?: number,
 ): boolean {
-  if (waitTimeMs >= maxWaitTimeMs) return true;
-  const threshold = patience * attractiveness * skipMultiplier * maxWaitTimeMs;
+  const effectiveMax = engagementMs && engagementMs > 0
+    ? Math.max(maxWaitTimeMs, engagementMs * 0.2)
+    : maxWaitTimeMs;
+  if (waitTimeMs >= effectiveMax) return true;
+  const threshold = patience * attractiveness * skipMultiplier * effectiveMax;
   return waitTimeMs > threshold;
 }
 
