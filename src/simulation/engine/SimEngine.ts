@@ -1679,7 +1679,7 @@ export class SimulationEngine {
       const catSkipMod = getCategorySkipMod(v.category);
       // mustVisit은 대기 skip 금지 — 지쳐도 끝까지 기다림 (Tier 2).
       const isMust = !!targetMedia?.mustVisit;
-      if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+      if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, attr, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, targetMedia?.avgEngagementTimeMs)) {
         // Record skip
         if (v.targetMediaId) {
           this.recordSkip(v.targetMediaId as string, waitMs, v.currentZoneId as string | null);
@@ -1942,7 +1942,7 @@ export class SimulationEngine {
           const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
           const { skipThreshold } = this.world.config;
           const isMust = !!media.mustVisit;
-          if (!isMust && shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+          if (!isMust && shouldSkip(waitMs, v.profile.patience, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
             this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
             this.recordSkipCooldown(v.id as string, mid);
             return this.assignNextTarget({ ...v, currentAction: VISITOR_ACTION.IDLE,
@@ -1968,7 +1968,7 @@ export class SimulationEngine {
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
             const isMust = !!media.mustVisit;
-            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
@@ -2007,7 +2007,7 @@ export class SimulationEngine {
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
             const isMust = !!media.mustVisit;
-            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
@@ -2052,7 +2052,7 @@ export class SimulationEngine {
             const catSkipMod = getCategorySkipMod(v.category);
             // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
             const isMust = !!media.mustVisit;
-            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs)) {
+            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
               this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
               this.recordSkipCooldown(v.id as string, mid);
               return this.assignNextTarget({
