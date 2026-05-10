@@ -2753,10 +2753,17 @@ export class SimulationEngine {
    * 미디어 앞쪽에 viewDistance 만큼 떨어진 지점을 기준으로
    * width 를 따라 여러 slot 을 만들고, 과밀 시 뒤쪽으로도 행 확장.
    * 다른 MOVING/WATCHING 에이전트가 예약한 slot 과 겹치지 않는 첫 free slot 반환.
+   *
+   * 2026-05-11 (per-slot queue): in-cap slot 이 모두 점유되면 cap..cap+queueDepth-1
+   * 인덱스의 overflow 행 (`getPassiveSlotPosition` 이 자연스럽게 더 뒤쪽 행으로 계산)
+   * 을 큐 위치로 시도. 잉여 visitor 가 도달 가능한 자리를 받아야 onArrival → WAITING
+   * → patience-skip 경로가 정상 작동. (이전엔 slot 0 fallback 으로 점유 위치 반환 →
+   * 30s MOVING timeout → physics-stuck 카운트로 잡혔음.)
    */
   private pickPassiveSlot(m: MediaPlacement): Vector2D {
     const mid = m.id as string;
     const cap = Math.max(1, this.effectiveMediaCapacity(m));
+    const queueDepth = Math.max(2, Math.ceil(cap * 0.5));
 
     // Collect occupied positions
     const occupied: Vector2D[] = [];
@@ -2771,16 +2778,26 @@ export class SimulationEngine {
     }
 
     const MIN_DIST_SQ = 14 * 14;
-    for (let i = 0; i < cap; i++) {
-      const slotPos = this.getPassiveSlotPosition(m, i, cap);
-      let free = true;
+    const isFree = (slotPos: Vector2D): boolean => {
       for (const op of occupied) {
         const dx = slotPos.x - op.x, dy = slotPos.y - op.y;
-        if (dx * dx + dy * dy < MIN_DIST_SQ) { free = false; break; }
+        if (dx * dx + dy * dy < MIN_DIST_SQ) return false;
       }
-      if (free) return slotPos;
+      return true;
+    };
+
+    // Try in-cap viewing slots first (front-most rows)
+    for (let i = 0; i < cap; i++) {
+      const slotPos = this.getPassiveSlotPosition(m, i, cap);
+      if (isFree(slotPos)) return slotPos;
     }
-    return this.getPassiveSlotPosition(m, 0, cap);
+    // Try queue rows (further back from viewing point)
+    for (let i = 0; i < queueDepth; i++) {
+      const queuePos = this.getPassiveSlotPosition(m, cap + i, cap);
+      if (isFree(queuePos)) return queuePos;
+    }
+    // All exhausted — last queue row (better than slot 0 which is occupied)
+    return this.getPassiveSlotPosition(m, cap + queueDepth - 1, cap);
   }
 
   /** Passive slot 위치 — 미디어 앞 width 방향으로 분산, 과밀 시 뒤쪽으로 행 추가. */
@@ -2815,12 +2832,30 @@ export class SimulationEngine {
   /**
    * Active/Staged 미디어의 빈 slot 을 예약. 다른 에이전트가 현재 점유(WATCHING) 하거나
    * 이동 중(targetPosition) 인 slot 은 제외하고, 가장 낮은 free idx 의 위치 반환.
-   * 모든 slot 이 점유된 경우 slot 0 반환 (onArrival capacity 체크에서 skip 됨).
+   *
+   * 2026-05-11 (per-slot queue): in-cap slot 이 모두 점유되면 perimeter 둘레의 큐
+   * 위치 (margin 24px 바깥) 를 시도 — analog `pickAnalogSlot` 의 큐 ring 패턴 차용.
+   * 잉여 visitor 가 큐 위치에 도달 → onArrival → viewerCount>=cap → WAITING →
+   * patience-skip 경로가 정상 작동. (이전 slot 0 fallback 은 이미 점유된 위치라
+   * 물리적으로 도달 불가능 → 30s MOVING timeout → physics-stuck 카운트로 잡혔음.)
+   *
+   * 큐 위치 BEHIND 단일 행 (1차 시도) 은 incoming 동선을 막아 측정에서 더 나빠짐;
+   * perimeter 분산 (2차 시도) 은 큐 부담을 사방으로 흩뿌려 동선 간섭 최소화.
    */
   private pickMediaSlot(m: MediaPlacement): Vector2D {
     const mid = m.id as string;
     const cap = Math.max(1, m.capacity);
-    // Collect reserved slot indices by comparing targetPosition/position to each slot
+    const queueDepth = Math.max(2, Math.ceil(cap * 0.5));
+
+    // Build candidate positions: cap in-slots + queueDepth perimeter spots
+    const slotPositions: Vector2D[] = [];
+    for (let i = 0; i < cap; i++) slotPositions.push(this.getMediaSlotPosition(m, i));
+    const queuePositions: Vector2D[] = [];
+    for (let i = 0; i < queueDepth; i++) {
+      queuePositions.push(this.getMediaPerimeterQueuePosition(m, i, queueDepth));
+    }
+
+    // Determine which positions are reserved by other visitors targeting this media
     const reserved = new Set<number>();
     for (const [, other] of this.state.visitors) {
       if (!other.isActive) continue;
@@ -2829,16 +2864,74 @@ export class SimulationEngine {
         ? other.position
         : other.targetPosition;
       if (!ref) continue;
+
+      // Check in-cap slots first
+      let matched = false;
       for (let i = 0; i < cap; i++) {
-        const sp = this.getMediaSlotPosition(m, i);
+        const sp = slotPositions[i];
         const dx = sp.x - ref.x, dy = sp.y - ref.y;
-        if (dx * dx + dy * dy < 36) { reserved.add(i); break; } // within 6px = same slot
+        if (dx * dx + dy * dy < 36) { reserved.add(i); matched = true; break; }
+      }
+      if (matched) continue;
+      // Then queue spots (offset index by cap in reserved space)
+      for (let i = 0; i < queueDepth; i++) {
+        const qp = queuePositions[i];
+        const dx = qp.x - ref.x, dy = qp.y - ref.y;
+        if (dx * dx + dy * dy < 36) { reserved.add(cap + i); break; }
       }
     }
+
     for (let i = 0; i < cap; i++) {
-      if (!reserved.has(i)) return this.getMediaSlotPosition(m, i);
+      if (!reserved.has(i)) return slotPositions[i];
     }
-    return this.getMediaSlotPosition(m, 0);
+    for (let i = 0; i < queueDepth; i++) {
+      if (!reserved.has(cap + i)) return queuePositions[i];
+    }
+    // All in-cap + queue exhausted — last queue spot (still reachable, unlike slot 0).
+    return queuePositions[queueDepth - 1];
+  }
+
+  /** Perimeter queue position — margin 24px 바깥 둘레를 균등 분할하여 idx-th 위치 반환.
+   *  active/staged 미디어의 큐 ring 좌표. analog `getAnalogSlotWithCap` (margin 24)
+   *  와 동일 패턴으로, 큐 부담을 미디어 사방에 분산해 incoming 동선 간섭을 최소화. */
+  private getMediaPerimeterQueuePosition(m: MediaPlacement, idx: number, count: number): Vector2D {
+    let pw: number, ph: number;
+    if (this.isMediaPolygon(m)) {
+      const poly = m.polygon!;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of poly) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      pw = maxX - minX;
+      ph = maxY - minY;
+    } else {
+      pw = m.size.width * MEDIA_SCALE;
+      ph = m.size.height * MEDIA_SCALE;
+    }
+
+    const margin = 24;
+    const halfW = pw / 2 + margin;
+    const halfH = ph / 2 + margin;
+    const perimeter = 2 * (pw + ph);
+    const spacing = perimeter / Math.max(1, count);
+
+    let d = spacing * idx;
+    let localX: number, localY: number;
+    if (d < pw) { localX = -pw / 2 + d; localY = -halfH; }
+    else if ((d -= pw) < ph) { localX = halfW; localY = -ph / 2 + d; }
+    else if ((d -= ph) < pw) { localX = pw / 2 - d; localY = halfH; }
+    else { d -= pw; localX = -halfW; localY = ph / 2 - d; }
+
+    const rad = (m.orientation * Math.PI) / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const pt = {
+      x: m.position.x + localX * cos - localY * sin,
+      y: m.position.y + localX * sin + localY * cos,
+    };
+    return this.clampToMediaZone(m, pt);
   }
 
   /**
