@@ -139,7 +139,7 @@ export const ko: Dict = {
   'analyze.tab.skip': '스킵',
   'analyze.tab.flow': '출입',
   'analyze.tab.engagement': '몰입',
-  'analyze.bento.entryExit.sessionEnd': '시뮬 종료 시 잔류',
+  'analyze.bento.entryExit.sessionEnd': '강제 종료 (gate 미통과)',
   'analyze.bento.engagement': '관람 깊이',
   'analyze.bento.empty': '항목 없음',
   'analyze.engagement.avgZones': '평균 방문 존',

@@ -13,6 +13,11 @@ export interface SkipMediaEntry { id: string; name: string; rate: number; skipCo
 export interface FlowSummary {
   entries: readonly { name: string; count: number }[];
   exits: readonly { name: string; count: number }[];
+  /** exit gate 통과만이 아닌 모든 deactivation (cascade/sim-ended/force-exit 포함) */
+  totalExited: number;
+  /** spawned 합 — entries.reduce 와 일치하지만 명시적으로 노출 */
+  totalSpawned: number;
+  /** totalExited - exits.reduce(count) — exit gate 안 거치고 종료된 visitor 수 */
   unaccountedExits: number;
 }
 export interface EngagementSummary {
@@ -238,8 +243,11 @@ function SkipPanel({
 
 function FlowPanel({ data, t }: { data: FlowSummary; t: Translator }) {
   if (data.entries.length === 0 && data.exits.length === 0) return <Empty t={t} />;
-  const totalIn = data.entries.reduce((s, e) => s + e.count, 0);
-  const totalOut = data.exits.reduce((s, e) => s + e.count, 0);
+  // IN = spawned 사용자 직관 그대로. OUT = totalExited (모든 deactivation;
+  // 이전엔 exits gate 합 = misleading 작은 값). exit gate 별 count 는
+  // 아래 detail 에서 그대로 표시.
+  const totalIn = data.totalSpawned;
+  const totalOut = data.totalExited;
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2 text-center">

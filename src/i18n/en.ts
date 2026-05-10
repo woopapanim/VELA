@@ -142,7 +142,7 @@ export const en: Dict = {
   'analyze.tab.skip': 'Skip',
   'analyze.tab.flow': 'Flow',
   'analyze.tab.engagement': 'Depth',
-  'analyze.bento.entryExit.sessionEnd': 'Still in venue at session end',
+  'analyze.bento.entryExit.sessionEnd': 'Force-exited (no gate)',
   'analyze.bento.engagement': 'Engagement depth',
   'analyze.engagement.avgZones': 'Avg zones / visitor',
   'analyze.engagement.avgMedia': 'Avg media / visitor',
