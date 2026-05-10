@@ -59,7 +59,20 @@ export function syncFollowerToLeader(
     // Leader teleported (floor changed)? Snap follower to leader so they don't
     // try to walk across the inter-floor gap on the shared canvas.
     const floorChanged = (leader.currentFloorId as string | null) !== (follower.currentFloorId as string | null);
-    const teleportPatch = floorChanged
+    // Same-floor large jump (e.g. zone arrival snap, gate teleport, media slot
+    // warp) — snap follower too. Without this, the follower lags one tick
+    // behind every leader warp and cohesion sweep catches the gap as
+    // severeBurst (PR #33 series residual: dist 87-130 px around zone-arrival
+    // moments). Threshold 100 px is roughly the size of one zone footprint —
+    // smaller than the typical inter-zone walk (so walking still uses
+    // steering forces normally), bigger than per-tick velocity (so this
+    // doesn't fire on routine motion).
+    const dx = leader.position.x - follower.position.x;
+    const dy = leader.position.y - follower.position.y;
+    const distSq = dx * dx + dy * dy;
+    const LEADER_SNAP_THRESHOLD = 100;
+    const sameFloorBigJump = !floorChanged && distSq > LEADER_SNAP_THRESHOLD * LEADER_SNAP_THRESHOLD;
+    const teleportPatch = (floorChanged || sameFloorBigJump)
       ? {
           position: { x: leader.position.x, y: leader.position.y },
           currentFloorId: leader.currentFloorId,
