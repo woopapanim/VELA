@@ -211,6 +211,23 @@ export class WaypointNavigator {
     if (neighbors.length === 0) return null;
 
     const visitedNodeIds = new Set(visitor.pathLog.map(e => e.nodeId as string));
+    // Recent path memory — short-term ping-pong protection. Diagnostics
+    // showed avg unique/total nodes ratio = 0.67 (each visitor revisits the
+    // same node 1.5x on average) with worst case v_117 = 0.15 (same nodes
+    // 6.5x). Root cause: hub/bend/entry types are exempt from the visited
+    // penalty in scoreNode (since they're transit nodes), so a visitor can
+    // freely shuttle hub1 → bend2 → hub1 → bend2 forever.
+    // Fix: track the last RECENT_K node ids separately and apply a soft
+    // penalty in the exempt branch when the candidate appears in this set
+    // — modelling human short-term memory ("don't go back somewhere I was
+    // 30 seconds ago") without blocking legitimate long-distance reuse.
+    // K=5 chosen to allow normal hub-zone-hub-zone alternation (a hub
+    // appears every other node in steady traffic) while catching tighter
+    // 3-4-step cycles. Larger K starves long scenarios where corridor
+    // reuse is unavoidable; smaller K barely helps.
+    const RECENT_K = 5;
+    const recentLog = visitor.pathLog.slice(-RECENT_K);
+    const recentNodeIds = new Set(recentLog.map(e => e.nodeId as string));
     const visitedShaftIds = new Set<string>();
     for (const entry of visitor.pathLog) {
       const n = this.nodeMap.get(entry.nodeId as string);
@@ -316,7 +333,7 @@ export class WaypointNavigator {
       // EXIT 노드: 조건 미충족 시 후보에서 제외
       if (candidate.type === 'exit' && !canExit) continue;
 
-      let score = this.scoreNode(visitor, candidate, edge, currentNodeId, visitedNodeIds, crowdMap);
+      let score = this.scoreNode(visitor, candidate, edge, currentNodeId, visitedNodeIds, recentNodeIds, crowdMap);
 
       // Zone overcrowding penalty — 목적지 zone이 capacity 초과 근처면 강하게 감점
       if (candidate.zoneId) {
@@ -471,13 +488,23 @@ export class WaypointNavigator {
     edge: WaypointEdge,
     currentNodeId: WaypointId,
     visitedNodeIds: Set<string>,
+    recentNodeIds: Set<string>,
     crowdMap: ReadonlyMap<string, number>,
   ): number {
     // 방문 패널티 — 이미 방문한 노드는 점수 대폭 감소
-    // HUB/ENTRY는 교차로이므로 면제
+    // HUB/ENTRY/BEND는 교차로이므로 long-term visited 면제
+    // (그래야 다음 zone 가는 경로의 hub 를 차단 안 함)
     // ZONE/ATTRACTOR/REST는 감점하되 차단(-9999)은 아님 → 퇴장 경로로 재방문 가능
+    // SHORT-TERM (recent K) 페널티는 transit 노드도 적용 — ping-pong 방지.
+    // 인간의 단기기억 모방: "방금 거기 들렀는데 또?" 회피 행동.
     if (visitedNodeIds.has(candidate.id as string)) {
       if (candidate.type === 'hub' || candidate.type === 'entry' || candidate.type === 'bend') {
+        // Long-term 면제 — 단 직전 K 노드 안에 있으면 short-term 페널티 부과.
+        // -1.5: visited zone 의 -2.0 보다 약간 약함 (transit 노드라 통과 가능성 보존),
+        // 직전 노드 패널티 (-2.0, line 359) 와 다른 채널 (그건 backtrack 1-hop 만 잡음).
+        if (recentNodeIds.has(candidate.id as string)) {
+          return -1.5;
+        }
         // 면제: 패널티 없이 정상 Score 계산
       } else {
         return -2.0; // 강한 감점이지만 다른 경로가 없으면 선택 가능
