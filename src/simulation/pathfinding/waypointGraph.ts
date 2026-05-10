@@ -221,16 +221,17 @@ export class WaypointNavigator {
     // penalty in the exempt branch when the candidate appears in this set
     // — modelling human short-term memory ("don't go back somewhere I was
     // 30 seconds ago") without blocking legitimate long-distance reuse.
-    // K tuning: first attempt K=5 + penalty -1.5 only moved avg unique/total
-    // ratio from 0.67 to 0.71 (target 0.85+) — too weak. Bumping to K=10
-    // catches longer 6-8-step cycles (A-B-C-D-E-A patterns) that K=5 missed,
-    // and the penalty bump (-1.5 → -3.0 at the call site) is now stronger than
-    // the visited-zone -2.0 so transit revisits are actually discouraged
-    // rather than just nudged. Risk: long scenarios where a corridor hub MUST
-    // be reused within 10 steps will see slower throughput. Acceptable trade
-    // since the diagnostic showed transit nodes at 2-3x visit counts vs zones
-    // at 0.5-0.8x — that's not "necessary reuse", that's wandering.
-    const RECENT_K = 10;
+    // K=5 chosen to allow normal hub-zone-hub-zone alternation (a hub
+    // appears every other node in steady traffic) while catching tighter
+    // 3-4-step cycles. Larger K starves long scenarios where corridor
+    // reuse is unavoidable; smaller K barely helps.
+    // Tuning history: tried K=10 + penalty -3.0 in commit b7d4b50; that
+    // REGRESSED ratio (0.71 → 0.67) and increased nodeStuck (80 → 98).
+    // Conclusion: ping-pong appears to be path-topology-driven (forced
+    // single-hub bottlenecks), not memory-window-driven. K=5 / -1.5 left
+    // as a marginal but stable improvement; structural fix (direction
+    // memory) follows in a separate PR.
+    const RECENT_K = 5;
     const recentLog = visitor.pathLog.slice(-RECENT_K);
     const recentNodeIds = new Set(recentLog.map(e => e.nodeId as string));
     const visitedShaftIds = new Set<string>();
@@ -504,13 +505,11 @@ export class WaypointNavigator {
     // 인간의 단기기억 모방: "방금 거기 들렀는데 또?" 회피 행동.
     if (visitedNodeIds.has(candidate.id as string)) {
       if (candidate.type === 'hub' || candidate.type === 'entry' || candidate.type === 'bend') {
-        // Long-term 면제 — 단 직전 K=10 노드 안에 있으면 short-term 페널티.
-        // -3.0: visited zone (-2.0) 보다 강함. 첫 시도 -1.5 가 너무 약했음
-        // (proximity 기반 score 가 4-5+ 이라 -1.5 무력화). 강한 음수로 transit
-        // 노드 재사용을 zone 재사용보다 더 적극적으로 억제 — ping-pong 의 핵심
-        // 메커니즘이라서.
+        // Long-term 면제 — 단 직전 K 노드 안에 있으면 short-term 페널티 부과.
+        // -1.5: visited zone 의 -2.0 보다 약간 약함 (transit 노드라 통과 가능성 보존),
+        // 직전 노드 패널티 (-2.0, line 359) 와 다른 채널 (그건 backtrack 1-hop 만 잡음).
         if (recentNodeIds.has(candidate.id as string)) {
-          return -3.0;
+          return -1.5;
         }
         // 면제: 패널티 없이 정상 Score 계산
       } else {
