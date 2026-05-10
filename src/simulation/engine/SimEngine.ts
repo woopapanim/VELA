@@ -1322,6 +1322,12 @@ export class SimulationEngine {
           const resolvedZoneId = (entryNode.zoneId as string | null)
             ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string)
             ?? this.fallbackZoneForFloor(nodeFloorId as string);
+          // Plan an ordered tour at spawn time — human heuristic ("가까운 곳부터
+          // 도는 자연 순서"). NN-greedy from entryNode position over the
+          // graph's zone nodes, excluding the spawn-zone itself (visitor is
+          // already there). Skipping when zone count is small (<=1) keeps
+          // the legacy fallback path active for trivial scenarios.
+          const plannedSequence = this.planVisitorTour(entryNode.position, resolvedZoneId);
           for (const v of batch.visitors) {
             // arrival visitor: 모든 entry-node 결합 정보는 결정된 채로 큐에 넣는다.
             // admittedAt / zoneEnteredAtMs 는 admit 시점에 갱신.
@@ -1335,6 +1341,7 @@ export class SimulationEngine {
               pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
               spawnEntryNodeId: entryNode.id,
               arrivedAt: elapsed,
+              plannedZoneSequence: plannedSequence,
             };
             // Phase 1+ (2026-04-26): per-visitor 인내심 산출 (프로필/참여도/분포 모델 반영).
             const policy = this.world.config.operations?.entryPolicy;
@@ -2184,6 +2191,62 @@ export class SimulationEngine {
       if (isPointInPolygon(pos, poly)) return zone.id as string;
     }
     return null;
+  }
+
+  /**
+   * Build an ordered tour of zones the visitor will try to visit, computed
+   * once at spawn time. NN-greedy from the entry position over zone-type
+   * waypoint nodes, skipping the spawn-zone (visitor is already inside).
+   *
+   * Returns undefined when the graph has fewer than 2 reachable zones — in
+   * that case there's nothing to plan, and assignNextTarget falls back to
+   * its existing score-based selection.
+   *
+   * NN-greedy was chosen over exact TSP because:
+   *   - exact TSP is overkill for the small zone counts involved (≤ 30)
+   *     and adds dependency for marginal quality gain
+   *   - NN matches the human heuristic ("walk to the closest unseen
+   *     exhibition next") more directly than a globally-optimal tour
+   *   - deterministic given the same start position and zone set
+   *
+   * Diversity across visitors comes for free: different entry positions
+   * (capacity-aware spawn distributes them across multiple lobbies) and
+   * different spawn zones produce different first hops, which cascade
+   * through the greedy choice into materially different tours.
+   *
+   * Note on attractor / portal nodes: deliberately excluded from the
+   * sequence. Those waypoints are passed through during traversal between
+   * zones and are tracked for visit counts via the existing pathLog
+   * mechanism — making the planner zone-only keeps the abstraction
+   * "visitor decides which exhibition to see next", not "which corridor
+   * node to step to next" (that's still scoreNode's job).
+   */
+  private planVisitorTour(startPos: Vector2D, spawnZoneId: string | null): readonly ZoneId[] | undefined {
+    if (!this.waypointNav) return undefined;
+    const zoneNodes = this.waypointNav.getZoneNodes();
+    // Drop the spawn zone — visitor is already there, no need to plan to it.
+    const candidates = spawnZoneId
+      ? zoneNodes.filter(n => (n.zoneId as string | null) !== spawnZoneId)
+      : [...zoneNodes];
+    if (candidates.length < 1) return undefined;
+
+    let cur = startPos;
+    const sequence: ZoneId[] = [];
+    while (candidates.length > 0) {
+      let bestIdx = 0;
+      let bestSq = Infinity;
+      for (let i = 0; i < candidates.length; i++) {
+        const dx = candidates[i].position.x - cur.x;
+        const dy = candidates[i].position.y - cur.y;
+        const sq = dx * dx + dy * dy;
+        if (sq < bestSq) { bestSq = sq; bestIdx = i; }
+      }
+      const next = candidates[bestIdx];
+      sequence.push(next.zoneId as ZoneId);
+      cur = next.position;
+      candidates.splice(bestIdx, 1);
+    }
+    return sequence.length > 0 ? sequence : undefined;
   }
 
   /**
@@ -3374,6 +3437,22 @@ export class SimulationEngine {
     const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
     for (const z of this.world.zones) {
       if (z.mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
+    }
+    // Plan-driven goal injection — visitor 가 spawn 시 결정한 NN-greedy tour 의
+    // 다음 unvisited zone 을 mustZoneIds 에 추가. 하나만 (next stop) 넣어
+    // visitor 가 "이번 목표" 에 commit, 도착하면 다음 iteration 에서 sequence 의
+    // 다음 zone 으로 자연스레 진행. selectNextNode 가 mustVisit 컨텍스트의
+    // BFS hop 보너스를 그대로 적용 → 별도 라우팅 코드 불필요.
+    // 이게 ping-pong 의 본질적 fix: 매-tick score 기반 의사결정이 plan 으로
+    // 대체됨 → 같은 hub 왕복할 일 없음 (다음 목표 zone 이 명확).
+    if (v.plannedZoneSequence && v.plannedZoneSequence.length > 0) {
+      for (const zid of v.plannedZoneSequence) {
+        const id = zid as string;
+        if (!visitedZ.has(id)) {
+          mustZoneIds.add(id);
+          break;
+        }
+      }
     }
     const mustMediaIds = new Set<string>();
     const visitedM = new Set(v.visitedMediaIds.map(m => m as string));

@@ -134,6 +134,19 @@ export interface Visitor {
   // 스폰 시 사용한 ENTRY 노드 — "들어온 길로 나간다" 휴리스틱용.
   // 퇴장 라우팅은 기본적으로 이 entry 와 기하학적으로 짝지어진 exit 를 선호한다.
   readonly spawnEntryNodeId: WaypointId | null;
+  /**
+   * Spawn 시점에 NN-greedy 로 결정된 essential zone 방문 순서.
+   * 인간 휴리스틱 모델: "오늘 다 보겠다" 결심 + 가까운 곳부터 도는 자연 plan.
+   * 매 zone 도착 시 visitedZoneIds 에 push, assignNextTarget 가 sequence 의
+   * 다음 unvisited zone 을 우선 선택. 매-tick score 기반 의사결정의 한계
+   * (ping-pong, 방향 일관성 부재) 를 plan 으로 대체.
+   *
+   * 비어있거나 undefined 면 legacy score-only 동작으로 fallback (호환).
+   *
+   * 길이는 essentialCount 와 같음 (모든 essential zone 포함). attractor /
+   * portal-shaft 도 zone 처럼 sequence 에 포함될 수 있음 (의미상 visit 단위).
+   */
+  readonly plannedZoneSequence?: readonly ZoneId[];
   // ── Phase 1 (2026-04-25): 운영 정책 lifecycle ──
   /**
    * 외부 도착 시각 (elapsed ms). 입장 정책 적용 전 시점.

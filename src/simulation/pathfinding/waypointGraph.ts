@@ -167,6 +167,24 @@ export class WaypointNavigator {
   }
 
   /**
+   * Tour planner 가 사용. zone-type 노드들 반환 — 각 essential zone 의 대표
+   * waypoint. attractor/portal 은 sequence 에서 제외 (path 따라가다 자연
+   * 거치게 됨). 같은 zoneId 의 노드가 여러 개여도 첫 번째만 (zone 단위 plan).
+   */
+  getZoneNodes(): WaypointNode[] {
+    const seen = new Set<string>();
+    const out: WaypointNode[] = [];
+    for (const node of this.nodeMap.values()) {
+      if (node.type !== 'zone') continue;
+      const zid = node.zoneId as string | null;
+      if (!zid || seen.has(zid)) continue;
+      seen.add(zid);
+      out.push(node);
+    }
+    return out;
+  }
+
+  /**
    * 특정 shaft에 속한 모든 elevator 노드 반환 (층 간 텔레포트 대상 탐색용)
    */
   getNodesByShaft(shaftId: ShaftId): WaypointNode[] {
