@@ -1322,6 +1322,12 @@ export class SimulationEngine {
           const resolvedZoneId = (entryNode.zoneId as string | null)
             ?? this.zoneIdAtPoint(entryNode.position, nodeFloorId as string)
             ?? this.fallbackZoneForFloor(nodeFloorId as string);
+          // Plan an ordered tour at spawn time — human heuristic ("가까운 곳부터
+          // 도는 자연 순서"). NN-greedy from entryNode position over the
+          // graph's zone nodes, excluding the spawn-zone itself (visitor is
+          // already there). Skipping when zone count is small (<=1) keeps
+          // the legacy fallback path active for trivial scenarios.
+          const plannedSequence = this.planVisitorTour(entryNode.position, resolvedZoneId);
           for (const v of batch.visitors) {
             // arrival visitor: 모든 entry-node 결합 정보는 결정된 채로 큐에 넣는다.
             // admittedAt / zoneEnteredAtMs 는 admit 시점에 갱신.
@@ -1335,6 +1341,7 @@ export class SimulationEngine {
               pathLog: [{ nodeId: entryNode.id, entryTime: elapsed, exitTime: 0, duration: 0 }],
               spawnEntryNodeId: entryNode.id,
               arrivedAt: elapsed,
+              plannedZoneSequence: plannedSequence,
             };
             // Phase 1+ (2026-04-26): per-visitor 인내심 산출 (프로필/참여도/분포 모델 반영).
             const policy = this.world.config.operations?.entryPolicy;
@@ -2184,6 +2191,114 @@ export class SimulationEngine {
       if (isPointInPolygon(pos, poly)) return zone.id as string;
     }
     return null;
+  }
+
+  /**
+   * Build an ordered tour of zones the visitor will try to visit, computed
+   * once at spawn time.
+   *
+   * Strategy: **angular sweep** (시계방향) from the entry position around the
+   * floor centroid. NN-greedy was tried first (commit 492d4f0) but produced
+   * zigzag tours where the second zone was close to the FIRST zone yet far
+   * from the entry (NN compounds: each step's "nearest" is computed from
+   * the previous step, not the entry). The user reported visually
+   * implausible jumps: visitor went to a near zone then to a distant zone
+   * across the floor. The angular sweep matches the human heuristic of
+   * "pick a direction at the door and go around" — tours trace a coherent
+   * loop covering all zones in order.
+   *
+   * Mechanism:
+   *   1. Compute floor centroid from the bounding box of all zone nodes.
+   *   2. Compute the angle of the entry from centroid as the start angle.
+   *   3. Sort all candidate zones by their angular distance from the start
+   *      angle (clockwise = increasing angle), producing a sweep order.
+   *
+   * Diversity is automatic: different entry positions yield different
+   * start angles, so different visitors trace different sweeps. Within a
+   * single entry, all visitors share the plan but micro-decisions
+   * (corridor choice via scoreNode) and dynamic re-routing in
+   * assignNextTargetGraph keep their actual paths from being identical.
+   *
+   * Returns undefined when fewer than 1 reachable zone — falls back to
+   * legacy score-only selection.
+   */
+  private planVisitorTour(startPos: Vector2D, spawnZoneId: string | null): readonly ZoneId[] | undefined {
+    if (!this.waypointNav) return undefined;
+    const zoneNodes = this.waypointNav.getZoneNodes();
+    const candidates = spawnZoneId
+      ? zoneNodes.filter(n => (n.zoneId as string | null) !== spawnZoneId)
+      : [...zoneNodes];
+    if (candidates.length < 1) return undefined;
+
+    // Determine spawn floor — visitor's starting floor is where the spawn
+    // zone is. Resolve through zoneMap (spawn zone has a floor).
+    const spawnZone = spawnZoneId ? this.zoneMap.get(spawnZoneId) : null;
+    const spawnFloorId = spawnZone?.floorId as string | null;
+
+    // Group candidates by floor — visitor finishes the spawn floor first
+    // (no portal hops in the middle of the loop), then crosses to other
+    // floors one at a time. Multi-floor mixing was the dominant residual
+    // problem after the first sweep version: an angular sort across all
+    // floors put e.g. a 2F zone as the 2nd stop, forcing portal hops back
+    // and forth, lengthening every visitor's path and breaking group sync.
+    const sameFloor: WaypointNode[] = [];
+    const otherFloorsByFloor = new Map<string, WaypointNode[]>();
+    for (const n of candidates) {
+      const fid = (n.floorId as string) || '';
+      if (spawnFloorId && fid === spawnFloorId) {
+        sameFloor.push(n);
+      } else {
+        const arr = otherFloorsByFloor.get(fid) ?? [];
+        arr.push(n);
+        otherFloorsByFloor.set(fid, arr);
+      }
+    }
+
+    const TWO_PI = 2 * Math.PI;
+    // Sweep order within a single floor: angular sort around floor centroid
+    // from the entry angle (clockwise). Exposed as a helper to reuse on
+    // each floor's slice — preserves the sweep coherence per floor.
+    const sweepFloor = (nodes: WaypointNode[], refPos: Vector2D): WaypointNode[] => {
+      if (nodes.length === 0) return [];
+      // Per-floor centroid keeps angles meaningful when floors have very
+      // different bounding boxes. Falls back to the floor's own bbox.
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.position.x < minX) minX = n.position.x;
+        if (n.position.x > maxX) maxX = n.position.x;
+        if (n.position.y < minY) minY = n.position.y;
+        if (n.position.y > maxY) maxY = n.position.y;
+      }
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const startAngle = Math.atan2(refPos.y - cy, refPos.x - cx);
+      const withDelta = nodes.map(n => {
+        const angle = Math.atan2(n.position.y - cy, n.position.x - cx);
+        let delta = angle - startAngle;
+        while (delta < 0) delta += TWO_PI;
+        return { node: n, delta };
+      });
+      withDelta.sort((a, b) => a.delta - b.delta);
+      return withDelta.map(w => w.node);
+    };
+
+    const ordered: WaypointNode[] = [];
+    // 1) Sweep the spawn floor first (loop on home floor).
+    ordered.push(...sweepFloor(sameFloor, startPos));
+    // 2) Then visit other floors. Within each, sweep around its own
+    //    centroid using the *last* visited zone position as the reference
+    //    for angular start (smoother transition than reusing the spawn
+    //    position which is on a different floor).
+    let lastPos: Vector2D = ordered.length > 0
+      ? ordered[ordered.length - 1].position
+      : startPos;
+    for (const [, nodes] of otherFloorsByFloor) {
+      const sorted = sweepFloor(nodes, lastPos);
+      ordered.push(...sorted);
+      if (sorted.length > 0) lastPos = sorted[sorted.length - 1].position;
+    }
+
+    return ordered.length > 0 ? ordered.map(n => n.zoneId as ZoneId) : undefined;
   }
 
   /**
@@ -3374,6 +3489,48 @@ export class SimulationEngine {
     const visitedZ = new Set(v.visitedZoneIds.map(z => z as string));
     for (const z of this.world.zones) {
       if (z.mustVisit && !visitedZ.has(z.id as string)) mustZoneIds.add(z.id as string);
+    }
+    // Plan-driven goal injection (direction sweep) + dynamic NN adjustment.
+    //
+    // 1. Plan provides 큰 흐름 (시계방향 sweep order from spawn entry).
+    //    "오늘 floor 한 바퀴 돌래" 의 인간 휴리스틱.
+    // 2. Dynamic NN 보조: 현재 visitor 위치에서 plan 의 next zone 이 다른
+    //    unvisited zone 보다 *상당히* 멀면 (1.5x 이상) 가까운 거 우선.
+    //    "여기까지 왔는데 옆에 안 본 거 있네, 잠깐 가보자" 의 인간 적응.
+    //    1.5x threshold: 너무 작으면 sweep 깨지고, 너무 크면 zigzag 발생.
+    //
+    // 결과: 큰 그림은 sweep loop, 세부는 dynamic 우회. 두 인간 휴리스틱
+    // 결합. spawn-time NN-greedy 의 zigzag 문제 (commit 492d4f0) 가 sweep 으로
+    // 해결되고, 고정 plan 의 비합리적 jump 문제는 dynamic 으로 완화.
+    if (v.plannedZoneSequence && v.plannedZoneSequence.length > 0) {
+      const unvisited: ZoneId[] = [];
+      for (const zid of v.plannedZoneSequence) {
+        if (!visitedZ.has(zid as string)) unvisited.push(zid);
+      }
+      if (unvisited.length > 0) {
+        const planNext = unvisited[0];
+        const curPos = v.position;
+        let nearest: ZoneId | null = null;
+        let nearestDistSq = Infinity;
+        let planNextDistSq = Infinity;
+        for (const zid of unvisited) {
+          const zone = this.zoneMap.get(zid as string);
+          if (!zone) continue;
+          const dx = (zone.bounds.x + zone.bounds.w / 2) - curPos.x;
+          const dy = (zone.bounds.y + zone.bounds.h / 2) - curPos.y;
+          const sq = dx * dx + dy * dy;
+          if (sq < nearestDistSq) { nearestDistSq = sq; nearest = zid; }
+          if (zid === planNext) planNextDistSq = sq;
+        }
+        // Default = plan next. Override with nearest if it's at least 1.5x
+        // closer (= dist² ratio 2.25). plan 따라가는 게 기본 동작이고
+        // 극단적 zigzag 만 dynamic 으로 우회.
+        let chosen: ZoneId = planNext;
+        if (nearest && nearest !== planNext && nearestDistSq * 2.25 < planNextDistSq) {
+          chosen = nearest;
+        }
+        mustZoneIds.add(chosen as string);
+      }
     }
     const mustMediaIds = new Set<string>();
     const visitedM = new Set(v.visitedMediaIds.map(m => m as string));
