@@ -22,6 +22,17 @@ const W_CROWD = 0.4; // node crowd (원래값 유지)
 const W_ZONE_OVERCAP = 2.5; // 목적지 zone overcapacity penalty
 const ZONE_SOFT_FULL_RATIO = 1.0; // 100% 이상부터 감점 시작
 
+// Direction memory — visitor 의 진행 방향 일관성 보상.
+// 사람은 자유동선에서 무작위로 휘청이지 않고 한 방향(시계방향 등) 잡고 도는 경향.
+// dot product ∈ [-1, 1] × W_DIRECTION → 같은 방향 후보 +, 반대 방향 -.
+// W = 1.5 는 proximity (~4.5) 보다 작아 dominant 안 되지만, 비슷한 점수의
+// 후보들 사이에서 방향 일관성 결정자로 작용. 너무 크면 (3+) 막힌 길도 무시하고
+// 진행 → 너무 작으면 (0.5) 영향 없음. 1.5 = 인터레스트(0.5) 의 3배.
+const W_DIRECTION = 1.5;
+// 평균 방향 계산에 사용하는 직전 노드 수. K=3 = 약 2-3 hop 의 추세.
+// K=2 면 지그재그에 너무 민감, K=5+ 면 오래된 방향에 갇힘.
+const DIRECTION_K = 3;
+
 // EXIT 노드 진입 조건 — 피로 3시간 스케일 + 60~90분 평균 관람 기준으로 맞춤
 // exported: SimEngine 의 post-hoc 트리거 추론(`inferExitTrigger`) 에서 사용. 변경 시 동기 유지.
 //
@@ -234,6 +245,41 @@ export class WaypointNavigator {
     const RECENT_K = 5;
     const recentLog = visitor.pathLog.slice(-RECENT_K);
     const recentNodeIds = new Set(recentLog.map(e => e.nodeId as string));
+
+    // Direction memory: 직전 DIRECTION_K hop 의 평균 진행 방향.
+    // pathLog 에 nodeId 만 있으니 nodeMap 으로 위치 찾아 변위 누적.
+    // - hop 수 < 2 이면 방향 미정 (visitor 가 막 spawn or 처음 노드 도달).
+    //   이 경우 dirX=dirY=0 → scoreNode 의 direction term = 0 → 영향 없음.
+    // - 길이가 0 이거나 norm 이 너무 작으면 (jitter) 방향 정의 안 함 (false).
+    let dirX = 0, dirY = 0, hasDir = false;
+    {
+      const tail = visitor.pathLog.slice(-DIRECTION_K);
+      // nodeMap 으로 좌표 sequence 만든 후 변위 합산
+      const positions: { x: number; y: number }[] = [];
+      for (const entry of tail) {
+        const n = this.nodeMap.get(entry.nodeId as string);
+        if (n) positions.push(n.position);
+      }
+      // 현재 노드도 include (가장 최근 위치)
+      const cur = this.nodeMap.get(currentNodeId as string);
+      if (cur && (positions.length === 0 || positions[positions.length - 1] !== cur.position)) {
+        positions.push(cur.position);
+      }
+      if (positions.length >= 2) {
+        // start → end 변위 (단순 평균. 더 정밀하려면 hop 별 normalize 후 합)
+        const start = positions[0];
+        const end = positions[positions.length - 1];
+        const vx = end.x - start.x;
+        const vy = end.y - start.y;
+        const norm = Math.sqrt(vx * vx + vy * vy);
+        if (norm > 1) {  // 1px 미만은 정지/지그재그로 간주
+          dirX = vx / norm;
+          dirY = vy / norm;
+          hasDir = true;
+        }
+      }
+    }
+
     const visitedShaftIds = new Set<string>();
     for (const entry of visitor.pathLog) {
       const n = this.nodeMap.get(entry.nodeId as string);
@@ -339,7 +385,7 @@ export class WaypointNavigator {
       // EXIT 노드: 조건 미충족 시 후보에서 제외
       if (candidate.type === 'exit' && !canExit) continue;
 
-      let score = this.scoreNode(visitor, candidate, edge, currentNodeId, visitedNodeIds, recentNodeIds, crowdMap);
+      let score = this.scoreNode(visitor, candidate, edge, currentNodeId, visitedNodeIds, recentNodeIds, crowdMap, hasDir ? { x: dirX, y: dirY } : null);
 
       // Zone overcrowding penalty — 목적지 zone이 capacity 초과 근처면 강하게 감점
       if (candidate.zoneId) {
@@ -496,6 +542,7 @@ export class WaypointNavigator {
     visitedNodeIds: Set<string>,
     recentNodeIds: Set<string>,
     crowdMap: ReadonlyMap<string, number>,
+    direction: { x: number; y: number } | null,
   ): number {
     // 방문 패널티 — 이미 방문한 노드는 점수 대폭 감소
     // HUB/ENTRY/BEND는 교차로이므로 long-term visited 면제
@@ -545,7 +592,21 @@ export class WaypointNavigator {
     // 5. Edge passWeight 보정
     const edgeBonus = edge.passWeight;
 
-    return (proximity + interest) * attrMul - density + edgeBonus;
+    // 6. Direction memory — visitor 의 누적 진행 방향과 후보 방향의 dot product.
+    // 같은 방향이면 +, 반대면 -. 인간의 "한 방향 잡고 도는" 휴리스틱.
+    // direction null = 정의 안 됨 (visitor 막 spawn / 짧은 path / jitter only) → 0.
+    let directionBonus = 0;
+    if (direction) {
+      const cdx = candidate.position.x - currentNode.position.x;
+      const cdy = candidate.position.y - currentNode.position.y;
+      const cnorm = Math.sqrt(cdx * cdx + cdy * cdy);
+      if (cnorm > 1) {
+        const dot = (cdx * direction.x + cdy * direction.y) / cnorm; // ∈ [-1, 1]
+        directionBonus = dot * W_DIRECTION;
+      }
+    }
+
+    return (proximity + interest) * attrMul - density + edgeBonus + directionBonus;
   }
 
   /**
