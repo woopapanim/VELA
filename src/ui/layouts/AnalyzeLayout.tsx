@@ -322,16 +322,22 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
   }, [latestSnapshot, media]);
 
   const entryExitFlow = useMemo(() => {
-    if (!graph) return { entries: [], exits: [], unaccountedExits: 0 };
+    if (!graph) return { entries: [], exits: [], unaccountedExits: 0, totalExited: 0, totalSpawned: 0 };
     const entries = graph.nodes
       .filter((n) => n.type === 'entry')
       .map((n) => ({ name: n.label || 'Entry', count: spawnByNode.get(n.id as string) ?? 0 }));
     const exits = graph.nodes
       .filter((n) => n.type === 'exit')
       .map((n) => ({ name: n.label || 'Exit', count: exitByNode.get(n.id as string) ?? 0 }));
+    // exitNodeTotal = exit gate 통과만 (110 같은 값). totalExited = 모든 deactivation
+    // (cascade, sim-ended, force-exit 포함, 사용자 직관 = 들어와서 어떤 식으로든
+    // 나간 사람). 두 값 다 보여줘야 사용자가 "OUT 110 / 잔류 90" 의 misleading
+    // 안 봄 — totalOut = totalExited 가 mental model 과 일치, 그 차이 = unaccounted
+    // = "강제 종료" 별도 라벨.
     const exitNodeTotal = exits.reduce((s, e) => s + e.count, 0);
     const unaccountedExits = Math.max(0, totalExited - exitNodeTotal);
-    return { entries, exits, unaccountedExits };
+    const totalSpawned = entries.reduce((s, e) => s + e.count, 0);
+    return { entries, exits, unaccountedExits, totalExited, totalSpawned };
   }, [graph, spawnByNode, exitByNode, totalExited]);
 
   const engagementSummary = useMemo(() => {

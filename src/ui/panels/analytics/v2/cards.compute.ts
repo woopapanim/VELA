@@ -307,18 +307,34 @@ export function computeOperationsMetrics(props: CardProps): {
     };
   }
 
+  // 완주율 분리 (사용자 직관 fix):
+  //   - completionRate (snapshot.flowEfficiency) = 70%+ zone visit visitor 비율
+  //     → "전시 완주율" — 의도된 대부분 본 visitor
+  //   - exitRate = totalExited / totalSpawned = 정상 종료율
+  //     → "정상 종료율" — 들어와서 어떤 식으로든 나간 사람 비율
+  //   기존 단일 "완주율" 71% 가 사용자에게 "그럼 29% 어디 갔지?" 의문 유발 →
+  //   두 개로 분리 + 진행 중 active count 별도.
   const completion = snapshot.flowEfficiency.completionRate;
   const completionStatus = evaluateNorm(NORMS.completion_rate, completion);
+  const exitRate = totalSpawned > 0 ? totalExited / totalSpawned : 0;
+  const stillActive = totalSpawned - totalExited;
   const fatigueStatus = evaluateNorm(NORMS.fatigue_mean, fatigueMean);
   const throughput = snapshot.flowEfficiency.throughputPerMinute;
   const avgTimeMin = snapshot.flowEfficiency.averageTotalTimeMs / 60_000;
 
   const metrics: PerspectiveMetric[] = [
     {
-      label: '완주율',
+      // "전시" prefix 로 명시적 — "70%+ zone 본 visitor" 임을 라벨로 신호
+      label: '전시 완주율',
       displayValue: pct(completion),
       norm: NORMS.completion_rate,
       status: completionStatus,
+    },
+    {
+      // 사용자 mental model 의 "들어와서 나간 사람" 비율
+      label: '정상 종료율',
+      displayValue: pct(exitRate),
+      status: 'unknown',
     },
     {
       label: '평균 피로도',
@@ -337,8 +353,12 @@ export function computeOperationsMetrics(props: CardProps): {
       status: 'unknown',
     },
     {
-      label: '입퇴장',
-      displayValue: `${totalSpawned}→${totalExited}`,
+      // 단순화: spawned → exited (진행중) — 모든 deactivation 포함, 사용자 직관과 일치
+      // 이전: '입퇴장' 200→200 (오해 유발). 지금: 입장/퇴장/진행중 명시 분리.
+      label: '입장/퇴장',
+      displayValue: stillActive > 0
+        ? `${totalSpawned} / ${totalExited} (진행중 ${stillActive})`
+        : `${totalSpawned} / ${totalExited}`,
       status: 'unknown',
     },
   ];
