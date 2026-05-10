@@ -231,7 +231,10 @@ export function computeArtworkMetrics(props: CardProps): {
     };
   }
 
-  const skipRate = snapshot.skipRate.globalSkipRate;
+  // 사용자가 "스킵률" 로 직관 기대하는 값 = 시도 중 실제 skip 비율
+  // (approachSkipRate). globalSkipRate 는 visitor 당 평균 skip 횟수로
+  // 100%+ 가능 — 사용자 신뢰 깰 수 있어 default 표시 X.
+  const skipRate = snapshot.skipRate.approachSkipRate;
   const skipStatus = evaluateNorm(NORMS.skip_rate, skipRate);
 
   // 미관람 media 비율 — perMedia 의 totalApproaches=0 인 항목.

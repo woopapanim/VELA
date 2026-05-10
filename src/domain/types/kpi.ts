@@ -85,7 +85,20 @@ export interface ZoneSkipEntry {
 }
 
 export interface SkipRateAnalysis {
+  /**
+   * @deprecated misleading 의미. visitor 한 명 평균 skip 횟수
+   * (totalSkips / totalVisitors). visitor 가 여러 미디어 skip 가능하므로
+   * 100% 넘을 수 있고 사용자가 "스킵률" 로 인식하는 진짜 비율 아님.
+   * 신규 코드는 `approachSkipRate` 사용. label 으로는 "visitor 당 skip 횟수"
+   * 같이 표시해야 misleading 안 함.
+   */
   readonly globalSkipRate: number;
+  /**
+   * 진짜 skip 비율 — totalSkips / totalApproaches.
+   * 미디어 도착 시도 중 실제 skip 한 비율 (0~1). 사용자가 "스킵률" 로
+   * 직관적으로 기대하는 metric. 위험 신호 / 분석 화면 의 default 표시값.
+   */
+  readonly approachSkipRate: number;
   readonly perMedia: readonly MediaSkipEntry[];
   readonly perZone: readonly ZoneSkipEntry[];
 }
