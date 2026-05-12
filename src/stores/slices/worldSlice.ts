@@ -261,10 +261,19 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   shafts: [],
 
   setScenario: (scenario) => {
-    // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
+    // Auto-correct interactionType for legacy files:
+    //  - category=analog → interactionType=analog
+    //  - category=immersive + queue=area (immersive_room, video-wall-like 관람형)
+    //    → interactionType=passive. Legacy code mapped ALL immersive to 'staged',
+    //    which made the per-device migration below incorrectly split a single
+    //    group-viewing room (cap=15) into 15 separate placements. queue=area is
+    //    the signal "다수가 공간 안에서 같은 미디어 시청" (NOT slot/seat-based).
     const interactionCorrected = scenario.media.map((m) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
         return { ...m, interactionType: 'analog' as const };
+      }
+      if (m.category === 'immersive' && m.queueBehavior === 'area' && m.interactionType !== 'passive') {
+        return { ...m, interactionType: 'passive' as const };
       }
       return m;
     });

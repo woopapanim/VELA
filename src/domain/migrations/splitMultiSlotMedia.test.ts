@@ -122,6 +122,23 @@ describe('splitMultiSlotMedia', () => {
     ]);
   });
 
+  it('does NOT split passive media even with cap > 1 (immersive_room cap=15 stays one media)', () => {
+    // After interactionType correction (worldSlice.setScenario reclassifies
+    // immersive+queue=area as 'passive'), the migration must NOT split it.
+    const input = [
+      baseMedia({
+        id: 'm_imm_room' as MediaId,
+        interactionType: 'passive', // post-correction
+        capacity: 15,
+        queueBehavior: 'area',
+      }),
+    ];
+    const r = splitMultiSlotMedia(input);
+    expect(r.migrated).toHaveLength(1);
+    expect(r.migrated[0].capacity).toBe(15);
+    expect(r.splitSourceCount).toBe(0);
+  });
+
   it('preserves all non-capacity fields on splits', () => {
     const original = baseMedia({
       id: 'm_x' as MediaId,

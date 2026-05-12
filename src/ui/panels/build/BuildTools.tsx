@@ -168,8 +168,11 @@ export function BuildTools({ task }: BuildToolsProps = {}) {
     if (!preset) return;
 
     const id = `m_user_${_mediaCounter++}` as MediaId;
-    // Determine interactionType from category
-    const interactionType = preset.category === 'immersive' ? 'staged' as const
+    // Determine interactionType — for immersive, queueBehavior distinguishes:
+    //   - `area` (e.g., immersive_room, cap=15) = 공간 시청 → passive (관람형)
+    //   - `linear` (e.g., vr_ar_station cap=1, simulator_4d cap=2 좌석) = 슬롯/좌석 → staged
+    const interactionType = preset.category === 'immersive'
+        ? (preset.queueBehavior === 'area' ? 'passive' as const : 'staged' as const)
       : preset.category === 'analog' ? 'analog' as const
       : preset.isInteractive ? 'active' as const
       : 'passive' as const;
