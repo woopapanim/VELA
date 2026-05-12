@@ -2886,12 +2886,30 @@ export class SimulationEngine {
         candidates.sort((a, b) => a.distSq - b.distSq);
         return candidates[0].pos;
       }
-      // Exhausted viewing slots → queue ring (larger margin) pass
-      for (let i = 0; i < softCap; i++) {
-        const queuePos = this.getAnalogSlotWithCap(m, i, softCap, 24);
-        if (isFree(queuePos)) return queuePos;
+      // Two-ring queue overflow: first inner ring (margin 24), then outer ring
+      // (margin 48). 2026-05-12 (PR follow-up): after per-device migration shifted
+      // pressure to analog, single ring (~softCap positions) was insufficient
+      // under 2× input flow — null returns caused MOVING-target=null → stuck.
+      const ringsRetry: Vector2D[] = [];
+      for (const margin of [24, 48]) {
+        for (let i = 0; i < softCap; i++) {
+          const queuePos = this.getAnalogSlotWithCap(m, i, softCap, margin);
+          if (isFree(queuePos)) ringsRetry.push(queuePos);
+        }
+        if (ringsRetry.length > 0) {
+          // Pick nearest queue spot to agent (consistent with viewing-slot pick).
+          ringsRetry.sort((a, b) => {
+            const dxa = a.x - agentPos.x, dya = a.y - agentPos.y;
+            const dxb = b.x - agentPos.x, dyb = b.y - agentPos.y;
+            return (dxa * dxa + dya * dya) - (dxb * dxb + dyb * dyb);
+          });
+          return ringsRetry[0];
+        }
       }
-      return null;
+      // Fully saturated even at outer ring — return outer slot 0 (still reachable
+      // via outer ring, unlike returning null which set targetPosition=null and
+      // caused steering wander → 30s MOVING timeout → stuck).
+      return this.getAnalogSlotWithCap(m, 0, softCap, 48);
     }
 
     // Directional (or no agent context) → first free slot in perimeter order
@@ -2899,12 +2917,15 @@ export class SimulationEngine {
       const slotPos = this.getAnalogSlotWithCap(m, i, softCap);
       if (isFree(slotPos)) return slotPos;
     }
-    // Exhausted viewing slots → queue ring (larger margin) pass
-    for (let i = 0; i < softCap; i++) {
-      const queuePos = this.getAnalogSlotWithCap(m, i, softCap, 24);
-      if (isFree(queuePos)) return queuePos;
+    // Two-ring queue overflow: inner (margin 24) then outer (margin 48).
+    for (const margin of [24, 48]) {
+      for (let i = 0; i < softCap; i++) {
+        const queuePos = this.getAnalogSlotWithCap(m, i, softCap, margin);
+        if (isFree(queuePos)) return queuePos;
+      }
     }
-    return null;
+    // Fully saturated — outer ring slot 0 as last reachable position.
+    return this.getAnalogSlotWithCap(m, 0, softCap, 48);
   }
 
   /** Cap-parameterized analog slot (softCap 기반 분산).
