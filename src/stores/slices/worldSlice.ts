@@ -4,6 +4,7 @@ import type {
   WaypointNode, WaypointEdge, ElevatorShaft, FloorId, ZoneId, Gate,
 } from '@/domain';
 import { zonesOverlap } from '@/domain/zoneGeometry';
+import { splitMultiSlotMedia } from '@/domain/migrations/splitMultiSlotMedia';
 import type { UndoSlice } from './undoSlice';
 
 // Cross-slice access — worldSlice's StateCreator is typed against itself only,
@@ -261,12 +262,27 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
 
   setScenario: (scenario) => {
     // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
-    const correctedMedia = scenario.media.map((m) => {
+    const interactionCorrected = scenario.media.map((m) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
         return { ...m, interactionType: 'analog' as const };
       }
       return m;
     });
+
+    // Per-device media model migration (2026-05-12): split active/staged cap > 1
+    // into N cap=1 media. analog/passive cap (area capacity) preserved unchanged.
+    // See src/domain/migrations/splitMultiSlotMedia.ts for rationale.
+    const split = splitMultiSlotMedia(interactionCorrected);
+    const correctedMedia = split.migrated;
+    if (split.addedCount > 0 && typeof window !== 'undefined') {
+      // One-shot console notice (Toast UI is mounted later; queue via setTimeout
+      // so React can render before the message is emitted).
+      setTimeout(() => {
+        console.info(
+          `[migration] Split ${split.splitSourceCount} multi-slot active/staged media into ${split.splitSourceCount + split.addedCount} per-device placements. Drag in the editor to rearrange.`,
+        );
+      }, 0);
+    }
 
     // Legacy migration: if the scenario has zones but no floors, or zone floorIds
     // don't match any floor, synthesize a default floor so per-floor systems
