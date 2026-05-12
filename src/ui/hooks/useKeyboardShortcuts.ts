@@ -2,12 +2,14 @@ import { useEffect } from 'react';
 import { useStore } from '@/stores';
 import type { OverlayMode } from '@/stores';
 import type { LayoutSnapshot } from '@/stores/slices/undoSlice';
-import type { ZoneConfig, Gate } from '@/domain';
+import type { ZoneConfig, Gate, MediaPlacement, MediaId } from '@/domain';
+import { MEDIA_SCALE } from '@/domain';
 import { pinCurrentMoment } from '@/analytics';
 
 declare global {
   interface Window {
     __vela_clipboard_zone?: ZoneConfig;
+    __vela_clipboard_media?: MediaPlacement;
   }
 }
 
@@ -133,21 +135,49 @@ export function useKeyboardShortcuts() {
         }
         case 'c':
         case 'C': {
-          // Copy selected zone (Cmd/Ctrl+C)
-          if ((e.metaKey || e.ctrlKey) && store.selectedZoneId && store.phase === 'idle') {
-            e.preventDefault();
-            const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
-            if (zone) {
-              window.__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
+          // Copy selected media OR zone (Cmd/Ctrl+C). Media takes priority when
+          // both are selected. Sets only one clipboard slot so paste is unambiguous.
+          if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
+            if (store.selectedMediaId) {
+              e.preventDefault();
+              const m = store.media.find((mm) => (mm.id as string) === store.selectedMediaId);
+              if (m) {
+                window.__vela_clipboard_media = JSON.parse(JSON.stringify(m));
+                window.__vela_clipboard_zone = undefined;
+              }
+            } else if (store.selectedZoneId) {
+              e.preventDefault();
+              const zone = store.zones.find((z) => (z.id as string) === store.selectedZoneId);
+              if (zone) {
+                window.__vela_clipboard_zone = JSON.parse(JSON.stringify(zone));
+                window.__vela_clipboard_media = undefined;
+              }
             }
           }
           break;
         }
         case 'v':
         case 'V': {
-          // Paste zone (Cmd/Ctrl+V)
+          // Paste from clipboard (Cmd/Ctrl+V). Whichever was last copied — media
+          // or zone — is pasted at horizontal offset from original.
           if ((e.metaKey || e.ctrlKey) && store.phase === 'idle') {
             e.preventDefault();
+            const clipMedia = window.__vela_clipboard_media;
+            if (clipMedia) {
+              // Pick unique `_dupN` id (matches MediaEditor Duplicate button).
+              let n = 1;
+              while (store.media.some((mm) => (mm.id as string) === `${clipMedia.id as string}_dup${n}`)) n++;
+              const newId = `${clipMedia.id as string}_dup${n}` as MediaId;
+              const offsetPx = Math.max(20, clipMedia.size.width * MEDIA_SCALE * 1.2);
+              const pasted: MediaPlacement = {
+                ...clipMedia,
+                id: newId,
+                position: { x: clipMedia.position.x + offsetPx, y: clipMedia.position.y },
+              };
+              store.addMedia(pasted);
+              store.selectMedia(newId);
+              break;
+            }
             const clipZone = window.__vela_clipboard_zone;
             if (clipZone) {
               // suffix 로 random — 빠른 연속 paste 에서 Date.now() 가 동일 ms
