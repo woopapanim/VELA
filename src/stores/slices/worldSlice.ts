@@ -4,6 +4,7 @@ import type {
   WaypointNode, WaypointEdge, ElevatorShaft, FloorId, ZoneId, Gate,
 } from '@/domain';
 import { zonesOverlap } from '@/domain/zoneGeometry';
+import { splitMultiSlotMedia } from '@/domain/migrations/splitMultiSlotMedia';
 import type { UndoSlice } from './undoSlice';
 
 // Cross-slice access — worldSlice's StateCreator is typed against itself only,
@@ -260,13 +261,37 @@ export const createWorldSlice: StateCreator<WorldSlice, [], [], WorldSlice> = (s
   shafts: [],
 
   setScenario: (scenario) => {
-    // Auto-correct interactionType for legacy files (category=analog should be interactionType=analog)
-    const correctedMedia = scenario.media.map((m) => {
+    // Auto-correct interactionType for legacy files:
+    //  - category=analog → interactionType=analog
+    //  - category=immersive + queue=area (immersive_room, video-wall-like 관람형)
+    //    → interactionType=passive. Legacy code mapped ALL immersive to 'staged',
+    //    which made the per-device migration below incorrectly split a single
+    //    group-viewing room (cap=15) into 15 separate placements. queue=area is
+    //    the signal "다수가 공간 안에서 같은 미디어 시청" (NOT slot/seat-based).
+    const interactionCorrected = scenario.media.map((m) => {
       if (m.category === 'analog' && m.interactionType !== 'analog') {
         return { ...m, interactionType: 'analog' as const };
       }
+      if (m.category === 'immersive' && m.queueBehavior === 'area' && m.interactionType !== 'passive') {
+        return { ...m, interactionType: 'passive' as const };
+      }
       return m;
     });
+
+    // Per-device media model migration (2026-05-12): split active/staged cap > 1
+    // into N cap=1 media. analog/passive cap (area capacity) preserved unchanged.
+    // See src/domain/migrations/splitMultiSlotMedia.ts for rationale.
+    const split = splitMultiSlotMedia(interactionCorrected);
+    const correctedMedia = split.migrated;
+    if (split.addedCount > 0 && typeof window !== 'undefined') {
+      // One-shot console notice (Toast UI is mounted later; queue via setTimeout
+      // so React can render before the message is emitted).
+      setTimeout(() => {
+        console.info(
+          `[migration] Split ${split.splitSourceCount} multi-slot active/staged media into ${split.splitSourceCount + split.addedCount} per-device placements. Drag in the editor to rearrange.`,
+        );
+      }, 0);
+    }
 
     // Legacy migration: if the scenario has zones but no floors, or zone floorIds
     // don't match any floor, synthesize a default floor so per-floor systems

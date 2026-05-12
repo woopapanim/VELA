@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
-import type { Vector2D, MediaPlacement } from '@/domain';
+import type { Vector2D, MediaPlacement, MediaId } from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import { useT } from '@/i18n';
 
@@ -18,6 +18,8 @@ export function MediaEditor() {
   const media = useStore((s) => s.media);
   const updateMedia = useStore((s) => s.updateMedia);
   const removeMedia = useStore((s) => s.removeMedia);
+  const addMedia = useStore((s) => s.addMedia);
+  const selectMedia = useStore((s) => s.selectMedia);
   const phase = useStore((s) => s.phase);
   const mediaPolygonEditMode = useStore((s) => s.mediaPolygonEditMode);
   const setMediaPolygonEditMode = useStore((s) => s.setMediaPolygonEditMode);
@@ -33,6 +35,36 @@ export function MediaEditor() {
     },
     [selectedMediaId, updateMedia, isLocked],
   );
+
+  // Interaction type change: active/staged forces cap=1 (per-device model).
+  // analog/passive preserves cap (area capacity is meaningful for them).
+  const handleInteractionTypeChange = useCallback((next: 'passive' | 'active' | 'staged' | 'analog') => {
+    if (!selectedMediaId || isLocked) return;
+    const isDevice = next === 'active' || next === 'staged';
+    const patch: Partial<MediaPlacement> = isDevice
+      ? { interactionType: next, capacity: 1 }
+      : { interactionType: next };
+    updateMedia(selectedMediaId, patch);
+  }, [selectedMediaId, updateMedia, isLocked]);
+
+  // Duplicate the current media at horizontal offset — convenience for placing
+  // N×cap=1 devices (3 키오스크 = 3 separate media). Position offset = 1.2×
+  // media width in pixels, with 20px floor for tiny media.
+  const handleDuplicate = useCallback(() => {
+    if (!m || isLocked) return;
+    const offsetPx = Math.max(20, m.size.width * MEDIA_SCALE * 1.2);
+    const baseId = m.id as string;
+    // Find a unique suffix `_dup1`, `_dup2`, ... that's not already taken.
+    let n = 1;
+    while (media.some((mm) => (mm.id as string) === `${baseId}_dup${n}`)) n++;
+    const newId = `${baseId}_dup${n}` as MediaId;
+    addMedia({
+      ...m,
+      id: newId,
+      position: { x: m.position.x + offsetPx, y: m.position.y },
+    });
+    selectMedia(newId);
+  }, [m, isLocked, media, addMedia, selectMedia]);
 
   if (!m) return null;
 
@@ -53,12 +85,21 @@ export function MediaEditor() {
           <h2 className="panel-title">Edit Exhibit</h2>
         </div>
         {!isLocked && (
-          <button
-            onClick={() => removeMedia(selectedMediaId!)}
-            className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handleDuplicate}
+              title="Duplicate at offset (use for N-device exhibits — e.g., 6 kiosks = duplicate 5 times)"
+              className="p-1 rounded hover:bg-primary/15 text-muted-foreground hover:text-primary"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => removeMedia(selectedMediaId!)}
+              className="p-1 rounded hover:bg-[var(--status-danger)]/20 text-muted-foreground hover:text-[var(--status-danger)]"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -191,7 +232,7 @@ export function MediaEditor() {
         </div>
         <select
           value={interactionType}
-          onChange={(e) => handleUpdate('interactionType', e.target.value as 'passive' | 'active' | 'staged' | 'analog')}
+          onChange={(e) => handleInteractionTypeChange(e.target.value as 'passive' | 'active' | 'staged' | 'analog')}
           disabled={isLocked}
           className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
         >
@@ -235,32 +276,47 @@ export function MediaEditor() {
         </div>
       )}
 
-      {/* Capacity (not for analog) */}
+      {/* Capacity:
+       *  - analog / passive: area-capacity (몇 명이 동시에 면적 안에서 볼 수 있나)
+       *  - active / staged: per-device model — cap 은 1 강제. 디바이스 N대는
+       *    "Duplicate" 버튼으로 미디어 N개 배치. (예: 키오스크 6대 = 미디어 6개) */}
       {interactionType !== 'analog' && (
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <div className="flex items-center gap-1">
-            <label className="panel-label">Capacity</label>
-            <InfoTooltip text={t('tooltip.media.capacity')} />
+        interactionType === 'active' || interactionType === 'staged' ? (
+          <div>
+            <div className="flex items-center gap-1">
+              <label className="panel-label">Capacity</label>
+              <InfoTooltip text={t('tooltip.media.capacity')} />
+            </div>
+            <div className="mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary/40 border border-border text-muted-foreground">
+              1 <span className="ml-1 opacity-70">(per-device — use Duplicate for multiple)</span>
+            </div>
           </div>
-          <input type="number" min="1" max="200"
-            value={m.capacity}
-            onChange={(e) => handleUpdate('capacity', parseInt(e.target.value) || 1)}
-            disabled={isLocked}
-            className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
-          />
-        </div>
-        <div>
-          <label className="panel-label">Auto Cap</label>
-          <div className="flex items-center gap-1 mt-0.5">
-            <span className="text-[10px] font-data text-muted-foreground">{autoCapacity}</span>
-            {!isLocked && (
-              <button onClick={() => handleUpdate('capacity', autoCapacity)}
-                className="text-[8px] text-primary hover:underline">Apply</button>
-            )}
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="flex items-center gap-1">
+                <label className="panel-label">Capacity</label>
+                <InfoTooltip text={t('tooltip.media.capacity')} />
+              </div>
+              <input type="number" min="1" max="200"
+                value={m.capacity}
+                onChange={(e) => handleUpdate('capacity', parseInt(e.target.value) || 1)}
+                disabled={isLocked}
+                className="w-full mt-0.5 px-2 py-1 text-[11px] rounded-lg bg-secondary border border-border disabled:opacity-50"
+              />
+            </div>
+            <div>
+              <label className="panel-label">Auto Cap</label>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span className="text-[10px] font-data text-muted-foreground">{autoCapacity}</span>
+                {!isLocked && (
+                  <button onClick={() => handleUpdate('capacity', autoCapacity)}
+                    className="text-[8px] text-primary hover:underline">Apply</button>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )
       )}
 
       {/* Engagement Time */}

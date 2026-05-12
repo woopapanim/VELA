@@ -176,12 +176,19 @@ export function CanvasContextMenu({ menu, onClose }: {
   const isIdle = phase === 'idle';
   const zone = menu.zoneId ? zones.find((z) => (z.id as string) === menu.zoneId) : null;
   const flipX = menu.x > window.innerWidth - 320;
-  // Estimated main menu height: ~30px per item × ~10 items + padding
-  const estMainH = 320;
+  // Estimated main menu height — conservative side. Actual menu can hit ~400px
+  // when zone is selected + isIdle (zone label + delete + Add header + 3 submenu
+  // items + Edge + 2 overlay toggles + dividers). Underestimating skips flip
+  // when needed → bottom items get clipped.
+  const estMainH = 400;
   const flipY = menu.y > window.innerHeight - estMainH - 16;
-  // Estimated submenu height (largest: Media with 4 categories + headers ≈ 380px)
-  const estSubH = 380;
+  // Estimated submenu height (largest: Media with 4 categories + headers ≈ 420px)
+  const estSubH = 420;
   const flipSubY = menu.y > window.innerHeight - estSubH - 16;
+
+  // Fallback for residual overflow (e.g., screen smaller than estimate, or future
+  // menu growth): cap visible height to remaining viewport space + scroll.
+  const verticalSpace = flipY ? menu.y - 16 : window.innerHeight - menu.y - 16;
 
   // Check if right-click position is inside any zone (for media placement)
   const insideZone = zones.find((z) => {
@@ -197,6 +204,8 @@ export function CanvasContextMenu({ menu, onClose }: {
         ...(flipY
           ? { bottom: window.innerHeight - menu.y }
           : { top: menu.y }),
+        maxHeight: verticalSpace,
+        overflowY: 'auto',
       }}
       onClick={(e) => e.stopPropagation()}
     >
