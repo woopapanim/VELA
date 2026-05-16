@@ -40,7 +40,7 @@ import type {
   ElevatorShaft,
   DensityGrid,
 } from '@/domain';
-import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT, REST_ZONE_DEFAULT_DWELL_MS } from '@/domain';
+import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT, REST_ZONE_DEFAULT_DWELL_MS, effectiveMediaCapacity } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
@@ -1921,7 +1921,7 @@ export class SimulationEngine {
         if (intType === 'staged') {
           // ── STAGED: session-based entry ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (this.isStagedSessionOpen(mid) && viewerCount < media.capacity) {
+          if (this.isStagedSessionOpen(mid) && viewerCount < this.effectiveMediaCapacity(media)) {
             // Session running + capacity available → enter
             this._tickMediaViewers.set(mid, viewerCount + 1);
             this.recordWatchStart(mid, v.id as string);
@@ -1996,7 +1996,7 @@ export class SimulationEngine {
           // ── PASSIVE: arrive at targetPosition (= viewpoint) → watch at current position ──
           // targetPosition 불변 조건: 에이전트는 이미 정확한 viewpoint 에 도착해 있음.
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= media.capacity) {
+          if (viewerCount >= this.effectiveMediaCapacity(media)) {
             // Over cap — enter brief queue, patience decides.
             if (!v.waitStartedAt) {
               this.recordWaitStart(mid);
@@ -2033,6 +2033,7 @@ export class SimulationEngine {
         } else if (intType === 'active') {
           // ── ACTIVE: group reserves slots together, or queue as group ──
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
+          const cap = this.effectiveMediaCapacity(media);
 
           // Calculate how many slots this agent needs (self + group members)
           let groupSize = 1;
@@ -2041,7 +2042,7 @@ export class SimulationEngine {
             if (group) groupSize = group.memberIds.length;
           }
 
-          if (viewerCount + groupSize > media.capacity) {
+          if (viewerCount + groupSize > cap) {
             // Not enough slots — enter queue. Patience check runs next tick via WAITING handler (lines ~575-617).
             if (!v.waitStartedAt) {
               this.recordWaitStart(mid);
@@ -2451,18 +2452,12 @@ export class SimulationEngine {
   }
 
   /** Effective capacity for hard-cap selection filtering.
-   *  Matches the cap used at WATCHING entry in stepBehavior:
-   *  - analog: soft cap derived from perimeter (fallback to declared capacity)
-   *  - passive/active/staged: declared capacity
-   */
+   *  Thin wrapper around the pure `effectiveMediaCapacity` from
+   *  `@/domain/mediaCapacity`. Kept as a method so existing call sites
+   *  (`this.effectiveMediaCapacity(m)`) stay unchanged; renderer / editor
+   *  import the pure function directly. */
   private effectiveMediaCapacity(m: MediaPlacement): number {
-    const intType = m.interactionType ?? 'passive';
-    if (intType === 'analog') {
-      const pwM = m.size.width, phM = m.size.height;
-      const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
-      return Math.max(m.capacity || 0, autoCap);
-    }
-    return Math.max(1, m.capacity || 1);
+    return effectiveMediaCapacity(m);
   }
 
   /** 현재 시점에 이 방문자가 해당 미디어에 대해 스킵 쿨다운 중인지 */
@@ -2846,9 +2841,9 @@ export class SimulationEngine {
    * 다른 MOVING/WATCHING 에이전트의 targetPosition/position 과 충돌하지 않는 slot 선택.
    */
   private pickAnalogSlot(m: MediaPlacement, agentPos?: Vector2D): Vector2D | null {
-    const pwM = m.size.width, phM = m.size.height;
-    const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
-    const softCap = Math.max(m.capacity || 0, autoCap);
+    // Use effectiveMediaCapacity as single source (area-derived for analog).
+    // m.capacity is deprecated for analog/passive (2026-05-13).
+    const softCap = this.effectiveMediaCapacity(m);
     const mid = m.id as string;
 
     // Collect occupied positions from other visitors targeting/watching this media

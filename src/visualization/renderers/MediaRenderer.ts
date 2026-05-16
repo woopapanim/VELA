@@ -1,5 +1,5 @@
 import type { MediaPlacement, Visitor } from '@/domain';
-import { VISITOR_ACTION, MEDIA_SCALE } from '@/domain';
+import { VISITOR_ACTION, MEDIA_SCALE, effectiveMediaCapacity } from '@/domain';
 
 const CATEGORY_BORDER_COLORS: Record<string, string> = {
   analog: '#a78bfa',
@@ -77,7 +77,10 @@ export function renderMedia(
     }
 
     // ── Media body (filled rect) ──
-    const ratio = m.capacity > 0 ? watchCount / m.capacity : 0;
+    // Use effectiveMediaCapacity (area-derived for analog/passive, 1 for active/staged)
+    // — single source of truth shared with the engine.
+    const effCap = effectiveMediaCapacity(m);
+    const ratio = effCap > 0 ? watchCount / effCap : 0;
     let bodyColor: string;
     if (isSelected) bodyColor = isDark ? 'rgba(59,130,246,0.35)' : 'rgba(59,130,246,0.25)';
     else if (ratio >= 1) bodyColor = isDark ? 'rgba(239,68,68,0.2)' : 'rgba(239,68,68,0.15)';
@@ -263,7 +266,7 @@ export function renderMedia(
       ctx.fillStyle = ratio >= 1 ? '#ef4444' : ratio >= 0.7 ? '#fbbf24' : (isDark ? '#4ade80' : '#22c55e');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(`${watchCount}/${m.capacity}`, position.x, position.y + ph / 2 + 3);
+      ctx.fillText(`${watchCount}/${effCap}`, position.x, position.y + ph / 2 + 3);
     }
 
     // Resize handles / vertex handles (selected only)
