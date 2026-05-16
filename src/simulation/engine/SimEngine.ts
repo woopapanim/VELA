@@ -2985,6 +2985,43 @@ export class SimulationEngine {
     return this.clampToMediaZone(m, pt);
   }
 
+  /**
+   * Area-based arrival check (2026-05-13). Returns true if `p` is inside the
+   * media's viewing area — a generous bounding region around (or in front of)
+   * the media. Used by `stepSteering` as a fallback to the strict 12px slot
+   * arrival, so visitors that get pushed off their exact slot by collision
+   * still trigger `onArrival` once they're "near enough to view".
+   *
+   * Per type:
+   *  - analog  : circle around center, max(pw,ph)/2 + 40px (둘러보기 ring)
+   *  - passive : circle around center, max(pw,ph)/2 + viewDistance + 30px (앞 시청 영역)
+   *  - active / staged (cap=1 after PR #41): media hitbox + 18px buffer (체험 위치)
+   *
+   * Tuning rationale: 40/30/18 are generous enough to absorb separation-induced
+   * displacement (usually 6-20px) but tight enough that visitors won't trip
+   * arrival on adjacent unrelated media (typical zone media spacing > 60px).
+   */
+  private isWithinViewerArea(m: MediaPlacement, p: Vector2D): boolean {
+    const pw = m.size.width * MEDIA_SCALE;
+    const ph = m.size.height * MEDIA_SCALE;
+    const intType = m.interactionType ?? 'passive';
+    const dx = p.x - m.position.x;
+    const dy = p.y - m.position.y;
+
+    if (intType === 'passive') {
+      const viewDistPx = (m.viewDistance ?? 2.0) * MEDIA_SCALE;
+      const r = Math.max(pw, ph) / 2 + viewDistPx + 30;
+      return (dx * dx + dy * dy) < r * r;
+    }
+    if (intType === 'analog') {
+      const r = Math.max(pw, ph) / 2 + 40;
+      return (dx * dx + dy * dy) < r * r;
+    }
+    // active / staged: visitor inside media bounds + 18px buffer
+    const buffer = 18;
+    return Math.abs(dx) < pw / 2 + buffer && Math.abs(dy) < ph / 2 + buffer;
+  }
+
   // Removed dead `getAnalogSlotPosition` helper — superseded by getAnalogSlotWithCap
   // (above), which parameterizes the cap and applies softCap-aware spreading.
 
@@ -3896,7 +3933,6 @@ export class SimulationEngine {
         outputs.push({ output: { linear: { x: desired.x - v.velocity.x, y: desired.y - v.velocity.y }, angular: 0 }, weight: 1.0 });
       } else {
         // Kinematic seek: velocity 를 desired 로 직접 설정 (관성 없음, 즉시 방향 전환).
-        // 미디어 도착 판정은 유지 (정확한 정지).
         const isMediaTarget = !!v.targetMediaId && !v.targetNodeId && !!v.targetPosition;
         const effectiveArrival = isMediaTarget ? 12 : physics.arrivalRadius;
         if (distSq < effectiveArrival * effectiveArrival) {
@@ -3905,6 +3941,17 @@ export class SimulationEngine {
           }
           // node/gate: arrival 만 마크, velocity 유지 (proximity snap 이 처리)
           return { ...v, steering: { ...v.steering, isArrived: true } };
+        }
+        // Area-based arrival fallback (2026-05-13): slot 정확 위치 (12px) 못 가도
+        // 미디어의 viewer area 안에 들어왔으면 도착 처리. 이전엔 visitor가 slot 0
+        // 으로 fallback 됐을 때 점유 중인 위치라 collision 으로 영원히 못 다가가
+        // 30s MOVING timeout → physics-stuck 누적되던 패턴 제거. 큐는 onArrival
+        // → WAITING → patience-skip 경로가 그대로 처리.
+        if (isMediaTarget && v.targetMediaId) {
+          const targetMedia = this.world.media.find(m => m.id === v.targetMediaId);
+          if (targetMedia && this.isWithinViewerArea(targetMedia, v.position)) {
+            return { ...v, steering: { ...v.steering, isArrived: true, currentSteering: { linear: { x: 0, y: 0 }, angular: 0 } }, velocity: { x: 0, y: 0 } };
+          }
         }
         const dist = Math.sqrt(distSq);
         let dirX = dx / dist;
