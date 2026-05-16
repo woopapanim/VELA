@@ -1952,35 +1952,14 @@ export class SimulationEngine {
         }
 
         if (intType === 'analog') {
-          // ── ANALOG: close-up viewing with soft capacity ──
-          // Soft cap: auto-derived from physical viewing area (perimeter-based)
-          // 4 sides × media size / 0.8 m² per person (or explicit capacity if set)
-          const softCap = this.effectiveMediaCapacity(media);
+          // ── ANALOG: close-up viewing, no hard cap reject ──
+          // Phase 1 (2026-05-13): 관람형 (analog/passive) 은 hard cap 으로 visitor
+          // 거부 안 함. 현실에서 디오라마 만석이라고 못 들어가는 게 아니라 비좁아도
+          // 둘러볼 수 있음. effectiveMediaCapacity 는 Phase 2 에서 comfort threshold
+          // 로 재정의 (밀도 기반 engagement 단축 + skip 기록 — 이번 PR 범위 밖).
+          // 효과: WAITING 진입 안 됨 → patience-skip 안 함 → MOVING 30s timeout 도
+          // 발화 안 함 (slot 충돌 패턴 자체 해소). stuck 카운트 대폭 감소 예상.
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= softCap) {
-            // Over soft cap — enter brief queue, patience decides.
-            if (!v.waitStartedAt) {
-              this.recordWaitStart(mid);
-              return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
-            }
-            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
-            const { skipThreshold } = this.world.config;
-            const catSkipMod = getCategorySkipMod(v.category);
-            // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
-            const isMust = !!media.mustVisit;
-            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
-              this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
-              this.recordSkipCooldown(v.id as string, mid);
-              return this.assignNextTarget({
-                ...v,
-                currentAction: VISITOR_ACTION.IDLE,
-                targetMediaId: null,
-                targetPosition: null,
-                waitStartedAt: null,
-              });
-            }
-            return v; // keep waiting
-          }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
@@ -1993,33 +1972,10 @@ export class SimulationEngine {
             velocity: { x: 0, y: 0 },
           };
         } else if (intType === 'passive') {
-          // ── PASSIVE: arrive at targetPosition (= viewpoint) → watch at current position ──
-          // targetPosition 불변 조건: 에이전트는 이미 정확한 viewpoint 에 도착해 있음.
+          // ── PASSIVE: front viewing, no hard cap reject ──
+          // Phase 1 (2026-05-13): 같은 맥락 — 관람형은 만석으로 들어가지 못하는 게
+          // 아니라 시야가 가려질 뿐. 밀도 기반 engagement 단축 + skip 은 Phase 2.
           const viewerCount = this._tickMediaViewers.get(mid) ?? 0;
-          if (viewerCount >= media.capacity) {
-            // Over cap — enter brief queue, patience decides.
-            if (!v.waitStartedAt) {
-              this.recordWaitStart(mid);
-              return { ...v, currentAction: VISITOR_ACTION.WAITING, waitStartedAt: this.state.timeState.elapsed };
-            }
-            const waitMs = this.state.timeState.elapsed - v.waitStartedAt;
-            const { skipThreshold } = this.world.config;
-            const catSkipMod = getCategorySkipMod(v.category);
-            // mustVisit 대상은 대기 skip 금지 — 히어로 전시는 끝까지 기다림 (Tier 2).
-            const isMust = !!media.mustVisit;
-            if (!isMust && shouldSkip(waitMs, v.profile.patience * catSkipMod, media.attractiveness, skipThreshold.skipMultiplier, skipThreshold.maxWaitTimeMs, media.avgEngagementTimeMs)) {
-              this.recordSkip(mid, waitMs, v.currentZoneId as string | null);
-              this.recordSkipCooldown(v.id as string, mid);
-              return this.assignNextTarget({
-                ...v,
-                currentAction: VISITOR_ACTION.IDLE,
-                targetMediaId: null,
-                targetPosition: null,
-                waitStartedAt: null,
-              });
-            }
-            return v; // keep waiting
-          }
           this._tickMediaViewers.set(mid, viewerCount + 1);
           this.recordWatchStart(mid, v.id as string);
           let dur = computeEngagementDuration(media.avgEngagementTimeMs, v.profile.engagementLevel, v.fatigue, this.rng, { mustVisit: !!media.mustVisit, profile: v.profile.type });
