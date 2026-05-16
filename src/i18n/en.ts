@@ -147,7 +147,7 @@ export const en: Dict = {
   'analyze.engagement.avgZones': 'Avg zones / visitor',
   'analyze.engagement.avgMedia': 'Avg media / visitor',
   'analyze.engagement.avgDwell': 'Avg dwell time',
-  'analyze.engagement.fullCompletion': 'Full-tour rate',
+  'analyze.engagement.fullCompletion': 'Completion (≥70%)',
   'analyze.bento.empty': 'No items',
   'analyze.detail.title': 'Detailed analysis',
   'analyze.detail.hint': 'Deep-dive charts and data per tab',

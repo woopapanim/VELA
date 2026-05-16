@@ -10,6 +10,7 @@ import type {
   VisitorProfileType,
 } from '@/domain';
 import { computeScenarioContentHash } from '@/analytics/scenarioHash';
+import { COMPLETION_ZONE_RATIO } from '@/domain/constants';
 
 const MAX_RUN_RECORDS = 30;
 
@@ -85,7 +86,12 @@ function summarizeEngagement(visitors: readonly Visitor[], zoneCount: number) {
   }
   const sumZones = exited.reduce((s, v) => s + v.visitedZoneIds.length, 0);
   const sumMedia = exited.reduce((s, v) => s + (v.visitedMediaIds?.length ?? 0), 0);
-  const full = exited.filter((v) => v.visitedZoneIds.length >= zoneCount).length;
+  // 2026-05-16: 100% (zoneCount strict) → ≥COMPLETION_ZONE_RATIO (=0.7) 으로
+  // 통일. 모든 "완주율" 표시 surface 가 같은 임계 쓰도록. 운영 perspective
+  // 의 "전시 완주율 (≥70%)" 과 정의 일치. 필드명 fullCompletion 은 stored
+  // RunRecord 호환 위해 유지 (의미는 ≥70% 임을 i18n 라벨로 명시).
+  const completionThreshold = zoneCount > 0 ? Math.max(1, Math.ceil(zoneCount * COMPLETION_ZONE_RATIO)) : 0;
+  const full = exited.filter((v) => v.visitedZoneIds.length >= completionThreshold).length;
   const sumDwellMs = exited.reduce(
     (s, v) => s + Math.max(0, (v.exitedAt ?? 0) - (v.enteredAt ?? 0)),
     0,
@@ -117,7 +123,9 @@ export function summarizeEngagementByProfile(
     if (group.length === 0) continue;
     const sumZones = group.reduce((s, v) => s + v.visitedZoneIds.length, 0);
     const sumMedia = group.reduce((s, v) => s + (v.visitedMediaIds?.length ?? 0), 0);
-    const full = group.filter((v) => v.visitedZoneIds.length >= zoneCount).length;
+    // Same threshold as summarizeEngagement above — unified ≥70% across surfaces.
+    const completionThreshold = zoneCount > 0 ? Math.max(1, Math.ceil(zoneCount * COMPLETION_ZONE_RATIO)) : 0;
+    const full = group.filter((v) => v.visitedZoneIds.length >= completionThreshold).length;
     const sumDwellMs = group.reduce(
       (s, v) => s + Math.max(0, (v.exitedAt ?? 0) - (v.enteredAt ?? 0)),
       0,

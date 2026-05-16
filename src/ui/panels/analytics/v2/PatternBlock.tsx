@@ -1,4 +1,4 @@
-import { Clock, Users, MapPin, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
+import { Clock, MapPin, TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
 import type { TimeSlicePattern, TrendShape, MetricTrend } from '@/analytics/patterns/timeSlices';
 import type { ZoneSlicePattern, ZoneSliceEntry } from '@/analytics/patterns/zoneSlices';
 import type { ProfileEngagement, VisitorProfileType } from '@/domain';
@@ -54,14 +54,6 @@ const SHAPE_TONE: Record<TrendShape, string> = {
   unknown: 'text-muted-foreground/60',
 };
 
-const PROFILE_LABEL: Record<VisitorProfileType, string> = {
-  general: '일반',
-  vip: 'VIP',
-  child: '어린이',
-  elderly: '어르신',
-  disabled: '장애인',
-};
-
 function ShapeIcon({ shape }: { shape: TrendShape }) {
   switch (shape) {
     case 'worsening':
@@ -91,15 +83,14 @@ export function PatternBlock({
   pattern,
   zonePattern,
   engagementByProfile,
-  zoneCount,
-  mediaCount,
   onSelectZone,
   selectedZoneId,
   onSelectSlice,
   selectedSliceIndex,
-  onSelectProfile,
-  selectedProfile,
 }: Props) {
+  // 2026-05-16: 페르소나 분해 패널 hide. 관련 props (zoneCount, mediaCount,
+  // onSelectProfile, selectedProfile) 는 Props interface 에는 남겨둠 — 부모
+  // (AnalyzeLayout) 가 그대로 전달해도 호환 (단지 추출하지 않음).
   const profileEntries = (Object.entries(engagementByProfile) as [VisitorProfileType, ProfileEngagement][])
     .filter(([, e]) => e && e.sampleCount > 0)
     .sort((a, b) => b[1].sampleCount - a[1].sampleCount);
@@ -135,17 +126,12 @@ export function PatternBlock({
           />
         </section>
       )}
-      {hasPersonaData && (
-        <section className={`${cardCls} lg:col-span-2`}>
-          <PersonaSection
-            entries={profileEntries}
-            zoneCount={zoneCount}
-            mediaCount={mediaCount}
-            onSelectProfile={onSelectProfile}
-            selectedProfile={selectedProfile ?? null}
-          />
-        </section>
-      )}
+      {/* 페르소나 분해 패널 — 2026-05-16 사용자 요청으로 hide.
+       *  실무 워크플로 (전시 기획 단계에서 타겟 페르소나 설정 → 결과는 이미
+       *  알고 있는 정보) 라 분석 가치 낮음. PersonaSection 함수와 PersonaBreakdown
+       *  drilldown 인프라는 남겨둠 — 다른 컨텍스트 (운영 보고서, 외부 분석 등) 에서
+       *  재활용 가능. mount 만 제거. 다시 노출하려면 이 주석 자리에 <section> 복원.
+       */}
     </div>
   );
 }
@@ -537,241 +523,3 @@ function SpaceHighlight({ metricLabel, zoneName, value, status }: SpaceHighlight
   );
 }
 
-// ─── 페르소나 분해 ───────────────────────────────────────────────────
-interface PersonaMetricDef {
-  label: string;
-  pick: (e: ProfileEngagement) => number;
-  formatter: (v: number) => string;
-  evaluate: ((v: number) => NormStatus) | null; // null = norm 없음, 상대 비교만
-  betterIs: 'higher' | 'lower';
-}
-
-function PersonaSection({
-  entries, zoneCount, mediaCount, onSelectProfile, selectedProfile,
-}: {
-  entries: readonly [VisitorProfileType, ProfileEngagement][];
-  zoneCount: number;
-  mediaCount: number;
-  onSelectProfile?: (profile: VisitorProfileType) => void;
-  selectedProfile: VisitorProfileType | null;
-}) {
-  const interactive = Boolean(onSelectProfile);
-  const completionAvail = zoneCount > 0;
-  const mediaAvail = mediaCount > 0;
-
-  const metrics: PersonaMetricDef[] = [
-    {
-      label: '평균 체류 (분)',
-      pick: (e) => e.avgDwellSec / 60,
-      formatter: (v) => v.toFixed(1),
-      evaluate: null,
-      betterIs: 'higher',
-    },
-    {
-      label: '완주율',
-      pick: (e) => e.fullCompletion,
-      formatter: pct,
-      evaluate: completionAvail ? (v) => evaluateNorm(NORMS.completion_rate, v) : null,
-      betterIs: 'higher',
-    },
-    ...(mediaAvail
-      ? [{
-          label: '작품 도달',
-          pick: (e: ProfileEngagement) => e.avgMedia / mediaCount,
-          formatter: pct,
-          evaluate: null,
-          betterIs: 'higher' as const,
-        }]
-      : []),
-    {
-      label: '평균 피로도',
-      pick: (e) => e.fatigueMean,
-      formatter: pct,
-      evaluate: (v) => evaluateNorm(NORMS.fatigue_mean, v),
-      betterIs: 'lower',
-    },
-  ];
-
-  // 가장 두드러진 outlier 1개 — norm bad 가 있으면 그것, 없으면 betterIs 기준 worst-vs-best 차이가 큰 것.
-  const highlight = pickPersonaHighlight(entries, metrics);
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-3">
-        <Users className="w-3.5 h-3.5 text-foreground/60" aria-hidden="true" />
-        <h3 className="text-[13px] font-semibold tracking-tight text-foreground">페르소나 분해</h3>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
-          profile 별 — exited 방문자 기준{interactive && ' · 클릭하여 분해'}
-        </span>
-        {highlight && <PersonaHighlight {...highlight} />}
-      </div>
-
-      <div className="overflow-x-auto">
-        <div className="min-w-[360px]">
-          <div
-            className="grid gap-2 mb-1.5 px-1"
-            style={{ gridTemplateColumns: `120px repeat(${entries.length}, minmax(0, 1fr))` }}
-          >
-            <span aria-hidden />
-            {entries.map(([type, e]) => {
-              const isSelected = selectedProfile === type;
-              const inner = (
-                <>
-                  <span className="text-[11px] text-foreground/80 truncate">
-                    {PROFILE_LABEL[type]}
-                  </span>
-                  <span className="text-[9px] text-muted-foreground/60 font-data tabular-nums">
-                    n={e.sampleCount}
-                  </span>
-                </>
-              );
-              if (!interactive) {
-                return (
-                  <div key={type} className="flex flex-col items-center">
-                    {inner}
-                  </div>
-                );
-              }
-              return (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => onSelectProfile!(type)}
-                  className={`flex flex-col items-center rounded-md px-1 py-0.5 transition-colors ${
-                    isSelected
-                      ? 'bg-primary/10 ring-1 ring-primary/40'
-                      : 'hover:bg-secondary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30'
-                  }`}
-                  aria-pressed={isSelected}
-                >
-                  {inner}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="space-y-1">
-            {metrics.map((m) => (
-              <PersonaRow
-                key={m.label}
-                metric={m}
-                entries={entries}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PersonaRow({
-  metric, entries,
-}: {
-  metric: PersonaMetricDef;
-  entries: readonly [VisitorProfileType, ProfileEngagement][];
-}) {
-  const values = entries.map(([, e]) => metric.pick(e));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const spread = max - min;
-
-  return (
-    <div
-      className="grid gap-2 items-center"
-      style={{ gridTemplateColumns: `120px repeat(${entries.length}, minmax(0, 1fr))` }}
-    >
-      <span className="text-[11px] text-muted-foreground/90 truncate">{metric.label}</span>
-      {entries.map(([type], i) => {
-        const v = values[i];
-        let status: NormStatus = 'unknown';
-        if (metric.evaluate) {
-          status = metric.evaluate(v);
-        } else if (spread > 0.05) {
-          // norm 없을 때 — 상대 비교: 그룹 내 가장 안 좋은 것을 warn 으로.
-          const isWorst = metric.betterIs === 'higher' ? v === min : v === max;
-          const isBest = metric.betterIs === 'higher' ? v === max : v === min;
-          if (isWorst) status = 'warn';
-          else if (isBest) status = 'good';
-        }
-        return (
-          <div
-            key={type}
-            className={`h-7 rounded-md flex items-center justify-center text-[11px] font-data tabular-nums ${STATUS_BG[status]}`}
-            title={`${PROFILE_LABEL[type]} ${metric.label}: ${metric.formatter(v)}`}
-          >
-            {metric.formatter(v)}
-            {!Number.isFinite(v) && '—'}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-interface PersonaHighlightInfo {
-  metricLabel: string;
-  worstProfile: VisitorProfileType;
-  worstValue: string;
-  status: NormStatus;
-}
-
-function pickPersonaHighlight(
-  entries: readonly [VisitorProfileType, ProfileEngagement][],
-  metrics: readonly PersonaMetricDef[],
-): PersonaHighlightInfo | null {
-  // 우선순위: norm-bad > norm-warn > 큰 상대 격차.
-  let candidate: PersonaHighlightInfo | null = null;
-  let best: { rank: number; spread: number } = { rank: 0, spread: 0 };
-
-  for (const m of metrics) {
-    const vals = entries.map(([t, e]) => ({ t, v: m.pick(e) }));
-    if (m.evaluate) {
-      for (const x of vals) {
-        const s = m.evaluate(x.v);
-        const rank = s === 'bad' ? 3 : s === 'warn' ? 2 : 0;
-        if (rank > best.rank) {
-          best = { rank, spread: 0 };
-          candidate = {
-            metricLabel: m.label,
-            worstProfile: x.t,
-            worstValue: m.formatter(x.v),
-            status: s,
-          };
-        }
-      }
-    } else {
-      // 상대 비교만 가능 — 격차로 후보화 (warn level).
-      const sorted = [...vals].sort((a, b) =>
-        m.betterIs === 'higher' ? a.v - b.v : b.v - a.v,
-      );
-      const worst = sorted[0];
-      const bestVal = sorted[sorted.length - 1];
-      const spread = Math.abs(bestVal.v - worst.v);
-      if (best.rank === 0 && spread > best.spread && spread > 0.15) {
-        best = { rank: 0, spread };
-        candidate = {
-          metricLabel: m.label,
-          worstProfile: worst.t,
-          worstValue: m.formatter(worst.v),
-          status: 'warn',
-        };
-      }
-    }
-  }
-  return candidate;
-}
-
-function PersonaHighlight({ metricLabel, worstProfile, worstValue, status }: PersonaHighlightInfo) {
-  const tone = status === 'bad'
-    ? 'text-[var(--status-danger)]'
-    : status === 'warn'
-      ? 'text-[var(--status-warning)]'
-      : 'text-muted-foreground';
-  return (
-    <span className={`ml-auto inline-flex items-center gap-1 text-[10px] font-medium ${tone}`}>
-      <AlertCircle className="w-3 h-3" />
-      {PROFILE_LABEL[worstProfile]} {metricLabel} {worstValue}
-    </span>
-  );
-}

@@ -324,8 +324,10 @@ export function computeOperationsMetrics(props: CardProps): {
 
   const metrics: PerspectiveMetric[] = [
     {
-      // "전시" prefix 로 명시적 — "70%+ zone 본 visitor" 임을 라벨로 신호
-      label: '전시 완주율',
+      // 2026-05-16: 정의 명시 — 한 시뮬에서 "완주율" 이름의 metric 4개가
+      // 다른 임계로 계산되고 있어서 (5번 audit 결과) 라벨에 임계 표시.
+      // "전시 완주율 (≥70% 존)" = 의도된 동선의 70% 이상 본 visitor / ALL.
+      label: '전시 완주율 (≥70%)',
       displayValue: pct(completion),
       norm: NORMS.completion_rate,
       status: completionStatus,
