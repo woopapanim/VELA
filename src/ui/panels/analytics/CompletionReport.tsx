@@ -52,7 +52,10 @@ export function CompletionReport() {
       avgDwellTimeMs: avgDwell,
       peakCongestionRatio: Math.max(...latestSnapshot.zoneUtilizations.map((u) => u.ratio), 0),
       bottleneckCount: latestSnapshot.bottlenecks.filter((b) => b.score > 0.5).length,
-      globalSkipRate: latestSnapshot.skipRate.globalSkipRate,
+      // ReportSummary field name kept for serialization compat; value is now
+      // approachSkipRate (true 0-1 ratio). globalSkipRate could exceed 100%
+      // and misled the displayed "Skip Rate" stat.
+      globalSkipRate: latestSnapshot.skipRate.approachSkipRate,
       completionRate: exited.length > 0
         ? exited.filter((v) => v.visitedZoneIds.length >= 3).length / exited.length
         : 0,
@@ -132,7 +135,7 @@ export function CompletionReport() {
       const utilCols = zoneIds.map((id) => Math.round((utilMap.get(id)?.ratio ?? 0) * 100));
       const fatigue = Math.round(s.fatigueDistribution.mean * 100);
       const bottlenecks = s.bottlenecks.filter((b) => b.score > 0.5).length;
-      const skipRate = Math.round(s.skipRate.globalSkipRate * 100);
+      const skipRate = Math.round(s.skipRate.approachSkipRate * 100);
       csv += `${Math.round(entry.timestamp / 1000)},${occCols.join(',')},${utilCols.join(',')},${fatigue},${bottlenecks},${skipRate}\n`;
     }
     download(csv, 'text/csv;charset=utf-8', `vela-zone-${scenario?.meta.name ?? 'export'}.csv`, true);
