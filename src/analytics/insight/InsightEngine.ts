@@ -129,8 +129,11 @@ export function generateInsights(
 
   // ══════════════════════════════════
   // 4. Skip Rate Warning
+  // 2026-05-16: globalSkipRate → approachSkipRate. global 은 visitor 당 평균
+  // skip 횟수라 100% 초과 가능 → "스킵률 217%" 같은 misleading 표시. approach
+  // 는 도착 시도 중 실제 skip 한 비율 (0~1) — 사용자 직관 일치.
   // ══════════════════════════════════
-  if (snapshot.skipRate.globalSkipRate > 0.3) {
+  if (snapshot.skipRate.approachSkipRate > 0.3) {
     const highSkipMedia = snapshot.skipRate.perMedia.filter((m) => m.rate > 0.4);
     const mediaById = new Map((media ?? []).map((m) => [m.id as string, m]));
     const nameOf = (id: string): string => {
@@ -148,7 +151,7 @@ export function generateInsights(
       problem: topNames.length > 0
         ? t('insight.skip.problem.withNames', { names: namesText })
         : t('insight.skip.problem'),
-      cause: t('insight.skip.cause', { pct: Math.round(snapshot.skipRate.globalSkipRate * 100) }),
+      cause: t('insight.skip.cause', { pct: Math.round(snapshot.skipRate.approachSkipRate * 100) }),
       recommendation: highSkipMedia.length > 0
         ? t('insight.skip.rec.withHighSkip', { count: highSkipMedia.length, names: namesText })
         : t('insight.skip.rec.default'),

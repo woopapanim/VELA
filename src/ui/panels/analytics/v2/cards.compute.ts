@@ -572,7 +572,9 @@ function buildSpaceTrend(history?: readonly KpiTimeSeriesEntry[]): PerspectiveTr
 function buildArtworkTrend(history?: readonly KpiTimeSeriesEntry[]): PerspectiveTrend | undefined {
   if (!history || history.length < 2) return undefined;
   const sampled = downsample(history, 16);
-  const values = sampled.map((e) => e.snapshot.skipRate.globalSkipRate);
+  // Use approachSkipRate (true 0-1 ratio) for sparkline display — globalSkipRate
+  // is visitor-avg skip count which can exceed 1.0 and breaks ratio visualization.
+  const values = sampled.map((e) => e.snapshot.skipRate.approachSkipRate);
   return { values, threshold: NORMS.skip_rate.warnAt, shape: classifySparklineShape(values, true), isRatio: true };
 }
 

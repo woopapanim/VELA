@@ -84,7 +84,11 @@ export function computeTimeSlices(
 
     // 정체 시간% — slice-local: (cumAtEnd - cumAtStart) / sliceDurationMs, 가장 심한 zone.
     const congestionRatio = sliceCongestion(startSnap, endSnap);
-    const skipRate = endSnap.snapshot.skipRate.globalSkipRate;
+    // 2026-05-16: globalSkipRate → approachSkipRate. global 은 visitor 당 평균
+    // skip 횟수 (totalSkips/totalVisitors) 라 visitor 가 미디어 여러 개 skip 시
+    // 100% 초과 가능 (사용자 화면에서 "스킵률 217%" 로 노출되던 버그). approach
+    // 는 totalSkips/totalApproaches 라 0~1 보장 — 사용자 직관 일치.
+    const skipRate = endSnap.snapshot.skipRate.approachSkipRate;
     const throughputPerHour = endSnap.snapshot.flowEfficiency.throughputPerMinute * 60;
     const fatigueMean = endSnap.snapshot.fatigueDistribution.mean;
 
