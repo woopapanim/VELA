@@ -1,10 +1,24 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Trash2, Copy } from 'lucide-react';
 import { useStore } from '@/stores';
 import { MEDIA_SCALE, MEDIA_SQMETER_PER_PERSON } from '@/domain';
 import type { Vector2D, MediaPlacement, MediaId } from '@/domain';
 import { InfoTooltip } from '@/ui/components/InfoTooltip';
 import { useT } from '@/i18n';
+
+// Same severity bands as SimQualityCard so click-through from Analyze
+// reaches a consistent color signal in the editor.
+const STUCK_RATE_HIGH = 0.20;
+const STUCK_RATE_MED = 0.10;
+
+function stuckSuggestion(intType: string, rate: number): string {
+  if (intType === 'active' || intType === 'staged') {
+    return 'Per-device 모델 — Duplicate (또는 Ctrl+C/V) 로 디바이스 더 배치';
+  }
+  if (rate > STUCK_RATE_HIGH) return '미디어 크기 키우거나 (cap ↑), 인접 zone 으로 분산';
+  if (rate > STUCK_RATE_MED) return 'Engagement 시간 단축 또는 cap 약간 ↑';
+  return '주변 visitor 밀도 정상 — 부분 부하';
+}
 
 const CATEGORY_BADGE: Record<string, { label: string; color: string }> = {
   analog: { label: 'Analog', color: '#a78bfa' },
@@ -27,6 +41,22 @@ export function MediaEditor() {
 
   const m = media.find((m) => (m.id as string) === selectedMediaId);
   const isLocked = phase === 'running' || phase === 'paused';
+
+  // Surface stuck diagnostic for the selected media so user knows WHY they
+  // landed here (typically via SimQualityCard click) and WHAT to try. Same
+  // data source as SimQualityCard — congestionDiag (stuck count) +
+  // latestSnapshot.skipRate (approach count) → rate %.
+  const congestionDiag = useStore((s) => s.congestionDiag);
+  const latestSnapshot = useStore((s) => s.latestSnapshot);
+  const stuckInfo = useMemo(() => {
+    if (!selectedMediaId || !congestionDiag) return null;
+    const entry = congestionDiag.stuckByMedia.find((sm) => sm.mediaId === selectedMediaId);
+    if (!entry || entry.count === 0) return null;
+    const approach = latestSnapshot?.skipRate?.perMedia.find((p) => (p.mediaId as string) === selectedMediaId);
+    const approaches = approach?.totalApproaches ?? 0;
+    const rate = approaches > 0 ? entry.count / approaches : 0;
+    return { count: entry.count, approaches, rate };
+  }, [selectedMediaId, congestionDiag, latestSnapshot]);
 
   const handleUpdate = useCallback(
     <K extends keyof MediaPlacement>(field: K, value: MediaPlacement[K]) => {
@@ -104,6 +134,37 @@ export function MediaEditor() {
       </div>
 
       <div className="space-y-2">
+
+      {/* Stuck diagnostic banner — shown only when this media has stuck events.
+          Helps user know what to actually edit after clicking through from
+          SimQualityCard ("뭘 고쳐야 하는지 모르겠다" feedback fix). */}
+      {stuckInfo && (() => {
+        const severity = stuckInfo.rate > STUCK_RATE_HIGH ? 'high'
+          : stuckInfo.rate > STUCK_RATE_MED ? 'med' : 'low';
+        const bg = severity === 'high' ? 'bg-[var(--status-danger)]/10 border-[var(--status-danger)]/30'
+          : severity === 'med' ? 'bg-[var(--status-warning)]/10 border-[var(--status-warning)]/30'
+          : 'bg-secondary/40 border-border';
+        const rateColor = severity === 'high' ? 'text-[var(--status-danger)]'
+          : severity === 'med' ? 'text-[var(--status-warning)]'
+          : 'text-muted-foreground';
+        const dot = severity === 'high' ? 'bg-[var(--status-danger)]'
+          : severity === 'med' ? 'bg-[var(--status-warning)]'
+          : 'bg-muted-foreground';
+        return (
+          <div className={`mb-2 p-2 rounded-md border ${bg}`}>
+            <div className="flex items-center gap-1.5 text-[10px] mb-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+              <span className="font-medium text-foreground">Sim Quality</span>
+              <span className={`font-data ${rateColor}`}>
+                {stuckInfo.count} stuck ({(stuckInfo.rate * 100).toFixed(0)}%)
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-snug pl-3">
+              💡 {stuckSuggestion(interactionType, stuckInfo.rate)}
+            </p>
+          </div>
+        );
+      })()}
 
       {/* Name */}
       <div>

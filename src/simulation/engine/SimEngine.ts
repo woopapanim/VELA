@@ -40,7 +40,7 @@ import type {
   ElevatorShaft,
   DensityGrid,
 } from '@/domain';
-import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT, REST_ZONE_DEFAULT_DWELL_MS } from '@/domain';
+import { SIMULATION_PHASE, VISITOR_ACTION, STEERING_BEHAVIOR, MEDIA_SCALE, MEDIA_PRESETS, FATIGUE_ACTION_MULT, REST_ZONE_DEFAULT_DWELL_MS, effectiveMediaCapacity } from '@/domain';
 import { createSeededRandom, type SeededRandom } from '../utils/random';
 import { clampMagnitude } from '../utils/math';
 import { SpatialHash } from '../collision/detection';
@@ -2450,19 +2450,11 @@ export class SimulationEngine {
     return o !== 0 && o !== 180;
   }
 
-  /** Effective capacity for hard-cap selection filtering.
-   *  Matches the cap used at WATCHING entry in stepBehavior:
-   *  - analog: soft cap derived from perimeter (fallback to declared capacity)
-   *  - passive/active/staged: declared capacity
-   */
+  /** Thin wrapper around the pure `effectiveMediaCapacity` from `@/domain`.
+   *  Same formula, just exposed as a domain function so the renderer can show
+   *  the same number. Engine behavior unchanged — this is a refactor only. */
   private effectiveMediaCapacity(m: MediaPlacement): number {
-    const intType = m.interactionType ?? 'passive';
-    if (intType === 'analog') {
-      const pwM = m.size.width, phM = m.size.height;
-      const autoCap = Math.max(2, Math.floor((2 * (pwM + phM)) / 0.8));
-      return Math.max(m.capacity || 0, autoCap);
-    }
-    return Math.max(1, m.capacity || 1);
+    return effectiveMediaCapacity(m);
   }
 
   /** 현재 시점에 이 방문자가 해당 미디어에 대해 스킵 쿨다운 중인지 */
