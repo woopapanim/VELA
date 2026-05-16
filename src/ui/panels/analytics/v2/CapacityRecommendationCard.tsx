@@ -44,6 +44,7 @@ export function CapacityRecommendationCard({ recommendation, sweepInput }: Props
     totalAreaM2,
     perPersonTargetM2,
     recommendedConcurrent,
+    egressMaxConcurrent,
     currentPolicyMode,
     currentPolicyMaxConcurrent,
     observedPeakConcurrent,
@@ -151,11 +152,11 @@ export function CapacityRecommendationCard({ recommendation, sweepInput }: Props
       {/* 핵심 4 수치 — 권장 / 정책 / 관측 / knee */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <NumberTile
-          label="권장"
+          label="쾌적 권장"
           value={recommendedConcurrent}
           unit="명"
           accent="good"
-          sub={`${Math.round(totalAreaM2)}m² ÷ ${perPersonTargetM2}m²/인`}
+          sub={`${Math.round(totalAreaM2)}m² ÷ ${perPersonTargetM2}m²/인 · 안전 상한 ${egressMaxConcurrent}명`}
         />
         <NumberTile
           label="현재 정책"
@@ -259,10 +260,12 @@ export function CapacityRecommendationCard({ recommendation, sweepInput }: Props
           <div className="flex items-start gap-1.5">
             <Info className="w-3 h-3 text-primary/80 flex-shrink-0 mt-0.5" aria-hidden />
             <div>
-              <div className="font-medium mb-0.5">산식 — total area ÷ 1.5m²/인</div>
+              <div className="font-medium mb-0.5">산식 — total area ÷ {perPersonTargetM2}m²/인</div>
               <p className="text-muted-foreground">
-                NFPA 101 / WELL Building Standard 의 인파 안전 기준. 1.5m² 미만은 체감 정체,
-                1.0m² 미만은 위험 수준으로 분류됩니다. 본 권장은 floor-level 동시 수용 상한 가이드입니다.
+                미술관/전시 업계 comfortable viewing density (갤러리 4-7m², 체험형 3-5m²) 기준.
+                정상 관람·동선·체감 여유 모두 허용되는 운영 권장값입니다.
+                참고로 NFPA 101 emergency egress 상한은 1.5m²/인 (=총 {egressMaxConcurrent}명)
+                인데, 이는 화재 시 대피 가능 절대 상한이라 운영 목표가 아닌 안전 ceiling 입니다.
               </p>
             </div>
           </div>

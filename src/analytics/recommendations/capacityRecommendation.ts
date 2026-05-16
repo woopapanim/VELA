@@ -7,11 +7,24 @@ import type { OperationsConfig } from '@/domain/types/operations';
 import type { NormStatus } from '@/analytics/norms';
 
 // Step 4a — 산식 기반 권장 동시 수용인원.
-// NFPA 101 / WELL Building Standard 의 1.5m²/person 안전 기준에서 도출.
-// recommended = floor(totalArea / 1.5).
+//
+// 2026-05-16 (사용자 audit): 이전 기준 1.5m²/person 은 NFPA 101 의 emergency
+// egress (화재 시 대피 가능) 절대 상한이라 전시/미술관 같은 comfortable
+// viewing 환경엔 라벨이 misleading. 5594명 권장 vs 실제 시나리오 200명 운영
+// → "권장의 3% 활용" 라는 헷갈리는 표시 유발.
+//
+// 신규 기준 5.0m²/person — 미술관/전시 업계 comfortable density (gallery
+// 4-7m², 체험형 3-5m²). 이게 운영 목표로 의미 있는 "권장". NFPA 1.5m² 는
+// 별개의 "안전 상한 (egress max)" 으로 분리 노출 (PER_PERSON_AREA_EGRESS_M2).
+//
+// recommended = floor(totalArea / 5.0).
 // 관측 peak 와 정책 maxConcurrent 를 권장값에 비교해 status + reading 산출.
 
-export const PER_PERSON_AREA_TARGET_M2 = 1.5;
+/** 미술관/전시 쾌적 운영 기준 — comfortable viewing/circulation density. */
+export const PER_PERSON_AREA_TARGET_M2 = 5.0;
+/** NFPA 101 / WELL Building Standard egress 상한 — 화재 시 대피 가능 최대 밀집도.
+ *  쾌적 권장과 분리해 표시; 운영 권장이 아닌 안전 ceiling. */
+export const PER_PERSON_AREA_EGRESS_M2 = 1.5;
 // Step 4b — zone ratio (peak occupancy / capacity) 가 이 값을 처음 넘는 시점 = knee.
 // peak_ratio norm 의 warnAt(0.9) 대신 goodAt(0.7) 사용 — "체감 정체 시작" 지점이 더 운영적으로 의미 있음.
 export const KNEE_RATIO_THRESHOLD = 0.7;
@@ -29,7 +42,9 @@ export interface KneePoint {
 export interface CapacityRecommendation {
   readonly totalAreaM2: number;
   readonly perPersonTargetM2: number;
-  readonly recommendedConcurrent: number;          // floor(totalArea / 1.5)
+  readonly recommendedConcurrent: number;          // floor(totalArea / 5.0) — 쾌적 권장
+  /** 면적당 emergency egress 상한 (NFPA 101: 1.5m²/인). 운영 권장이 아닌 안전 ceiling. */
+  readonly egressMaxConcurrent: number;            // floor(totalArea / 1.5)
   readonly currentPolicyMode: string | null;       // entryPolicy.mode (있으면)
   readonly currentPolicyMaxConcurrent: number | null;
   readonly observedPeakConcurrent: number;
@@ -53,6 +68,7 @@ export function computeCapacityRecommendation(args: {
 
   const totalAreaM2 = zones.reduce((s, z) => s + (z.area ?? 0), 0);
   const recommendedConcurrent = Math.max(0, Math.floor(totalAreaM2 / PER_PERSON_AREA_TARGET_M2));
+  const egressMaxConcurrent = Math.max(0, Math.floor(totalAreaM2 / PER_PERSON_AREA_EGRESS_M2));
 
   // 관측 peak — 각 timestep 의 zone occupancy 합의 max.
   const concurrentSeries = computeConcurrentSeries(kpiHistory, latestSnapshot);
@@ -106,6 +122,7 @@ export function computeCapacityRecommendation(args: {
     totalAreaM2,
     perPersonTargetM2: PER_PERSON_AREA_TARGET_M2,
     recommendedConcurrent,
+    egressMaxConcurrent,
     currentPolicyMode,
     currentPolicyMaxConcurrent,
     observedPeakConcurrent,
