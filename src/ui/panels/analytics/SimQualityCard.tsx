@@ -43,7 +43,14 @@ function suggestionFor(intType: string, stuckRate: number): MediaSuggestion {
   return { text: '주변 visitor 밀도 정상 — 부분 부하' };
 }
 
-export function SimQualityCard() {
+interface Props {
+  /** Optional — when provided, clicking a media row navigates to Build phase
+   *  (selection + camera focus already applied to store). Without it, the card
+   *  still updates store but user has to navigate manually. */
+  readonly onNavigateToBuild?: () => void;
+}
+
+export function SimQualityCard({ onNavigateToBuild }: Props = {}) {
   const diag = useStore((s) => s.congestionDiag);
   const latestSnapshot = useStore((s) => s.latestSnapshot);
   const selectMedia = useStore((s) => s.selectMedia);
@@ -90,6 +97,10 @@ export function SimQualityCard() {
     selectMedia(mediaId as MediaId);
     const target = media.find((x) => (x.id as string) === mediaId);
     if (target) setFocusTarget({ x: target.position.x, y: target.position.y, zoom: 2 });
+    // Auto-navigate to Build so the user immediately sees the hotspot in
+    // canvas instead of needing to switch pages manually (the click-to-focus
+    // effect only manifests on a mounted CanvasPanel).
+    onNavigateToBuild?.();
   };
 
   return (

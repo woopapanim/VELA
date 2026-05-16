@@ -504,7 +504,7 @@ export function AnalyzeLayout({ onBackToSimulate, onBackToBuild }: Props) {
             {/* Sim-quality indicator — KPIs above are reliable only when stuck
                 events stay low. Sits near the top so users see data-quality
                 context before reading the verdict deeply. */}
-            <SimQualityCard />
+            <SimQualityCard onNavigateToBuild={onBackToBuild} />
 
             {/* SPATIAL HEATMAP — 도면 위 zone 별 점유율 시각화 (2026-04-30).
                 중요한 자리에 큼지막하게 — verdict 와 PatternBlock 사이.
