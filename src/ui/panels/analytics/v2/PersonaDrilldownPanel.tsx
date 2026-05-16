@@ -67,7 +67,7 @@ export function PersonaDrilldownPanel({ breakdown, onClose }: Props) {
             status="unknown"
           />
           <MetricRow
-            label="완주율"
+            label="완주율 (≥70%)"
             value={pct(fullCompletion)}
             status={lowSample ? 'unknown' : completionStatus}
           />
@@ -96,7 +96,7 @@ export function PersonaDrilldownPanel({ breakdown, onClose }: Props) {
             status={deltaStatus(mediaVsAvg, false, 0.5)}
           />
           <MetricRow
-            label="완주율"
+            label="완주율 (≥70%)"
             value={formatDelta(completionVsAvg, 'pct')}
             status={deltaStatus(completionVsAvg, false, 0.15)}
           />

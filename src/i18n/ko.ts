@@ -145,7 +145,7 @@ export const ko: Dict = {
   'analyze.engagement.avgZones': '평균 방문 존',
   'analyze.engagement.avgMedia': '평균 관람 미디어',
   'analyze.engagement.avgDwell': '평균 체류시간',
-  'analyze.engagement.fullCompletion': '전 존 완주율',
+  'analyze.engagement.fullCompletion': '완주율 (≥70%)',
   'analyze.detail.title': '상세 분석',
   'analyze.detail.hint': '탭별 깊이 있는 차트와 데이터',
   'analyze.rail.title': '핵심 인사이트',

@@ -178,11 +178,11 @@ export interface ReportFlow {
   readonly throughputPerMin: number;
   /** Configured spawn rate × 60 (same as system.spawnRatePerMin). Mirrored for convenience. */
   readonly spawnRatePerMin: number;
-  /** 완주율 = 퇴장자 중 전체 존의 80% 이상 방문한 비율 (0..1). */
+  /** 완주율 = 퇴장자 중 전체 존의 ≥COMPLETION_ZONE_RATIO (=70%) 방문한 비율 (0..1). */
   readonly completionRate: number;
-  /** 조기이탈률 = 퇴장자 중 전체 존의 20% 이하 방문한 비율 (0..1). */
+  /** 조기이탈률 = 퇴장자 중 전체 존의 ≤EARLY_EXIT_ZONE_RATIO (=20%) 방문한 비율 (0..1). */
   readonly earlyExitRate: number;
-  /** 완주 판정에 필요한 최소 존 개수 (nZones × 0.8, 올림). UI 라벨 표기용. */
+  /** 완주 판정에 필요한 최소 존 개수 (nZones × COMPLETION_ZONE_RATIO, 올림). UI 라벨 표기용. */
   readonly completionThreshold: number;
   /** 조기 이탈 판정에 걸리는 최대 존 개수 (nZones × 0.2, 내림, 최소 1). UI 라벨 표기용. */
   readonly earlyExitThreshold: number;
@@ -527,7 +527,9 @@ export function toReportData(input: ToReportDataInput): ReportData {
   }
 
   // ---- Derived top-level KPIs --------------------------------------------
-  // 완주율 = ≥80% 존 방문 / 퇴장자.
+  // 완주율 = ≥COMPLETION_ZONE_RATIO (=70%) 존 방문 / 퇴장자. (이전 주석엔
+  // ≥80% 라고 적혀있었지만 실제로는 highMin = ceil(nZones * 0.7) 사용 중이라
+  // 거짓 주석이었음. 2026-05-16 정정.)
   const completionRate = exited.length > 0 ? fb.high / exited.length : 0;
   // 퇴장률 = 퇴장자 / 전체 스폰. "시뮬 시간 안에 투어를 마친 사람" 비율 (다른 차원의 정보).
   const exitRate = visitors.length > 0 ? exited.length / visitors.length : 0;

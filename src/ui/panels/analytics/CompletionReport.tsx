@@ -3,7 +3,7 @@ import { FileText, Download, TableProperties, FileDown, Maximize2 } from 'lucide
 import { useStore } from '@/stores';
 import { generateInsights } from '@/analytics';
 import type { StructuredReport, ReportSummary, SpaceAnalysisEntry } from '@/domain';
-import { INTERNATIONAL_DENSITY_STANDARD } from '@/domain';
+import { INTERNATIONAL_DENSITY_STANDARD, COMPLETION_ZONE_RATIO } from '@/domain';
 import { useT } from '@/i18n';
 import { FullReportV2 as FullReport } from '@/ui/reports/vela/FullReportV2';
 
@@ -56,8 +56,10 @@ export function CompletionReport() {
       // approachSkipRate (true 0-1 ratio). globalSkipRate could exceed 100%
       // and misled the displayed "Skip Rate" stat.
       globalSkipRate: latestSnapshot.skipRate.approachSkipRate,
-      completionRate: exited.length > 0
-        ? exited.filter((v) => v.visitedZoneIds.length >= 3).length / exited.length
+      // 2026-05-16: hardcoded ≥3 zones → ≥COMPLETION_ZONE_RATIO (0.7) 으로 통일.
+      // 다른 surface ("전시 완주율" 운영 perspective, 페르소나 분해) 와 정의 일치.
+      completionRate: exited.length > 0 && zones.length > 0
+        ? exited.filter((v) => v.visitedZoneIds.length >= Math.max(1, Math.ceil(zones.length * COMPLETION_ZONE_RATIO))).length / exited.length
         : 0,
     };
 

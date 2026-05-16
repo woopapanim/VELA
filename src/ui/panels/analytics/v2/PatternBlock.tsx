@@ -568,7 +568,10 @@ function PersonaSection({
       betterIs: 'higher',
     },
     {
-      label: '완주율',
+      // 통일된 임계 — ≥70% 존 방문 (COMPLETION_ZONE_RATIO).
+      // 운영 perspective 의 '전시 완주율 (≥70%)' 과 같은 정의 (분모만 다름:
+      // 여기는 페르소나별 exited, 운영은 ALL visitors).
+      label: '완주율 (≥70%)',
       pick: (e) => e.fullCompletion,
       formatter: pct,
       evaluate: completionAvail ? (v) => evaluateNorm(NORMS.completion_rate, v) : null,
